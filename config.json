@@ -1,0 +1,32 @@
+{
+  "safety": {
+    "paper": true,
+    "live_trading_enabled": false,
+    "dry_run": true,
+    "data_feed": "indicative"
+  },
+  "database": {
+    "path": "data/dramatic_options.db"
+  },
+  "risk_budget": {
+    "_comment": "Placeholders — the real risk model lands in Phase 4. Do not rely on these.",
+    "per_trade_max_loss_pct": 0.01,
+    "kelly_fraction": 0.5,
+    "max_concurrent_positions": 10,
+    "max_per_name": 2,
+    "max_per_theme_pct": 0.25,
+    "max_gross_premium_at_risk_pct": 0.30,
+    "daily_loss_halt_pct": 0.05,
+    "drawdown_warn_pct": 0.10,
+    "drawdown_halt_pct": 0.15,
+    "drawdown_panic_pct": 0.20
+  },
+  "schedule": {
+    "_comment": "Daily L1 post-close scan + intraday L2 loop land in later phases.",
+    "daily_scan_utc": "21:15",
+    "monitor_interval_seconds": 60
+  },
+  "models": {
+    "_comment": "Heterogeneous router config — Phase 3. Stub only."
+  }
+}

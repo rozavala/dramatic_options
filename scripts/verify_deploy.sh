@@ -26,17 +26,19 @@ if [ "${DISK_USAGE:-0}" -gt 90 ]; then
 fi
 
 # -------------------------------------------------------------------------
-# CHECK 2: Python imports / dependencies (only if a package is present)
+# CHECK 2: Core module imports (flat layout — no top-level package)
 # -------------------------------------------------------------------------
-echo "  [verify] Checking Python imports..."
-if [ -f "pyproject.toml" ] || [ -d "dramatic_options" ]; then
-    if ! python -c "import dramatic_options" 2>/dev/null; then
-        echo "  [verify] CRITICAL: Cannot import dramatic_options package"
-        echo "$(date --iso=s) — FAIL: package import" >> "$HEALTH_LOG"
+echo "  [verify] Checking core module imports..."
+if [ -f "config_loader.py" ]; then
+    PYBIN="python"
+    [ -x "venv/bin/python" ] && PYBIN="venv/bin/python"
+    if ! "$PYBIN" -c "import config_loader" 2>/dev/null; then
+        echo "  [verify] CRITICAL: cannot import config_loader"
+        echo "$(date --iso=s) — FAIL: import config_loader" >> "$HEALTH_LOG"
         FAILED=1
     fi
 else
-    echo "  [verify] (no package yet — skipping import check)"
+    echo "  [verify] (config_loader.py not present yet — skipping import check)"
 fi
 
 # -------------------------------------------------------------------------
@@ -57,8 +59,7 @@ fi
 # CHECK 4: Critical files exist
 # -------------------------------------------------------------------------
 echo "  [verify] Checking critical files..."
-# TODO: add the app entry point here once it exists, e.g. "app.py".
-CRITICAL_FILES=("deploy.sh")
+CRITICAL_FILES=("deploy.sh" "orchestrator.py")
 for _f in "${CRITICAL_FILES[@]}"; do
     if [ ! -f "$_f" ]; then
         echo "  [verify] CRITICAL: Missing $_f"
