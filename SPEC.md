@@ -1,0 +1,320 @@
+# Dramatic Options — Architecture & Build Spec (v1)
+
+> **For a fresh Claude Code session:** this is the north-star spec for a new, standalone
+> equity-options trading system. Read it fully before starting. It is a sibling to an
+> existing commodity-options system ("Real Options") but a **separate codebase** — reuse
+> patterns, not a code dependency. This doc is the architecture and the *why*; the
+> canonical, task-level build order lives in **IMPLEMENTATION_PLAN.md** (work it one phase
+> per session, in plan mode). Paper-first. Live trades only after §13's gates are met.
+>
+> This is engineering scaffolding, not financial advice. The edge is a hypothesis to
+> validate, not a given.
+
+---
+
+## 0. North star
+
+A single, deliberately-aggressive, risk-managed, multi-agent system that trades **US
+equity & ETF options** on a **thesis-first thematic** basis. It discovers themes and
+mispricings from evidence, forms time-bounded theses via an adversarial AI council,
+expresses them as **defined-risk option structures** on high-beta names, sizes them by
+**fractional Kelly against a hard risk budget**, and manages them with fast, deterministic
+exits. The brain is slow and deliberate; the reflexes are fast and dumb-by-design.
+
+---
+
+## 1. Converged design decisions (quick reference)
+
+| Decision | Choice |
+|---|---|
+| System count | **One** system, standalone repo, isolated from Real Options |
+| Broker | **Alpaca** (commission-free options, REST API, paper-first) |
+| Asset scope | US equity & ETF options; defined-risk multi-leg (MLEG) |
+| Shape | **Thesis-first thematic** (not bottom-up single-name screen) |
+| Core edge | **Narrative-vs-delivery divergence** |
+| Discovery | Two-layer, evidence-based; **deferred to a late phase** — start with a hand-seeded theme/basket list |
+| Traceability | Causal driver graph (drivers → themes → companies); built late |
+| Timing | Hybrid: slow brain (daily + event) / fast reflexes (intraday) |
+| Lanes | L1 thesis engine · L2 position monitor · L3 opportunistic trigger (default = event-accelerated L1) |
+| Risk posture | **Disciplined aggression**: high-beta universe, defined-risk, fractional Kelly, portfolio caps |
+| Account size | $50–100k (above $25k → PDT not a constraint) |
+| Sequencing | **Validate the edge in backtest/paper before scaling aggression or leverage** |
+
+---
+
+## 2. The edge (what the whole system serves)
+
+**Narrative-vs-delivery divergence.** For each theme and name, measure two things
+separately: how loud/confident the *story* is (breadth and rate-of-change of coverage,
+analyst/retail intensity — from text) and what the *substance* is actually delivering
+(guidance, contracts, shipments, margins — from filings). Trade the gap:
+
+- substance quietly outrunning a quiet story → **long** (under-the-radar acceleration);
+- story outrunning substance → **fade / short** (hype exceeding delivery).
+
+This is causal and falsifiable, not vibes, and it is the system's mispricing detector.
+It is **not arbitrage**: it is convergence risk (cheap can get cheaper), and the catalyst
+that closes the gap runs on its own clock — so exits anchor to catalysts and falsifiers,
+not to an assumption of speed.
+
+**Mandate:** prove this signal predicts reversals/continuation on historical data before
+any capital — let alone leverage — rides on it.
+
+---
+
+## 2a. Backtesting & validation
+
+The system is split so it can be validated honestly:
+
+- **The deterministic spine is backtestable** — divergence scoring, momentum/IV signals,
+  structure selection, sizing, exits. This is the optimization surface: **walk-forward,
+  out-of-sample, risk-adjusted** (never raw-profit maximization), on strictly
+  **point-in-time** data (no restated fundamentals, no lookahead).
+- **The LLM council is NOT backtested historically.** Training-data lookahead makes a
+  historical "agent backtest" meaningless — the model already knows what happened next.
+  Agents are validated **forward** on unseen, post-cutoff data via Brier + contribution
+  scoring.
+- **Surrogate distillation is deferred** (see §14) — overkill until there's a working
+  backtest plus substantial forward council history to distill.
+
+---
+
+## 3. System shape & the three lanes
+
+**L1 — Slow thesis engine (the brain).** Daily post-close scan + event-driven triggers.
+Pipeline: discovery → divergence scoring → council debate → **thesis** (direction,
+conviction, timeframe) + **playbook** (entry conditions, falsifiers, exit rules, and
+pre-authorized intraday contingencies). All deliberation lives here. ≈ Real Options'
+scheduled council cycles.
+
+**L2 — Fast position monitor (the reflexes).** Tight intraday loop, deterministic, **no
+LLM**. Watches open positions against the falsifiers / profit targets / stops L1 set, and
+fires exits. Cheap, fast, robust to broker latency. ≈ Real Options' continuous
+exit/drawdown monitoring. It does not think — the intelligence was front-loaded at entry.
+
+**L3 — Opportunistic trigger (fast intake).** A material intraday event (8-K, sweep, gap)
+on a *tracked* name fast-tracks L1 to an accelerated-but-still-vetted decision. This is
+the **default (event-accelerated L1)** behavior. A genuine separate fast-alpha engine
+(intraday flow/microstructure trading on its own logic) is **explicitly out of scope for
+v1** — it is a different machine with real-time-data and risk requirements, to be
+considered only as a later, separately-risk-budgeted subsystem.
+
+**Principle:** open slow, close fast. Patient on entry (missing an entry is cheap),
+reactive on exit (slow exits compound losses and bleed theta). Anything fast is
+**pre-authorized, never improvised**.
+
+---
+
+## 4. Components / modules
+
+- **`discovery`** — two-layer, evidence-based. Layer 1: cluster co-moving language across
+  filings, transcripts, patents, regulatory dockets, job postings to surface emergent
+  themes (pre-consensus). Layer 2: assign basket membership by *evidence of exposure*, not
+  sector label, surfacing non-obvious names. (Generalizes Real Options' `TopicDiscoveryAgent`.)
+- **`divergence`** — the core scorer (§2): story-intensity vs substance-delivery, per
+  theme and name; outputs the signed divergence and a rationale.
+- **`themes`** — theme/thesis store: each theme's thesis, basket, signals, lifecycle state.
+- **`graph`** — causal driver graph (drivers → themes → companies, timestamped,
+  evidence-weighted) for traceability and second-order discovery. **Built late** (Phase 6+).
+- **`council/`** — Tier-2 specialists + Tier-3 debate (see §5).
+- **`risk`** / **`sizing`** — fractional-Kelly sizing, risk budget, portfolio caps,
+  drawdown breaker, compliance gate (§6).
+- **`execution`** — Alpaca MLEG order construction/submission (defined-risk structures),
+  adaptive limit walking, liquidity gate, missed-order persistence.
+- **`monitor`** — the L2 fast loop (intraday exits, falsifier checks).
+- **`observability`** — funnel diagnostics, debate forensics, abstention monitor, **cost
+  ledger per stage** (first-class — the whole design is a cost argument).
+- **`data/`** — adapters (§8).
+
+---
+
+## 5. The Council (runs on the shortlist only)
+
+**Tier-2 specialists** (LLM, routed per role via the heterogeneous router):
+- Fundamental / Filings (10-K/Q, 8-K, guidance; long context → Gemini)
+- Catalyst / Event (earnings, FDA, M&A, product)
+- Volatility / Options (IV term structure, skew, flow; code-tool-augmented for greeks)
+- Technical (chart structure, momentum, levels)
+- Macro / Sector (rates, dollar, sector tailwind/headwind, relative value)
+- Sentiment (retail/social crowd psychology → Grok)
+- Smart-Money / Insider (Form 4 clusters, 13F, 13D activists)
+
+**Tier-3 decision & risk** (reuse Real Options designs, re-ground prompts):
+- Permabull / Permabear adversarial debate — symmetric evidence, explicit `weakest_point`,
+  randomized order/model, quote-authenticity + hallucination filtering.
+- Master Strategist — synthesizes into a verdict; regime-aware; conviction dampener at extremes.
+- Devil's Advocate — pre-mortem.
+- AI Risk Agent — narrative VaR + stress scenarios.
+
+Data-dependent agents follow the early-exit rule: return NEUTRAL/LOW if grounded data
+lacks numeric content.
+
+---
+
+## 6. Risk & sizing (non-negotiable, explicit)
+
+- **Defined-risk structures only by default** (verticals, condors, defined straddles/
+  calendars). Naked long options behind a separate, explicit gate.
+- **Per-trade max loss budget:** config (start ~1–2% of equity).
+- **Fractional Kelly sizing** (≤ half-Kelly) against the estimated edge. **Leverage is an
+  output of sizing, never a target.** Do not implement any "maximize leverage" path —
+  overbetting a positive-edge game still leads to ruin.
+- **Portfolio caps:** max concurrent positions; max per name; max per theme/sector; max
+  aggregate premium-at-risk (gross).
+- **Drawdown circuit breaker:** warn / halt / panic thresholds (config).
+- **Daily-loss halt.** **Kill switch** (file or env) checked every cycle.
+- **Broker treated as unreliable:** fail-closed on ambiguity, aggressive reconciliation,
+  persist missed orders for manual review.
+
+---
+
+## 7. Strategy templates (signal → structure)
+
+| Signal / regime | Structure |
+|---|---|
+| Bullish directional, moderate IV | Bull call (debit) spread |
+| Bearish directional, moderate IV | Bear put (debit) spread; bear call (credit) spread if IV high |
+| Range-bound, elevated IV | Iron condor / credit spreads |
+| Pre-catalyst vol-expansion thesis | Long straddle/strangle or calendar (vol-aware) |
+| Post-catalyst IV crush, directional | Debit spread (avoids vega bleed) |
+
+Option selection for slow-lane theses: ~45–90 DTE entries; close or roll near 21 DTE to
+avoid the gamma/theta endgame. Hard liquidity gate (OI + bid/ask spread) at selection and
+execution — the aggressive small-caps often have untradable options.
+
+---
+
+## 8. Data sources
+
+- **Alpaca** — market data (bulk bars/snapshots), options chains + greeks/IV/OI (shortlist
+  only), news. Feed: `indicative` (free) for build/paper, `opra` (paid real-time) for live.
+- **SEC EDGAR** — 8-K (material events), Form 4 (insider), 13D/G (activists), S-1/424B
+  (dilution). Use SHA-256 diffing on 10-K/10-Q so only year-over-year changes are embedded.
+- **Earnings calendar** — pre/post-earnings tagging.
+- **Macro** — DXY, rates, VIX, credit, sector-ETF breadth.
+- **Social** — Reddit/StockTwits/X sentiment level and velocity (provider TBD — see §14).
+
+---
+
+## 9. Tech stack & where it runs
+
+- **Language/runtime:** Python 3.11+, `asyncio`.
+- **Broker SDK:** `alpaca-py` (trading + data; MLEG options confirmed supported).
+- **Vector store:** ChromaDB (TMS + discovery embeddings).
+- **LLMs:** heterogeneous router across Gemini / OpenAI / Anthropic / xAI / Perplexity.
+- **State/journal:** SQLite (file-based, simple; matches Real Options) — Postgres optional later.
+- **Dashboard:** Streamlit.
+- **Process model:** one long-running `asyncio` orchestrator under **systemd** that
+  internally schedules the daily L1 cycle and runs the intraday L2 loop — mirrors Real
+  Options' `orchestrator.py`. Event triggers (L3) interrupt the schedule.
+- **Hosting:** a **dedicated small Digital Ocean droplet** (≈2–4 GB RAM) is recommended
+  for blast-radius isolation from the live commodity book. Cheaper fallback: the **same
+  droplet as a fully isolated service** (own system user, venv, `.env`, data dir,
+  systemd unit). Either way, isolation from Real Options is mandatory.
+- **CI/CD:** GitHub + Actions, push-to-deploy to the droplet (mirror Real Options;
+  `main` → DEV, a `production` branch → PROD).
+- **Secrets** in `.env` (never committed): Alpaca keys, LLM provider keys, EDGAR/news
+  keys, Pushover.
+
+---
+
+## 10. Repo structure (sketch)
+
+```
+dramatic_options/
+  __init__.py
+  orchestrator.py        # long-running asyncio loop: schedules L1, runs L2, handles L3
+  config.json            # models, thresholds, risk budget, schedule
+  config_loader.py       # config + .env overrides
+  discovery.py           # two-layer evidence-based theme/basket discovery
+  divergence.py          # narrative-vs-delivery scorer (core edge)
+  themes.py              # theme/thesis store + lifecycle
+  graph.py               # causal driver graph (Phase 6+)
+  council/
+    specialists.py       # Tier-2 analysts
+    debate.py            # Permabull/bear, strategist, devil's advocate, risk agent
+    router.py            # heterogeneous LLM routing
+  risk.py                # risk budget, portfolio caps, drawdown breaker, compliance gate
+  sizing.py              # fractional-Kelly sizing
+  execution.py           # Alpaca MLEG orders, liquidity gate, missed-order persistence
+  monitor.py             # L2 fast position monitor (intraday exits)
+  observability.py       # funnel, forensics, cost ledger
+  tms.py                 # transactive memory (ChromaDB)
+  data/                  # alpaca, edgar, news, earnings, macro, social adapters
+  state.py               # atomic SQLite state/journal
+backtest/                # replay harness for the divergence signal
+dashboard.py
+pages/                   # Streamlit pages
+scripts/                 # deploy, migrations, readiness check
+tests/
+SPEC.md                  # this document
+CLAUDE.md                # lean project context (points here)
+.env.example
+```
+
+---
+
+## 11. Reuse from Real Options (patterns, re-implemented for Alpaca)
+
+Debate engine + hallucination/quote-authenticity filtering · Master Strategist /
+Devil's Advocate / AI Risk Agent · compliance fail-closed posture + conviction gate ·
+full-revaluation HS VaR (add beta-weighted delta + correlation) · drawdown circuit
+breaker · position sizer · TMS · semantic cache · heterogeneous router · Brier +
+contribution scoring + DSPy · execution funnel / debate forensics / abstention monitor ·
+reconciliation discipline (aggregate matching, idempotent phantom cleanup) · order-manager
+safety (atomic combos, adaptive walking, missed-order persistence). Copy the design;
+re-target the broker.
+
+---
+
+## 12. Build phases
+
+`IMPLEMENTATION_PLAN.md` is the canonical, task-level build order — work it one phase per
+session in plan mode. At a high level the phases progress (detail front-loaded on the
+early ones):
+
+- **Phase 0 — Scaffold & paper broker connection.** Repo, config, Alpaca paper client,
+  SQLite state/journal, kill switch, `CLAUDE.md`, CI.
+- **Phase 1 — Data + divergence signal (seeded universe) + backtest harness.** The
+  **edge-validation gate**: hand-seed the theme/basket list, build the data adapters and
+  the divergence scorer, and prove the signal on point-in-time history. No LLM discovery yet.
+- **Phase 2 — Deterministic paper loop.** Structure selection + minimal risk gate + MLEG
+  paper execution + thesis-level tracking + the L2 exit monitor. No council yet.
+- **Phase 3 — The Council.** Tier-2 specialists + Tier-3 debate on the shortlist → thesis
+  + playbook (with falsifiers); forward agent scoring.
+- **Phase 4 — Full risk & portfolio.** Fractional-Kelly sizing, portfolio caps, VaR,
+  drawdown breaker, compliance gate.
+- **Phase 5 — Opportunistic lane (L3) + event triggers.** Event-accelerated L1,
+  pre-authorized contingencies, periodic thesis re-check.
+- **Phase 6 — Learning & observability.** TMS, scoring, journal post-mortems, DSPy,
+  funnel/forensics, cost ledger, dashboard.
+- **Phase 7 — Advanced discovery & traceability.** Two-layer LLM discovery (replaces the
+  seed list) + causal driver graph.
+- **Phase 8 — Harden & go-live.** Reconciliation, outage handling, go-live checklist,
+  dedicated droplet.
+
+Each phase is independently testable and ends green (tests pass + acceptance met) before
+the next.
+
+---
+
+## 13. Non-negotiable guardrails
+
+- **Fail-closed** everywhere; on any error in a trade cycle, the trade is blocked.
+- **Paper-first**; live requires explicit, multi-gate opt-in + a validated edge.
+- **Defined-risk by default**; naked exposure separately gated.
+- **Kill switch** honored every cycle.
+- **Edge validated before leverage**; no "maximize leverage" path exists in the code.
+- **Every decision logged** (full forensic record) for traceability.
+
+---
+
+## 14. Open items to confirm
+
+1. **L3 scope** — default is (b) event-accelerated L1. Confirm (a) stays out of v1.
+2. **Risk numbers** — per-trade budget %, fractional-Kelly fraction, profit-target /
+   stop / time-stop parameters.
+3. **Universe seed** — starting theme list + basket mappings (e.g., the current eVTOL/
+   space book) and the eligibility floor (liquidity, optionability).
+4. **Social data provider** and **EDGAR access method** (full-text search API vs a library).
+5. **Data feed** — `indicative` for build, switch to `opra` before live.
