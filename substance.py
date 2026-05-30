@@ -56,11 +56,19 @@ def score_substance(
     records: list[dict[str, Any]],
     as_of: datetime,
     params: dict[str, Any],
+    insider_records: list[dict[str, Any]] | None = None,
 ) -> SubstanceScore:
-    """Compute the delivery-intensity score for one name from its as-of filing records."""
+    """Compute the delivery-intensity score for one name from its as-of filing records.
+
+    ``insider_records`` (k=3 refinement) are signed insider net-buy events from
+    :mod:`data.insider`; each contributes ``insider_weight × sign(net_buy) × decay``,
+    replacing the old Form-4 *presence* term (insider buying is informative; routine
+    filings/10b5-1 sells are noise).
+    """
     weights: dict[str, float] = params.get("event_weights", {})
     span = float(params.get("ewma_span_days", 30))
     lookback = int(params.get("lookback_days", 120))
+    insider_weight = float(params.get("insider_weight", 1.0))
     cut = as_of - timedelta(days=lookback)
 
     score = 0.0
@@ -84,6 +92,24 @@ def score_substance(
                 {"key": key, "weight": w, "age_days": age_days, "value": round(contribution, 4)}
             )
 
+    for r in insider_records or []:
+        ts = _as_dt(r["ts"])
+        if ts <= cut or ts > as_of:
+            continue
+        nb = float(r.get("net_buy", 0.0))
+        sign = 1.0 if nb > 0 else (-1.0 if nb < 0 else 0.0)
+        if sign == 0.0:
+            continue
+        n_events += 1
+        age_days = (as_of - ts).days
+        decay = math.exp(-age_days / span) if span > 0 else 1.0
+        contribution = insider_weight * sign * decay
+        score += contribution
+        contributions.append(
+            {"key": "INSIDER_NET_BUY", "weight": insider_weight * sign,
+             "age_days": age_days, "value": round(contribution, 4)}
+        )
+
     contributions.sort(key=lambda c: abs(c["value"]), reverse=True)
     return SubstanceScore(
         symbol=symbol,
@@ -93,14 +119,19 @@ def score_substance(
     )
 
 
-def has_events(records: list[dict[str, Any]], as_of: datetime, params: dict[str, Any]) -> bool:
-    """Whether the name has ≥1 weight-matching filing event in the lookback (for the
-    substance non-zero-density diagnostic, plan §A1 crit. 5 / §B5)."""
+def has_events(records: list[dict[str, Any]], as_of: datetime, params: dict[str, Any],
+               insider_records: list[dict[str, Any]] | None = None) -> bool:
+    """Whether the name has ≥1 weighted filing event OR signed insider net-buy in the
+    lookback (substance non-zero-density diagnostic, plan §A1 crit. 5 / §B5)."""
     weights = params.get("event_weights", {})
     lookback = int(params.get("lookback_days", 120))
     cut = as_of - timedelta(days=lookback)
     for r in records:
         ts = _as_dt(r["ts"])
         if cut < ts <= as_of and any(k in weights for k in _event_keys(r.get("form", ""), r.get("items", []))):
+            return True
+    for r in insider_records or []:
+        ts = _as_dt(r["ts"])
+        if cut < ts <= as_of and float(r.get("net_buy", 0.0)) != 0.0:
             return True
     return False

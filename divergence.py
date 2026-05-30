@@ -85,12 +85,15 @@ def build_panel(
     news: Any,
     filings: Any,
     config: dict[str, Any],
+    insider: Any | None = None,
 ) -> Panel:
     """Compute the divergence panel for ``symbols`` as-of ``as_of``.
 
     ``news`` and ``filings`` are the as-of adapters (:class:`data.news.NewsData`,
-    :class:`data.filings.FilingsData`). Callers pass the already-eligibility-filtered symbol
-    list (eligibility uses price+ADV from market data, owned by the caller — plan §B1).
+    :class:`data.filings.FilingsData`); ``insider`` (optional, :class:`data.insider.
+    InsiderData`) supplies signed net-buy events for the refined substance score. Callers
+    pass the already-eligibility-filtered symbol list (eligibility uses price+ADV from
+    market data, owned by the caller — plan §B1).
     """
     sig = config.get("signal", {})
     narr_params = sig.get("narrative", {})
@@ -108,13 +111,14 @@ def build_panel(
     for sym in symbols:
         news_recs = news.headlines_asof(sym, as_of)
         filing_recs = filings.filings_asof(sym, as_of)
+        insider_recs = insider.netbuy_asof(sym, as_of) if insider is not None else None
         ns = score_narrative(sym, news_recs, as_of, narr_params)
-        ss = score_substance(sym, filing_recs, as_of, subst_params)
+        ss = score_substance(sym, filing_recs, as_of, subst_params, insider_records=insider_recs)
         if ns.score is None or ss.score is None:
             continue
         narr_raw[sym] = ns.score
         subst_raw[sym] = ss.score
-        has_event[sym] = has_events(filing_recs, as_of, subst_params)
+        has_event[sym] = has_events(filing_recs, as_of, subst_params, insider_records=insider_recs)
         if has_event[sym]:
             n_substance_nonzero += 1
         rationale_bits[sym] = {

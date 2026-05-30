@@ -79,6 +79,7 @@ class Backtest:
         market: Any,
         news: Any,
         filings: Any,
+        insider: Any | None = None,
         horizons: list[int] | None = None,
     ) -> None:
         self.config = config
@@ -87,6 +88,7 @@ class Backtest:
         self.market = market
         self.news = news
         self.filings = filings
+        self.insider = insider
         bt = config.get("backtest", {})
         primary = int(bt.get("horizon_days", 21))
         self.horizons = horizons or sorted(
@@ -117,6 +119,8 @@ class Backtest:
 
     # ── §A0 audit (coverage only) ───────────────────────────────────────────
     def audit(self, start: datetime, end: datetime) -> AuditReport:
+        if self.insider is not None:
+            self.insider.ensure_loaded(self.universe.symbols)
         dates = self._rebalance_dates(start, end)
         by_month: dict[str, int] = {}
         density_hits = density_total = skipped = 0
@@ -130,7 +134,7 @@ class Backtest:
             self.cache.reset_running_max()
             panel = build_panel(
                 t, elig, self.universe.theme_of, news=self.news,
-                filings=self.filings, config=self.config,
+                filings=self.filings, config=self.config, insider=self.insider,
             )
             self._assert_no_lookahead(t)
             density_total += panel.n_valid
@@ -146,6 +150,8 @@ class Backtest:
 
     # ── full run ─────────────────────────────────────────────────────────────
     def run(self, start: datetime, end: datetime) -> BacktestData:
+        if self.insider is not None:
+            self.insider.ensure_loaded(self.universe.symbols)
         dates = self._rebalance_dates(start, end)
         date_panels: list[dict[str, Any]] = []
         by_month: dict[str, int] = {}
@@ -156,7 +162,7 @@ class Backtest:
             self.cache.reset_running_max()
             panel = build_panel(
                 t, elig, self.universe.theme_of, news=self.news,
-                filings=self.filings, config=self.config,
+                filings=self.filings, config=self.config, insider=self.insider,
             )
             self._assert_no_lookahead(t)
             if panel.skipped:

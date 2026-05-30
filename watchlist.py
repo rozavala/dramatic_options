@@ -21,6 +21,7 @@ from clock import LiveClock
 from config_loader import ConfigError, load_config, require_alpaca_credentials
 from data.cache import PointInTimeCache
 from data.filings import EdgarClient, FilingsData
+from data.insider import InsiderData
 from data.market import MarketData
 from data.news import NewsData
 from divergence import build_panel
@@ -46,6 +47,13 @@ def build_watchlist(config: dict, *, clock: LiveClock, client, edgar) -> dict:
     market = MarketData(cache, client=client, fetch_start=fetch_start, fetch_end=as_of)
     news = NewsData(cache, client=client, fetch_start=fetch_start, fetch_end=as_of)
     filings = FilingsData(cache, edgar=edgar, fetch_end=as_of)
+    insider = InsiderData(
+        cache, edgar=edgar, fetch_start=fetch_start, fetch_end=as_of,
+        ua=config.get("edgar", {}).get("user_agent", ""),
+        cache_dir=config.get("edgar", {}).get("cache_dir", "data/cache"),
+        rate_limit_per_sec=config.get("edgar", {}).get("rate_limit_per_sec", 8.0),
+        exclude_10b5_1=config.get("signal", {}).get("substance", {}).get("exclude_10b5_1", True),
+    )
 
     adv_window = config.get("eligibility", {}).get("live", {}).get("adv_window_days", 20)
     eligible = []
@@ -56,7 +64,9 @@ def build_watchlist(config: dict, *, clock: LiveClock, client, edgar) -> dict:
                              config=config, mode="backtest").eligible:
             eligible.append(sym)
 
-    panel = build_panel(as_of, eligible, uni.theme_of, news=news, filings=filings, config=config)
+    insider.ensure_loaded(eligible)
+    panel = build_panel(as_of, eligible, uni.theme_of, news=news, filings=filings,
+                        config=config, insider=insider)
     return {"as_of": as_of, "panel": panel, "n_eligible": len(eligible),
             "n_universe": len(uni.symbols)}
 

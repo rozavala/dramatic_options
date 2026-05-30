@@ -22,9 +22,13 @@ data/**/*.csv
 data/**/*.json
 data/**/*.parquet
 data/**/*.sqlite3
+data/**/*.zip
 data/*.db
 data/databento_cache/
 data/surrogate_models/
+# Pure-artifact cache/output dirs (no source lives here — safe to ignore wholesale).
+data/cache/
+data/backtest/
 
 # SQLite / runtime DB (anywhere)
 *.db
