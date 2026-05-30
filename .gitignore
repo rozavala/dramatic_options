@@ -12,12 +12,21 @@ venv/
 .DS_Store
 *.save
 
-# Logs & data
+# Logs
 *.log
 logs/
-data/
 
-# SQLite / runtime DB
+# Runtime data ARTIFACTS — ignore generated content under data/, but keep the
+# data/ Python source package (data/*.py) tracked (SPEC §10 layout).
+data/**/*.csv
+data/**/*.json
+data/**/*.parquet
+data/**/*.sqlite3
+data/*.db
+data/databento_cache/
+data/surrogate_models/
+
+# SQLite / runtime DB (anywhere)
 *.db
 
 # Kill switch (operational, never committed)
