@@ -1,0 +1,70 @@
+name: Deploy dramatic_options
+
+# Adapted from the real_options deployment method.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# INERT UNTIL CONFIGURED. This workflow does nothing useful until these repo
+# secrets are set (Settings → Secrets and variables → Actions):
+#   SSH_PRIVATE_KEY     — private key whose public half is in the droplet's
+#                         ~/.ssh/authorized_keys
+#   DROPLET_HOST_DEV    — DEV host/IP   (this box, ubuntu-dev, when ready)
+#   DROPLET_USER_DEV    — DEV ssh user
+#   DROPLET_HOST_PROD   — PROD host/IP
+#   DROPLET_USER_PROD   — PROD ssh user
+# Until then, deploy by running ./deploy.sh manually on the target host.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches:
+      - main        # Pushing here deploys to DEV
+      - production  # Pushing here deploys to PROD
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Define Target Environment
+        id: env
+        run: |
+          if [[ ${{ github.ref_name }} == 'production' ]]; then
+            echo "Target: PRODUCTION"
+            echo "HOST=${{ secrets.DROPLET_HOST_PROD }}" >> $GITHUB_ENV
+            echo "USER=${{ secrets.DROPLET_USER_PROD }}" >> $GITHUB_ENV
+            echo "ENV_NAME=PROD" >> $GITHUB_ENV
+          else
+            echo "Target: DEVELOPMENT"
+            echo "HOST=${{ secrets.DROPLET_HOST_DEV }}" >> $GITHUB_ENV
+            echo "USER=${{ secrets.DROPLET_USER_DEV }}" >> $GITHUB_ENV
+            echo "ENV_NAME=DEV" >> $GITHUB_ENV
+          fi
+
+      - name: Deploy and Restart App
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.USER }}@${{ env.HOST }} "bash -c '
+            # Navigate to the live checkout
+            cd ~/dramatic_options &&
+
+            # Self-heal: ensure we are on the branch being deployed
+            CURRENT=\$(git branch --show-current)
+            if [ \"\$CURRENT\" != \"${{ github.ref_name }}\" ]; then
+              echo \"WARNING: On branch \$CURRENT, expected ${{ github.ref_name }}. Cleaning up...\"
+              git checkout -- . 2>/dev/null || true
+              git clean -fd 2>/dev/null || true
+            fi
+
+            # Fetch and switch to the target ref
+            git fetch &&
+            git checkout ${{ github.ref_name }} &&
+            git reset --hard origin/${{ github.ref_name }} &&
+            git pull &&
+
+            # Execute deployment (ENV_NAME drives PROD-only behaviour)
+            ENV_NAME=${{ env.ENV_NAME }} ./deploy.sh
+          '"
