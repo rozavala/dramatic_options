@@ -1,0 +1,32 @@
+=== PRODUCTION HEALTH REPORT ===
+Timestamp: Sat May 30 04:38:08 UTC 2026
+Hostname:  real-options-prod
+Uptime:     04:38:08 up 138 days, 11:01,  4 users,  load average: 0.80, 0.45, 0.36
+
+=== DISK USAGE ===
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs           392M  1.5M  391M   1% /run
+/dev/vda1        48G   32G   17G  66% /
+tmpfs           2.0G  2.1M  2.0G   1% /dev/shm
+tmpfs           5.0M     0  5.0M   0% /run/lock
+/dev/vda16      881M  117M  703M  15% /boot
+/dev/vda15      105M  6.2M   99M   6% /boot/efi
+tmpfs           392M   52K  392M   1% /run/user/1000
+
+=== MEMORY USAGE ===
+               total        used        free      shared  buff/cache   available
+Mem:           3.8Gi       2.7Gi       172Mi        42Mi       1.3Gi       1.1Gi
+Swap:          4.0Gi       1.5Gi       2.5Gi
+
+=== LOAD AVERAGE ===
+0.80 0.45 0.36 1/784 214779
+
+=== PROCESS STATUS ===
+console   173168  0.3  7.4 2681876 298948 ?      Ssl  May29   3:57 /home/console/real_options/venv/bin/python3 /home/console/real_options/venv/bin/streamlit run dashboard.py --server.address 0.0.0.0 --server.port 8501
+console   173364  0.7  4.8 2370908 193460 ?      Ssl  May29   8:59 /home/console/real_options/venv/bin/python -u orchestrator.py
+
+=== SERVICE STATUS ===
+inactive
+(service not installed)
+
+=== RECENT ERRORS ===
