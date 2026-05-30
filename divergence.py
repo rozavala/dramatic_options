@@ -86,18 +86,23 @@ def build_panel(
     filings: Any,
     config: dict[str, Any],
     insider: Any | None = None,
+    fundamentals: Any | None = None,
 ) -> Panel:
     """Compute the divergence panel for ``symbols`` as-of ``as_of``.
 
     ``news`` and ``filings`` are the as-of adapters (:class:`data.news.NewsData`,
     :class:`data.filings.FilingsData`); ``insider`` (optional, :class:`data.insider.
-    InsiderData`) supplies signed net-buy events for the refined substance score. Callers
-    pass the already-eligibility-filtered symbol list (eligibility uses price+ADV from
-    market data, owned by the caller — plan §B1).
+    InsiderData`) supplies signed net-buy events; ``fundamentals`` (optional,
+    :class:`data.fundamentals.FundamentalsData`) supplies reported revenue growth. The
+    substance side is selected by ``signal.substance.mode``: ``"fundamentals"`` uses revenue
+    YoY (names without material revenue are dropped from the cross-section); any other value
+    uses the event/insider-intensity score. Callers pass the already-eligibility-filtered
+    symbol list (eligibility uses price+ADV from market data, owned by the caller — plan §B1).
     """
     sig = config.get("signal", {})
     narr_params = sig.get("narrative", {})
     subst_params = sig.get("substance", {})
+    subst_mode = subst_params.get("mode", "events")
     div_params = sig.get("divergence", {})
     n_min = int(div_params.get("n_min_cross_section", 8))
     threshold = float(div_params.get("neutral_threshold", 0.5))
@@ -110,17 +115,36 @@ def build_panel(
 
     for sym in symbols:
         news_recs = news.headlines_asof(sym, as_of)
-        filing_recs = filings.filings_asof(sym, as_of)
-        insider_recs = insider.netbuy_asof(sym, as_of) if insider is not None else None
         ns = score_narrative(sym, news_recs, as_of, narr_params)
-        ss = score_substance(sym, filing_recs, as_of, subst_params, insider_records=insider_recs)
-        if ns.score is None or ss.score is None:
+        if ns.score is None:
             continue
-        narr_raw[sym] = ns.score
-        subst_raw[sym] = ss.score
-        has_event[sym] = has_events(filing_recs, as_of, subst_params, insider_records=insider_recs)
-        if has_event[sym]:
+
+        if subst_mode == "fundamentals":
+            # Substance = reported revenue YoY (delivery itself). None ⇒ no material
+            # revenue ⇒ drop from this date's cross-section (consistent with N_min).
+            rg = fundamentals.revenue_growth_asof(sym, as_of) if fundamentals is not None else None
+            if rg is None:
+                continue
+            narr_raw[sym] = ns.score
+            subst_raw[sym] = rg
+            has_event[sym] = True
             n_substance_nonzero += 1
+            subst_rationale: dict[str, Any] = {"rev_yoy": round(rg, 4)}
+        else:
+            filing_recs = filings.filings_asof(sym, as_of)
+            insider_recs = insider.netbuy_asof(sym, as_of) if insider is not None else None
+            ss = score_substance(sym, filing_recs, as_of, subst_params, insider_records=insider_recs)
+            if ss.score is None:
+                continue
+            narr_raw[sym] = ns.score
+            subst_raw[sym] = ss.score
+            has_event[sym] = has_events(
+                filing_recs, as_of, subst_params, insider_records=insider_recs
+            )
+            if has_event[sym]:
+                n_substance_nonzero += 1
+            subst_rationale = {"n_events": ss.n_events, "top_events": ss.contributions}
+
         rationale_bits[sym] = {
             "narrative": {
                 "count_recent": ns.count_recent,
@@ -128,7 +152,7 @@ def build_panel(
                 "breadth": ns.breadth,
                 "top_headlines": ns.top_headlines,
             },
-            "substance": {"n_events": ss.n_events, "top_events": ss.contributions},
+            "substance": subst_rationale,
         }
 
     n_valid = len(narr_raw)

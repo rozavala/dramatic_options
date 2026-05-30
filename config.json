@@ -64,12 +64,14 @@
       "lexicon_weight": 0.15
     },
     "substance": {
+      "mode": "fundamentals",
+      "min_base_revenue": 10000000.0,
       "ewma_span_days": 30,
       "baseline_window_days": 252,
       "lookback_days": 120,
       "insider_weight": 1.0,
       "exclude_10b5_1": true,
-      "_weights_comment": "k=3 refinement: replaced noisy Form-4 PRESENCE with SIGNED insider net-buy (data.insider, 10b5-1 sells filtered) weighted by insider_weight. Filing events remain tangible-event presence from the submissions index. 8-K:2.02 is +/contextual (results fired on a beat OR a miss; deterministic beat/miss needs a consensus source — deferred).",
+      "_mode_comment": "k=4: mode='fundamentals' → substance = reported revenue YoY (data.fundamentals, XBRL companyfacts, point-in-time via filed dates); names with year-ago TTM revenue < min_base_revenue are dropped (pre-revenue growth on ~0 base is noise). mode='events' uses the k1–k3 event/insider-intensity score below.",
       "event_weights": {
         "8-K:1.01": 1.0,
         "8-K:2.02": 0.5,
