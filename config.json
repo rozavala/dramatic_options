@@ -36,10 +36,11 @@
       "quantum": ["IONQ", "RGTI", "QBTS", "QUBT"],
       "ai_infra": ["PLTR", "SMCI", "BBAI", "SOUN", "AI", "APP"],
       "fintech": ["SOFI", "AFRM", "UPST", "HOOD", "LMND"],
-      "genomics": ["CRSP", "NTLA", "BEAM", "RXRX"],
-      "clean_energy": ["PLUG", "RUN", "ENPH", "FCEL", "BE"],
-      "ev": ["RIVN", "LCID", "CHPT", "QS"],
-      "crypto_equity": ["MARA", "RIOT", "COIN", "MSTR", "CLSK"]
+      "genomics": ["CRSP", "NTLA", "BEAM", "RXRX", "EDIT", "SGMO"],
+      "clean_energy": ["PLUG", "RUN", "ENPH", "FCEL", "BE", "FSLR", "SEDG"],
+      "ev": ["RIVN", "LCID", "CHPT", "QS", "NIO", "XPEV", "LI"],
+      "crypto_equity": ["MARA", "RIOT", "COIN", "MSTR", "CLSK", "HUT"],
+      "software_growth": ["NET", "DDOG", "SNOW", "U", "PATH"]
     }
   },
   "eligibility": {
@@ -87,7 +88,7 @@
   },
   "backtest": {
     "_comment": "PRE-REGISTERED gate parameters (plan §A). Provisional explore/lockbox dates are subject to the §A0 --audit before judging the signal. Bands: IC<fail=FAIL, fail..green=YELLOW, >=green=GREEN.",
-    "explore_start": "2022-01-01",
+    "explore_start": "2020-01-01",
     "explore_end": "2024-06-30",
     "lockbox_start": "2024-07-01",
     "lockbox_end": null,
