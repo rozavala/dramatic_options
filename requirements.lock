@@ -1,0 +1,28 @@
+# Locked dependency versions — full resolved environment (pip freeze).
+# Regenerate after changing requirements*.txt:  venv/bin/pip freeze > requirements.lock
+alpaca-py==0.43.4
+annotated-types==0.7.0
+certifi==2026.5.20
+charset-normalizer==3.4.7
+idna==3.17
+iniconfig==2.3.0
+msgpack==1.1.2
+numpy==2.4.6
+packaging==26.2
+pandas==3.0.3
+pluggy==1.6.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+Pygments==2.20.0
+pytest==9.0.3
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.2
+pytz==2026.2
+requests==2.34.2
+ruff==0.15.15
+six==1.17.0
+sseclient-py==1.9.0
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+urllib3==2.7.0
+websockets==16.0

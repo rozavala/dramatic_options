@@ -17,6 +17,12 @@ venv/
 logs/
 data/
 
+# SQLite / runtime DB
+*.db
+
+# Kill switch (operational, never committed)
+KILL
+
 # Claude Code
 .claude/settings.local.json
 .claude/worktrees/

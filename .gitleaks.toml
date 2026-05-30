@@ -1,0 +1,17 @@
+# gitleaks config — secret scanning for dramatic_options.
+# Extends the default ruleset; allowlists the placeholder values in .env.example
+# so the template doesn't trip the scanner.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allow documented placeholders, not real secrets"
+paths = [
+  '''\.env\.example$''',
+  '''\.gitleaks\.toml$''',
+]
+regexes = [
+  '''your_alpaca_(paper_)?(key|secret)''',
+  '''<[A-Z_]+>''',
+  '''xxx+''',
+]
