@@ -36,12 +36,15 @@
       "quantum": ["IONQ", "RGTI", "QBTS", "QUBT"],
       "ai_infra": ["PLTR", "SMCI", "BBAI", "SOUN", "AI", "APP"],
       "fintech": ["SOFI", "AFRM", "UPST", "HOOD", "LMND"],
-      "genomics": ["CRSP", "NTLA", "BEAM", "RXRX"]
+      "genomics": ["CRSP", "NTLA", "BEAM", "RXRX"],
+      "clean_energy": ["PLUG", "RUN", "ENPH", "FCEL", "BE"],
+      "ev": ["RIVN", "LCID", "CHPT", "QS"],
+      "crypto_equity": ["MARA", "RIOT", "COIN", "MSTR", "CLSK"]
     }
   },
   "eligibility": {
     "_comment": "SPLIT floor (plan §B1): backtest gates on price+ADV ONLY (point-in-time available from bars); the option-liquidity floor applies ONLY to the live watchlist — historical option OI/spread do not exist back to 2022, so applying today's retroactively would be lookahead/survivorship bias.",
-    "backtest": {"min_price": 3.0, "min_adv_usd": 3000000.0, "adv_window_days": 20},
+    "backtest": {"min_price": 2.0, "min_adv_usd": 1500000.0, "adv_window_days": 20},
     "live": {
       "min_price": 3.0,
       "min_adv_usd": 3000000.0,
