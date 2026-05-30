@@ -9,7 +9,7 @@ with no shared dependency**. It will eventually trade real money via **Alpaca**;
 every change with that care.
 
 **Status: paper-only. Live trading is gated and not yet enabled.**
-**Current build phase: Phase 0 (scaffold).** ← update this line as phases complete.
+**Current build phase: Phase 0 complete (scaffold + Alpaca paper connection). Next: Phase 1 (data + divergence signal + backtest — the edge-validation gate).** ← update this line as phases complete.
 
 ## Read these first
 
