@@ -1,0 +1,27 @@
+=== SYSTEM SNAPSHOT (dev) ===
+Timestamp: Sat May 30 04:35:05 UTC 2026
+Hostname:  ubuntu-s-2vcpu-4gb-120gb-intel-sfo2-01
+Uptime:     04:35:05 up 68 days,  5:10,  3 users,  load average: 0.30, 1.38, 1.41
+
+=== DISK USAGE ===
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs           392M  1.8M  390M   1% /run
+/dev/vda1       116G   52G   64G  45% /
+tmpfs           2.0G  2.0M  2.0G   1% /dev/shm
+tmpfs           5.0M     0  5.0M   0% /run/lock
+/dev/vda16      881M  117M  703M  15% /boot
+/dev/vda15      105M  6.2M   99M   6% /boot/efi
+tmpfs           392M  148K  392M   1% /run/user/1000
+tmpfs           392M  100K  392M   1% /run/user/111
+
+=== MEMORY USAGE ===
+               total        used        free      shared  buff/cache   available
+Mem:           3.8Gi       2.1Gi       1.1Gi        26Mi       953Mi       1.8Gi
+Swap:          4.0Gi       1.5Gi       2.5Gi
+
+=== PROCESS STATUS ===
+root        1007  0.0  0.0 110012  2988 ?        Ssl  Mar22   0:00 /usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal
+rodrigo   531605  0.0  0.0 107200  3336 ?        Ssl  May13   0:00 /usr/bin/python3 /opt/google/chrome-remote-desktop/chrome-remote-desktop --child-process --config=/home/rodrigo/.config/chrome-remote-desktop/host#2ab881543616df67ba36dbfd8e1dec91.json --start
+rodrigo   531837  0.0  0.1  55688  5416 ?        S    May13   0:03 /usr/bin/python3 /usr/share/system-config-printer/applet.py
+rodrigo  3278937  0.2  0.9 1951140 38968 ?       Ssl  01:07   0:27 python -u orchestrator.py
+rodrigo  3279058  0.0  0.2 155148  9592 ?        Ssl  01:07   0:01 /home/rodrigo/real_options/venv/bin/python3 /home/rodrigo/real_options/venv/bin/streamlit run dashboard.py --server.address 0.0.0.0 --server.port 8501
