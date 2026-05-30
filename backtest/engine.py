@@ -80,6 +80,7 @@ class Backtest:
         news: Any,
         filings: Any,
         insider: Any | None = None,
+        fundamentals: Any | None = None,
         horizons: list[int] | None = None,
     ) -> None:
         self.config = config
@@ -89,6 +90,7 @@ class Backtest:
         self.news = news
         self.filings = filings
         self.insider = insider
+        self.fundamentals = fundamentals
         bt = config.get("backtest", {})
         primary = int(bt.get("horizon_days", 21))
         self.horizons = horizons or sorted(
@@ -135,6 +137,7 @@ class Backtest:
             panel = build_panel(
                 t, elig, self.universe.theme_of, news=self.news,
                 filings=self.filings, config=self.config, insider=self.insider,
+                fundamentals=self.fundamentals,
             )
             self._assert_no_lookahead(t)
             density_total += panel.n_valid
@@ -163,6 +166,7 @@ class Backtest:
             panel = build_panel(
                 t, elig, self.universe.theme_of, news=self.news,
                 filings=self.filings, config=self.config, insider=self.insider,
+                fundamentals=self.fundamentals,
             )
             self._assert_no_lookahead(t)
             if panel.skipped:

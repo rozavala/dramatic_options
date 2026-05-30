@@ -33,6 +33,7 @@ from backtest.engine import Backtest  # noqa: E402
 from config_loader import load_config, require_alpaca_credentials  # noqa: E402
 from data.cache import PointInTimeCache  # noqa: E402
 from data.filings import EdgarClient, FilingsData  # noqa: E402
+from data.fundamentals import FundamentalsData  # noqa: E402
 from data.insider import InsiderData  # noqa: E402
 from data.market import MarketData  # noqa: E402
 from data.news import NewsData  # noqa: E402
@@ -105,9 +106,16 @@ def main(argv: list[str] | None = None) -> int:
         rate_limit_per_sec=config.get("edgar", {}).get("rate_limit_per_sec", 8.0),
         exclude_10b5_1=config.get("signal", {}).get("substance", {}).get("exclude_10b5_1", True),
     )
+    fundamentals = FundamentalsData(
+        cache, edgar=edgar, fetch_end=end,
+        ua=config.get("edgar", {}).get("user_agent", ""),
+        cache_dir=config.get("edgar", {}).get("cache_dir", "data/cache"),
+        min_base_revenue=config.get("signal", {}).get("substance", {}).get(
+            "min_base_revenue", 10_000_000.0),
+    )
     # Benchmarks must be fetchable for momentum/beta/calendar.
     engine = Backtest(config, uni, cache=cache, market=market, news=news, filings=filings,
-                      insider=insider)
+                      insider=insider, fundamentals=fundamentals)
 
     if args.audit:
         report = engine.audit(start, end)

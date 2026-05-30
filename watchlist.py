@@ -21,6 +21,7 @@ from clock import LiveClock
 from config_loader import ConfigError, load_config, require_alpaca_credentials
 from data.cache import PointInTimeCache
 from data.filings import EdgarClient, FilingsData
+from data.fundamentals import FundamentalsData
 from data.insider import InsiderData
 from data.market import MarketData
 from data.news import NewsData
@@ -54,6 +55,13 @@ def build_watchlist(config: dict, *, clock: LiveClock, client, edgar) -> dict:
         rate_limit_per_sec=config.get("edgar", {}).get("rate_limit_per_sec", 8.0),
         exclude_10b5_1=config.get("signal", {}).get("substance", {}).get("exclude_10b5_1", True),
     )
+    fundamentals = FundamentalsData(
+        cache, edgar=edgar, fetch_end=as_of,
+        ua=config.get("edgar", {}).get("user_agent", ""),
+        cache_dir=config.get("edgar", {}).get("cache_dir", "data/cache"),
+        min_base_revenue=config.get("signal", {}).get("substance", {}).get(
+            "min_base_revenue", 10_000_000.0),
+    )
 
     adv_window = config.get("eligibility", {}).get("live", {}).get("adv_window_days", 20)
     eligible = []
@@ -66,7 +74,7 @@ def build_watchlist(config: dict, *, clock: LiveClock, client, edgar) -> dict:
 
     insider.ensure_loaded(eligible)
     panel = build_panel(as_of, eligible, uni.theme_of, news=news, filings=filings,
-                        config=config, insider=insider)
+                        config=config, insider=insider, fundamentals=fundamentals)
     return {"as_of": as_of, "panel": panel, "n_eligible": len(eligible),
             "n_universe": len(uni.symbols)}
 
