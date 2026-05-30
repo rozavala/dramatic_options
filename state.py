@@ -50,6 +50,36 @@ def record_run(
     return int(cur.lastrowid)
 
 
+def record_signals(
+    conn: sqlite3.Connection,
+    run_id: int | None,
+    rows: list[dict[str, Any]],
+) -> int:
+    """Insert watchlist signal rows (name- and theme-scope). Returns the count inserted.
+
+    Each row: ``as_of, scope, theme, symbol, narrative, substance, divergence, direction,
+    rank, rationale`` (rationale is JSON-encoded by the caller or a dict). Atomic.
+    """
+    import json
+
+    with conn:  # commits on success, rolls back on exception
+        for r in rows:
+            rationale = r.get("rationale")
+            if not isinstance(rationale, str):
+                rationale = json.dumps(rationale, default=str)
+            conn.execute(
+                "INSERT INTO signals (run_id, as_of, scope, theme, symbol, narrative, "
+                "substance, divergence, direction, rank, rationale, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+                (
+                    run_id, r["as_of"], r["scope"], r.get("theme"), r.get("symbol"),
+                    r.get("narrative"), r.get("substance"), r["divergence"],
+                    r.get("direction"), r.get("rank"), rationale,
+                ),
+            )
+    return len(rows)
+
+
 def schema_version(conn: sqlite3.Connection) -> int:
     """Highest applied migration version, or 0 if none/uninitialized."""
     try:

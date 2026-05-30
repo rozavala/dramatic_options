@@ -9,7 +9,19 @@ with no shared dependency**. It will eventually trade real money via **Alpaca**;
 every change with that care.
 
 **Status: paper-only. Live trading is gated and not yet enabled.**
-**Current build phase: Phase 0 complete (scaffold + Alpaca paper connection). Next: Phase 1 (data + divergence signal + backtest — the edge-validation gate).** ← update this line as phases complete.
+**Current build phase: Phase 1 infrastructure COMPLETE; v1 edge UNPROVEN — Phase 2 NOT started.** The point-in-time data layer (Alpaca + EDGAR + bulk insider), divergence signal, and walk-forward backtest harness are built, tested, and green. **The edge gate FAILED:** on a properly-powered, multi-regime, momentum-neutral test (47 periods, 61 names, 2020–24), the narrative-vs-delivery divergence signal showed no positive predictive power (primary-horizon rank-IC ≈ 0, slightly negative after the k=3 insider refinement; every Bonferroni CI spans 0). An early +0.075 on a narrow 30-period window did not survive added power/regimes — fragile. Per guardrail §5, **no live-shaped behavior is built on this unvalidated edge.** The lockbox was never opened. See the §"Phase 1 gate result" below. Next real work is a *new* signal hypothesis on the same (working) harness, not parameter-tuning the failed one. ← update this line as phases complete.
+
+### Phase 1 gate result (2026-05-30) — v1 divergence edge UNPROVEN
+
+Pre-registered, banded, multiple-testing-aware gate (SPEC §2a). Primary horizon h=21td.
+
+| Run | periods | h=21 rank-IC | Bonferroni CI | verdict |
+|---|---|---|---|---|
+| 34 names, 2022–24 (k=1) | 30 | +0.075 | spans 0 | fragile (didn't replicate) |
+| 61 names, 2020–24 (k=2) | 47 | +0.023 | spans 0 | FAIL |
+| + insider net-buy substance (k=3) | 47 | −0.048 | spans 0 | FAIL |
+
+The gate worked as designed — it rejected a tempting false positive instead of letting it reach capital. Learning: insiders at speculative post-SPAC growth names are near-uniformly net sellers, so signed insider net-buy added noise, not signal. The harness (point-in-time, no-lookahead, pre-registration, period-bootstrap, momentum-neutralization, null control) is the durable deliverable and is reusable for the next edge hypothesis.
 
 ## Read these first
 

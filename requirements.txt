@@ -1,7 +1,11 @@
-# dramatic_options runtime dependencies (Phase 0).
+# dramatic_options runtime dependencies.
 # Pinned EXACT: the system depends on alpaca-py's exact signatures (SPEC §9), so an
 # SDK release must not silently change order/data semantics under us.
 # chromadb is intentionally NOT here yet — it arrives in Phase 6 (TMS) when needed.
 alpaca-py==0.43.4
 pandas==3.0.3
 python-dotenv==1.2.2
+# Phase 1: numpy (backtest metrics) and requests (keyless EDGAR) are now DIRECT deps —
+# pinned rather than relied on transitively (build principle: pin what you import).
+numpy==2.4.6
+requests==2.34.2

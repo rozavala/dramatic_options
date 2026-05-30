@@ -65,6 +65,11 @@ def load_config() -> dict[str, Any]:
         # ALPACA_PAPER controls the endpoint; defaults to the PAPER gate.
         "paper": _as_bool(os.getenv("ALPACA_PAPER"), default=safety["paper"]),
     }
+
+    # EDGAR User-Agent (Phase 1). SEC requires a contact UA on every request.
+    edgar = config.setdefault("edgar", {})
+    if os.getenv("EDGAR_USER_AGENT"):
+        edgar["user_agent"] = os.getenv("EDGAR_USER_AGENT").strip()
     return config
 
 

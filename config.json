@@ -26,6 +26,95 @@
     "daily_scan_utc": "21:15",
     "monitor_interval_seconds": 60
   },
+  "universe": {
+    "_comment": "Phase 1 hand-seeded thematic universe (SPEC §14.3). Widened from the SPEC example book for cross-sectional power. Config over code — edit freely.",
+    "benchmarks": {"broad": "SPY", "growth": "ARKK"},
+    "themes": {
+      "evtol": ["JOBY", "ACHR", "EH"],
+      "space": ["RKLB", "LUNR", "ASTS", "RDW", "PL", "BKSY", "SPIR"],
+      "nuclear_smr": ["OKLO", "SMR", "NNE", "LEU", "BWXT"],
+      "quantum": ["IONQ", "RGTI", "QBTS", "QUBT"],
+      "ai_infra": ["PLTR", "SMCI", "BBAI", "SOUN", "AI", "APP"],
+      "fintech": ["SOFI", "AFRM", "UPST", "HOOD", "LMND"],
+      "genomics": ["CRSP", "NTLA", "BEAM", "RXRX", "EDIT", "SGMO"],
+      "clean_energy": ["PLUG", "RUN", "ENPH", "FCEL", "BE", "FSLR", "SEDG"],
+      "ev": ["RIVN", "LCID", "CHPT", "QS", "NIO", "XPEV", "LI"],
+      "crypto_equity": ["MARA", "RIOT", "COIN", "MSTR", "CLSK", "HUT"],
+      "software_growth": ["NET", "DDOG", "SNOW", "U", "PATH"]
+    }
+  },
+  "eligibility": {
+    "_comment": "SPLIT floor (plan §B1): backtest gates on price+ADV ONLY (point-in-time available from bars); the option-liquidity floor applies ONLY to the live watchlist — historical option OI/spread do not exist back to 2022, so applying today's retroactively would be lookahead/survivorship bias.",
+    "backtest": {"min_price": 2.0, "min_adv_usd": 1500000.0, "adv_window_days": 20},
+    "live": {
+      "min_price": 3.0,
+      "min_adv_usd": 3000000.0,
+      "adv_window_days": 20,
+      "min_option_open_interest": 100,
+      "max_bid_ask_pct": 0.15
+    }
+  },
+  "signal": {
+    "_comment": "Deterministic, point-in-time signal params. Frozen a priori (no fitting on test). Changing any of these costs a Bonferroni iteration round (plan §A2).",
+    "narrative": {
+      "count_window_days": 21,
+      "ewma_span_days": 10,
+      "breadth_window_days": 21,
+      "baseline_window_days": 126,
+      "lexicon_weight": 0.15
+    },
+    "substance": {
+      "ewma_span_days": 30,
+      "baseline_window_days": 252,
+      "lookback_days": 120,
+      "insider_weight": 1.0,
+      "exclude_10b5_1": true,
+      "_weights_comment": "k=3 refinement: replaced noisy Form-4 PRESENCE with SIGNED insider net-buy (data.insider, 10b5-1 sells filtered) weighted by insider_weight. Filing events remain tangible-event presence from the submissions index. 8-K:2.02 is +/contextual (results fired on a beat OR a miss; deterministic beat/miss needs a consensus source — deferred).",
+      "event_weights": {
+        "8-K:1.01": 1.0,
+        "8-K:2.02": 0.5,
+        "8-K:3.02": -1.0,
+        "8-K:5.02": -0.5,
+        "SC 13D": 1.0,
+        "SC 13G": 0.5,
+        "S-1": -0.7,
+        "424B": -0.7
+      }
+    },
+    "divergence": {
+      "neutral_threshold": 0.5,
+      "n_min_cross_section": 8
+    }
+  },
+  "backtest": {
+    "_comment": "PRE-REGISTERED gate parameters (plan §A). Provisional explore/lockbox dates are subject to the §A0 --audit before judging the signal. Bands: IC<fail=FAIL, fail..green=YELLOW, >=green=GREEN.",
+    "explore_start": "2020-01-01",
+    "explore_end": "2024-06-30",
+    "lockbox_start": "2024-07-01",
+    "lockbox_end": null,
+    "horizon_days": 21,
+    "rebalance_days": 21,
+    "quantiles": 5,
+    "n_min_cross_section": 8,
+    "min_fold_periods": 4,
+    "fold_count": 4,
+    "bootstrap_iters": 2000,
+    "block_days": 21,
+    "ic_fail_below": 0.03,
+    "ic_green_above": 0.06,
+    "sign_consistency_min": 0.60,
+    "residual_ic_retention_min": 0.50,
+    "substance_density_floor": 0.20,
+    "max_iter_rounds": 6,
+    "alpha_base": 0.05,
+    "horizon_sweep_days": [10, 21, 42, 63],
+    "artifacts_dir": "data/backtest"
+  },
+  "edgar": {
+    "_comment": "Keyless SEC EDGAR access (plan §B5). UA from .env EDGAR_USER_AGENT (SEC requires a contact UA). Polite rate limit < 10 req/s.",
+    "rate_limit_per_sec": 8.0,
+    "cache_dir": "data/cache"
+  },
   "models": {
     "_comment": "Heterogeneous router config — Phase 3. Stub only."
   }
