@@ -153,12 +153,13 @@ def test_audit_eligible_curve_grows_with_ragged_starts(tmp_path):
     cache = PointInTimeCache(tmp_path)
     end = datetime.fromisoformat("2022-06-30").replace(tzinfo=UTC)
     # SPY full range (drives the rebalance calendar); A early, B late (ragged).
+    cov_from = datetime(2020, 1, 1, tzinfo=UTC)
     for sym, start, n in [("SPY", "2022-01-01", 180), ("ARKK", "2022-01-01", 180),
                           ("A", "2022-01-01", 180), ("B", "2022-05-01", 60)]:
-        cache.write("bars", sym, _bars(start, n), coverage_through=end)
+        cache.write("bars", sym, _bars(start, n), coverage_from=cov_from, coverage_through=end)
     for sym in ["A", "B"]:
-        cache.write("news", sym, [], coverage_through=end)
-        cache.write("filings", sym, [], coverage_through=end)
+        cache.write("news", sym, [], coverage_from=cov_from, coverage_through=end)
+        cache.write("filings", sym, [], coverage_from=cov_from, coverage_through=end)
     uni = Universe(themes={"t": ("A", "B")}, broad_benchmark="SPY", growth_benchmark="ARKK")
     cfg = {**CFG, "eligibility": {"backtest": {"min_price": 3.0, "min_adv_usd": 3e6,
                                                "adv_window_days": 20}}}

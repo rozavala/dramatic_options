@@ -21,22 +21,28 @@ from data.cache import PointInTimeCache
 SOURCE = "bars"
 
 
+def _bar_val(bar: Any, key: str) -> Any:
+    """Read a field from an alpaca Bar object or a plain dict (explicit — never via the
+    ``x or y`` idiom, which mis-fires when a valid value like volume is 0.0)."""
+    return bar[key] if isinstance(bar, dict) else getattr(bar, key)
+
+
 def _bar_records(barset: Any, symbol: str) -> list[dict[str, Any]]:
     """Normalize an alpaca BarSet (or mapping) into cache records for one symbol."""
     data = getattr(barset, "data", barset)
     bars = data.get(symbol, []) if hasattr(data, "get") else data
     out: list[dict[str, Any]] = []
     for b in bars:
-        ts = getattr(b, "timestamp", None) or b["timestamp"]
+        ts = _bar_val(b, "timestamp")
         ts = ts.isoformat() if isinstance(ts, datetime) else str(ts)
         out.append(
             {
                 "ts": ts,
-                "open": float(getattr(b, "open", None) or b["open"]),
-                "high": float(getattr(b, "high", None) or b["high"]),
-                "low": float(getattr(b, "low", None) or b["low"]),
-                "close": float(getattr(b, "close", None) or b["close"]),
-                "volume": float(getattr(b, "volume", None) or b["volume"]),
+                "open": float(_bar_val(b, "open")),
+                "high": float(_bar_val(b, "high")),
+                "low": float(_bar_val(b, "low")),
+                "close": float(_bar_val(b, "close")),
+                "volume": float(_bar_val(b, "volume")),
             }
         )
     return out
@@ -60,13 +66,14 @@ class MarketData:
 
     # ── fetch / read ──────────────────────────────────────────────────────
     def _ensure(self, symbol: str) -> None:
-        if self.cache.has_coverage(SOURCE, symbol, self.fetch_end):
+        if self.cache.covers(SOURCE, symbol, self.fetch_start, self.fetch_end):
             return
         if self.client is None:
             return  # offline: a subsequent read() raises CacheMiss if insufficient
         barset = self.client.get_stock_bars(symbol, start=self.fetch_start, end=self.fetch_end)
         self.cache.write(
-            SOURCE, symbol, _bar_records(barset, symbol), coverage_through=self.fetch_end
+            SOURCE, symbol, _bar_records(barset, symbol),
+            coverage_from=self.fetch_start, coverage_through=self.fetch_end,
         )
 
     def closes_asof(self, symbol: str, as_of: datetime) -> list[tuple[datetime, float]]:

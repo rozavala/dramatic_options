@@ -72,7 +72,7 @@ class NewsData:
         self.fetch_limit = fetch_limit
 
     def _ensure(self, symbol: str) -> None:
-        if self.cache.has_coverage(SOURCE, symbol, self.fetch_end):
+        if self.cache.covers(SOURCE, symbol, self.fetch_start, self.fetch_end):
             return
         if self.client is None:
             return
@@ -80,7 +80,8 @@ class NewsData:
             [symbol], start=self.fetch_start, end=self.fetch_end, limit=self.fetch_limit
         )
         self.cache.write(
-            SOURCE, symbol, _news_records(newsset, symbol), coverage_through=self.fetch_end
+            SOURCE, symbol, _news_records(newsset, symbol),
+            coverage_from=self.fetch_start, coverage_through=self.fetch_end,
         )
 
     def headlines_asof(self, symbol: str, as_of: datetime) -> list[dict[str, Any]]:

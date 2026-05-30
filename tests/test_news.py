@@ -45,7 +45,8 @@ def _prewarmed(tmp_path):
         _article("2022-09-01T10:00:00", "b"),
         _article("2023-05-01T10:00:00", "c"),
     ]), "JOBY")
-    cache.write("news", "JOBY", recs, coverage_through=end)
+    cache.write("news", "JOBY", recs, coverage_from=datetime(2022, 1, 1, tzinfo=UTC),
+                coverage_through=end)
     return NewsData(cache, client=None, fetch_start=datetime(2022, 1, 1, tzinfo=UTC), fetch_end=end)
 
 

@@ -1,9 +1,10 @@
 """Market adapter: as-of truncation, strictly-forward label, momentum/ADV/beta math."""
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 from data.cache import PointInTimeCache
-from data.market import MarketData
+from data.market import MarketData, _bar_records
 
 
 def _bars(start: str, n: int, price0: float = 10.0, step: float = 0.1, vol: float = 1_000_000):
@@ -22,9 +23,20 @@ def _bars(start: str, n: int, price0: float = 10.0, step: float = 0.1, vol: floa
 def _market(tmp_path, symbol="JOBY", n=400):
     cache = PointInTimeCache(tmp_path)
     end = datetime.fromisoformat("2022-01-01").replace(tzinfo=UTC) + timedelta(days=n + 10)
-    cache.write("bars", symbol, _bars("2022-01-01", n), coverage_through=end)
+    cache.write("bars", symbol, _bars("2022-01-01", n),
+                coverage_from=datetime(2021, 1, 1, tzinfo=UTC), coverage_through=end)
     return MarketData(cache, client=None, fetch_start=datetime(2021, 1, 1, tzinfo=UTC),
                       fetch_end=end), end
+
+
+def test_bar_records_handles_bar_objects_with_zero_volume():
+    # Regression: a real Bar object with volume=0.0 must not fall through to subscripting.
+    bar = SimpleNamespace(timestamp=datetime(2023, 1, 3, tzinfo=UTC), open=10.0, high=10.0,
+                          low=9.5, close=9.8, volume=0.0)
+    barset = SimpleNamespace(data={"JOBY": [bar]})
+    recs = _bar_records(barset, "JOBY")
+    assert recs[0]["volume"] == 0.0 and recs[0]["close"] == 9.8
+    assert recs[0]["ts"].startswith("2023-01-03")
 
 
 def test_latest_price_is_as_of(tmp_path):

@@ -30,6 +30,7 @@ import requests
 from data.cache import PointInTimeCache
 
 SOURCE = "filings"
+_EARLY = datetime(1990, 1, 1, tzinfo=UTC)  # submissions return full history → coverage start
 SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 SUBMISSIONS_FILE_URL = "https://data.sec.gov/submissions/{name}"
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
@@ -181,17 +182,19 @@ class FilingsData:
         return self.edgar.ticker_to_cik(symbol, overrides=self.cik_overrides)
 
     def _ensure(self, symbol: str) -> None:
-        if self.cache.has_coverage(SOURCE, symbol, self.fetch_end):
+        # Submissions return a company's FULL filing history, so coverage starts at the
+        # early sentinel — any backtest start is covered once fetched.
+        if self.cache.covers(SOURCE, symbol, _EARLY, self.fetch_end):
             return
         if self.edgar is None:
             return
         cik = self._cik(symbol)
         if cik is None:
             # Record an empty payload so we don't refetch a name with no CIK every time.
-            self.cache.write(SOURCE, symbol, [], coverage_through=self.fetch_end)
+            self.cache.write(SOURCE, symbol, [], coverage_from=_EARLY, coverage_through=self.fetch_end)
             return
         records = self.edgar.fetch_filings(cik)
-        self.cache.write(SOURCE, symbol, records, coverage_through=self.fetch_end)
+        self.cache.write(SOURCE, symbol, records, coverage_from=_EARLY, coverage_through=self.fetch_end)
 
     def filings_asof(self, symbol: str, as_of: datetime) -> list[dict[str, Any]]:
         """Filing event records with ``acceptanceDateTime <= as_of``, ascending."""

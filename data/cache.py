@@ -82,6 +82,24 @@ class PointInTimeCache:
         ct = self.coverage_through(source, key)
         return ct is not None and _to_utc(as_of) <= ct
 
+    def covers(self, source: str, key: str, start: datetime, end: datetime) -> bool:
+        """Whether the stored payload spans the WHOLE window [start, end].
+
+        Both bounds matter: a payload fetched for a *later/narrower* window (e.g. a recent
+        smoke run with ``coverage_through=now``) must NOT be mistaken as covering an earlier
+        backtest window just because its high-water mark is recent — otherwise a read returns
+        a silently-empty/partial series. Missing ``coverage_from`` (legacy entry) → not
+        covered → refetch.
+        """
+        path = self._path(source, key)
+        if not path.exists():
+            return False
+        meta = json.loads(path.read_text())
+        cf, ct = meta.get("coverage_from"), meta.get("coverage_through")
+        if cf is None or ct is None:
+            return False
+        return _parse_ts(cf) <= _to_utc(start) and _to_utc(end) <= _parse_ts(ct)
+
     def read(self, source: str, key: str, as_of: datetime) -> list[dict[str, Any]]:
         """Return records with ``ts <= as_of`` from the stored superset.
 
@@ -143,12 +161,15 @@ class PointInTimeCache:
         key: str,
         records: list[dict[str, Any]],
         *,
+        coverage_from: datetime,
         coverage_through: datetime,
     ) -> None:
         """Store/replace the superset payload for ``(source, key)``.
 
-        Every record must carry an ISO ``ts`` field. ``coverage_through`` is the instant the
-        fetch is complete to (typically the fetch window's ``end``). Refused in offline mode.
+        Every record must carry an ISO ``ts`` field. The payload is declared valid for reads
+        in the window [``coverage_from``, ``coverage_through``] (typically the fetch window's
+        start/end) — both bounds are persisted so :meth:`covers` can reject a stale narrower
+        window. Refused in offline mode.
         """
         if self.offline:
             raise CacheMiss(f"offline cache cannot write {source}/{key}")
@@ -161,6 +182,7 @@ class PointInTimeCache:
         payload = {
             "source": source,
             "key": str(key),
+            "coverage_from": _to_utc(coverage_from).isoformat(),
             "coverage_through": _to_utc(coverage_through).isoformat(),
             "fetched_at": datetime.now(UTC).isoformat(),
             "records": sorted(records, key=lambda r: r[TS_FIELD]),
