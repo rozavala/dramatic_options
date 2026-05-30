@@ -14,6 +14,8 @@ venv/
 
 # Logs & data
 *.log
+logs/
+data/
 
 # Claude Code
 .claude/settings.local.json
