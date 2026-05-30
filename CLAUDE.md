@@ -9,7 +9,7 @@ with no shared dependency**. It will eventually trade real money via **Alpaca**;
 every change with that care.
 
 **Status: paper-only. Live trading is gated and not yet enabled.**
-**Current build phase: Phase 0 complete (scaffold + Alpaca paper connection). Next: Phase 1 (data + divergence signal + backtest — the edge-validation gate).** ← update this line as phases complete.
+**Current build phase: Phase 1 BUILT, edge-gate review PENDING. Data adapters + divergence signal + walk-forward backtest harness are in and green (offline tests). The gate itself (does the signal predict forward returns on point-in-time history?) is the user's review step: run `python -m backtest.run --audit` first (coverage pre-flight, §A0), then the explore gate. Phase 2 is BLOCKED until those metrics are reviewed and accepted.** ← update this line as phases complete.
 
 ## Read these first
 
