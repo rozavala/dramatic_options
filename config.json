@@ -117,6 +117,54 @@
     "rate_limit_per_sec": 8.0,
     "cache_dir": "data/cache"
   },
+  "fssd": {
+    "_comment": "FSSD (Forced-Supply Secondary Drift) pre-registered params — see PREREG_FSSD.md. FREEZE-A (audit) 2026-05-31. Audit-relevant params are FROZEN. Stage-1 gate-only params (stage1_bands, friction.weights final, cost stub) are placeholders → finalized at FREEZE-B before the Stage-1 gate run; the audit (PREREG §8) is coverage-only, consumes no k-round, and does not read bands.",
+    "event": {"forms": ["424B5"], "include_b3_b4": false, "classify_subtype": true},
+    "universe": {
+      "source": "edgar_daily_index",
+      "survivorship_clean": true,
+      "min_price": 2.0,
+      "min_adv_usd": 1500000.0,
+      "adv_window_days": 20
+    },
+    "horizon_days": 10,
+    "horizon_sweep_days": [3, 5, 10, 21],
+    "direction": "bearish",
+    "resampling_unit": "calendar_month",
+    "alpha_base": 0.05,
+    "block_months": 1,
+    "bootstrap_iters": 2000,
+    "friction": {
+      "_comment": "Short-sale-cost composite; higher = harder/costlier to short. Weights EQUAL for the audit (provisional); finalized at FREEZE-B. Deciles from a TRAILING cross-section (no full-sample lookahead). SI%-of-shares-out ≠ SI%-of-free-float (declared approximation).",
+      "inputs": ["short_interest_pct_shares_out", "inverse_float", "inverse_adv", "inverse_price"],
+      "weights": {"short_interest_pct_shares_out": 1.0, "inverse_float": 1.0, "inverse_adv": 1.0, "inverse_price": 1.0},
+      "corner_quantile": 0.8,
+      "decile_window": "trailing"
+    },
+    "deal_size": {
+      "_comment": "Secondary conditioner; audit-gated. If extraction recall < min_recall, drop size-conditioning for v1 (friction carries the gate).",
+      "enabled": true,
+      "scale_by": ["adv20", "shares_out"],
+      "min_recall": 0.70
+    },
+    "audit": {"n_min_months": 24},
+    "explore_start": "2019-01-01",
+    "explore_end": "2022-12-31",
+    "lockbox_start": "2023-01-01",
+    "lockbox_end": "2024-12-31",
+    "finra_si": {"as_of": "publication_date"},
+    "stage1_bands": {
+      "_comment": "DECIDE AT FREEZE-B (before Stage-1 gate). |CAR| net of cost_stub_bps. Placeholders — NOT frozen.",
+      "car_green_below": null,
+      "car_fail_above": null,
+      "cost_stub_bps": null
+    },
+    "stage2": {
+      "_comment": "Net-of-implied-borrow gate; requires PAID historical options data; ONLY on a Stage-1 pass. Measures best defined-risk structure (short the dear leg), not naive long put.",
+      "trigger": "stage1_pass",
+      "best_structure": true
+    }
+  },
   "models": {
     "_comment": "Heterogeneous router config — Phase 3. Stub only."
   }
