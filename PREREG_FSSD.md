@@ -1,9 +1,10 @@
 # PREREG — FSSD v1 · Forced-Supply Secondary Drift
 
-**Status: FROZEN for the audit (FREEZE-A, 2026-05-31, `fssd` hash `76587407f824a0bd`, k=0).**
-Stage-1 gate params await FREEZE-B (§14). This document is the pre-registration: it was written
-before any FSSD performance number existed, the way the divergence gate (SPEC §2a) was. The §8
-eligible-N audit (coverage-only, no CAR, no k consumed) is the next runnable step.
+**Status: §8 audit PASSED (8a + 8b); FROZEN for Stage-1 (FREEZE-B, 2026-06-02, `fssd` hash
+`d7139e834208c7e5`, k=0 — no CAR computed yet).** FREEZE-A (`76587407f824a0bd`, commit `b829267`)
+governed the coverage audit. This document is the pre-registration: it was written before any
+FSSD performance number existed, the way the divergence gate (SPEC §2a) was. **Next runnable
+step: the Stage-1 gross-CAR gate (k=1)** — see §14.
 
 **One-line thesis.** Registered secondary offerings (424B5 takedowns) inject *price-insensitive
 supply*; the resulting negative drift is arbitraged away wherever the offsetting short is
@@ -355,9 +356,20 @@ as expected). No CAR computed; no k consumed — this remains a coverage gate.
   primary horizon = **10 td** (sweep {3,5,10,21} diagnostic), direction = **bearish**,
   resampling = **calendar month**, friction inputs + corner quantile (0.8), explore 2019–22 /
   lockbox 2023–24, deal-size `min_recall` = 0.70, audit `n_min_months` = 24.
-- **FREEZE-B (Stage-1 gate) — PENDING.** Stage-1-gate-only params remain placeholders until set
-  *before the first CAR is computed*: `stage1_bands` (net-of-cost thresholds + `cost_stub_bps`)
-  and the *final* friction `weights` (equal for the audit). Finalizing these consumes no k by
-  itself; the **first Stage-1 gate run is k=1**.
-- Status: **FROZEN for the audit.** The §8 audit may now run. No Stage-1 gate run is valid until
-  FREEZE-B is recorded here.
+- **FREEZE-B (Stage-1 gate) — FROZEN 2026-06-02, BEFORE any CAR computed.** `fssd` config hash:
+  **`d7139e834208c7e5`** (changed from the FREEZE-A `76587407f824a0bd` by design — FREEZE-A is
+  preserved in git at commit `b829267`, under which the coverage audit ran). k consumed: still
+  **0** (no CAR yet). This freezes every Stage-1 pre-commitment:
+  - **Primary statistic:** mean forward **CAR** (raw − β·SPY) at **h=10 td** of the
+    **top-friction-decile** events, as a **calendar-month series**; Bonferroni CI at
+    **α = 0.05/k** must **exclude 0 AND be negative** (the bearish pre-commitment).
+  - **Bands** (|net mean CAR|, top decile, net of a **50 bps** stock-level cost stub — the
+    *option* borrow is Stage-2, not here): FAIL < **1.0%**, GREEN ≥ **2.5%**, YELLOW between.
+  - **Friction composite (FREEZE-B #4):** 5 inputs, weights leaning on the borrow dimension —
+    `si_pct` 1.0 + `days_to_cover` 1.0 vs the three collinear illiquidity proxies
+    (`inv_float`/`inv_adv`/`inv_price` ≈ 0.33 each). Code keys match `friction.FRICTION_INPUTS`.
+  - **Direction (FREEZE-B #2):** report the **full per-friction-decile signed-CAR + dispersion
+    grid** (monotonicity supporting, not gating); the gate itself is the top-decile bearish test.
+  - **First Stage-1 CAR run is k=1.** Changing any of the above after a CAR run is a new k-round.
+- Status: **FROZEN for Stage-1.** The Stage-1 gross-CAR gate may now be built and run (k=1).
+  Stage-2 (paid options data, net-of-implied-borrow) remains gated on a Stage-1 pass.

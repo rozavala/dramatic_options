@@ -2,17 +2,20 @@
 
 The thesis (PREREG §1): forced-supply drift survives where short-sale friction makes the
 corrective arb-short uneconomic. The friction composite ranks events by how hard/costly the
-offsetting short is, from four point-in-time inputs (higher = harder to short):
+offsetting short is, from five point-in-time inputs (higher = harder to short):
 
-  - ``si_pct``     short interest ÷ shares-outstanding   (the direct borrow/limits-to-arb signal)
-  - ``inv_float``  1 / shares-outstanding                (tighter float = harder borrow)
-  - ``inv_adv``    1 / ADV₂₀ dollar volume               (thinner = costlier to short)
-  - ``inv_price``  1 / price                             (low price ≈ harder/no borrow)
+  - ``si_pct``         short interest ÷ shares-outstanding (direct borrow/limits-to-arb signal)
+  - ``days_to_cover``  short interest ÷ ADV (borrow PRESSURE: days of volume to cover)
+  - ``inv_float``      1 / shares-outstanding             (tighter float = harder borrow)
+  - ``inv_adv``        1 / ADV₂₀ dollar volume            (thinner = costlier to short)
+  - ``inv_price``      1 / price                          (low price ≈ harder/no borrow)
 
 Each input is **z-scored across the cross-section** (the caller supplies a *trailing* window to
-avoid lookahead — PREREG §5), then weighted (FREEZE-A: equal; FREEZE-B #4 flags leaning toward
-``si_pct``/days-to-cover since the other three are collinear illiquidity proxies). The corner is
-the top ``corner_quantile`` of the composite.
+avoid lookahead — PREREG §5), then weighted. **FREEZE-B #4:** the §8b audit found
+``corr(si_pct, inv_float) = +1.00`` (both ∝ 1/shares-out, nano-cap-tail-dominated), so equal
+weighting made the composite mostly a *smallness* score. FREEZE-B leans the weight onto the
+**borrow dimension** (``si_pct`` + ``days_to_cover``) and downweights the three collinear
+illiquidity proxies. The corner is the top ``corner_quantile`` of the composite.
 
 Pure functions — no I/O. Missing inputs are mean-imputed (z=0) so a name isn't excluded for one
 gap, and the count of present inputs is returned for a coverage diagnostic.
@@ -24,16 +27,19 @@ from dataclasses import dataclass
 
 import numpy as np
 
-FRICTION_INPUTS = ("si_pct", "inv_float", "inv_adv", "inv_price")
+FRICTION_INPUTS = ("si_pct", "days_to_cover", "inv_float", "inv_adv", "inv_price")
 
 
 def friction_inputs(
-    *, si_pct: float | None, shares_out: float | None, adv_usd: float | None, price: float | None
+    *, si_pct: float | None, shares_out: float | None, adv_usd: float | None,
+    price: float | None, days_to_cover: float | None = None,
 ) -> dict[str, float | None]:
-    """Assemble the four raw friction inputs from point-in-time observables (higher = harder
-    to short). Any unavailable input is None (mean-imputed downstream)."""
+    """Assemble the raw friction inputs from point-in-time observables (higher = harder to
+    short). ``days_to_cover`` comes straight from the FINRA SI record (SI ÷ ADV shares). Any
+    unavailable input is None (mean-imputed downstream)."""
     return {
         "si_pct": si_pct,
+        "days_to_cover": days_to_cover,
         "inv_float": (1.0 / shares_out) if shares_out and shares_out > 0 else None,
         "inv_adv": (1.0 / adv_usd) if adv_usd and adv_usd > 0 else None,
         "inv_price": (1.0 / price) if price and price > 0 else None,

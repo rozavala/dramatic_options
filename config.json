@@ -118,7 +118,7 @@
     "cache_dir": "data/cache"
   },
   "fssd": {
-    "_comment": "FSSD (Forced-Supply Secondary Drift) pre-registered params — see PREREG_FSSD.md. FREEZE-A (audit) 2026-05-31. Audit-relevant params are FROZEN. Stage-1 gate-only params (stage1_bands, friction.weights final, cost stub) are placeholders → finalized at FREEZE-B before the Stage-1 gate run; the audit (PREREG §8) is coverage-only, consumes no k-round, and does not read bands.",
+    "_comment": "FSSD (Forced-Supply Secondary Drift) pre-registered params — see PREREG_FSSD.md. FREEZE-A (audit, 2026-05-31) config is preserved in git at commit b829267; the §8 audit ran/passed under it. FREEZE-B (2026-06-02) finalizes the Stage-1-gate params (friction.weights/inputs, stage1_bands, deciles, direction_report) BEFORE any CAR is computed — this intentionally changes the fssd hash from the FREEZE-A value 76587407f824a0bd to the FREEZE-B value recorded in PREREG_FSSD.md §14. The first Stage-1 CAR run is k=1.",
     "event": {"forms": ["424B5"], "include_b3_b4": false, "classify_subtype": true},
     "universe": {
       "source": "edgar_daily_index",
@@ -130,15 +130,17 @@
     "horizon_days": 10,
     "horizon_sweep_days": [3, 5, 10, 21],
     "direction": "bearish",
+    "direction_report": "signed_by_decile",
     "resampling_unit": "calendar_month",
     "alpha_base": 0.05,
     "block_months": 1,
     "bootstrap_iters": 2000,
     "friction": {
-      "_comment": "Short-sale-cost composite; higher = harder/costlier to short. Weights EQUAL for the audit (provisional); finalized at FREEZE-B. Deciles from a TRAILING cross-section (no full-sample lookahead). SI%-of-shares-out ≠ SI%-of-free-float (declared approximation).",
-      "inputs": ["short_interest_pct_shares_out", "inverse_float", "inverse_adv", "inverse_price"],
-      "weights": {"short_interest_pct_shares_out": 1.0, "inverse_float": 1.0, "inverse_adv": 1.0, "inverse_price": 1.0},
+      "_comment": "FREEZE-B (2026-06-02): short-sale-cost composite; higher = harder/costlier to short. Code keys (si_pct/days_to_cover/inv_float/inv_adv/inv_price) — these MUST match friction.FRICTION_INPUTS (the FREEZE-A audit used name-mismatched keys that silently defaulted to equal weight on 4 inputs; that is fine, the audit was meant to be equal-weight). FREEZE-B #4: audit found corr(si_pct,inv_float)=+1.00, so lean weight onto the BORROW dimension (si_pct+days_to_cover=2.0) vs the 3 collinear illiquidity proxies (~1.0 total). Deciles from a TRAILING cross-section (no full-sample lookahead). SI%-of-shares-out ≠ SI%-of-free-float (declared approximation).",
+      "inputs": ["si_pct", "days_to_cover", "inv_float", "inv_adv", "inv_price"],
+      "weights": {"si_pct": 1.0, "days_to_cover": 1.0, "inv_float": 0.34, "inv_adv": 0.33, "inv_price": 0.33},
       "corner_quantile": 0.8,
+      "deciles": 10,
       "decile_window": "trailing"
     },
     "deal_size": {
@@ -154,10 +156,12 @@
     "lockbox_end": "2024-12-31",
     "finra_si": {"as_of": "publication_date"},
     "stage1_bands": {
-      "_comment": "DECIDE AT FREEZE-B (before Stage-1 gate). |CAR| net of cost_stub_bps. Placeholders — NOT frozen.",
-      "car_green_below": null,
-      "car_fail_above": null,
-      "cost_stub_bps": null
+      "_comment": "FROZEN at FREEZE-B 2026-06-02, BEFORE any CAR computed. Stage-1 measures GROSS-stock forward CAR (raw − β·SPY) at h=10td, net of a stock-level cost stub ONLY (the option borrow is Stage-2). Primary statistic: top-friction-decile monthly-mean-CAR series; Bonferroni CI (α=0.05/k) must EXCLUDE 0 AND be negative (bearish pre-commitment). Magnitude bands on |net mean CAR| of the top decile. Per FREEZE-B #2 also report the full per-decile signed-CAR+dispersion grid (monotonicity supporting, not gating). First Stage-1 run is k=1.",
+      "primary": "top_friction_decile_monthly_car",
+      "require_negative": true,
+      "cost_stub_bps": 50,
+      "car_fail_below_abs": 0.010,
+      "car_green_above_abs": 0.025
     },
     "stage2": {
       "_comment": "Net-of-implied-borrow gate; requires PAID historical options data; ONLY on a Stage-1 pass. Measures best defined-risk structure (short the dear leg), not naive long put.",

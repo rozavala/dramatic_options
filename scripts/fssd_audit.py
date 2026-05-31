@@ -211,8 +211,10 @@ def phase_corner(config: dict, start: datetime, end: datetime, *, offline: bool,
         except Exception:  # noqa: BLE001 — no SI coverage → input missing (mean-imputed)
             sirec = None
         si_shares = sirec.get("si_shares") if sirec else None
+        dtc = sirec.get("days_to_cover") if sirec else None
         si_pct = si_pct_of_shares(si_shares, so)
-        rows.append(friction_inputs(si_pct=si_pct, shares_out=so, adv_usd=adv, price=price))
+        rows.append(friction_inputs(si_pct=si_pct, shares_out=so, adv_usd=adv, price=price,
+                                    days_to_cover=dtc))
         meta.append({"event": e, "ticker": tkr, "as_of": as_of, "price": price,
                      "shares_out": so, "so_src": so_src, "si": sirec})
 
