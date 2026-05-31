@@ -100,3 +100,22 @@ class AlpacaClient:
         """
         req = OptionChainRequest(underlying_symbol=underlying, feed=feed)
         return self._options.get_option_chain(req)
+
+    def option_quote_tuples(self, underlying: str, *, feed: OptionsFeed = OptionsFeed.INDICATIVE):
+        """Current chain flattened to ``[{symbol, bid, ask}, ...]`` (FSSD §8b tradability #1).
+
+        A *current-snapshot* read for the option-tradability CEILING — never point-in-time
+        (historical option liquidity does not exist on this stack). Returns the latest_quote
+        bid/ask per contract; contracts without a quote get None bid/ask.
+        """
+        chain = self.get_option_chain(underlying, feed=feed)
+        items = chain.items() if hasattr(chain, "items") else []
+        out = []
+        for osym, snap in items:
+            lq = getattr(snap, "latest_quote", None)
+            out.append({
+                "symbol": osym,
+                "bid": getattr(lq, "bid_price", None) if lq else None,
+                "ask": getattr(lq, "ask_price", None) if lq else None,
+            })
+        return out
