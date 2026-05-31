@@ -348,6 +348,49 @@ Diagnostics healthy: float coverage 1,443/1,459; serial-diluter HHI 0.005 (479 d
 top-name 3% — not repeat-issuer-dominated); SI staleness median 10d (the ~bi-monthly+lag cost,
 as expected). No CAR computed; no k consumed — this remains a coverage gate.
 
+## Stage-1 result (2026-06-02) — k=1 FAIL: the event adds nothing over the friction characteristic
+
+First real edge measurement (CAR computed → **k=1 consumed**), explore window 2019–2022,
+config hash `d7139e834208c7e5`, h=10td. Funnel: 11,579 raw 424B5 → **1,356 eligible+labelled**
+(3,826 no current ticker, 3,216 no bars, 3,078 below price/ADV floor, 103 no forward-CAR).
+
+| metric | value | verdict |
+|---|---|---|
+| top-friction-decile mean CAR | **−1.91%** | right sign |
+| Bonferroni CI (α=0.05/1) | **[−4.64%, +0.67%]** | **spans 0 → FAIL** |
+| \|net CAR\| − 50bps stub | 1.41% | (moot; CI spans 0) |
+| **NULL** (random in-name dates) | **−1.78%**, CI [−3.80%, +0.14%] | ≈ the signal |
+| POSITIVE (uncond. post-424B5 drift) | −0.05%, CI [−0.96%, +0.93%] | dead |
+| per-decile grid | non-monotonic (d5 −1.6%, d8 +1.5%, d9 −1.2%) | no friction gradient |
+
+**RESULT: FAIL — and the *reason* is decisive, not marginal.** The null control (random dates in
+the same high-friction names) produced **−1.78%**, statistically indistinguishable from the
+event's **−1.91%**. Conditioning on the actual 424B5 adds ~nothing over the friction
+characteristic: **the negative drift belongs to high-SI/low-float/illiquid small-caps in
+general, not to the supply event.** This is exactly the "friction characteristic, not the event"
+failure the null control exists to catch.
+
+**Honest measurement caveats (do not rescue the thesis):**
+- *Benchmark data is sparse.* SPY has ~631 daily bars over the ~4.25y window (~40% missing —
+  the free IEX feed, per `alpaca_client.py`), and a representative beta came back nonsensical
+  (GME β≈−1.6, a meme-era artifact). So the **absolute** CAR levels and the positive control are
+  noisy. **But the killer is the *relative* null≈signal comparison, which uses the same
+  measurement for both arms** — a cleaner (paid SIP) feed would sharpen null and signal equally
+  and cannot make the event informative beyond the friction baseline.
+- *424B5 is a late marker (#5):* the announcement/8-K precedes the prospectus by days, so a
+  ≈0 unconditional drift **at the 424B5 date** is partly substantive (drift already realized),
+  not purely a data artifact. Entry timing would have to move earlier — a different event.
+- The honest prior from §8b stands and compounds this: even had Stage-1 passed gross, the
+  ~52% corner put spread made Stage-2 net-of-borrow a near-certain ≤0.
+
+**Decision (per the pre-registered stopping discipline): STOP FSSD.** The deterministic
+forced-supply×friction edge does not survive its first real test, for a mechanistic reason
+(no event information beyond the friction characteristic) that a data-feed upgrade or another
+k-round would not change. No k=2 spent; no Stage-2 options-data purchase. The durable deliverable
+is the **harness + the graded negative result** — FSSD failed *gradeably*, which divergence never
+did. The fork returns to: a *new* edge hypothesis on the harness, or forward-testing divergence
+via the Phase-3 council.
+
 ## 14. Freeze record
 
 - **FREEZE-A (audit scope) — FROZEN 2026-05-31.** `fssd` config hash:
