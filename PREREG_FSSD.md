@@ -318,6 +318,35 @@ smaller and is isolated in §8b (equity bars + price/ADV + optionability + frict
 8a clearing 72/72 months means raw power is not the constraint; **whether the tradable corner
 clears 24 distinct months is the binding §8b test.** No CAR computed; no k consumed.
 
+## 8b result (recorded 2026-06-02) — friction corner POWERED, but borrow-tax huge
+
+Full pre-registered **explore window 2019-01-01 → 2022-12-31**, online (current option chain for
+the tradability ceiling). Funnel: **11,579 raw 424B5 → 1,459 equity-eligible** (3,826 dropped =
+no current ticker / delisted — the survivorship cost, *counted*; 3,220 no bars; 3,074 below the
+price/ADV floor = the debt/preferred/CEF superset). Friction corner (top 20%): **292 events over
+29 distinct months**; with a current tradable near-money put: **139 over 28 distinct months ≥ 24
+→ PASS.**
+
+**RESULT: PASS — the friction ∩ optionable ∩ tradable corner is powered** (28 ≥ 24 months).
+Stage-1 CAR gate is justified. *But three findings temper it, and all three feed FREEZE-B:*
+1. **The borrow-in-the-puts tax is enormous: median near-money put bid/ask spread ≈ 52%**
+   (range 6%–188%) on the corner. This is a *current-snapshot ceiling* (best case; historical
+   was almost certainly worse), and it is a loud prior that **Stage-2 net-of-implied-borrow may
+   be ≤ 0 even if Stage-1 gross CAR is real.** The two-stage spend gate exists precisely to find
+   this cheaply — do not buy options data until Stage-1 gross passes.
+2. **Friction composite is partly a smallness score (FREEZE-B #4 confirmed):**
+   `corr(si_pct, inv_float) = +1.00` (both ∝ 1/shares-out, nano-cap-tail-dominated), while the
+   short-sale-cost dimension (si_pct, days-to-cover) is nearly orthogonal to the illiquidity
+   proxies. → at FREEZE-B, reweight toward SI/days-to-cover so the corner measures *borrow
+   friction*, not just *small*.
+3. **Subtype split (XBRL Δshares-out): primary 154 / secondary 78 / unknown 11** — i.e. ~53% of
+   the corner is *dilutive* (true new supply), ~27% pure selling-holder distribution. Deal-size
+   recall 83% (prospectus 76% / XBRL-delta 83%) ≥ 0.70 → **size-conditioning survives to v1.**
+
+Diagnostics healthy: float coverage 1,443/1,459; serial-diluter HHI 0.005 (479 distinct names,
+top-name 3% — not repeat-issuer-dominated); SI staleness median 10d (the ~bi-monthly+lag cost,
+as expected). No CAR computed; no k consumed — this remains a coverage gate.
+
 ## 14. Freeze record
 
 - **FREEZE-A (audit scope) — FROZEN 2026-05-31.** `fssd` config hash:
