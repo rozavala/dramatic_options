@@ -44,6 +44,31 @@ service_exists() {
         systemctl cat "${SERVICE_NAME}.service" >/dev/null 2>&1
 }
 
+# Honor the header promise ("no-ops cleanly until the app exists"): only manage systemd when
+# the repo unit's ExecStart can ACTUALLY run — its interpreter exists AND its script argument
+# is present in the checkout. The scaffold unit points ExecStart at app.py, which doesn't exist
+# yet; installing+starting it would crash-loop (Type=simple/Restart=always) and trip a rollback.
+# `service_exists` was an insufficient guard because PROD *installs* the scaffold unit itself
+# (step 7) before starting it. Until a real entry point lands, every env stays code-only.
+service_runnable() {
+    local unit="scripts/${SERVICE_NAME}.service"
+    [ -f "$unit" ] || return 1
+    local exec_cmd bin script
+    exec_cmd=$(grep -E '^[[:space:]]*ExecStart=' "$unit" | head -1 | sed -E 's/^[[:space:]]*ExecStart=//')
+    [ -n "$exec_cmd" ] || return 1
+    exec_cmd=${exec_cmd#[-@+!]}                          # strip systemd ExecStart prefixes
+    bin=$(printf '%s' "$exec_cmd" | awk '{print $1}')
+    [ -x "$bin" ] || return 1                            # interpreter/binary must exist
+    script=$(printf '%s' "$exec_cmd" | tr ' ' '\n' | grep -E '\.py$' | head -1)
+    if [ -n "$script" ]; then
+        case "$script" in
+            /*) [ -f "$script" ] || return 1 ;;
+            *)  [ -f "$REPO_ROOT/$script" ] || return 1 ;;
+        esac
+    fi
+    return 0
+}
+
 start_service() {
     if service_exists; then
         sudo systemctl start "$SERVICE_NAME"
@@ -147,36 +172,44 @@ fi
 # STEP 7: Start service via systemd
 # =========================================================================
 echo "--- 7. Starting service... ---"
-# On PROD, sync the repo's service unit into systemd if it differs.
-if [ "$ENV_NAME" = "PROD" ]; then
-    REPO_SERVICE="scripts/${SERVICE_NAME}.service"
-    LIVE_SERVICE="/etc/systemd/system/${SERVICE_NAME}.service"
-    if [ -f "$REPO_SERVICE" ] && ! diff -q "$REPO_SERVICE" "$LIVE_SERVICE" >/dev/null 2>&1; then
-        echo "  Syncing service unit (repo differs from installed)..."
-        sudo cp "$REPO_SERVICE" "$LIVE_SERVICE" || echo "  WARNING: could not sync unit (check sudoers)"
-    fi
-fi
-
-if service_exists; then
-    sudo systemctl daemon-reload
-    start_service
-    sleep 5
-    if ! sudo systemctl is-active --quiet "$SERVICE_NAME"; then
-        echo "  ERROR: $SERVICE_NAME failed to start!"
-        sudo systemctl status "$SERVICE_NAME" --no-pager | head -20 || true
-        tail -50 logs/app.log 2>/dev/null || true
-        rollback_and_restart
-    fi
-    echo "  $SERVICE_NAME started"
+if ! service_runnable; then
+    # Code-only deploy: don't install or start a unit whose ExecStart can't run yet. This is
+    # what keeps DEV clean today, and now keeps PROD from crash-looping + rolling back on the
+    # scaffold app.py. Wire a real ExecStart + run model (loop or oneshot+timer) to enable.
+    echo "  Service entry point not present yet (scaffold ExecStart) — skipping install/start."
+    echo "  Deploy is code-only on every env until scripts/${SERVICE_NAME}.service has a real ExecStart."
 else
-    echo "  No ${SERVICE_NAME}.service installed — skipping start (app not deployed yet)"
+    # On PROD, sync the repo's service unit into systemd if it differs.
+    if [ "$ENV_NAME" = "PROD" ]; then
+        REPO_SERVICE="scripts/${SERVICE_NAME}.service"
+        LIVE_SERVICE="/etc/systemd/system/${SERVICE_NAME}.service"
+        if [ -f "$REPO_SERVICE" ] && ! diff -q "$REPO_SERVICE" "$LIVE_SERVICE" >/dev/null 2>&1; then
+            echo "  Syncing service unit (repo differs from installed)..."
+            sudo cp "$REPO_SERVICE" "$LIVE_SERVICE" || echo "  WARNING: could not sync unit (check sudoers)"
+        fi
+    fi
+
+    if service_exists; then
+        sudo systemctl daemon-reload
+        start_service
+        sleep 5
+        if ! sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+            echo "  ERROR: $SERVICE_NAME failed to start!"
+            sudo systemctl status "$SERVICE_NAME" --no-pager | head -20 || true
+            tail -50 logs/app.log 2>/dev/null || true
+            rollback_and_restart
+        fi
+        echo "  $SERVICE_NAME started"
+    else
+        echo "  No ${SERVICE_NAME}.service installed — skipping start (app not deployed yet)"
+    fi
 fi
 
 # =========================================================================
 # STEP 8: Final verification
 # =========================================================================
 echo "--- 8. Final check... ---"
-if service_exists; then
+if service_runnable && service_exists; then
     sleep 3
     if ! sudo systemctl is-active --quiet "$SERVICE_NAME"; then
         echo "  ERROR: $SERVICE_NAME no longer running after 3s!"

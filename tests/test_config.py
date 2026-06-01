@@ -20,8 +20,14 @@ def test_frozen_exit_rules_match_prereg():
     config_loader.load_config.cache_clear()
 
 
-def test_council_block_and_llm_keys_surfaced(monkeypatch):
-    """The shipped council config + .env-sourced provider keys load as expected (T2)."""
+def test_council_block_and_llm_keys_surfaced(monkeypatch, tmp_path):
+    """The shipped council config + .env-sourced provider keys load as expected (T2).
+
+    Hermetic: point ENV_PATH at a nonexistent file so the developer's real ``.env`` (which may
+    now hold real provider keys) can't sway the assertions — ``load_dotenv`` would otherwise
+    re-set a ``delenv``'d key from ``.env`` and break the ``is None`` check locally.
+    """
+    monkeypatch.setattr(config_loader, "ENV_PATH", tmp_path / "absent.env")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "a-key")
     monkeypatch.delenv("XAI_API_KEY", raising=False)
     config_loader.load_config.cache_clear()
