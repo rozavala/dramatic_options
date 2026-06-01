@@ -24,13 +24,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from calibration.engine import Structure, run_cell_mc  # noqa: E402
 from calibration.metrics import payoff_stats  # noqa: E402
 
-# Frozen grid axes (PREREG §4).
+# Frozen grid axes (PREREG §4; delta/reprice + θ sweep added 2026-06-01).
 MONEYNESS = [0.15, 0.25, 0.40]
 TENORS = [180, 270, 365]
 EXIT_RULES = ["hold", "time_stop", "profit_take", "live"]
 SIGMA_MULTS = [0.8, 1.0, 1.2, 1.5]
 MC_MUS = [0.0, 0.10, 0.25]
 MC_SIGMAS = [0.30, 0.50, 0.80]
+DELTA_THRESHOLDS = [0.4, 0.5, 0.6]   # θ_delta for the "move played out" exit
+BACKSTOP_MULT = 10.0                  # live profit-take backstop (PREREG §6a, 2026-06-01)
 
 
 def _banner() -> None:
@@ -75,6 +77,29 @@ def run_mc(args) -> dict:
             results.append(_record(s, mu, sig, st))
             print(f"\n[μ={mu:.0%} · σ_real={sig:.0%}]")
             print(st.to_text())
+
+    # Exit-rule head-to-head @ the live cell — the θ_delta decision surface (2026-06-01).
+    # hold-the-tail vs the new reprice rule (delta primary, 10× backstop) across θ. Read with
+    # the GBM-no-jumps caveat: GBM understates the OTM right tail, which flatters EARLY exits in
+    # a head-to-head — so the delta cells here are an UPPER bound on how good early-exit looks.
+    print(f"\n## Exit head-to-head @ 25% OTM, 270d, σ_entry=1.0×, kind={args.kind} (θ_delta sweep) ##")
+    cmp_cells: list[tuple[str, str, float | None, float]] = [
+        ("hold (tail)", "hold", None, 4.0),
+        ("live 10× backstop", "live", None, BACKSTOP_MULT),
+    ]
+    for th in DELTA_THRESHOLDS:
+        cmp_cells.append((f"delta@{th:g}", "delta", th, 4.0))
+        cmp_cells.append((f"reprice@{th:g} (delta+10×+21DTE)", "reprice", th, BACKSTOP_MULT))
+    for label, rule, th, pt in cmp_cells:
+        s = Structure(moneyness=0.25, tenor_days=270, kind=args.kind, exit_rule=rule,
+                      sigma_entry_mult=1.0, profit_take_mult=pt, delta_exit_threshold=th)
+        cell = run_cell_mc(s, mu=rep_mu, sigma_real=rep_sigma, n_paths=args.paths, r=r,
+                           roundtrip_cost_pct=cost, seed=args.seed)
+        st = payoff_stats(cell)
+        results.append(_record(s, rep_mu, rep_sigma, st))
+        print(f"\n[{label}]")
+        print(st.to_text())
+
     return {"mode": "mc", "kind": args.kind, "paths": args.paths, "rate": r,
             "cost_pct": cost, "cells": results}
 
@@ -83,6 +108,7 @@ def _record(s: Structure, mu, sigma_real, st) -> dict:
     return {
         "moneyness": s.moneyness, "tenor_days": s.tenor_days, "kind": s.kind,
         "exit_rule": s.exit_rule, "sigma_entry_mult": s.sigma_entry_mult,
+        "profit_take_mult": s.profit_take_mult, "delta_exit_threshold": s.delta_exit_threshold,
         "mu": mu, "sigma_real": sigma_real,
         "n": st.n, "entry_premium": st.entry_premium, "mean_multiple": st.mean_multiple,
         "median_multiple": st.median_multiple, "p_total_loss": st.p_total_loss,

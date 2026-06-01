@@ -76,6 +76,25 @@ non-overlapping holds per name — still far too thin to characterize a payoff *
 - **Tenor:** `{180, 270, 365}` days (live window 180–365).
 - **Exit rule:** `{hold-to-expiry, time-stop@21DTE, profit-take@4×}` and the live combined
   rule (profit-take 4× OR time-stop 21DTE) — so the §6a live exits are one cell of the grid.
+  **Amendment 2026-06-01 — delta-trigger + reprice rules added** (for the venture→reprice-capture
+  exit reframe; see `PREREG_THEMATIC_CONVEXITY` §6a). New cells: `delta` (close when `|delta| ≥
+  θ_delta` — the far-OTM convexity has *converted into delta*, i.e. the anticipated spot move
+  played out) and `reprice` (delta **OR** the 10× profit-take backstop **OR** time-stop@21DTE,
+  else expiry — the candidate new OTM rule). Swept over **`θ_delta ∈ {0.4, 0.5, 0.6}`**, reported
+  as an exit head-to-head at the live cell (25% OTM, 270d) vs hold-the-tail and live-10×. The
+  delta exit is calibratable because delta moves with *spot* at constant σ_entry; an IV/skew
+  *re-rating* ("gate-rerate") exit is **NOT** calibratable here (the harness re-prices at constant
+  σ_entry — no vol path) and is excluded. **Read with the GBM-no-jumps caveat (carried from §3):**
+  GBM understates the right tail, which in a head-to-head flatters *early* exits — so the delta
+  cells are an upper bound on how good early-exit looks; weight the Mode-B (real-jump) overlay for
+  the tail-dependent comparison and do not let the harness silently endorse earlier exits.
+  **FINDING (2026-06-01, 5000 paths, 25% OTM/270d/σe=1.0×/μ=10%/σ_real=50%): the delta exit is
+  EV-inferior on the OTM sleeve and was NOT adopted.** hold-the-tail: mean M=1.22×, p99=14.4×,
+  break-even p*=**19%**. delta@0.5: mean M=1.02×, p99 capped at **1.8×**, p*=**67%** — it forfeits
+  the fat tail and needs a ~60–68% hit-rate to beat holding; hold dominates on *both* mean and p*,
+  and the GBM bias favored the early exit yet it still lost. → **OTM exits stay §6a (hold-the-tail);
+  the delta/reprice rules are retained as a calibration capability for the future ITM sleeve** (where
+  high-delta/no-tail makes reprice the right pairing), not used in the live OTM path.
 - **σ_entry multiple:** `{0.8, 1.0, 1.2, 1.5}` (§3).
 - **Mode-A path params:** `μ ∈ {0%, 10%, 25%}` annual drift, `σ_real ∈ {30%, 50%, 80%}`
   (spanning the high-beta thematic names), N paths per cell (config, default 5000, seeded).
