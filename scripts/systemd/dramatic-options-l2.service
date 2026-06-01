@@ -1,0 +1,23 @@
+# Dramatic Options — L2 intraday monitor (mark-to-market + deterministic exits, NO council).
+# TEMPLATE: deploy.sh renders __REPO_ROOT__ / __USER__ / __GROUP__ at install time.
+#
+# `orchestrator.py --monitor` skips the council entirely → NO LLM spend → the only LLM cost is
+# the one L1 council run per day. Real SELL_TO_CLOSE transmits only when the market is open
+# (orchestrator fail-closed gate); pre-open/post-close ticks are mark-only.
+[Unit]
+Description=Dramatic Options L2 intraday monitor (marks + exits, no council)
+After=network-online.target
+Wants=network-online.target
+OnFailure=dramatic-options-notify@%n.service
+
+[Service]
+Type=oneshot
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__REPO_ROOT__
+EnvironmentFile=__REPO_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
+# Comfortable now; if Alpaca is slow against a full 15-position book it fails LOUD (SIGTERM →
+# OnFailure → page) rather than silently — the correct direction. Bump if it pages on slow days.
+TimeoutStartSec=180
+ExecStart=__REPO_ROOT__/venv/bin/python -u orchestrator.py --monitor

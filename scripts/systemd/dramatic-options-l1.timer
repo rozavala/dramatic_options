@@ -1,0 +1,20 @@
+# Dramatic Options — L1 daily cycle timer. TEMPLATE (no placeholders here, but installed +
+# enabled by deploy.sh only where FORWARD_ENABLED=true; PROD stays installed-but-disabled).
+#
+# 15:45 ET is PRE-close (R1): entries and the monitor's SELL_TO_CLOSE transact at LIVE prices
+# and reconcile same session — not into the closed after-hours options book. It is also OFF
+# the L2 :00/:30 grid (R8) so the two timers never start the same monitor pass concurrently.
+# Persistent=true: a run missed because the box was down fires on next boot. That catch-up is
+# safe because (a) acting on slightly-stale marks is immaterial to a 6–12-month hold, and
+# (b) the orchestrator's fail-closed market-open gate makes a post-close catch-up mark-only /
+# no-entry, so it can never submit into a closed market.
+[Unit]
+Description=Dramatic Options L1 daily forward cycle timer (15:45 ET, pre-close)
+
+[Timer]
+OnCalendar=Mon..Fri 15:45 America/New_York
+Persistent=true
+Unit=dramatic-options-l1.service
+
+[Install]
+WantedBy=timers.target

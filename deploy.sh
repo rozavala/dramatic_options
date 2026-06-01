@@ -1,17 +1,25 @@
 #!/bin/bash
 set -e
 # =============================================================================
-# dramatic_options — Deployment Script
+# dramatic_options — Deployment Script (T2.5 PR2: forward loop, oneshot+timer)
 #
-# Adapted from the real_options deployment method:
-#   stop -> rotate logs -> install deps -> migrations -> verify gate
-#   -> (rollback on failure) -> restart service -> sync worktree.
+# Run model: the single-cycle orchestrator.py is fired by systemd TIMERS, not a
+# long-lived service:
+#   • dramatic-options-l1.{service,timer}  — daily 15:45 ET full cycle (council + entries + monitor)
+#   • dramatic-options-l2.{service,timer}  — ~30min intraday monitor (--monitor, no council/LLM)
+#   • dramatic-options-notify@.service     — OnFailure Pushover pager (instanced per failed unit)
 #
-# Called by: .github/workflows/deploy.yml (via SSH after git pull)
-# Can also be run manually on the target host:  ENV_NAME=DEV ./deploy.sh
+# This script: stop timers/in-flight cycle -> rotate logs -> deps -> migrations
+#   -> verify gate (rolls back on failure) -> install+render units -> arm timers
+#   -> verify timers active -> sync worktree.
 #
-# This is a scaffold for a future public web app. App-specific bits are marked
-# with TODO and guarded so the script no-ops cleanly until the app exists.
+# Units are INSTALLED on BOTH envs but the timers are ENABLED only where
+# FORWARD_ENABLED=true (DEV=paper trades; PROD=real-money stays installed-but-inert
+# until T4). The oneshot .service units are NEVER `systemctl start`ed by this script
+# (that would run a full live cycle synchronously) — only the timers are armed.
+#
+# Called by: .github/workflows/deploy.yml (SSH after git pull). Manual:
+#   cd ~/dramatic_options && ENV_NAME=DEV ./deploy.sh
 # =============================================================================
 
 # --- Detect repo root -------------------------------------------------------
@@ -22,13 +30,18 @@ else
 fi
 cd "$REPO_ROOT"
 
-# --- Configuration (adjust once the app exists) -----------------------------
+# --- Configuration ----------------------------------------------------------
 ENV_NAME="${ENV_NAME:-DEV}"                       # DEV | PROD
-SERVICE_NAME="${APP_SERVICE_NAME:-dramatic-options}"  # systemd unit name
-HEALTH_URL="${HEALTH_URL:-}"                       # e.g. http://127.0.0.1:8000/health
+SERVICE_PREFIX="dramatic-options"
+SYSTEMD_SRC="scripts/systemd"                      # unit templates (rendered at install time)
+SYSTEMD_DST="/etc/systemd/system"
+TIMERS=("${SERVICE_PREFIX}-l1.timer" "${SERVICE_PREFIX}-l2.timer")
+SERVICES=("${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service")
+ENV_FILE="$REPO_ROOT/.env"                         # the file systemd EnvironmentFile reads
+HEALTH_URL="${HEALTH_URL:-}"                       # intentionally EMPTY — no HTTP server in this app
 
 # Prevent overlapping deploys
-DEPLOY_LOCK="/tmp/${SERVICE_NAME}-deploy.lock"
+DEPLOY_LOCK="/tmp/${SERVICE_PREFIX}-deploy.lock"
 echo "$$" > "$DEPLOY_LOCK"
 trap "rm -f '$DEPLOY_LOCK'" EXIT
 
@@ -39,45 +52,97 @@ PREV_COMMIT=$(git rev-parse HEAD~1 2>/dev/null || echo "")
 CURR_COMMIT=$(git rev-parse HEAD)
 echo "--- Deploy ($ENV_NAME): $CURR_COMMIT (rollback target: ${PREV_COMMIT:-none}) ---"
 
-service_exists() {
-    systemctl list-unit-files "${SERVICE_NAME}.service" >/dev/null 2>&1 && \
-        systemctl cat "${SERVICE_NAME}.service" >/dev/null 2>&1
+# --- Helpers ----------------------------------------------------------------
+
+# Read FORWARD_ENABLED from the LIVE-CHECKOUT .env. We GREP a single key — we never `source`
+# the file (it must never execute arbitrary content). Absent/unset/anything-not-truthy => false.
+forward_enabled() {
+    [ -f "$ENV_FILE" ] || { echo "false"; return; }
+    local v
+    v=$(grep -E '^[[:space:]]*FORWARD_ENABLED[[:space:]]*=' "$ENV_FILE" 2>/dev/null \
+        | tail -1 | cut -d= -f2- | tr -d "\"' \t\r")
+    case "$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on) echo "true" ;;
+        *)             echo "false" ;;
+    esac
 }
 
-# Honor the header promise ("no-ops cleanly until the app exists"): only manage systemd when
-# the repo unit's ExecStart can ACTUALLY run — its interpreter exists AND its script argument
-# is present in the checkout. The scaffold unit points ExecStart at app.py, which doesn't exist
-# yet; installing+starting it would crash-loop (Type=simple/Restart=always) and trip a rollback.
-# `service_exists` was an insufficient guard because PROD *installs* the scaffold unit itself
-# (step 7) before starting it. Until a real entry point lands, every env stays code-only.
-service_runnable() {
-    local unit="scripts/${SERVICE_NAME}.service"
-    [ -f "$unit" ] || return 1
-    local exec_cmd bin script
-    exec_cmd=$(grep -E '^[[:space:]]*ExecStart=' "$unit" | head -1 | sed -E 's/^[[:space:]]*ExecStart=//')
-    [ -n "$exec_cmd" ] || return 1
-    exec_cmd=${exec_cmd#[-@+!]}                          # strip systemd ExecStart prefixes
-    bin=$(printf '%s' "$exec_cmd" | awk '{print $1}')
-    [ -x "$bin" ] || return 1                            # interpreter/binary must exist
-    script=$(printf '%s' "$exec_cmd" | tr ' ' '\n' | grep -E '\.py$' | head -1)
-    if [ -n "$script" ]; then
-        case "$script" in
-            /*) [ -f "$script" ] || return 1 ;;
-            *)  [ -f "$REPO_ROOT/$script" ] || return 1 ;;
-        esac
+# Render a unit template to stdout, substituting the install-time placeholders so the same
+# tracked file is correct on DEV (rodrigo) and PROD (console) without hardcoded paths.
+render_unit() {
+    sed -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
+        -e "s|__USER__|$(id -un)|g" \
+        -e "s|__GROUP__|$(id -gn)|g" \
+        "$1"
+}
+
+# Render every template in $SYSTEMD_SRC and install into $SYSTEMD_DST when it differs.
+# Sets UNITS_CHANGED=1 and reloads systemd if anything changed.
+UNITS_CHANGED=0
+install_units() {
+    UNITS_CHANGED=0
+    if [ ! -d "$SYSTEMD_SRC" ]; then
+        echo "  (no $SYSTEMD_SRC in this tree — nothing to install)"
+        return 0
     fi
+    local src name tmp
+    for src in "$SYSTEMD_SRC"/*.service "$SYSTEMD_SRC"/*.timer; do
+        [ -f "$src" ] || continue
+        name=$(basename "$src")
+        tmp=$(mktemp)
+        render_unit "$src" > "$tmp"
+        if ! diff -q "$tmp" "$SYSTEMD_DST/$name" >/dev/null 2>&1; then
+            echo "  Installing unit: $name"
+            if sudo cp "$tmp" "$SYSTEMD_DST/$name"; then
+                UNITS_CHANGED=1
+            else
+                echo "  WARNING: could not install $name (check sudoers)"
+            fi
+        fi
+        rm -f "$tmp"
+    done
+    if [ "$UNITS_CHANGED" -eq 1 ]; then
+        sudo systemctl daemon-reload || echo "  WARNING: daemon-reload failed"
+    fi
+}
+
+# Arm timers where this env trades; otherwise guarantee they are inert. NEVER starts the
+# oneshot .service units (that would run a full live cycle now).
+apply_timers() {
+    if [ "$(forward_enabled)" = "true" ]; then
+        echo "  FORWARD_ENABLED=true → enabling timers (this env trades)."
+        sudo systemctl enable --now "${TIMERS[@]}" || echo "  WARNING: enable --now failed (verified in STEP 8)"
+    else
+        echo "  FORWARD_ENABLED=false → timers installed-but-inert (no trading on this env)."
+        sudo systemctl disable --now "${TIMERS[@]}" 2>/dev/null || true
+    fi
+}
+
+# Stop scheduling AND any in-flight oneshot so a `git reset` never lands under a live cycle (R4).
+stop_units() {
+    sudo systemctl stop "${TIMERS[@]}" "${SERVICES[@]}" 2>/dev/null || true
+}
+
+# Verify the TIMERS are active where the env trades. We assert the timers (a oneshot .service is
+# `inactive` between runs — asserting its is-active would falsely fail). No-op on an inert env.
+verify_timers() {
+    [ "$(forward_enabled)" = "true" ] || { echo "  (FORWARD_ENABLED=false — timers intentionally inert)"; return 0; }
+    local t
+    for t in "${TIMERS[@]}"; do
+        if ! sudo systemctl is-active --quiet "$t"; then
+            echo "  ERROR: timer $t is NOT active after enable!"
+            return 1
+        fi
+    done
+    echo "  Timers active: ${TIMERS[*]}"
     return 0
 }
 
-start_service() {
-    if service_exists; then
-        sudo systemctl start "$SERVICE_NAME"
-    else
-        echo "  (no ${SERVICE_NAME}.service installed yet — skipping start)"
-    fi
-}
-
-# Define rollback function
+# Rollback: reset code AND re-sync the unit files (R4) — /etc must match the running commit and
+# the timers must be re-armed per the (rolled-back) .env, not just `git reset`.
+# NOTE: rolling back ACROSS the commit that first introduced the units (i.e. the very first PR2
+# deploy) finds no templates in the prior tree, so it can only stop/disable the timers — verify
+# by hand (this is exactly the path the pre-merge DEV rehearsal exercises).
 rollback_and_restart() {
     echo ""
     echo "!!! ===================================================== !!!"
@@ -85,12 +150,14 @@ rollback_and_restart() {
     echo "!!! ===================================================== !!!"
     if [ -n "$PREV_COMMIT" ]; then
         echo "--- Rolling back to $PREV_COMMIT ---"
+        stop_units
         git reset --hard "$PREV_COMMIT"
         [ -d "venv" ] && source venv/bin/activate
         [ -f requirements.txt ] && pip install -r requirements.txt --quiet
         mkdir -p logs
-        start_service
-        echo "--- Rollback complete. Old version restarted. ---"
+        install_units      # re-render the rolled-back tree's units (R4)
+        apply_timers       # re-arm per the rolled-back .env
+        echo "--- Rollback complete. Units re-synced to $PREV_COMMIT. ---"
         echo "--- MANUAL INVESTIGATION REQUIRED ---"
     else
         echo "--- No previous commit available for rollback ---"
@@ -100,25 +167,18 @@ rollback_and_restart() {
 }
 
 # =========================================================================
-# STEP 1: Stop old process via systemd
+# STEP 1: Stop timers + any in-flight cycle (before touching the checkout)
 # =========================================================================
-echo "--- 1. Stopping old process... ---"
-if service_exists && sudo systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-    echo "  Stopping $SERVICE_NAME..."
-    sudo systemctl stop "$SERVICE_NAME"
-    sleep 3
-else
-    echo "  $SERVICE_NAME not running (or not installed) — nothing to stop"
-fi
+echo "--- 1. Stopping timers / in-flight cycle... ---"
+stop_units
 
 # =========================================================================
-# STEP 2: Rotate logs
+# STEP 2: Rotate logs (deploy's own log; the units themselves log to journald)
 # =========================================================================
 echo "--- 2. Rotating logs... ---"
 mkdir -p logs
 ROTATE_DATE=$(date --iso=s)
 [ -f logs/app.log ] && mv logs/app.log "logs/app-${ROTATE_DATE}.log" || true
-# Clean up rotated logs older than 7 days
 find logs/ -name "*-20*.log" -mtime +7 -delete 2>/dev/null || true
 touch logs/app.log
 chmod 664 logs/app.log 2>/dev/null || true
@@ -156,12 +216,12 @@ else
 fi
 
 # =========================================================================
-# STEP 6: Post-deploy verification gate
+# STEP 6: Post-deploy verification gate (rolls back on failure)
 # =========================================================================
 echo "--- 6. Running post-deploy verification... ---"
 chmod +x scripts/verify_deploy.sh 2>/dev/null || true
 if [ -f "scripts/verify_deploy.sh" ]; then
-    if ! HEALTH_URL="$HEALTH_URL" bash scripts/verify_deploy.sh; then
+    if ! ENV_NAME="$ENV_NAME" HEALTH_URL="$HEALTH_URL" bash scripts/verify_deploy.sh; then
         rollback_and_restart
     fi
 else
@@ -169,52 +229,19 @@ else
 fi
 
 # =========================================================================
-# STEP 7: Start service via systemd
+# STEP 7: Install systemd units + arm timers
 # =========================================================================
-echo "--- 7. Starting service... ---"
-if ! service_runnable; then
-    # Code-only deploy: don't install or start a unit whose ExecStart can't run yet. This is
-    # what keeps DEV clean today, and now keeps PROD from crash-looping + rolling back on the
-    # scaffold app.py. Wire a real ExecStart + run model (loop or oneshot+timer) to enable.
-    echo "  Service entry point not present yet (scaffold ExecStart) — skipping install/start."
-    echo "  Deploy is code-only on every env until scripts/${SERVICE_NAME}.service has a real ExecStart."
-else
-    # On PROD, sync the repo's service unit into systemd if it differs.
-    if [ "$ENV_NAME" = "PROD" ]; then
-        REPO_SERVICE="scripts/${SERVICE_NAME}.service"
-        LIVE_SERVICE="/etc/systemd/system/${SERVICE_NAME}.service"
-        if [ -f "$REPO_SERVICE" ] && ! diff -q "$REPO_SERVICE" "$LIVE_SERVICE" >/dev/null 2>&1; then
-            echo "  Syncing service unit (repo differs from installed)..."
-            sudo cp "$REPO_SERVICE" "$LIVE_SERVICE" || echo "  WARNING: could not sync unit (check sudoers)"
-        fi
-    fi
-
-    if service_exists; then
-        sudo systemctl daemon-reload
-        start_service
-        sleep 5
-        if ! sudo systemctl is-active --quiet "$SERVICE_NAME"; then
-            echo "  ERROR: $SERVICE_NAME failed to start!"
-            sudo systemctl status "$SERVICE_NAME" --no-pager | head -20 || true
-            tail -50 logs/app.log 2>/dev/null || true
-            rollback_and_restart
-        fi
-        echo "  $SERVICE_NAME started"
-    else
-        echo "  No ${SERVICE_NAME}.service installed — skipping start (app not deployed yet)"
-    fi
-fi
+echo "--- 7. Installing systemd units + arming timers... ---"
+install_units
+apply_timers
 
 # =========================================================================
-# STEP 8: Final verification
+# STEP 8: Verify the timers are active (where this env trades)
 # =========================================================================
-echo "--- 8. Final check... ---"
-if service_runnable && service_exists; then
-    sleep 3
-    if ! sudo systemctl is-active --quiet "$SERVICE_NAME"; then
-        echo "  ERROR: $SERVICE_NAME no longer running after 3s!"
-        rollback_and_restart
-    fi
+echo "--- 8. Verifying timers... ---"
+if ! verify_timers; then
+    sudo systemctl list-timers "${SERVICE_PREFIX}-*" --no-pager 2>/dev/null || true
+    rollback_and_restart
 fi
 
 # =========================================================================
@@ -230,5 +257,5 @@ fi
 
 echo ""
 echo "--- Deployment finished successfully! ---"
-echo "--- Commit: $CURR_COMMIT ($ENV_NAME) ---"
+echo "--- Commit: $CURR_COMMIT ($ENV_NAME, FORWARD_ENABLED=$(forward_enabled)) ---"
 echo "--- $(date) ---"

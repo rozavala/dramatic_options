@@ -21,12 +21,13 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+import notify
 import state
 from broker import AlpacaPaperBroker, PaperBroker
-from clock import FixedClock, LiveClock
+from clock import Clock, FixedClock, LiveClock
 from config_loader import ConfigError, live_allowed, load_config, require_alpaca_credentials
 from convexity_data import AlpacaChainProvider, AlpacaQuoteProvider, SyntheticChainProvider
-from council.router import FakeRouter, RouterError, build_router
+from council.router import BudgetExceeded, FakeRouter, RouterError, build_router
 from council.wiring import council_to_themes
 from monitor import monitor_positions, reconcile_pending
 from paper_loop import kill_rule_status, run_paper_cycle
@@ -119,6 +120,38 @@ def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
     return router, news
 
 
+def _safe_market_open(clock: Clock) -> bool:
+    """``clock.is_market_open()`` wrapped FAIL-CLOSED (PR2 R5).
+
+    The market-state call hits the broker/network; any error (outage, partial failure) must
+    NOT be read as "open". Returning False means: no new entries, and the monitor runs
+    mark-only (no real SELL_TO_CLOSE) — we never act on an unconfirmed market state.
+    """
+    try:
+        return bool(clock.is_market_open())
+    except Exception as e:  # noqa: BLE001 — fail-closed: unknown ⇒ treat as closed
+        log.warning("market-state check failed (%s) — treating market as CLOSED (fail-closed).", e)
+        return False
+
+
+def entries_allowed(*, forward_enabled: bool, market_open: bool, demo: bool) -> tuple[bool, str]:
+    """Whether to evaluate NEW entries this cycle (PR2 §B). Pure → unit-testable.
+
+    Order matters: ``demo`` always evaluates (the offline experiment must run regardless of
+    creds/market). Otherwise an env trades only if it opted in (``FORWARD_ENABLED``) AND the
+    market is open — the latter, checked BEFORE the council build, means a holiday / half-day /
+    post-close ``Persistent=true`` catch-up pays NO LLM cost and never submits into a closed
+    book. The monitor (mark/exit) is gated separately and still runs.
+    """
+    if demo:
+        return True, "demo"
+    if not forward_enabled:
+        return False, "FORWARD_ENABLED=false — env is installed-but-inert; no entries."
+    if not market_open:
+        return False, "market closed (holiday/half-day/after-hours) — no entries, no LLM spend."
+    return True, "ok"
+
+
 def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = False) -> int:
     if kill_switch_active():
         log.warning("KILL switch engaged — halting. Remove the KILL file/env to resume.")
@@ -176,13 +209,22 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             run_id = record_run(conn, mode=mode, equity=equity, note="paper cycle")
             log.info("Execution: %s", "DRY_RUN (orders logged, not sent)" if dry_run else "LIVE PAPER SUBMIT")
 
+        # Market state, checked ONCE per cycle, FAIL-CLOSED (PR2 R5). Gates both the monitor's
+        # real submits (below) and the entry path (§2). Unknown/error ⇒ treated as closed.
+        market_open = _safe_market_open(clock)
+
         # 1. Monitor pass — reconcile pending real orders, then mark + fire exits.
+        #    When the market is CLOSED the monitor runs MARK-ONLY: dry_run is forced true so a
+        #    real SELL_TO_CLOSE never transmits into a closed options book (PR2 R1) — covers
+        #    half-days, holidays, and a Persistent=true post-close catch-up. Real exits fire on
+        #    an open-market cycle (L1 at 15:45 ET; the L2 intraday ticks).
         reconciled = reconcile_pending(conn=conn, broker=broker, clock=clock, config=config)
         if reconciled:
             log.info("Reconciled %d pending order(s).", reconciled)
         mres = monitor_positions(
             conn=conn, clock=clock, quote_provider=quote_provider, config=config,
-            underlying_price_of=provider.underlying_price, broker=broker, dry_run=dry_run,
+            underlying_price_of=provider.underlying_price, broker=broker,
+            dry_run=dry_run or not market_open,
         )
         log.info(
             "Monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) unmarked=%d realized=$%.0f",
@@ -191,39 +233,66 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
         )
 
         # 2. Council pass → themes (T2). The council PROPOSES; the deterministic gates in
-        #    run_paper_cycle still DISPOSE. Kill checks run FIRST so no LLM spend when halted.
+        #    run_paper_cycle still DISPOSE. Entries are gated BEFORE any LLM spend by
+        #    FORWARD_ENABLED + market-open (PR2 §B): an inert env or a closed market pays
+        #    nothing and submits nothing. Kill checks then run FIRST so no spend when halted.
         #    council.enabled=false → themes=None → run_paper_cycle uses themes.json (T1 fallback).
         if not monitor_only:
-            themes = None
-            if config.get("council", {}).get("enabled", False):
-                if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
-                    log.info("Kill state active — council skipped (no LLM spend).")
-                    themes = []  # run_paper_cycle re-checks and halts; no entries
-                else:
-                    try:
-                        router, news_dep = _build_council_io(
-                            config, demo=demo, client=client, cache=chain_cache, clock=clock,
-                        )
-                        candidates = active_themes(load_themes(config.get("themes_path", "themes.json")))
-                        themes = council_to_themes(
-                            conn, candidates=candidates, router=router, config=config,
-                            clock=clock, news=news_dep, demo=demo, run_id=run_id,
-                        )
-                        log.info(router.ledger.summary())
-                    except RouterError as e:
-                        log.error("Council unavailable (%s) — fail-closed: NO entries this cycle.", e)
-                        themes = []
+            allowed, why = entries_allowed(
+                forward_enabled=bool(config.get("forward_enabled", False)),
+                market_open=market_open, demo=demo,
+            )
+            if not allowed:
+                log.info("Entries skipped: %s", why)
+            else:
+                themes = None
+                if config.get("council", {}).get("enabled", False):
+                    if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
+                        log.info("Kill state active — council skipped (no LLM spend).")
+                        themes = []  # run_paper_cycle re-checks and halts; no entries
+                    else:
+                        try:
+                            router, news_dep = _build_council_io(
+                                config, demo=demo, client=client, cache=chain_cache, clock=clock,
+                            )
+                            candidates = active_themes(load_themes(config.get("themes_path", "themes.json")))
+                            themes = council_to_themes(
+                                conn, candidates=candidates, router=router, config=config,
+                                clock=clock, news=news_dep, demo=demo, run_id=run_id,
+                            )
+                            log.info(router.ledger.summary())
+                        except BudgetExceeded as e:
+                            # Soft, exit-0 condition: OnFailure can't catch it → page in-app (PR2 R-C).
+                            log.error("Council cost cap hit (%s) — fail-closed: NO entries this cycle.", e)
+                            notify.send("Council cost cap hit", f"{e}\nNo entries submitted this cycle.")
+                            themes = []
+                        except RouterError as e:
+                            log.error("Council unavailable (%s) — fail-closed: NO entries this cycle.", e)
+                            notify.send("Council fail-closed — 0 entries", str(e))
+                            themes = []
 
-            result = run_paper_cycle(
-                config=config, conn=conn, clock=clock, provider=provider, broker=broker,
-                themes=themes, run_id=run_id, chain_cache=chain_cache,
-            )
-            log.info(
-                "Cycle #%d: evaluated=%d opened=%d vetoed=%d skipped=%d errors=%d%s",
-                run_id, result.evaluated, result.opened, result.vetoed, result.skipped,
-                result.errors, " HALTED" if result.halted else "",
-            )
-            _print_survivorship(conn, run_id)
+                # Post-council re-check (PR2 R7): the council can take minutes; re-confirm the
+                # market is still open immediately before submitting so "no entry outside RTH"
+                # is literally true, not merely bounded by TimeoutStartSec. demo always proceeds.
+                if not demo and not _safe_market_open(clock):
+                    log.warning("Market closed after the council ran — no entries submitted this cycle.")
+                else:
+                    result = run_paper_cycle(
+                        config=config, conn=conn, clock=clock, provider=provider, broker=broker,
+                        themes=themes, run_id=run_id, chain_cache=chain_cache,
+                    )
+                    log.info(
+                        "Cycle #%d: evaluated=%d opened=%d vetoed=%d skipped=%d errors=%d%s",
+                        run_id, result.evaluated, result.opened, result.vetoed, result.skipped,
+                        result.errors, " HALTED" if result.halted else "",
+                    )
+                    if result.halted:
+                        # Kill switch / kill rule halted NEW entries (exit 0) → page in-app (PR2 R-C).
+                        notify.send(
+                            "Kill rule tripped — new entries halted",
+                            "; ".join(result.notes) or "halted", priority=1,
+                        )
+                    _print_survivorship(conn, run_id)
 
         _print_book_summary(conn, config)
         return 0
