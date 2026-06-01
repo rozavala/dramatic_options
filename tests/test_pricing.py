@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 
-from calibration.pricing import bs_price, intrinsic_value, simulate_gbm_path
+from calibration.pricing import bs_delta, bs_price, intrinsic_value, simulate_gbm_path
 
 
 def test_put_call_parity():
@@ -49,6 +49,22 @@ def test_far_otm_is_cheap_and_convex():
     assert val / prem > 4.0
     # while a small adverse move loses 100% of premium (bounded downside)
     assert intrinsic_value(spot=95, strike=140, kind="C") == 0.0
+
+
+def test_bs_delta_bounds_and_landmarks():
+    # call ∈ [0,1], put ∈ [-1,0]; ATM ≈ ±0.5-ish; deep ITM → ±1; deep OTM → 0
+    atm = bs_delta(spot=100, strike=100, t_years=0.5, r=0.04, sigma=0.5, kind="C")
+    assert 0.45 < atm < 0.65
+    assert bs_delta(spot=300, strike=100, t_years=0.5, r=0.04, sigma=0.5, kind="C") > 0.97
+    assert bs_delta(spot=40, strike=100, t_years=0.5, r=0.04, sigma=0.5, kind="C") < 0.1
+    put = bs_delta(spot=100, strike=100, t_years=0.5, r=0.04, sigma=0.5, kind="P")
+    assert -1.0 <= put <= 0.0
+    # delta parity: Δcall − Δput = 1
+    assert abs(atm - put - 1.0) < 1e-9
+    # degenerate (t=0): step delta ±1 if ITM else 0
+    assert bs_delta(spot=120, strike=100, t_years=0, r=0.04, sigma=0.5, kind="C") == 1.0
+    assert bs_delta(spot=80, strike=100, t_years=0, r=0.04, sigma=0.5, kind="C") == 0.0
+    assert bs_delta(spot=80, strike=100, t_years=0, r=0.04, sigma=0.5, kind="P") == -1.0
 
 
 def test_intrinsic_value():

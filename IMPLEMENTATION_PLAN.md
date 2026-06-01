@@ -7,7 +7,14 @@
 > and graded negative — this is a deliberate pivot to a **forward, discretionary** strategy,
 > not a patch. Work one phase per session, in plan mode; each phase ends green.
 >
-> **Status: T0 · T1 · T1.5 · calibration harness COMPLETE · T2 (the council) IN PROGRESS.**
+> **Status: T0 · T1 · T1.5 · calibration · T2 (the council) COMPLETE · next = T2.5 run-it-forward.**
+> **Thesis framing clarified 2026-06-01 (reprice-capture; tenor = runway).** For the far-OTM sleeve
+> this stays **hold-the-tail**: a calibration head-to-head graded a delta-trigger "exit-on-playout"
+> rule EV-inferior (caps the tail, break-even hit-rate 19%→~67%; GBM bias favored it yet it lost),
+> so the OTM exits (§6a) are unchanged and the T4 thresholds (venture shape) stand. The
+> reprice-capture behavior is a distinct edge **deferred to a future, separately-pre-registered ITM
+> sleeve** (financing/extrinsic gate + reprice/invalidation exits), to be decided by forward
+> evidence. See `PREREG_THEMATIC_CONVEXITY` §1 amendment + `PREREG_CONVEXITY_CALIBRATION` §4 finding.
 > (Sentinels T3 not started.) T1.5 added the L2 monitor (mark-to-market + deterministic
 > profit-take/time-stop/expiry exits) and the real DRY_RUN-gated Alpaca paper-submit path; the
 > calibration harness (`PREREG_CONVEXITY_CALIBRATION.md`) graded the exit structure (→ 4×→10×

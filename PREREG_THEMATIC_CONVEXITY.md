@@ -19,6 +19,22 @@
 
 ## 1. Strategy (frozen definition)
 
+> **Amendment 2026-06-01 — thesis framing clarified (no rule change to this sleeve).** The
+> operator clarified the intent: buy the **mispriced far extreme** of an option (long-dated, far
+> strike) whose price is wrong **if an anticipated trend changes**, and the long tenor is
+> **runway** for that thesis, not a 6–12-month holding *commitment*. The natural reading is "exit
+> when the mispricing corrects." For the **far-OTM sleeve this resolves to: keep holding the
+> tail.** A calibration head-to-head (`PREREG_CONVEXITY_CALIBRATION` §4 amendment) tested a
+> delta-trigger "exit-when-the-move-played-out" rule against hold-the-tail and graded it
+> **EV-inferior on OTM**: it caps the convex tail you paid for (p99 ~14× → ~1.8× at δ=0.5) and
+> raises the break-even hit-rate from **19% → ~50–68%** — and the GBM-no-jumps bias *favored* the
+> early exit, yet it still lost. So the OTM book's edge **is** the fat tail; §6a exits below are
+> **unchanged** (this is the hold-the-tail venture sleeve). The **reprice-capture** behavior the
+> operator wants is a genuinely *different edge* (high-delta, no tail to forfeit) and is **deferred
+> to a separately-pre-registered ITM sleeve** — its own financing/extrinsic gate (a skew test would
+> mis-fire on ITM by put-call parity), its own reprice + invalidation exits — to be built once
+> forward evidence warrants it (not on the GBM harness alone). See the v2 `IMPLEMENTATION_PLAN`.
+
 1. Identify a secular theme at **inflection** — a real tailwind the market hasn't narrated
    yet, or a real headwind/rollover before consensus turns.
 2. Express it with **long-dated (6–12 month), far-OTM, defined-risk** options (calls for

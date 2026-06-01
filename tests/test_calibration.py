@@ -67,6 +67,34 @@ def test_live_rule_is_profit_take_or_time_stop():
     assert why2 == "time_stop"  # never profitable → exits at the time stop
 
 
+def test_delta_exit_fires_when_move_plays_out():
+    # 25% OTM call (strike 125); a rise toward/through it pushes |delta| past 0.5 → "delta" exit.
+    path = np.concatenate([[100.0], np.linspace(105, 135, 60), np.full(210, 135.0)])
+    s = _struct(rule="delta", delta_exit_threshold=0.5)
+    m, ur, why = simulate_option_on_path(path, structure=s, r=0.04, sigma_entry=0.5,
+                                         roundtrip_cost_pct=0.0)
+    assert why == "delta" and m > 1.0  # banked the convex move after it happened
+
+
+def test_delta_exit_holds_to_expiry_when_flat():
+    # No move → delta stays low → never triggers → holds the tail to (worthless) expiry.
+    flat = np.full(271, 100.0)
+    s = _struct(rule="delta", delta_exit_threshold=0.5)
+    _, _, why = simulate_option_on_path(flat, structure=s, r=0.04, sigma_entry=0.5,
+                                        roundtrip_cost_pct=0.0)
+    assert why == "expiry"
+
+
+def test_reprice_rule_delta_primary_with_backstops():
+    s = _struct(rule="reprice", delta_exit_threshold=0.5, profit_take_mult=10.0, time_stop_dte=21)
+    # the move plays out → delta is the primary "take it"
+    rise = np.concatenate([[100.0], np.linspace(105, 135, 60), np.full(210, 135.0)])
+    assert simulate_option_on_path(rise, structure=s, r=0.04, sigma_entry=0.5, roundtrip_cost_pct=0.0)[2] == "delta"
+    # never moves → falls through to the 21-DTE time-stop backstop, not held to expiry
+    flat = np.full(271, 100.0)
+    assert simulate_option_on_path(flat, structure=s, r=0.04, sigma_entry=0.5, roundtrip_cost_pct=0.0)[2] == "time_stop"
+
+
 def test_cost_reduces_multiple():
     path = np.linspace(100.0, 150.0, 271)
     m0 = simulate_option_on_path(path, structure=_struct(), r=0.04, sigma_entry=0.5,
