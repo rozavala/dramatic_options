@@ -44,7 +44,8 @@
   "convexity_exits": {
     "_comment": "Frozen L2 exit rules \u2014 PREREG_THEMATIC_CONVEXITY \u00a76a. Deterministic, no LLM (the fast reflex, SPEC \u00a73). profit_take_multiple: close when the mark reaches N\u00d7 the entry premium. time_stop_dte: close when \u2264 N calendar days to expiry (avoid the gamma/theta endgame). Otherwise hold to expiry (venture style \u2192 most expire worthless = \u2212premium). profit_take_multiple RAISED 4.0\u219210.0 on 2026-06-01 (operator-authorized, calibration-cited \u2014 see PREREG \u00a76a): 4\u00d7 clipped the convex tail (p99 ~4.5\u00d7 vs ~10\u00d7 uncapped) at ~0 cost to the mean.",
     "profit_take_multiple": 10.0,
-    "time_stop_dte": 21
+    "time_stop_dte": 21,
+    "min_close_bid": 0.05
   },
   "kill_rule": {
     "_comment": "Frozen \u2014 PREREG_THEMATIC_CONVEXITY \u00a76. Halts NEW entries (not force-close) on either condition. The KILL file/env switch is always-on, separately, every cycle.",
