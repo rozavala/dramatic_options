@@ -12,11 +12,35 @@ venv/
 .DS_Store
 *.save
 
-# Logs & data
+# Logs
 *.log
 logs/
-data/
 
-# Claude Code
-.claude/settings.local.json
-.claude/worktrees/
+# Runtime data ARTIFACTS — ignore generated content under data/, but keep the
+# data/ Python source package (data/*.py) tracked (SPEC §10 layout).
+data/**/*.csv
+data/**/*.json
+data/**/*.parquet
+data/**/*.sqlite3
+data/**/*.zip
+data/*.db
+data/databento_cache/
+data/surrogate_models/
+# Pure-artifact cache/output dirs (no source lives here — safe to ignore wholesale).
+data/cache/
+data/backtest/
+
+# SQLite / runtime DB (anywhere)
+*.db
+
+# Kill switch (operational, never committed)
+KILL
+
+# Force-track themes.json: it is the hand-seeded strategy input the paper loop LOADS
+# (config themes_path), so a fresh clone needs it. A personal GLOBAL excludes file
+# (~/.config/git/ignore) lists "themes.json"; an in-tree negation outranks the global,
+# keeping the seed file tracked. (Same class of bug as the Phase-0 data/ source swallow.)
+!themes.json
+
+# Claude Code — local/operational, never committed (settings, worktrees, task locks)
+.claude/

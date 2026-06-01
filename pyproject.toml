@@ -1,0 +1,23 @@
+[project]
+name = "dramatic-options"
+version = "0.0.0"
+description = "Thesis-first thematic equity-options trading system (Alpaca, paper-first)."
+requires-python = ">=3.11"
+
+# Flat module layout (modules at repo root), so no [tool.setuptools] packages — this
+# project is run, not pip-installed. pyproject exists for ruff + pytest config only.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# shelf/ holds parked backtest-gate code (graded-negative edges) — kept for revival,
+# excluded from lint/CI on the active surface. See shelf/README.md.
+exclude = ["shelf"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # long log/SQL strings are fine
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
