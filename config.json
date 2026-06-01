@@ -8,168 +8,49 @@
   "database": {
     "path": "data/dramatic_options.db"
   },
-  "risk_budget": {
-    "_comment": "Placeholders — the real risk model lands in Phase 4. Do not rely on these.",
-    "per_trade_max_loss_pct": 0.01,
-    "kelly_fraction": 0.5,
-    "max_concurrent_positions": 10,
-    "max_per_name": 2,
-    "max_per_theme_pct": 0.25,
-    "max_gross_premium_at_risk_pct": 0.30,
-    "daily_loss_halt_pct": 0.05,
-    "drawdown_warn_pct": 0.10,
-    "drawdown_halt_pct": 0.15,
-    "drawdown_panic_pct": 0.20
-  },
-  "schedule": {
-    "_comment": "Daily L1 post-close scan + intraday L2 loop land in later phases.",
-    "daily_scan_utc": "21:15",
-    "monitor_interval_seconds": 60
-  },
   "universe": {
-    "_comment": "Phase 1 hand-seeded thematic universe (SPEC §14.3). Widened from the SPEC example book for cross-sectional power. Config over code — edit freely.",
-    "benchmarks": {"broad": "SPY", "growth": "ARKK"},
-    "themes": {
-      "evtol": ["JOBY", "ACHR", "EH"],
-      "space": ["RKLB", "LUNR", "ASTS", "RDW", "PL", "BKSY", "SPIR"],
-      "nuclear_smr": ["OKLO", "SMR", "NNE", "LEU", "BWXT"],
-      "quantum": ["IONQ", "RGTI", "QBTS", "QUBT"],
-      "ai_infra": ["PLTR", "SMCI", "BBAI", "SOUN", "AI", "APP"],
-      "fintech": ["SOFI", "AFRM", "UPST", "HOOD", "LMND"],
-      "genomics": ["CRSP", "NTLA", "BEAM", "RXRX", "EDIT", "SGMO"],
-      "clean_energy": ["PLUG", "RUN", "ENPH", "FCEL", "BE", "FSLR", "SEDG"],
-      "ev": ["RIVN", "LCID", "CHPT", "QS", "NIO", "XPEV", "LI"],
-      "crypto_equity": ["MARA", "RIOT", "COIN", "MSTR", "CLSK", "HUT"],
-      "software_growth": ["NET", "DDOG", "SNOW", "U", "PATH"]
-    }
+    "_comment": "Reusable price/ADV/option-liquidity filter (universe.py). The forward thematic-convexity strategy is hand-seeded via themes.json; the thematic seed map below is vestigial from the shelved divergence edge and is not read by the paper loop.",
+    "benchmarks": {"broad": "SPY", "growth": "ARKK"}
   },
   "eligibility": {
-    "_comment": "SPLIT floor (plan §B1): backtest gates on price+ADV ONLY (point-in-time available from bars); the option-liquidity floor applies ONLY to the live watchlist — historical option OI/spread do not exist back to 2022, so applying today's retroactively would be lookahead/survivorship bias.",
-    "backtest": {"min_price": 2.0, "min_adv_usd": 1500000.0, "adv_window_days": 20},
+    "_comment": "Live option-tradability floor (universe.check_eligibility mode='live'). The convexity loop also runs options_tradability.py for the per-contract bid/ask + OI gate (PREREG_THEMATIC_CONVEXITY §3).",
     "live": {
       "min_price": 3.0,
       "min_adv_usd": 3000000.0,
       "adv_window_days": 20,
-      "min_option_open_interest": 100,
-      "max_bid_ask_pct": 0.15
+      "min_option_open_interest": 50,
+      "max_bid_ask_pct": 0.25
     }
   },
-  "signal": {
-    "_comment": "Deterministic, point-in-time signal params. Frozen a priori (no fitting on test). Changing any of these costs a Bonferroni iteration round (plan §A2).",
-    "narrative": {
-      "count_window_days": 21,
-      "ewma_span_days": 10,
-      "breadth_window_days": 21,
-      "baseline_window_days": 126,
-      "lexicon_weight": 0.15
-    },
-    "substance": {
-      "mode": "fundamentals",
-      "min_base_revenue": 10000000.0,
-      "ewma_span_days": 30,
-      "baseline_window_days": 252,
-      "lookback_days": 120,
-      "insider_weight": 1.0,
-      "exclude_10b5_1": true,
-      "_mode_comment": "k=4: mode='fundamentals' → substance = reported revenue YoY (data.fundamentals, XBRL companyfacts, point-in-time via filed dates); names with year-ago TTM revenue < min_base_revenue are dropped (pre-revenue growth on ~0 base is noise). mode='events' uses the k1–k3 event/insider-intensity score below.",
-      "event_weights": {
-        "8-K:1.01": 1.0,
-        "8-K:2.02": 0.5,
-        "8-K:3.02": -1.0,
-        "8-K:5.02": -0.5,
-        "SC 13D": 1.0,
-        "SC 13G": 0.5,
-        "S-1": -0.7,
-        "424B": -0.7
-      }
-    },
-    "divergence": {
-      "neutral_threshold": 0.5,
-      "n_min_cross_section": 8
-    }
+  "convexity_book": {
+    "_comment": "Frozen risk frame — PREREG_THEMATIC_CONVEXITY §5. Operator decisions 2026-05-31. account_equity is a paper nominal until a broker supplies it.",
+    "account_equity": 100000.0,
+    "book_fraction": 0.10,
+    "per_name_fraction": 0.01,
+    "max_open_positions": 15
   },
-  "backtest": {
-    "_comment": "PRE-REGISTERED gate parameters (plan §A). Provisional explore/lockbox dates are subject to the §A0 --audit before judging the signal. Bands: IC<fail=FAIL, fail..green=YELLOW, >=green=GREEN.",
-    "explore_start": "2020-01-01",
-    "explore_end": "2024-06-30",
-    "lockbox_start": "2024-07-01",
-    "lockbox_end": null,
-    "horizon_days": 21,
-    "rebalance_days": 21,
-    "quantiles": 5,
-    "n_min_cross_section": 8,
-    "min_fold_periods": 4,
-    "fold_count": 4,
-    "bootstrap_iters": 2000,
-    "block_days": 21,
-    "ic_fail_below": 0.03,
-    "ic_green_above": 0.06,
-    "sign_consistency_min": 0.60,
-    "residual_ic_retention_min": 0.50,
-    "substance_density_floor": 0.20,
-    "max_iter_rounds": 6,
-    "alpha_base": 0.05,
-    "horizon_sweep_days": [10, 21, 42, 63],
-    "artifacts_dir": "data/backtest"
+  "convexity_gate": {
+    "_comment": "Frozen IV/cheap-convexity gate — PREREG_THEMATIC_CONVEXITY §4. No historical IV exists (forward-only chains) → cheapness is measured vs the underlying's trailing realized vol (from bars) + the live skew shape. Thresholds changed only by documented operator edit, never to justify a trade.",
+    "iv_rv_max": 1.2,
+    "otm_skew_max_volpts": 10.0,
+    "rv_window_days": 252,
+    "tenor_min_days": 180,
+    "tenor_max_days": 365,
+    "target_moneyness": 0.25
   },
-  "edgar": {
-    "_comment": "Keyless SEC EDGAR access (plan §B5). UA from .env EDGAR_USER_AGENT (SEC requires a contact UA). Polite rate limit < 10 req/s.",
-    "rate_limit_per_sec": 8.0,
-    "cache_dir": "data/cache"
+  "convexity_exits": {
+    "_comment": "Frozen L2 exit rules — PREREG_THEMATIC_CONVEXITY §6a. Deterministic, no LLM (the fast reflex, SPEC §3). profit_take_multiple: close when the mark reaches N× the entry premium. time_stop_dte: close when ≤ N calendar days to expiry (avoid the gamma/theta endgame). Otherwise hold to expiry (venture style → most expire worthless = −premium).",
+    "profit_take_multiple": 4.0,
+    "time_stop_dte": 21
   },
-  "fssd": {
-    "_comment": "FSSD (Forced-Supply Secondary Drift) pre-registered params — see PREREG_FSSD.md. FREEZE-A (audit, 2026-05-31) config is preserved in git at commit b829267; the §8 audit ran/passed under it. FREEZE-B (2026-06-02) finalizes the Stage-1-gate params (friction.weights/inputs, stage1_bands, deciles, direction_report) BEFORE any CAR is computed — this intentionally changes the fssd hash from the FREEZE-A value 76587407f824a0bd to the FREEZE-B value recorded in PREREG_FSSD.md §14. The first Stage-1 CAR run is k=1.",
-    "event": {"forms": ["424B5"], "include_b3_b4": false, "classify_subtype": true},
-    "universe": {
-      "source": "edgar_daily_index",
-      "survivorship_clean": true,
-      "min_price": 2.0,
-      "min_adv_usd": 1500000.0,
-      "adv_window_days": 20
-    },
-    "horizon_days": 10,
-    "horizon_sweep_days": [3, 5, 10, 21],
-    "direction": "bearish",
-    "direction_report": "signed_by_decile",
-    "resampling_unit": "calendar_month",
-    "alpha_base": 0.05,
-    "block_months": 1,
-    "bootstrap_iters": 2000,
-    "friction": {
-      "_comment": "FREEZE-B (2026-06-02): short-sale-cost composite; higher = harder/costlier to short. Code keys (si_pct/days_to_cover/inv_float/inv_adv/inv_price) — these MUST match friction.FRICTION_INPUTS (the FREEZE-A audit used name-mismatched keys that silently defaulted to equal weight on 4 inputs; that is fine, the audit was meant to be equal-weight). FREEZE-B #4: audit found corr(si_pct,inv_float)=+1.00, so lean weight onto the BORROW dimension (si_pct+days_to_cover=2.0) vs the 3 collinear illiquidity proxies (~1.0 total). Deciles from a TRAILING cross-section (no full-sample lookahead). SI%-of-shares-out ≠ SI%-of-free-float (declared approximation).",
-      "inputs": ["si_pct", "days_to_cover", "inv_float", "inv_adv", "inv_price"],
-      "weights": {"si_pct": 1.0, "days_to_cover": 1.0, "inv_float": 0.34, "inv_adv": 0.33, "inv_price": 0.33},
-      "corner_quantile": 0.8,
-      "deciles": 10,
-      "decile_window": "trailing"
-    },
-    "deal_size": {
-      "_comment": "Secondary conditioner; audit-gated. If extraction recall < min_recall, drop size-conditioning for v1 (friction carries the gate).",
-      "enabled": true,
-      "scale_by": ["adv20", "shares_out"],
-      "min_recall": 0.70
-    },
-    "audit": {"n_min_months": 24},
-    "explore_start": "2019-01-01",
-    "explore_end": "2022-12-31",
-    "lockbox_start": "2023-01-01",
-    "lockbox_end": "2024-12-31",
-    "finra_si": {"as_of": "publication_date"},
-    "stage1_bands": {
-      "_comment": "FROZEN at FREEZE-B 2026-06-02, BEFORE any CAR computed. Stage-1 measures GROSS-stock forward CAR (raw − β·SPY) at h=10td, net of a stock-level cost stub ONLY (the option borrow is Stage-2). Primary statistic: top-friction-decile monthly-mean-CAR series; Bonferroni CI (α=0.05/k) must EXCLUDE 0 AND be negative (bearish pre-commitment). Magnitude bands on |net mean CAR| of the top decile. Per FREEZE-B #2 also report the full per-decile signed-CAR+dispersion grid (monotonicity supporting, not gating). First Stage-1 run is k=1.",
-      "primary": "top_friction_decile_monthly_car",
-      "require_negative": true,
-      "cost_stub_bps": 50,
-      "car_fail_below_abs": 0.010,
-      "car_green_above_abs": 0.025
-    },
-    "stage2": {
-      "_comment": "Net-of-implied-borrow gate; requires PAID historical options data; ONLY on a Stage-1 pass. Measures best defined-risk structure (short the dear leg), not naive long put.",
-      "trigger": "stage1_pass",
-      "best_structure": true
-    }
+  "kill_rule": {
+    "_comment": "Frozen — PREREG_THEMATIC_CONVEXITY §6. Halts NEW entries (not force-close) on either condition. The KILL file/env switch is always-on, separately, every cycle.",
+    "book_drawdown_halt": 0.20,
+    "dry_months_halt": 9
   },
-  "models": {
-    "_comment": "Heterogeneous router config — Phase 3. Stub only."
-  }
+  "execution": {
+    "_comment": "Real Alpaca paper order path (broker.AlpacaPaperBroker). SENDING is gated by safety.dry_run: dry_run=true (default) logs the intended order + simulates the fill — nothing is transmitted; dry_run=false actually submits to the PAPER endpoint. cancel_unfilled: at reconcile, cancel a still-resting limit (it re-evaluates next cycle) instead of leaving it open.",
+    "cancel_unfilled": true
+  },
+  "themes_path": "themes.json"
 }

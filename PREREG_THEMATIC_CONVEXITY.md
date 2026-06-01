@@ -1,0 +1,157 @@
+# PREREG_THEMATIC_CONVEXITY.md — Thematic Cheap-Convexity Inflection Trading
+
+> **Pre-registration.** This document is the operating contract for the thematic
+> cheap-convexity strategy. It is frozen **before any signal/gate code is written**
+> (T0). The risk frame, the eligibility gate, and the IV / cheap-convexity gate — with
+> their thresholds — are fixed here. Code reads these parameters from `config.json`; the
+> *structure* of the gates is fixed by this doc.
+>
+> **This is NOT a backtest pass/fail gate.** A 6–12-month hold cannot reach statistical
+> significance in tolerable time, and the LLM council can never be backtested (guardrail
+> §6). So the discipline shifts: we **pre-register the risk frame and the gates, then
+> calibrate forward** — we do not "prove" an edge. The protection is bounded premium, hard
+> deterministic vetoes, and a kill rule — not a backtest. See
+> `dramatic-options-validation-methodology` (memory) §"How to apply".
+>
+> **Status: T0 — frozen. T1 (minimal paper loop) implements against this contract.**
+
+---
+
+## 1. Strategy (frozen definition)
+
+1. Identify a secular theme at **inflection** — a real tailwind the market hasn't narrated
+   yet, or a real headwind/rollover before consensus turns.
+2. Express it with **long-dated (6–12 month), far-OTM, defined-risk** options (calls for
+   tailwinds, put/bear structures for rollovers). Long options are inherently
+   defined-risk: max loss = premium paid.
+3. **The edge is the gate:** trade only when the option's implied vol is **NOT already
+   pricing the theme** — the convexity is *cheap* ("copper-not-rockets"). A beloved,
+   richly-priced theme is a pass however right the narrative.
+4. Run a **portfolio of small convex bets**: most expire worthless, a few pay many-fold
+   (venture-style payoff).
+5. Discipline lives in **sizing and risk control**, not validation.
+
+## 2. The hard seam — deterministic gates dispose; judgment only proposes
+
+Code-enforced, non-overridable (Layer 1): the **IV / cheap-convexity gate** (§4),
+**eligibility** (§3), **sizing / caps / book budget** (§5), the **kill rule** (§6).
+Judgment (the council, T2+; hand-seeded in T1): *which* theme is at inflection, structural
+vs. fad, the cleanest name, narrative ahead-of vs. behind fundamentals. Judgment is *input*
+to a proposal that must still pass every deterministic gate. The council can be wrong; it
+**cannot** buy expensive convexity, breach a cap, or defeat the kill rule.
+
+## 3. Eligibility gate (frozen) — is the contract tradable for us?
+
+Reuses `options_tradability.py`. A candidate contract must satisfy all of:
+- Relative bid/ask spread `(ask−bid)/mid ≤ 0.25`.
+- Open interest `≥ 50`.
+- Per-contract price within `[0.10, 100.0]`.
+- Underlying passes the `universe.py` filter (min price, min avg dollar volume,
+  no leveraged ETFs).
+**Fail-closed:** missing quote/OI/price → ineligible → no trade.
+
+## 4. IV / cheap-convexity gate (frozen) — the edge, as a hard veto
+
+**The problem (flagged at pre-registration):** "cheap" normally means low IV-rank /
+IV-percentile versus the name's *own IV history*. **We have no historical options IV** —
+chains are forward-only (see `dramatic-options-edge-toolkit` memory, "harness can't"
+walls). So IV-rank is not computable today. We resolve this two ways:
+
+**(a) Substitute the underlying's realized-vol history as the baseline.** Realized vol IS
+computable — from the daily bars cache we already hold (point-in-time, no options history
+needed). The variance-risk-premium framing answers "is vol expensive?" without an IV time
+series.
+
+**(b) Read the convexity price directly off the live snapshot** via the skew shape — the
+specific wing we are buying.
+
+The gate, computed from **one current chain snapshot + trailing realized vol**:
+
+| Metric | Definition | Frozen threshold | Meaning |
+|---|---|---|---|
+| **IV/RV ratio** | `IV_atm / RV_h`, where `RV_h` = annualized realized vol over the trailing window (`rv_window_days`, matched toward tenor) | `≤ τ_ivrv = 1.2` | ATM vol isn't richly bid over what the name actually realizes |
+| **OTM skew premium** | `IV(target wing strike) − IV_atm`, in vol points | `≤ τ_skew = 10.0` | the *wing we are buying* isn't already bid up, even if ATM looks calm |
+
+**Pass ⇔ both hold.** Either rich → **veto** (defined-risk default; the council cannot
+override).
+
+**Fail-closed:** missing IV, ATM reference, wing IV, or insufficient bars for `RV_h`
+→ treat as **NOT cheap** → veto. A gate that cannot be evaluated does not pass.
+
+**Thresholds are frozen for the current forward cohort.** They live in
+`config.json:convexity_gate` and are changed **only** by an explicit, documented operator
+edit — **never** moved to justify a specific trade (no post-hoc gate moving).
+
+**Accrue our own IV baseline going forward.** The point-in-time cache (`data/cache.py`,
+immutable entries) is the mechanism: persisting each cycle's chain snapshot into it builds a
+real IV history over months, after which the gate can **graduate** from the RV proxy to a
+true IV-rank / IV-percentile. (T1 establishes the loop and the cache; wiring the per-cycle
+snapshot write is the immediate next step. The graduation itself is a future,
+separately-pre-registered change.)
+
+Frozen values (T0): `τ_ivrv = 1.2`, `τ_skew = 10.0` vol pts, `rv_window_days = 252`,
+tenor window `[180, 365]` days, `target_moneyness = 0.25` (≈25% OTM).
+
+## 5. Risk frame (frozen) — FIRST-CLASS; the discipline
+
+Operator decisions, set 2026-05-31, in `config.json:convexity_book`:
+
+- **Convexity book = 10% of account** — the total premium-at-risk. The **only** money the
+  strategy can lose; the other 90% is untouched.
+- **Per-name cap ≤ 1% of account.** Per-theme cap = per-name for T1 (one name per theme).
+- **Max concurrent positions = 15.**
+- **Sizing = flat-by-slots, capped — NOT Kelly.** A far-OTM lotto Kelly-sizes to ~0 (low
+  win probability); that is the wrong instrument here. Each shot gets a small, roughly
+  equal slice of the book, capped at the per-name limit and never exceeding the book
+  remaining. Aggression comes from convex *structure* and the *number* of small shots —
+  never from size on an unproven view. No naked, no uncapped, no leverage-on-conviction.
+- **Survivorship log.** Record **every** evaluated bet — eligible or vetoed, winner or
+  zero — append-only. This is the only honest basis for ever judging edge vs. luck, and it
+  counters the bias toward remembering the winners.
+
+## 6. Kill rule (frozen)
+
+Halt **new entries** for human review if **either**:
+- the book draws down **≥ 20%** of its premium budget, **or**
+- the book **bleeds 9 months** with zero payoff.
+
+Plus the always-on `KILL` file / env switch, checked every cycle (fail-closed). Open
+positions are not force-closed by the kill rule; it stops *new* risk pending review.
+Thresholds in `config.json:kill_rule`.
+
+## 6a. Exit rules (frozen) — the L2 reflex, deterministic, no LLM
+
+Open positions are marked to the current option mid each cycle and exited by **deterministic,
+code-enforced** rules (`monitor.py`; SPEC §3 "open slow, close fast"). The intelligence is
+front-loaded at entry; this loop only watches and fires. Rules (`config.json:convexity_exits`):
+
+- **Profit-take:** close when the mark reaches **≥ 4× the entry premium** (a convex winner is
+  realized rather than round-tripped).
+- **Time-stop:** close when **≤ 21 calendar days to expiry** (avoid the gamma/theta endgame).
+- **Expiry:** close at intrinsic; a far-OTM option that never came in → **−premium**, the
+  expected zero (the venture payoff shape).
+
+Realized P&L is recorded per close (the calibration substrate, §7). These thresholds are
+frozen for the current cohort; changed only by a documented operator edit, never to rescue a
+specific position. *(Added 2026-05-31, before live forward results exist.)*
+
+## 7. Forward measurement — calibration, not a pass-gate
+
+Per bet, logged: theme, inflection thesis, IV-gate verdict + metrics, structure, size,
+rationale, outcome, P&L. Tracked: hit rate, payoff distribution, premium-bled-vs-paid
+(Brier + council contribution arrive with the council, T2+). **6–12-month holds mean
+*years* to significance.** Forward data informs calibration, sizing, and the kill
+decision — it does **not** prove an edge. A good run is not validation; a bad run is not
+disproof until the kill rule actually trips.
+
+## 8. Scope of this contract
+
+T0 freezes §§1–7. **T1** implements the minimal paper loop against this contract
+(hand-seeded themes → both gates → defined-risk structure → flat-by-slots sizing → logged
+paper position + survivorship log). The council (T2) and sentinels (T3) are **not** built
+yet; this contract governs them when they are. Any change to a frozen threshold or gate
+structure is a documented edit to this doc + `config.json`, dated, never retroactive.
+
+---
+
+*Frozen 2026-05-31, before signal/gate code (T0). — Dramatic Options*

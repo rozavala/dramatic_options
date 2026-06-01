@@ -36,6 +36,12 @@ data/backtest/
 # Kill switch (operational, never committed)
 KILL
 
+# Force-track themes.json: it is the hand-seeded strategy input the paper loop LOADS
+# (config themes_path), so a fresh clone needs it. A personal GLOBAL excludes file
+# (~/.config/git/ignore) lists "themes.json"; an in-tree negation outranks the global,
+# keeping the seed file tracked. (Same class of bug as the Phase-0 data/ source swallow.)
+!themes.json
+
 # Claude Code
 .claude/settings.local.json
 .claude/worktrees/

@@ -1,0 +1,19 @@
+{
+  "_note": "Hand-seeded conviction themes (T1). Replace these EXAMPLE entries with your own. Each: name, symbol (cleanest single-name expression), direction ('bullish'=tailwind→calls, 'bearish'=rollover→puts), thesis, active. The IV/cheap-convexity gate (PREREG_THEMATIC_CONVEXITY §4) decides whether each is actually traded — a beloved, richly-priced theme is vetoed however right the narrative. Run offline: `python orchestrator.py --demo`.",
+  "themes": [
+    {
+      "name": "copper_electrification",
+      "symbol": "FCX",
+      "direction": "bullish",
+      "thesis": "EXAMPLE — replace. Electrification + grid/datacenter buildout copper demand against constrained mine supply; hypothesis is an unloved industrial tailwind whose long-dated call IV has not yet priced the structural deficit ('copper-not-rockets').",
+      "active": true
+    },
+    {
+      "name": "EXAMPLE_rich_theme_delete_me",
+      "symbol": "NVDA",
+      "direction": "bullish",
+      "thesis": "EXAMPLE — illustrates the IV-gate VETO path: a crowded, richly-priced theme. The --demo synthetic gives this symbol rich IV so the cheap-convexity gate rejects it. Replace or delete.",
+      "active": true
+    }
+  ]
+}
