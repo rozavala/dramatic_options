@@ -39,8 +39,8 @@
     "target_moneyness": 0.25
   },
   "convexity_exits": {
-    "_comment": "Frozen L2 exit rules — PREREG_THEMATIC_CONVEXITY §6a. Deterministic, no LLM (the fast reflex, SPEC §3). profit_take_multiple: close when the mark reaches N× the entry premium. time_stop_dte: close when ≤ N calendar days to expiry (avoid the gamma/theta endgame). Otherwise hold to expiry (venture style → most expire worthless = −premium).",
-    "profit_take_multiple": 4.0,
+    "_comment": "Frozen L2 exit rules — PREREG_THEMATIC_CONVEXITY §6a. Deterministic, no LLM (the fast reflex, SPEC §3). profit_take_multiple: close when the mark reaches N× the entry premium. time_stop_dte: close when ≤ N calendar days to expiry (avoid the gamma/theta endgame). Otherwise hold to expiry (venture style → most expire worthless = −premium). profit_take_multiple RAISED 4.0→10.0 on 2026-06-01 (operator-authorized, calibration-cited — see PREREG §6a): 4× clipped the convex tail (p99 ~4.5× vs ~10× uncapped) at ~0 cost to the mean.",
+    "profit_take_multiple": 10.0,
     "time_stop_dte": 21
   },
   "kill_rule": {

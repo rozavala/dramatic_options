@@ -6,6 +6,20 @@ import config_loader
 from config_loader import _as_bool, live_allowed
 
 
+def test_frozen_exit_rules_match_prereg():
+    """Guard the frozen §6a exit thresholds in the shipped config against silent drift.
+
+    profit_take_multiple was operator-raised 4.0→10.0 on 2026-06-01 (calibration-cited,
+    PREREG_THEMATIC_CONVEXITY §6a amendment). A change here must be a documented PREREG edit,
+    so this test pins the shipped value.
+    """
+    config_loader.load_config.cache_clear()
+    exits = config_loader.load_config()["convexity_exits"]
+    assert exits["profit_take_multiple"] == 10.0
+    assert exits["time_stop_dte"] == 21
+    config_loader.load_config.cache_clear()
+
+
 def test_as_bool_coercion():
     for truthy in ("1", "true", "TRUE", "Yes", "on", True):
         assert _as_bool(truthy) is True
