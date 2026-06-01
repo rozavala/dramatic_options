@@ -125,6 +125,8 @@ class AlpacaChainProvider:
 class QuoteProvider(Protocol):
     def option_mid(self, contract_symbol: str) -> float | None: ...
 
+    def option_bid(self, contract_symbol: str) -> float | None: ...
+
 
 class AlpacaQuoteProvider:
     """Marks an option to its current mid via the read-only Alpaca chain snapshot.
@@ -159,14 +161,35 @@ class AlpacaQuoteProvider:
             return None
         return 0.5 * (bid + ask)
 
+    def option_bid(self, contract_symbol: str) -> float | None:
+        """Current bid — the marketable price a SELL_TO_CLOSE crosses to (T2.5 honest exit)."""
+        info = parse_osi(contract_symbol)
+        if info is None:
+            return None
+        ba = self._underlying_quotes(info["root"]).get(contract_symbol)
+        if ba is None:
+            return None
+        bid, _ask = ba
+        return bid if (bid is not None and bid >= 0) else None
+
 
 class StaticQuoteProvider:
-    """Offline quote provider: a fixed ``{contract_symbol: mid}`` map (tests / replay)."""
+    """Offline quote provider: a fixed ``{contract_symbol: mid}`` map (tests / replay).
 
-    def __init__(self, marks: dict[str, float]) -> None:
+    ``bids`` is an optional ``{contract_symbol: bid}`` map for the SELL_TO_CLOSE path; when
+    omitted, ``option_bid`` falls back to the mid (fine for tests that don't exercise closes).
+    """
+
+    def __init__(self, marks: dict[str, float], bids: dict[str, float] | None = None) -> None:
         self._marks = marks
+        self._bids = bids
 
     def option_mid(self, contract_symbol: str) -> float | None:
+        return self._marks.get(contract_symbol)
+
+    def option_bid(self, contract_symbol: str) -> float | None:
+        if self._bids is not None:
+            return self._bids.get(contract_symbol)
         return self._marks.get(contract_symbol)
 
 
@@ -227,6 +250,15 @@ class SyntheticChainProvider:
         for c in self.chain(info["root"]):
             if c.symbol == contract_symbol and c.bid is not None and c.ask is not None:
                 return 0.5 * (c.bid + c.ask)
+        return None
+
+    def option_bid(self, contract_symbol: str) -> float | None:
+        info = parse_osi(contract_symbol)
+        if info is None:
+            return None
+        for c in self.chain(info["root"]):
+            if c.symbol == contract_symbol and c.bid is not None:
+                return c.bid
         return None
 
 

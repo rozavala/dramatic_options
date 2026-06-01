@@ -111,3 +111,97 @@ def test_drawdown_not_tripped_when_marks_healthy(convexity_db):
     monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=qp, config=CONFIG)
     krs = kill_rule_status(convexity_db, CONFIG, CLOCK)
     assert krs.tripped is False
+
+
+# ── two-sided real-submit exits (T2.5; broker supplied, dry_run=False) ─────────
+
+class _FakeBroker:
+    """Records SELL_TO_CLOSE submits; returns a configurable Fill + order statuses."""
+
+    def __init__(self, *, sell=None):
+        from broker import Fill
+        self.sells = []
+        self.cancelled = []
+        self._statuses = {}
+        self._sell = sell or Fill(True, 0.0, 1, "submitted (resting)", order_id="cl-1", pending=True)
+
+    def account_equity(self):
+        return 100000.0
+
+    def submit_paper(self, *, contract_symbol, qty, side, limit_price, client_order_id=None):
+        self.sells.append({"contract": contract_symbol, "side": side, "limit": limit_price, "coid": client_order_id})
+        return self._sell
+
+    def order_status(self, oid):
+        return self._statuses.get(oid)
+
+    def cancel_order(self, oid):
+        self.cancelled.append(oid)
+
+
+def _row(conn, pid, cols):
+    return conn.execute(f"SELECT {cols} FROM convexity_positions WHERE id=?", (pid,)).fetchone()
+
+
+def test_profit_take_real_submit_sends_sell_and_marks_closing(convexity_db):
+    pid = _open(convexity_db, contract="FCX261218C00080000", entry_pc=200.0)  # $900 ≥ 4×$200 → PT
+    qp = StaticQuoteProvider({"FCX261218C00080000": 9.0}, bids={"FCX261218C00080000": 8.9})  # marketable
+    broker = _FakeBroker()
+    res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=qp, config=CONFIG,
+                            broker=broker, dry_run=False)
+    assert res.profit_taken == 1 and res.closing == 1 and res.closed == 0  # resting, not booked
+    assert broker.sells[0]["side"] == "sell" and broker.sells[0]["coid"].startswith("close-")
+    row = _row(convexity_db, pid, "status, close_order_id")
+    assert row["status"] == "closing" and row["close_order_id"] == "cl-1"
+
+
+def test_closing_fill_books_actual_exit_price(convexity_db):
+    pid = _open(convexity_db, contract="FCX261218C00080000", entry_pc=200.0)
+    state.begin_close_convexity_position(convexity_db, pid, close_order_id="cl-1",
+                                         reason="profit_take_4x", as_of="t")
+    broker = _FakeBroker()
+    broker._statuses["cl-1"] = {"state": "filled", "filled_avg_price": "8.50"}  # real fill below mid
+    res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({}),
+                            config=CONFIG, broker=broker, dry_run=False)
+    assert res.closed == 1
+    row = _row(convexity_db, pid, "status, mark, realized_pnl")
+    assert row["status"] == "closed" and row["mark"] == 8.5
+    assert row["realized_pnl"] == (8.5 * 100 - 200.0)  # honest fill, not the mid
+
+
+def test_unsellable_time_stop_books_in_db_no_churn(convexity_db):
+    exp = (NOW.date() + timedelta(days=9)).isoformat()
+    pid = _open(convexity_db, contract="FCX260610C00080000", entry_pc=500.0, expiry=exp)
+    qp = StaticQuoteProvider({"FCX260610C00080000": 0.10}, bids={"FCX260610C00080000": 0.0})  # bid<floor
+    broker = _FakeBroker()
+    res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=qp, config=CONFIG,
+                            broker=broker, dry_run=False)
+    assert res.time_stopped == 1 and res.closed == 1 and res.closing == 0 and broker.sells == []
+    row = _row(convexity_db, pid, "status, exit_reason")
+    assert row["status"] == "closed" and row["exit_reason"].startswith("time_stop") and "unsellable" in row["exit_reason"]
+
+
+def test_closing_terminal_reopens_to_retry(convexity_db):
+    pid = _open(convexity_db, contract="FCX261218C00080000", entry_pc=200.0)
+    state.begin_close_convexity_position(convexity_db, pid, close_order_id="cl-1",
+                                         reason="profit_take_4x", as_of="t")
+    broker = _FakeBroker()
+    broker._statuses["cl-1"] = {"state": "canceled"}
+    monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({}),
+                      config=CONFIG, broker=broker, dry_run=False)
+    row = _row(convexity_db, pid, "status, close_order_id")
+    assert row["status"] == "open" and row["close_order_id"] is None  # fresh id next time
+
+
+def test_expiry_while_closing_cancels_and_books_intrinsic(convexity_db):
+    exp = (NOW.date() + timedelta(days=5)).isoformat()
+    pid = _open(convexity_db, contract="FCX260606C00080000", entry_pc=500.0, expiry=exp, strike=80.0)
+    state.begin_close_convexity_position(convexity_db, pid, close_order_id="cl-1",
+                                         reason="time_stop_21dte", as_of="t")
+    past = FixedClock(NOW + timedelta(days=10))  # now past expiry
+    broker = _FakeBroker()
+    res = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}),
+                            config=CONFIG, broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
+    assert res.expired == 1 and res.closed == 1 and broker.cancelled == ["cl-1"]
+    row = _row(convexity_db, pid, "status, mark")
+    assert row["status"] == "closed" and row["mark"] == 20.0  # intrinsic 100−80

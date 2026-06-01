@@ -93,6 +93,29 @@ def test_rejects_bad_qty_or_price(monkeypatch):
     assert b.submit_paper(contract_symbol="X", qty=1, side="buy", limit_price=0.0).filled is False
 
 
+def test_sell_to_close_side_intent_and_client_order_id(monkeypatch):
+    from alpaca.trading.enums import OrderSide, PositionIntent
+
+    b, fake = _broker(monkeypatch, dry_run=False)
+    coid = "close-FCX270319C00080000-2026-06-01"
+    b.submit_paper(contract_symbol="FCX270319C00080000", qty=2, side="sell",
+                   limit_price=12.0, client_order_id=coid)
+    req = fake.submitted[0]
+    assert req.side == OrderSide.SELL
+    assert req.position_intent == PositionIntent.SELL_TO_CLOSE
+    assert req.client_order_id == coid
+
+
+def test_make_client_order_id_stable_and_sanitized():
+    from broker import make_client_order_id
+
+    a = make_client_order_id("open", "FCX270319C00080000", "2026-06-01")
+    assert a == make_client_order_id("open", "FCX270319C00080000", "2026-06-01")  # idempotent
+    assert a == "open-FCX270319C00080000-2026-06-01" and a.startswith("open-")
+    # open vs close differ → an open + a close on the same contract/day never collide
+    assert make_client_order_id("close", "FCX270319C00080000", "2026-06-01") != a
+
+
 def test_order_status_and_cancel(monkeypatch):
     fake = FakeTradingClient()
     fake._next = SimpleNamespace(status="filled", filled_avg_price="7.60", filled_qty="1", id="o")
