@@ -94,12 +94,15 @@ def record_convexity_eval(
     iv_rv: float | None = None,
     otm_skew: float | None = None,
     position_id: int | None = None,
+    proposal_id: int | None = None,
     reasons: Any = None,
 ) -> int:
     """Append a survivorship-log row for EVERY evaluated bet (open or veto). Atomic.
 
     This is the only honest basis for judging edge vs. luck (PREREG_THEMATIC_CONVEXITY §5):
     every evaluation is recorded, winners and zeros alike. Append-only — never updated.
+    ``proposal_id`` links the row back to the council proposal it came from (T2 forensics:
+    "council proposed HIGH conviction, the IV gate vetoed it anyway").
     """
     import json
 
@@ -108,13 +111,13 @@ def record_convexity_eval(
     with conn:
         cur = conn.execute(
             "INSERT INTO convexity_eval (run_id, evaluated_at, theme, symbol, direction, "
-            "eligible, gate_cheap, iv_rv, otm_skew, decision, position_id, reasons, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            "eligible, gate_cheap, iv_rv, otm_skew, decision, position_id, proposal_id, reasons, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
             (
                 run_id, as_of, theme, symbol, direction,
                 None if eligible is None else int(eligible),
                 None if gate_cheap is None else int(gate_cheap),
-                iv_rv, otm_skew, decision, position_id, reasons,
+                iv_rv, otm_skew, decision, position_id, proposal_id, reasons,
             ),
         )
     return int(cur.lastrowid)
@@ -140,11 +143,15 @@ def record_convexity_position(
     rationale: Any = None,
     status: str = "open",
     order_id: str | None = None,
+    proposal_id: int | None = None,
+    entry_spot: float | None = None,
 ) -> int:
     """Insert a paper position. Returns its id. Atomic.
 
     ``status`` is 'open' for a simulated/confirmed fill, or 'pending' when a real Alpaca
     order is resting and awaiting reconciliation (then ``order_id`` carries the broker id).
+    ``proposal_id`` links a council-proposed trade back to its proposal (T2); ``entry_spot``
+    captures the underlying price at entry — the robust basis for forward outcome resolution.
     """
     import json
 
@@ -154,12 +161,13 @@ def record_convexity_position(
         cur = conn.execute(
             "INSERT INTO convexity_positions (run_id, opened_at, theme, symbol, direction, "
             "structure_kind, contract_symbol, expiry, strike, dte, moneyness, contracts, "
-            "entry_premium_per_contract, total_premium, status, mark, rationale, order_id) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)",
+            "entry_premium_per_contract, total_premium, status, mark, rationale, order_id, "
+            "proposal_id, entry_spot) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)",
             (
                 run_id, opened_at, theme, symbol, direction, structure_kind, contract_symbol,
                 expiry, strike, dte, moneyness, contracts, entry_premium_per_contract,
-                total_premium, status, rationale, order_id,
+                total_premium, status, rationale, order_id, proposal_id, entry_spot,
             ),
         )
     return int(cur.lastrowid)
@@ -280,6 +288,124 @@ def convexity_book_open_premium(conn: sqlite3.Connection) -> float:
         "SELECT COALESCE(SUM(total_premium), 0.0) AS s FROM convexity_positions WHERE status = 'open'"
     ).fetchone()
     return float(row["s"]) if row else 0.0
+
+
+def record_council_proposal(
+    conn: sqlite3.Connection,
+    *,
+    run_id: int | None,
+    as_of: str,
+    theme: str,
+    symbol: str,
+    direction: str,
+    conviction: str,
+    structural_vs_fad: str | None = None,
+    weakest_point: str | None = None,
+    rationale: Any = None,
+    strategist_summary: str | None = None,
+    cost_usd: float | None = None,
+    model_mix: Any = None,
+    status: str = "proposed",
+) -> int:
+    """Insert a council theme proposal (T2). Returns its id. Atomic.
+
+    Records EVERY proposal the strategist emitted, traded or not — the forward-scoring
+    substrate (guardrail §6: the council is validated forward, never backtested).
+    """
+    import json
+
+    if not isinstance(rationale, str):
+        rationale = json.dumps(rationale, default=str)
+    if not isinstance(model_mix, str):
+        model_mix = json.dumps(model_mix, default=str)
+    with conn:
+        cur = conn.execute(
+            "INSERT INTO council_proposals (run_id, as_of, theme, symbol, direction, conviction, "
+            "structural_vs_fad, weakest_point, rationale, strategist_summary, cost_usd, model_mix, "
+            "status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            (
+                run_id, as_of, theme, symbol, direction, conviction, structural_vs_fad,
+                weakest_point, rationale, strategist_summary, cost_usd, model_mix, status,
+            ),
+        )
+    return int(cur.lastrowid)
+
+
+def record_agent_output(
+    conn: sqlite3.Connection,
+    *,
+    proposal_id: int,
+    role: str,
+    provider: str | None,
+    model: str | None,
+    confidence: str | None,
+    stance: str | None = None,
+    weakest_point: str | None = None,
+    raw: Any = None,
+    flagged_unsupported: int = 0,
+    cost_usd: float | None = None,
+) -> int:
+    """Insert one agent's contribution to a proposal (proposer/adversary/strategist). Atomic."""
+    import json
+
+    if not isinstance(raw, str):
+        raw = json.dumps(raw, default=str)
+    with conn:
+        cur = conn.execute(
+            "INSERT INTO council_agent_outputs (proposal_id, role, provider, model, confidence, "
+            "stance, weakest_point, raw, flagged_unsupported, cost_usd, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            (
+                proposal_id, role, provider, model, confidence, stance, weakest_point, raw,
+                int(flagged_unsupported), cost_usd,
+            ),
+        )
+    return int(cur.lastrowid)
+
+
+def link_proposal_position(
+    conn: sqlite3.Connection, proposal_id: int, position_id: int, *, status: str = "traded"
+) -> None:
+    """Link a proposal to the position it became, and flip its status. Atomic."""
+    with conn:
+        conn.execute(
+            "UPDATE council_proposals SET position_id = ?, status = ? WHERE id = ?",
+            (position_id, status, proposal_id),
+        )
+
+
+def resolve_proposal(
+    conn: sqlite3.Connection,
+    proposal_id: int,
+    *,
+    outcome: int | None,
+    brier: float | None,
+    resolved_at: str,
+) -> None:
+    """Record a proposal's forward outcome at position close. Atomic.
+
+    ``outcome`` is 1 (favorable), 0 (unfavorable), or None (genuinely unresolved — spot
+    unavailable; never fabricated). ``brier`` is the per-proposal Brier contribution.
+    """
+    with conn:
+        conn.execute(
+            "UPDATE council_proposals SET outcome = ?, brier = ?, resolved_at = ? WHERE id = ?",
+            (outcome, brier, resolved_at, proposal_id),
+        )
+
+
+def council_proposal_for_position(conn: sqlite3.Connection, position_id: int) -> sqlite3.Row | None:
+    """The proposal a given position came from, or None."""
+    return conn.execute(
+        "SELECT * FROM council_proposals WHERE position_id = ?", (position_id,)
+    ).fetchone()
+
+
+def council_proposal_by_id(conn: sqlite3.Connection, proposal_id: int) -> sqlite3.Row | None:
+    """A proposal by id (used at close to resolve its forward outcome), or None."""
+    return conn.execute(
+        "SELECT * FROM council_proposals WHERE id = ?", (proposal_id,)
+    ).fetchone()
 
 
 def schema_version(conn: sqlite3.Connection) -> int:

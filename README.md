@@ -45,8 +45,10 @@ from one current chain snapshot + the underlying's trailing realized vol:
 - **IV/RV ratio** `IV_atm / RV ≤ 1.2` — ATM vol isn't richly bid over what the name realizes.
 - **OTM skew** `IV(wing) − IV_atm ≤ 10` vol pts — the wing we're buying isn't already bid up.
 
-Pass ⇔ both hold; **fail-closed** on any missing input. The council (T2) will only *propose*
-themes — it can never override this veto, breach a cap, or defeat the kill rule. Risk frame
+Pass ⇔ both hold; **fail-closed** on any missing input. The council (T2, `council/`) only
+*proposes* themes from the `themes.json` candidate watchlist — it can never override this veto,
+breach a cap, change sizing, or defeat the kill rule (conviction is recorded + forward-scored
+only). Risk frame
 (frozen, `config.json`): book = 10% of account, per-name ≤ 1%, ≤ 15 open, flat-by-slots
 sizing, kill at 20% book DD or 9mo dry. Forward measurement is **calibrate-not-prove**:
 6–12mo holds can't reach significance fast (`PREREG_THEMATIC_CONVEXITY §7`).
@@ -56,7 +58,9 @@ sizing, kill at 20% book DD or 9mo dry. Forward measurement is **calibrate-not-p
 Flat modules at repo root: plumbing (`config_loader`, `clock`, `state`, `risk`,
 `orchestrator`, `universe`, `options_tradability`) + the T1 strategy (`themes`,
 `convexity_gate`, `structure`, `convexity_sizing`, `broker`, `convexity_data`,
-`paper_loop`) + `data/` (`alpaca_client`, `cache`, and the reusable point-in-time adapters)
+`paper_loop`, `monitor`) + the T2 **`council/`** package (heterogeneous `router` + `FakeRouter`,
+`context`, `agents`, `filters`, `debate`, `proposal`, `scoring`, `wiring`) + `data/`
+(`alpaca_client`, `cache`, `news`, and the reusable point-in-time adapters)
 + `scripts/` + `tests/`. Parked backtest-gate machinery lives in **`shelf/`** (not deleted —
 see `shelf/README.md`). Tunables in `config.json`; secrets in `.env` (never committed).
 Point-in-time everything — all "now"/market-state flows through an injectable `Clock`.

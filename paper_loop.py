@@ -143,7 +143,7 @@ def run_paper_cycle(
             result.skipped += 1
             state.record_convexity_eval(
                 conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
-                direction=theme.direction, decision="skip-already-open",
+                direction=theme.direction, decision="skip-already-open", proposal_id=theme.proposal_id,
                 reasons=[f"{theme.symbol} already has an open position"],
             )
             continue
@@ -158,7 +158,8 @@ def run_paper_cycle(
             result.errors += 1
             state.record_convexity_eval(
                 conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
-                direction=theme.direction, decision="error", reasons=[str(e)],
+                direction=theme.direction, decision="error", proposal_id=theme.proposal_id,
+                reasons=[str(e)],
             )
             log.error("Theme %s (%s) errored: %s", theme.name, theme.symbol, e)
 
@@ -203,7 +204,7 @@ def _process_theme(
         state.record_convexity_eval(
             conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
             direction=theme.direction, eligible=False, decision="veto-eligibility",
-            reasons=list(sreasons),
+            proposal_id=theme.proposal_id, reasons=list(sreasons),
         )
         return
 
@@ -219,7 +220,7 @@ def _process_theme(
             conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
             direction=theme.direction, eligible=True, gate_cheap=False,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
-            decision="veto-iv-gate", reasons=list(verdict.reasons),
+            decision="veto-iv-gate", proposal_id=theme.proposal_id, reasons=list(verdict.reasons),
         )
         return
 
@@ -241,7 +242,7 @@ def _process_theme(
             conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
-            decision="veto-sizing", reasons=list(sizing.reasons),
+            decision="veto-sizing", proposal_id=theme.proposal_id, reasons=list(sizing.reasons),
         )
         return
 
@@ -256,7 +257,7 @@ def _process_theme(
             conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
-            decision="veto-fill", reasons=[fill.note],
+            decision="veto-fill", proposal_id=theme.proposal_id, reasons=[fill.note],
         )
         return
 
@@ -281,13 +282,17 @@ def _process_theme(
         contracts=sizing.contracts, entry_premium_per_contract=fill_premium_per_contract,
         total_premium=fill_premium_per_contract * sizing.contracts, rationale=rationale,
         status=status, order_id=getattr(fill, "order_id", None),
+        proposal_id=theme.proposal_id, entry_spot=underlying_price,
     )
+    # Link the council proposal to the position it became (T2 forward-scoring substrate).
+    if theme.proposal_id is not None:
+        state.link_proposal_position(conn, theme.proposal_id, pos_id)
     state.record_convexity_eval(
         conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
         direction=theme.direction, eligible=True, gate_cheap=True,
         iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
         decision=("submit-pending" if pending else "open"), position_id=pos_id,
-        reasons=list(verdict.reasons),
+        proposal_id=theme.proposal_id, reasons=list(verdict.reasons),
     )
     result.opened += 1
     result.opened_ids.append(pos_id)

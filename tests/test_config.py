@@ -20,6 +20,22 @@ def test_frozen_exit_rules_match_prereg():
     config_loader.load_config.cache_clear()
 
 
+def test_council_block_and_llm_keys_surfaced(monkeypatch):
+    """The shipped council config + .env-sourced provider keys load as expected (T2)."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "a-key")
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    config_loader.load_config.cache_clear()
+    cfg = config_loader.load_config()
+    council = cfg["council"]
+    # The hard seam depends on these roles being mapped to DISTINCT providers.
+    providers = {council["roles"][r]["provider"] for r in ("proposer", "adversary", "strategist")}
+    assert len(providers) == 3
+    assert council["conviction_floor"] in ("LOW", "MODERATE", "HIGH", "EXTREME")
+    assert cfg["llm_keys"]["anthropic"] == "a-key"
+    assert cfg["llm_keys"]["xai"] is None  # unset → None (enabled council fails closed on it)
+    config_loader.load_config.cache_clear()
+
+
 def test_as_bool_coercion():
     for truthy in ("1", "true", "TRUE", "Yes", "on", True):
         assert _as_bool(truthy) is True

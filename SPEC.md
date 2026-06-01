@@ -144,6 +144,18 @@ reactive on exit (slow exits compound losses and bleed theta). Anything fast is
 
 ## 5. The Council (runs on the shortlist only)
 
+> **T2 minimal council (built 2026-06-01) — a deliberate consolidation, not a subset.** The full
+> bench below (seven Tier-2 specialists + Tier-3) is the destination. T2 ships a minimal-but-real
+> **three-role** council — **Proposer** (Inflection Analyst, argues FOR the candidate's direction)
+> → **Adversary** (Devil's Advocate, **direction-relative** — argues AGAINST the proposed
+> direction, the bull case on a bearish name) → **Master Strategist** (synthesis + conviction in
+> `LOW/MODERATE/HIGH/EXTREME`) — over the operator's `themes.json` **candidate watchlist** (it
+> judges, it does not discover; discovery is T3). Roles run across distinct providers via the
+> heterogeneous router (`council/`); the quote-authenticity filter + early-exit-to-NEUTRAL apply;
+> proposals are forward-scored only (Brier + contribution, guardrail §6). The Tier-2 specialist
+> bench is an additive expansion behind the same router/seam. See `PREREG_THEMATIC_CONVEXITY` §2
+> (the hard seam: the council proposes, the deterministic gates dispose) and `IMPLEMENTATION_PLAN` T2.
+
 **Tier-2 specialists** (LLM, routed per role via the heterogeneous router):
 - Fundamental / Filings (10-K/Q, 8-K, guidance; long context → Gemini)
 - Catalyst / Event (earnings, FDA, M&A, product)

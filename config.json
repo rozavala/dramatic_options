@@ -48,6 +48,32 @@
     "book_drawdown_halt": 0.20,
     "dry_months_halt": 9
   },
+  "council": {
+    "_comment": "T2 — the LLM theme-judgment council (SPEC §5, PREREG §2 hard seam). The council only PROPOSES themes; the deterministic gates below still DISPOSE. Conviction is recorded + forward-scored ONLY — it NEVER sizes a position and NEVER overrides a veto. The three roles run across DISTINCT providers for decorrelated debate. Provider SDKs are lazy-imported; `orchestrator.py --demo` (and all tests) use a deterministic FakeRouter needing no keys. enabled=false falls back to the T1 hand-seeded loop (themes.json consumed directly). cost_cap_usd is a GENEROUS PROVISIONAL fail-closed cap while per-cycle cost is being measured — the real ceiling + run cadence are an operator decision AFTER seeing the printed per-cycle ledger. MODEL IDs + prices_per_mtok ($ per million tokens) verified against provider docs 2026-06-01 (Balanced tier); models/prices move fast — re-verify periodically (a stale model id fails closed: SDK error → RouterError → 0 entries). prices_per_mtok keys not currently mapped are kept so the ledger stays accurate if a role is remapped.",
+    "enabled": true,
+    "roles": {
+      "proposer": {"provider": "gemini", "model": "gemini-3.5-flash"},
+      "adversary": {"provider": "xai", "model": "grok-4.3"},
+      "strategist": {"provider": "anthropic", "model": "claude-opus-4-8"}
+    },
+    "cost_cap_usd": 5.0,
+    "conviction_floor": "MODERATE",
+    "conviction_to_prob": {"LOW": 0.55, "MODERATE": 0.65, "HIGH": 0.75, "EXTREME": 0.85},
+    "timeout_s": 60,
+    "max_retries": 2,
+    "max_candidates": 12,
+    "news_lookback_days": 90,
+    "prices_per_mtok": {
+      "gemini-3.5-flash": {"in": 1.5, "out": 9.0},
+      "grok-4.3": {"in": 1.25, "out": 2.5},
+      "claude-opus-4-8": {"in": 5.0, "out": 25.0},
+      "gemini-3.1-pro-preview": {"in": 2.0, "out": 12.0},
+      "gemini-3.1-flash-lite": {"in": 0.25, "out": 1.5},
+      "claude-sonnet-4-6": {"in": 3.0, "out": 15.0},
+      "claude-haiku-4-5": {"in": 1.0, "out": 5.0},
+      "grok-build-0.1": {"in": 1.0, "out": 2.0}
+    }
+  },
   "execution": {
     "_comment": "Real Alpaca paper order path (broker.AlpacaPaperBroker). SENDING is gated by safety.dry_run: dry_run=true (default) logs the intended order + simulates the fill — nothing is transmitted; dry_run=false actually submits to the PAPER endpoint. cancel_unfilled: at reconcile, cancel a still-resting limit (it re-evaluates next cycle) instead of leaving it open.",
     "cancel_unfilled": true

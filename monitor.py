@@ -20,11 +20,34 @@ from datetime import date, datetime
 import state
 from clock import Clock
 from convexity_data import QuoteProvider
+from council import scoring
 from options_tradability import parse_osi
 
 log = logging.getLogger("monitor")
 
 CONTRACT_MULTIPLIER = 100.0
+
+
+def _maybe_resolve_proposal(
+    conn, pos, *, reason: str, as_of: str, conviction_to_prob, intrinsic=None, exit_spot=None
+) -> None:
+    """Resolve a council proposal's forward outcome when its position closes (T2 substrate).
+
+    No-op for hand-seeded positions (no ``proposal_id``). Outcome is favorable/unfavorable/None;
+    None (genuinely unresolved — spot unavailable on a time-stop) is recorded, never fabricated.
+    """
+    pid = pos["proposal_id"]
+    if not pid:
+        return
+    prop = state.council_proposal_by_id(conn, int(pid))
+    if prop is None:
+        return
+    outcome, b = scoring.resolve(
+        reason, direction=pos["direction"], conviction=prop["conviction"],
+        intrinsic=intrinsic, exit_spot=exit_spot, entry_spot=pos["entry_spot"],
+        conviction_to_prob=conviction_to_prob,
+    )
+    state.resolve_proposal(conn, int(pid), outcome=outcome, brier=b, resolved_at=as_of)
 
 
 @dataclass
@@ -70,6 +93,7 @@ def monitor_positions(
     exits = config.get("convexity_exits", {})
     profit_mult = float(exits.get("profit_take_multiple", 4.0))
     time_stop_dte = int(exits.get("time_stop_dte", 21))
+    conv_map = config.get("council", {}).get("conviction_to_prob")
     now = clock.now()
     today = now.date()
     as_of_iso = now.isoformat()
@@ -92,6 +116,8 @@ def monitor_positions(
                 conn, pid, exit_price=intrinsic, realized_pnl=pnl,
                 reason="expiry", as_of=as_of_iso,
             )
+            _maybe_resolve_proposal(conn, pos, reason="expiry", as_of=as_of_iso,
+                                    conviction_to_prob=conv_map, intrinsic=intrinsic, exit_spot=up)
             res.expired += 1
             res.closed += 1
             res.realized_pnl += pnl
@@ -110,10 +136,13 @@ def monitor_positions(
         # 3. Profit-take: mark ≥ profit_mult × entry (per-contract basis).
         if entry_pc > 0 and mid * CONTRACT_MULTIPLIER >= profit_mult * entry_pc:
             pnl = _realized(mid, entry_pc, contracts)
+            reason = f"profit_take_{profit_mult:g}x"
             state.close_convexity_position(
-                conn, pid, exit_price=mid, realized_pnl=pnl,
-                reason=f"profit_take_{profit_mult:g}x", as_of=as_of_iso,
+                conn, pid, exit_price=mid, realized_pnl=pnl, reason=reason, as_of=as_of_iso,
             )
+            up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            _maybe_resolve_proposal(conn, pos, reason=reason, as_of=as_of_iso,
+                                    conviction_to_prob=conv_map, exit_spot=up)
             res.profit_taken += 1
             res.closed += 1
             res.realized_pnl += pnl
@@ -123,10 +152,14 @@ def monitor_positions(
         # 4. Time-stop: close when ≤ time_stop_dte days to expiry (avoid the theta/gamma endgame).
         if dte is not None and dte <= time_stop_dte:
             pnl = _realized(mid, entry_pc, contracts)
+            reason = f"time_stop_{time_stop_dte}dte"
             state.close_convexity_position(
-                conn, pid, exit_price=mid, realized_pnl=pnl,
-                reason=f"time_stop_{time_stop_dte}dte", as_of=as_of_iso,
+                conn, pid, exit_price=mid, realized_pnl=pnl, reason=reason, as_of=as_of_iso,
             )
+            # Time-stop resolution genuinely needs the underlying (not consulted elsewhere).
+            up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            _maybe_resolve_proposal(conn, pos, reason=reason, as_of=as_of_iso,
+                                    conviction_to_prob=conv_map, exit_spot=up)
             res.time_stopped += 1
             res.closed += 1
             res.realized_pnl += pnl
