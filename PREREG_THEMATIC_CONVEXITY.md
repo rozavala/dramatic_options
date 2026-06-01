@@ -125,7 +125,7 @@ Open positions are marked to the current option mid each cycle and exited by **d
 code-enforced** rules (`monitor.py`; SPEC §3 "open slow, close fast"). The intelligence is
 front-loaded at entry; this loop only watches and fires. Rules (`config.json:convexity_exits`):
 
-- **Profit-take:** close when the mark reaches **≥ 4× the entry premium** (a convex winner is
+- **Profit-take:** close when the mark reaches **≥ 10× the entry premium** (a convex winner is
   realized rather than round-tripped).
 - **Time-stop:** close when **≤ 21 calendar days to expiry** (avoid the gamma/theta endgame).
 - **Expiry:** close at intrinsic; a far-OTM option that never came in → **−premium**, the
@@ -134,6 +134,21 @@ front-loaded at entry; this loop only watches and fires. Rules (`config.json:con
 Realized P&L is recorded per close (the calibration substrate, §7). These thresholds are
 frozen for the current cohort; changed only by a documented operator edit, never to rescue a
 specific position. *(Added 2026-05-31, before live forward results exist.)*
+
+**Amendment 2026-06-01 — profit-take raised 4× → 10× (operator-authorized, calibration-cited).**
+The payoff-mechanics calibration (`PREREG_CONVEXITY_CALIBRATION.md`) showed the **4× cap clips
+the convex right tail that is the entire point of the book**: at the live cell (25% OTM, 270d,
+σ_entry = 1.2× realized) the capped p99 was ~4.5× vs ~10× uncapped, while the **mean barely
+moved** (≈0.86–0.88× across drift scenarios — tail events are rare, so capping them costs almost
+nothing on average but forfeits the many-fold winners the strategy is sized for). Above ~12× the
+profit-take rarely fires (the 21-DTE time-stop takes over) and metrics converge. **10× sits just
+before that plateau** — it still imposes profit discipline (realize a spectacular winner before
+it round-trips, and before a far-OTM option that has gone ~10× has become a spent-convexity delta
+bet) while recovering most of the tail. The protective **time-stop stays 21 DTE** (the
+calibration showed it cuts P(total loss) ~72%→56% vs hold, by salvaging theta on losers).
+*Caveat acknowledged:* GBM has no jumps, so the real catalyst-driven tail is fatter than modeled
+— which only strengthens the case against an eager cap. This is a calibration of **structure**,
+not an edge claim (the §1 walls hold). `config.json:convexity_exits.profit_take_multiple = 10.0`.
 
 ## 7. Forward measurement — calibration, not a pass-gate
 
