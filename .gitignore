@@ -42,6 +42,5 @@ KILL
 # keeping the seed file tracked. (Same class of bug as the Phase-0 data/ source swallow.)
 !themes.json
 
-# Claude Code
-.claude/settings.local.json
-.claude/worktrees/
+# Claude Code — local/operational, never committed (settings, worktrees, task locks)
+.claude/
