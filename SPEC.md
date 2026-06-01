@@ -12,6 +12,20 @@
 
 ---
 
+> **⚠ v2 PIVOT (2026-05-31) — read `PREREG_THEMATIC_CONVEXITY.md` + `IMPLEMENTATION_PLAN.md`
+> first.** The strategy below (thesis-first narrative-vs-delivery *divergence*, validated on a
+> backtest gate) was pre-registered, tested, and **graded negative** (divergence UNPROVEN;
+> FSSD FAILED). The active strategy is now **forward, discretionary thematic cheap-convexity**:
+> long-dated far-OTM defined-risk options on secular themes whose IV hasn't priced the move,
+> sized small as a portfolio of convex bets. **The harness role flipped** from a pre-trade
+> *validation gate* to an *execution + risk-control + forward-scoring* engine; the backtest
+> machinery is parked in `shelf/`. Sections below are retained for architectural lineage
+> (the council, risk model, execution funnel, reuse map all still apply) — but where this
+> doc says "the edge is divergence" or "validate the edge in backtest before capital," read
+> `PREREG_THEMATIC_CONVEXITY.md` instead. The non-negotiable guardrails (§13) are unchanged.
+
+---
+
 ## 0. North star
 
 A single, deliberately-aggressive, risk-managed, multi-agent system that trades **US

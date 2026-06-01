@@ -10,6 +10,9 @@ requires-python = ">=3.11"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# shelf/ holds parked backtest-gate code (graded-negative edges) — kept for revival,
+# excluded from lint/CI on the active surface. See shelf/README.md.
+exclude = ["shelf"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

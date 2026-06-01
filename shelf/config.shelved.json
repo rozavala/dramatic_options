@@ -1,0 +1,17 @@
+{
+  "_note": "Config blocks lifted out of the active config.json during the T0 pivot to thematic cheap-convexity. Parked here for recoverability; not read by config_loader. Belong to the shelved divergence (v1) and FSSD (v2) edges. See shelf/README.md.",
+
+  "divergence": {
+    "lookback_days": 252,
+    "momentum_window": 63,
+    "z_clip": 3.0
+  },
+
+  "fssd": {
+    "explore_start": "2019-01-01",
+    "explore_end": "2022-12-31",
+    "friction_decile": 10,
+    "horizon_td": 10,
+    "min_eligible_months": 24
+  }
+}

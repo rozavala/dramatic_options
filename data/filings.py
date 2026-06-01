@@ -35,6 +35,7 @@ SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 SUBMISSIONS_FILE_URL = "https://data.sec.gov/submissions/{name}"
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 ARCHIVES_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/{doc}"
+FULL_INDEX_URL = "https://www.sec.gov/Archives/edgar/full-index/{year}/QTR{quarter}/form.idx"
 
 
 def _to_utc(dt: datetime) -> datetime:
@@ -128,6 +129,16 @@ class EdgarClient:
         return self._get_text(
             ARCHIVES_URL.format(cik=str(int(cik)), acc=acc, doc=primary_document)
         )
+
+    # ── full-index (FSSD event enumeration, plan §8a) ────────────────────────
+    def fetch_form_index(self, year: int, quarter: int) -> str:
+        """Raw quarterly full-index 'form.idx' text (UA + throttle reused).
+
+        The quarterly full-index lists every dissemination-feed filing for the quarter
+        (one file per quarter ≈ 24 for 2019-24, vs ~1500 daily files) and is
+        survivorship-clean — it includes issuers that later delisted, so enumerating an
+        event population from it is unbiased (plan §8a)."""
+        return self._get_text(FULL_INDEX_URL.format(year=year, quarter=quarter))
 
 
 def _normalize_filing_block(block: dict[str, list], cik: str) -> list[dict[str, Any]]:
