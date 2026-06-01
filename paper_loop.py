@@ -18,7 +18,7 @@ import logging
 from dataclasses import dataclass, field
 
 import state
-from broker import Broker
+from broker import Broker, make_client_order_id
 from clock import Clock
 from convexity_data import ChainProvider
 from convexity_gate import is_cheap_convexity, realized_vol
@@ -250,6 +250,7 @@ def _process_theme(
     fill = broker.submit_paper(
         contract_symbol=structure.contract.symbol, qty=sizing.contracts, side="buy",
         limit_price=structure.entry_premium,
+        client_order_id=make_client_order_id("open", structure.contract.symbol, str(as_of)),
     )
     if not fill.filled:
         result.vetoed += 1

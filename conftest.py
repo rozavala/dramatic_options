@@ -33,6 +33,7 @@ def convexity_db(tmp_path):
     _apply_migration(conn, "0003_convexity.py")
     _apply_migration(conn, "0004_convexity_mtm.py")
     _apply_migration(conn, "0005_council.py")
+    _apply_migration(conn, "0006_close_side.py")
     try:
         yield conn
     finally:

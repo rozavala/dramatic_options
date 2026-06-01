@@ -24,6 +24,11 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA synchronous=NORMAL")
+    # WAL lets a reader run while a writer holds the lock, but NOT two writers. The L1 entry
+    # cycle and the L2 monitor are distinct timer-fired processes (T2.5) that can overlap (a
+    # manual start, or a Persistent catch-up), so a second writer must WAIT for the lock rather
+    # than throw SQLITE_BUSY immediately (which could orphan a half-written pending order).
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 
@@ -242,6 +247,43 @@ def drop_convexity_position(conn: sqlite3.Connection, position_id: int, *, reaso
         )
 
 
+def closing_positions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Positions whose real SELL_TO_CLOSE is resting / not yet confirmed filled (T2.5)."""
+    return conn.execute(
+        "SELECT * FROM convexity_positions WHERE status = 'closing' ORDER BY id"
+    ).fetchall()
+
+
+def begin_close_convexity_position(
+    conn: sqlite3.Connection, position_id: int, *, close_order_id: str, reason: str, as_of: str
+) -> None:
+    """Flip an open position to 'closing' with the resting sell's broker id (T2.5). Atomic.
+
+    The position keeps its real exposure (counts against caps/drawdown) until the sell fills;
+    ``exit_reason`` records WHY we're exiting (profit_take/time_stop) for the eventual close.
+    """
+    with conn:
+        conn.execute(
+            "UPDATE convexity_positions SET status = 'closing', close_order_id = ?, "
+            "exit_reason = ?, marked_at = ? WHERE id = ?",
+            (close_order_id, reason, as_of, position_id),
+        )
+
+
+def revert_closing_to_open(conn: sqlite3.Connection, position_id: int, *, reason: str) -> None:
+    """A close order failed terminally → reopen so the monitor re-evaluates next cycle. Atomic.
+
+    Clears ``close_order_id`` so a re-fire mints a fresh (per-day) id rather than re-using the
+    single-use one Alpaca already saw.
+    """
+    with conn:
+        conn.execute(
+            "UPDATE convexity_positions SET status = 'open', close_order_id = NULL, "
+            "exit_reason = ? WHERE id = ?",
+            (reason, position_id),
+        )
+
+
 def convexity_book_drawdown(conn: sqlite3.Connection, book_budget: float) -> tuple[float, bool]:
     """Book drawdown = (entry premium − marked value) / book_budget across OPEN positions.
 
@@ -251,7 +293,7 @@ def convexity_book_drawdown(conn: sqlite3.Connection, book_budget: float) -> tup
     is the open-book mark drawdown the kill rule watches.
     """
     rows = conn.execute(
-        "SELECT contracts, total_premium, mark FROM convexity_positions WHERE status = 'open'"
+        f"SELECT contracts, total_premium, mark FROM convexity_positions WHERE status IN {_EXPOSURE_STATES}"
     ).fetchall()
     entry_total = sum(float(r["total_premium"]) for r in rows)
     marked_total = 0.0
@@ -267,25 +309,30 @@ def convexity_book_drawdown(conn: sqlite3.Connection, book_budget: float) -> tup
     return ((entry_total - marked_total) / book_budget, have_marks)
 
 
+# A position mid-exit ('closing') still holds REAL exposure until its sell fills, so the
+# concurrency cap, per-name dedup, premium-at-risk, and drawdown all count open + closing.
+_EXPOSURE_STATES = "('open', 'closing')"
+
+
 def open_position_symbols(conn: sqlite3.Connection) -> set[str]:
-    """Underlyings with at least one open convexity position (for per-cycle dedup)."""
+    """Underlyings with at least one live (open/closing) position (for per-cycle dedup)."""
     rows = conn.execute(
-        "SELECT DISTINCT symbol FROM convexity_positions WHERE status = 'open'"
+        f"SELECT DISTINCT symbol FROM convexity_positions WHERE status IN {_EXPOSURE_STATES}"
     ).fetchall()
     return {r["symbol"] for r in rows}
 
 
 def count_open_convexity_positions(conn: sqlite3.Connection) -> int:
     row = conn.execute(
-        "SELECT COUNT(*) AS n FROM convexity_positions WHERE status = 'open'"
+        f"SELECT COUNT(*) AS n FROM convexity_positions WHERE status IN {_EXPOSURE_STATES}"
     ).fetchone()
     return int(row["n"]) if row else 0
 
 
 def convexity_book_open_premium(conn: sqlite3.Connection) -> float:
-    """Total premium-at-risk across open positions (the book's current usage)."""
+    """Total premium-at-risk across live (open/closing) positions (the book's current usage)."""
     row = conn.execute(
-        "SELECT COALESCE(SUM(total_premium), 0.0) AS s FROM convexity_positions WHERE status = 'open'"
+        f"SELECT COALESCE(SUM(total_premium), 0.0) AS s FROM convexity_positions WHERE status IN {_EXPOSURE_STATES}"
     ).fetchone()
     return float(row["s"]) if row else 0.0
 

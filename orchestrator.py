@@ -182,7 +182,7 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             log.info("Reconciled %d pending order(s).", reconciled)
         mres = monitor_positions(
             conn=conn, clock=clock, quote_provider=quote_provider, config=config,
-            underlying_price_of=provider.underlying_price,
+            underlying_price_of=provider.underlying_price, broker=broker, dry_run=dry_run,
         )
         log.info(
             "Monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) unmarked=%d realized=$%.0f",
