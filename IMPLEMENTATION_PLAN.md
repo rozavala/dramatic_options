@@ -7,7 +7,11 @@
 > and graded negative — this is a deliberate pivot to a **forward, discretionary** strategy,
 > not a patch. Work one phase per session, in plan mode; each phase ends green.
 >
-> **Status: T0 COMPLETE · T1 IN PROGRESS.** (Council T2 / sentinels T3 not started.)
+> **Status: T0 · T1 · T1.5 · calibration harness COMPLETE · T2 (the council) IN PROGRESS.**
+> (Sentinels T3 not started.) T1.5 added the L2 monitor (mark-to-market + deterministic
+> profit-take/time-stop/expiry exits) and the real DRY_RUN-gated Alpaca paper-submit path; the
+> calibration harness (`PREREG_CONVEXITY_CALIBRATION.md`) graded the exit structure (→ 4×→10×
+> profit-take). T2 adds `council/` — the three-role LLM judgment layer that proposes themes.
 
 ---
 
@@ -80,17 +84,22 @@ Stripped to reusable plumbing; shelved the backtest machinery; wrote
 `PREREG_THEMATIC_CONVEXITY.md` (risk frame + IV gate, frozen *before* signal code); installed
 this plan; updated `SPEC.md` / `CLAUDE.md`. No alpha logic.
 
-**T1 — Minimal paper loop �doing (the immediate next step).**
+**T1 — Minimal paper loop ✅ COMPLETE (+ T1.5).**
 Smallest thing that can actually trade on paper:
 hand-seeded theme+name → pull current chain + trailing realized vol → eligibility gate →
 IV/cheap-convexity gate → propose a defined-risk long-dated structure → size per §4 → log a
 paper position with a structured rationale + survivorship-log every evaluation →
-forward-track P&L. *No auto-discovery, no council yet.* Seeded from `themes.json`.
-**Goal: a logged paper position within this phase.**
+forward-track P&L. Seeded from `themes.json`. **T1.5** added the L2 monitor (mark-to-market +
+deterministic exits) and the real DRY_RUN-gated Alpaca paper-submit + reconciliation path.
 
-**T2 — Council does the theme work.** Wire the agent hierarchy for inflection detection,
-durability, cleanest-name, and bull/bear debate, replacing hand-seeding. The IV gate stays
-deterministic. Forward-scored (Brier + contribution).
+**T2 — Council does the theme work �doing.** A minimal-but-real **three-role** council
+(Proposer → direction-relative Adversary → Master Strategist) over the `themes.json` **candidate
+watchlist** — it judges (inflection, structural-vs-fad, cleanest name, bull/bear), it does NOT
+discover (that's T3). Roles run across distinct providers via a heterogeneous router (`council/`)
+with a first-class cost ledger; SDKs are lazy-imported and `--demo`/tests use a deterministic
+FakeRouter. The deterministic gates still dispose — **conviction is recorded + forward-scored
+(Brier + contribution) ONLY; it never sizes a position and never overrides a veto** (the hard
+seam). Kill checks precede any LLM spend; over-budget/failure fail closed to zero entries.
 
 **T3 — Sentinel inflection discovery.** Always-on scan for pre-consensus tailwinds and
 early rollovers — finds the *next* copper before it's narrated.

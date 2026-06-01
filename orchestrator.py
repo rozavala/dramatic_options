@@ -26,10 +26,13 @@ from broker import AlpacaPaperBroker, PaperBroker
 from clock import FixedClock, LiveClock
 from config_loader import ConfigError, live_allowed, load_config, require_alpaca_credentials
 from convexity_data import AlpacaChainProvider, AlpacaQuoteProvider, SyntheticChainProvider
+from council.router import FakeRouter, RouterError, build_router
+from council.wiring import council_to_themes
 from monitor import monitor_positions, reconcile_pending
-from paper_loop import run_paper_cycle
+from paper_loop import kill_rule_status, run_paper_cycle
 from risk import kill_switch_active
 from state import get_db, record_run
+from themes import active_themes, load_themes
 
 log = logging.getLogger("orchestrator")
 if not log.handlers:
@@ -97,6 +100,25 @@ def _print_book_summary(conn, config: dict) -> None:
     )
 
 
+def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
+    """(router, news) for the council. Demo → deterministic FakeRouter + synthetic packs
+    (news=None); live → the heterogeneous router + a CURRENT-news grounding source. Raises
+    RouterError (fail-closed) when a mapped provider has no key in live."""
+    council = config.get("council", {})
+    cap = council.get("cost_cap_usd")
+    if demo:
+        return FakeRouter(cap_usd=float(cap) if cap is not None else None), None
+    router = build_router(config, config.get("llm_keys", {}))
+    from datetime import timedelta
+
+    from data.news import NewsData
+
+    now = clock.now()
+    lookback = int(council.get("news_lookback_days", 90))
+    news = NewsData(cache, client=client, fetch_start=now - timedelta(days=lookback), fetch_end=now)
+    return router, news
+
+
 def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = False) -> int:
     if kill_switch_active():
         log.warning("KILL switch engaged — halting. Remove the KILL file/env to resume.")
@@ -117,6 +139,7 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
     else:
         conn = get_db(config)
     chain_cache = None
+    client = None
     try:
         _ensure_schema(conn)
         dry_run = bool(config.get("safety", {}).get("dry_run", True))
@@ -167,11 +190,33 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             mres.unmarked, mres.realized_pnl,
         )
 
-        # 2. Entry pass (unless monitor-only).
+        # 2. Council pass → themes (T2). The council PROPOSES; the deterministic gates in
+        #    run_paper_cycle still DISPOSE. Kill checks run FIRST so no LLM spend when halted.
+        #    council.enabled=false → themes=None → run_paper_cycle uses themes.json (T1 fallback).
         if not monitor_only:
+            themes = None
+            if config.get("council", {}).get("enabled", False):
+                if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
+                    log.info("Kill state active — council skipped (no LLM spend).")
+                    themes = []  # run_paper_cycle re-checks and halts; no entries
+                else:
+                    try:
+                        router, news_dep = _build_council_io(
+                            config, demo=demo, client=client, cache=chain_cache, clock=clock,
+                        )
+                        candidates = active_themes(load_themes(config.get("themes_path", "themes.json")))
+                        themes = council_to_themes(
+                            conn, candidates=candidates, router=router, config=config,
+                            clock=clock, news=news_dep, demo=demo, run_id=run_id,
+                        )
+                        log.info(router.ledger.summary())
+                    except RouterError as e:
+                        log.error("Council unavailable (%s) — fail-closed: NO entries this cycle.", e)
+                        themes = []
+
             result = run_paper_cycle(
                 config=config, conn=conn, clock=clock, provider=provider, broker=broker,
-                run_id=run_id, chain_cache=chain_cache,
+                themes=themes, run_id=run_id, chain_cache=chain_cache,
             )
             log.info(
                 "Cycle #%d: evaluated=%d opened=%d vetoed=%d skipped=%d errors=%d%s",

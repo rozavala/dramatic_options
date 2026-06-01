@@ -22,6 +22,11 @@ class Theme:
     direction: str    # "bullish" (tailwind → calls) | "bearish" (rollover → puts)
     thesis: str
     active: bool = True
+    # T2: when a theme comes from the council, this back-links it to its proposal so the
+    # paper loop can stamp proposal_id onto the survivorship eval + position. Hand-seeded
+    # (T1) themes leave it None. Frozen → set only at construction / via dataclasses.replace.
+    proposal_id: int | None = None
+    conviction: str | None = None  # recorded only — NEVER sizes a position (PREREG §5)
 
 
 class ThemeError(ValueError):

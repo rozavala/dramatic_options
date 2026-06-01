@@ -70,6 +70,16 @@ def load_config() -> dict[str, Any]:
     edgar = config.setdefault("edgar", {})
     if os.getenv("EDGAR_USER_AGENT"):
         edgar["user_agent"] = os.getenv("EDGAR_USER_AGENT").strip()
+
+    # Council LLM provider keys (T2; never stored in config.json). Absent is fine — an
+    # enabled council with a missing key for a mapped provider fails closed at run time.
+    config["llm_keys"] = {
+        "anthropic": os.getenv("ANTHROPIC_API_KEY"),
+        "openai": os.getenv("OPENAI_API_KEY"),
+        "gemini": os.getenv("GEMINI_API_KEY"),
+        "xai": os.getenv("XAI_API_KEY"),
+        "perplexity": os.getenv("PERPLEXITY_API_KEY"),
+    }
     return config
 
 
