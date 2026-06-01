@@ -14,9 +14,14 @@ set -e
 # This is generic scaffolding — once the app produces logs/ and data/, those
 # are picked up automatically. Until then it captures system snapshots.
 
-# Load .env if present (optional path/branch overrides)
+# Load .env if present (optional path/branch overrides).
+# Use `set -a` + source so values with spaces/quotes/special chars are handled
+# correctly — `export $(... | xargs)` word-splits and re-evaluates the contents.
 if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs) || true
+    set -a
+    # shellcheck disable=SC1091
+    . ./.env
+    set +a
 fi
 
 ENV_NAME="${LOG_ENV_NAME:-dev}"

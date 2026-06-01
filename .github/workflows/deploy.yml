@@ -11,6 +11,11 @@ name: Deploy dramatic_options
 #   DROPLET_USER_DEV    — DEV ssh user
 #   DROPLET_HOST_PROD   — PROD host/IP
 #   DROPLET_USER_PROD   — PROD ssh user
+#   SSH_KNOWN_HOSTS     — (recommended) the droplet host key line(s), as produced
+#                         by `ssh-keyscan -H <host>`. Pins the server identity so
+#                         the deploy SSH verifies the host instead of blindly
+#                         trusting it (no MITM on connect). If unset, the workflow
+#                         falls back to ssh-keyscan (trust-on-first-use) and warns.
 # Until then, deploy by running ./deploy.sh manually on the target host.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -45,9 +50,22 @@ jobs:
             echo "ENV_NAME=DEV" >> $GITHUB_ENV
           fi
 
+      - name: Configure known_hosts (pin server identity)
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          if [ -n "${{ secrets.SSH_KNOWN_HOSTS }}" ]; then
+            echo "Using pinned host key(s) from SSH_KNOWN_HOSTS secret."
+            printf '%s\n' "${{ secrets.SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          else
+            echo "::warning::SSH_KNOWN_HOSTS not set — falling back to ssh-keyscan (trust-on-first-use). Set the secret to pin the host key and prevent MITM."
+            ssh-keyscan -H "${{ env.HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
       - name: Deploy and Restart App
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ env.USER }}@${{ env.HOST }} "bash -c '
+          ssh -o StrictHostKeyChecking=yes ${{ env.USER }}@${{ env.HOST }} "bash -c '
             # Navigate to the live checkout
             cd ~/dramatic_options &&
 
