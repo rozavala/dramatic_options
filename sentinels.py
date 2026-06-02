@@ -11,6 +11,7 @@ conviction or the newest arrival (the v1 silent-truncation bug).
 
 from __future__ import annotations
 
+import json
 import logging
 
 import state
@@ -52,7 +53,13 @@ def marker_summary(markers: dict) -> str:
 
 
 def discovered_to_theme(row) -> Theme:
-    """Project a live sentinel row → a council candidate Theme (source='sentinel')."""
+    """Project a live sentinel row → a council candidate Theme (source='sentinel').
+
+    Carries the deterministic ``markers`` so the council grounds on them (origin-aware), not news."""
+    try:
+        markers = json.loads(row["markers"]) if row["markers"] else None
+    except (ValueError, TypeError):
+        markers = None
     return Theme(
         name=row["theme"] or row["basket"] or "discovered",
         symbol=row["symbol"],
@@ -62,6 +69,7 @@ def discovered_to_theme(row) -> Theme:
         conviction=row["framer_conviction"],
         source="sentinel",
         sentinel_id=int(row["id"]),
+        markers=markers,
     )
 
 
@@ -121,7 +129,6 @@ def revalidate_active(conn, as_of, *, market, benchmark, params: MarkerParams) -
     for row in state.active_sentinel_rows(conn):
         markers_were_event = False
         try:
-            import json
             markers_were_event = bool(json.loads(row["markers"] or "{}").get("has_event"))
         except (ValueError, TypeError):
             pass

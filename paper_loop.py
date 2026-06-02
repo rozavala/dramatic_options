@@ -174,6 +174,20 @@ def _process_theme(
     theme: Theme, *, config, conn, provider, broker, eligibility, account_equity, gate, book,
     as_of, as_of_dt, as_of_iso, run_id, result: CycleResult, chain_cache=None,
 ) -> None:
+    # Discovery slot reservation (PREREG §5 / P1): a sentinel-origin candidate may not consume more
+    # than config.discovery.sentinel_max_slots of the book's live positions, so auto-traded
+    # discoveries can't starve hand-seed convictions. Hand-seed (sentinel_id None) is unbounded here.
+    max_slots = config.get("discovery", {}).get("sentinel_max_slots")
+    if (theme.sentinel_id is not None and max_slots is not None
+            and state.count_open_sentinel_positions(conn) >= int(max_slots)):
+        result.vetoed += 1
+        state.record_convexity_eval(
+            conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+            direction=theme.direction, decision="veto-sentinel-slots", proposal_id=theme.proposal_id,
+            reasons=[f"sentinel slot reservation full (>= {max_slots} open discovery positions)"],
+        )
+        return
+
     underlying_price = provider.underlying_price(theme.symbol)
     chain = provider.chain(theme.symbol)
     # Accrue the IV baseline (PREREG §4b): persist this cycle's snapshot, append-only.
@@ -288,6 +302,10 @@ def _process_theme(
     # Link the council proposal to the position it became (T2 forward-scoring substrate).
     if theme.proposal_id is not None:
         state.link_proposal_position(conn, theme.proposal_id, pos_id)
+        # T3: a sentinel that actually TRADED is now linked (sentinel.proposal_id set) → it resolves
+        # at close (monitor) rather than via the never-traded reference-return sweep.
+        if theme.sentinel_id is not None:
+            state.link_sentinel_proposal(conn, theme.sentinel_id, theme.proposal_id)
     state.record_convexity_eval(
         conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
         direction=theme.direction, eligible=True, gate_cheap=True,

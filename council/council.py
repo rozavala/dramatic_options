@@ -32,6 +32,7 @@ def _error_proposal(candidate, *, reason: str, model_mix: dict) -> CouncilPropos
         conviction="NEUTRAL", structural_vs_fad=None, weakest_point=reason,
         strategist_summary=f"dropped: {reason}", rationale={"error": reason},
         agent_outputs=[], cost_usd=0.0, model_mix=model_mix, include=False,
+        sentinel_id=candidate.sentinel_id,
     )
 
 

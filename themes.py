@@ -33,6 +33,11 @@ class Theme:
     # to sentinel_candidates so the eventual trade outcome resolves the discovery (provenance chain).
     source: str = "hand-seed"
     sentinel_id: int | None = None
+    # T3 PR2: the deterministic markers (the origin-aware grounding corpus). A 'sentinel'
+    # candidate grounds the framer AND the council on THESE numeric facts, not news — so a
+    # pre-news discovery is not NEUTRAL-dropped for lack of coverage. Hand-seed themes leave it
+    # None (they ground on news + operator thesis, unchanged).
+    markers: dict | None = None
 
 
 class ThemeError(ValueError):

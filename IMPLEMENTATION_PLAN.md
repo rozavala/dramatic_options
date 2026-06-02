@@ -9,7 +9,7 @@
 >
 > **Status: T0 · T1 · T1.5 · calibration · T2 (the council) · T2.5 (run-it-forward: PR1 close-side
 > execution + PR2 systemd timers/deploy/notify) COMPLETE · T3 sentinels IN PROGRESS — PR1 (deterministic
-> discovery core) landed & green; PR2 (LLM framer + origin-aware council grounding) / PR3 (weekly L0 systemd) next; then T4.**
+> discovery core) + PR2 (LLM framer + origin-aware grounding + provenance + slot reservation) landed & green; PR3 (weekly L0 systemd) next; then T4.**
 > T2.5 PR2 operationalized the forward loop: `Type=oneshot` `orchestrator.py` on systemd timers
 > (L1 daily 15:45 ET pre-close = full cycle; L2 ~30min intraday `--monitor`), a fail-closed
 > `is_market_open()` gate + `FORWARD_ENABLED` flag (no entries/LLM-spend when closed or inert), a
@@ -131,11 +131,13 @@ Forward-scored: traded→outcome+Brier+**realized multiple**; never-traded + a *
 cohort** → label-only reference forward-return (survivorship/terminal-event guarded), compared on
 the **tail**, not the mean. **PR1 (done, offline):** `discovery.py` prescreen + `sentinels.py`
 (store/union) + `sentinel_scoring.py` + `orchestrator.py --discover` (FakeRouter, kill-before-spend)
-+ the L1 union + `config.discovery`/scan baskets + migration 0007. **PR2:** the bounded LLM framer
-(confound-adjudicating, model-decorrelated) + **origin-aware grounding** (sentinels ground the
-framer AND the council on their MARKERS, not news — else a pre-news discovery is NEUTRAL-dropped) +
-cost/kill gates + hard-seam guard tests. **PR3:** weekly L0 systemd/deploy/docs (arming gated on the
-live-loop verification + a cold-cache timeout reality-check). **Pre-T4 (not blocking the build):** a
++ the L1 union + `config.discovery`/scan baskets + migration 0007. **PR2 (landed):** the bounded LLM framer (a skeptic adjudicating
+real-inflection/artifact/mean-reversion, model-decorrelated, fail-closed-to-zero) + **origin-aware
+grounding** (sentinels ground the framer AND the council on their MARKERS, not news — else a
+pre-news discovery is NEUTRAL-dropped) + the provenance chain (sentinel→proposal→position; traded →
+resolve at close with outcome+Brier+realized-multiple, never-traded → the reference sweep) + the
+`sentinel_max_slots` reservation (`veto-sentinel-slots`) + hard-seam guard tests. **PR3:** weekly L0
+systemd/deploy/docs (arming gated on the live-loop verification + a cold-cache timeout reality-check). **Pre-T4 (not blocking the build):** a
 per-theme/cluster exposure cap (a PREREG §5 amendment — correlated `ai_compute`-style clusters make
 the per-name cap false diversification), a brain-off mechanical-ladder null shadow book, and a
 basket-quality report (close the survivorship → basket-curation loop).

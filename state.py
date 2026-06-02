@@ -330,6 +330,18 @@ def count_open_convexity_positions(conn: sqlite3.Connection) -> int:
     return int(row["n"]) if row else 0
 
 
+def count_open_sentinel_positions(conn: sqlite3.Connection) -> int:
+    """Live (open/closing) positions that originated from a sentinel discovery (the proposal carries
+    ``sentinel_id``) — the basis for the discovery **slot reservation** so auto-traded discoveries
+    can't starve hand-seed convictions (PREREG §5 / P1)."""
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM convexity_positions p "
+        "JOIN council_proposals cp ON p.proposal_id = cp.id "
+        f"WHERE p.status IN {_EXPOSURE_STATES} AND cp.sentinel_id IS NOT NULL"
+    ).fetchone()
+    return int(row["n"]) if row else 0
+
+
 def convexity_book_open_premium(conn: sqlite3.Connection) -> float:
     """Total premium-at-risk across live (open/closing) positions (the book's current usage)."""
     row = conn.execute(
@@ -354,6 +366,7 @@ def record_council_proposal(
     cost_usd: float | None = None,
     model_mix: Any = None,
     status: str = "proposed",
+    sentinel_id: int | None = None,
 ) -> int:
     """Insert a council theme proposal (T2). Returns its id. Atomic.
 
@@ -370,10 +383,11 @@ def record_council_proposal(
         cur = conn.execute(
             "INSERT INTO council_proposals (run_id, as_of, theme, symbol, direction, conviction, "
             "structural_vs_fad, weakest_point, rationale, strategist_summary, cost_usd, model_mix, "
-            "status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            "status, sentinel_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
             (
                 run_id, as_of, theme, symbol, direction, conviction, structural_vs_fad,
-                weakest_point, rationale, strategist_summary, cost_usd, model_mix, status,
+                weakest_point, rationale, strategist_summary, cost_usd, model_mix, status, sentinel_id,
             ),
         )
     return int(cur.lastrowid)

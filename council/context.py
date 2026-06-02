@@ -59,6 +59,39 @@ def _has_numeric(texts: list[str]) -> bool:
     return any(any(ch.isdigit() for ch in t) for t in texts)
 
 
+def _marker_evidence(markers: dict) -> list[str]:
+    """Turn a sentinel's deterministic markers into numeric evidence strings (the grounding
+    corpus). These carry digits, so a pre-news discovered name is `grounded` on facts, not news."""
+    lines: list[str] = []
+    for key in ("momentum", "rel_strength", "rv_slope", "rv"):
+        v = markers.get(key)
+        if isinstance(v, (int, float)):
+            lines.append(f"{key} {v:+.3f}")
+    if markers.get("has_event"):
+        lines.append(f"structural_event {markers.get('event_kind') or 'present'}")
+    px, adv = markers.get("price"), markers.get("adv_usd")
+    if isinstance(px, (int, float)):
+        lines.append(f"price {px:.2f}")
+    if isinstance(adv, (int, float)):
+        lines.append(f"adv_usd {adv:.0f}")
+    return lines
+
+
+def sentinel_context_pack(candidate: Theme, *, as_of: datetime) -> ContextPack:
+    """Origin-aware grounding for a DISCOVERED (source='sentinel') candidate: ground on its
+    deterministic MARKERS, not news (T3 PR2). Without this both the framer and the council would
+    NEUTRAL-drop every pre-news discovery for lack of coverage. ``grounded`` ⇔ markers present
+    ("something is actually inflecting"), the correct early-exit — not "no news"."""
+    markers = (getattr(candidate, "markers", None) or {})
+    lines = _marker_evidence(markers)
+    return ContextPack(
+        symbol=candidate.symbol, theme=candidate.name, direction=candidate.direction,
+        operator_thesis=candidate.thesis or "discovery hypothesis (markers-grounded)",
+        headlines=lines, coverage_count=len(lines), has_numeric=_has_numeric(lines),
+        as_of=as_of, notes=["sentinel: grounded on deterministic markers, not news"],
+    )
+
+
 def build_context_pack(
     candidate: Theme,
     *,
@@ -69,7 +102,12 @@ def build_context_pack(
 ) -> ContextPack:
     """Assemble current grounding for one candidate. ``news`` is a duck-typed object exposing
     ``headlines_asof(symbol, as_of) -> list[{'headline': str, ...}]`` (``data/news.py:NewsData``).
-    Fail-soft: any news error → an ungrounded pack (→ NEUTRAL), never raises into the cycle."""
+    Fail-soft: any news error → an ungrounded pack (→ NEUTRAL), never raises into the cycle.
+
+    **Origin-aware (T3 PR2):** a 'sentinel'-origin candidate grounds on its deterministic markers
+    (``sentinel_context_pack``); a hand-seed candidate grounds on news (below), unchanged."""
+    if getattr(candidate, "source", "hand-seed") == "sentinel":
+        return sentinel_context_pack(candidate, as_of=as_of)
     headlines: list[str] = []
     notes: list[str] = []
     try:

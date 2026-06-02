@@ -56,14 +56,20 @@ class CouncilProposal:
     cost_usd: float = 0.0
     model_mix: dict = field(default_factory=dict)
     include: bool = True            # the strategist's own keep/drop call (separate from the floor)
+    sentinel_id: int | None = None  # T3: set when the judged candidate came from discovery (provenance)
 
     def to_theme(self, proposal_id: int) -> Theme:
-        """Project to a deterministic-loop Theme. ``thesis`` carries the strategist's summary."""
+        """Project to a deterministic-loop Theme. ``thesis`` carries the strategist's summary.
+
+        Carries the discovery provenance (``source``/``sentinel_id``) so the deterministic loop can
+        apply the sentinel slot reservation and resolve the sentinel at close (T3)."""
         direction = self.direction if self.direction in VALID_DIRECTIONS else "bullish"
         return Theme(
             name=self.theme, symbol=self.symbol, direction=direction,
             thesis=self.strategist_summary or "", active=True,
             proposal_id=proposal_id, conviction=normalize_conviction(self.conviction),
+            source="sentinel" if self.sentinel_id is not None else "hand-seed",
+            sentinel_id=self.sentinel_id,
         )
 
 
