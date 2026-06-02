@@ -27,6 +27,12 @@ class Theme:
     # (T1) themes leave it None. Frozen → set only at construction / via dataclasses.replace.
     proposal_id: int | None = None
     conviction: str | None = None  # recorded only — NEVER sizes a position (PREREG §5)
+    # T3: provenance. "hand-seed" (themes.json) grounds the council on news + operator thesis;
+    # "sentinel" (discovery) grounds it on the deterministic markers instead (origin-aware, so a
+    # pre-news discovered name is not NEUTRAL-dropped for lack of news). sentinel_id back-links
+    # to sentinel_candidates so the eventual trade outcome resolves the discovery (provenance chain).
+    source: str = "hand-seed"
+    sentinel_id: int | None = None
 
 
 class ThemeError(ValueError):

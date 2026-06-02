@@ -179,9 +179,16 @@ disproof until the kill rule actually trips.
 
 T0 freezes §§1–7. **T1** implements the minimal paper loop against this contract
 (hand-seeded themes → both gates → defined-risk structure → flat-by-slots sizing → logged
-paper position + survivorship log). The council (T2) and sentinels (T3) are **not** built
-yet; this contract governs them when they are. Any change to a frozen threshold or gate
-structure is a documented edit to this doc + `config.json`, dated, never retroactive.
+paper position + survivorship log). The council (T2) is built; **sentinels (T3) are in build —
+PR1 (the deterministic discovery core) has landed.** T3 adds a discovery layer **upstream** of the
+council and **changes no frozen gate**: it only widens the *candidate set*, and every discovered
+candidate still faces the unchanged §3 eligibility + §4 IV gate + §5 sizing/caps + §6 kill. Its
+prescreen thresholds are a candidate **funnel** (like eligibility), config-tunable, NOT
+pre-registered frozen gates; **prescreen rank is a funnel, never a tradeable signal** (the reused
+divergence plumbing is not a revived edge). *(A future per-theme/cluster exposure cap for correlated
+baskets — the `ai_compute`-style cluster makes the per-name cap false diversification — WOULD touch
+§5 and is a separate, dated, operator-authorized amendment when proposed.)* Any change to a frozen
+threshold or gate structure is a documented edit to this doc + `config.json`, dated, never retroactive.
 
 ---
 

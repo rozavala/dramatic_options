@@ -8,7 +8,8 @@
 > not a patch. Work one phase per session, in plan mode; each phase ends green.
 >
 > **Status: T0 · T1 · T1.5 · calibration · T2 (the council) · T2.5 (run-it-forward: PR1 close-side
-> execution + PR2 systemd timers/deploy/notify) COMPLETE · next = T3 sentinels (and T4 graduation).**
+> execution + PR2 systemd timers/deploy/notify) COMPLETE · T3 sentinels IN PROGRESS — PR1 (deterministic
+> discovery core) landed & green; PR2 (LLM framer + origin-aware council grounding) / PR3 (weekly L0 systemd) next; then T4.**
 > T2.5 PR2 operationalized the forward loop: `Type=oneshot` `orchestrator.py` on systemd timers
 > (L1 daily 15:45 ET pre-close = full cycle; L2 ~30min intraday `--monitor`), a fail-closed
 > `is_market_open()` gate + `FORWARD_ENABLED` flag (no entries/LLM-spend when closed or inert), a
@@ -115,8 +116,29 @@ FakeRouter. The deterministic gates still dispose — **conviction is recorded +
 (Brier + contribution) ONLY; it never sizes a position and never overrides a veto** (the hard
 seam). Kill checks precede any LLM spend; over-budget/failure fail closed to zero entries.
 
-**T3 — Sentinel inflection discovery.** Always-on scan for pre-consensus tailwinds and
-early rollovers — finds the *next* copper before it's narrated.
+**T3 — Sentinel inflection discovery (in progress).** A weekly **L0** scan that PROPOSES new
+candidates into the council's candidate set — discovery proposes, the council judges, the
+deterministic gates dispose (the hard seam, unchanged; both judgment layers forward-scored, never
+backtested §6). The prescreen is a **motion/structural funnel**, NOT a cheapness/alpha claim:
+surface a name iff it clears a **disjunctive ABSOLUTE floor** (`|momentum|≥floor` OR `rv_slope≥floor`
+OR a rare structural filing — 424B5/13D/S-1), with **within-basket z** ranking only the survivors
+(so a dead week surfaces nothing and a low-vol basket isn't buried under a high-vol one). Cheapness
+stays the IV gate's job (fresh, authoritative; ranking on it would pre-select for gate-pass and
+defeat the gate's independence). Candidates union into the council **hand-seed-first then ranked**
+(so the `max_candidates` cap drops the weakest sentinel, never a conviction); lineage is
+`(symbol,direction)`, updated in place on re-surface (continuous provenance), TTL→dormant.
+Forward-scored: traded→outcome+Brier+**realized multiple**; never-traded + a **random control
+cohort** → label-only reference forward-return (survivorship/terminal-event guarded), compared on
+the **tail**, not the mean. **PR1 (done, offline):** `discovery.py` prescreen + `sentinels.py`
+(store/union) + `sentinel_scoring.py` + `orchestrator.py --discover` (FakeRouter, kill-before-spend)
++ the L1 union + `config.discovery`/scan baskets + migration 0007. **PR2:** the bounded LLM framer
+(confound-adjudicating, model-decorrelated) + **origin-aware grounding** (sentinels ground the
+framer AND the council on their MARKERS, not news — else a pre-news discovery is NEUTRAL-dropped) +
+cost/kill gates + hard-seam guard tests. **PR3:** weekly L0 systemd/deploy/docs (arming gated on the
+live-loop verification + a cold-cache timeout reality-check). **Pre-T4 (not blocking the build):** a
+per-theme/cluster exposure cap (a PREREG §5 amendment — correlated `ai_compute`-style clusters make
+the per-name cap false diversification), a brain-off mechanical-ladder null shadow book, and a
+basket-quality report (close the survivorship → basket-curation loop).
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical
