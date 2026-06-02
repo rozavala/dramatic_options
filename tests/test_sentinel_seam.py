@@ -14,7 +14,8 @@ import risk
 import state
 from broker import PaperBroker
 from clock import FixedClock
-from convexity_data import SyntheticChainProvider
+from convexity_data import StaticQuoteProvider, SyntheticChainProvider
+from monitor import monitor_positions
 from paper_loop import run_paper_cycle
 from themes import Theme
 
@@ -79,3 +80,56 @@ def test_discover_demo_runs_offline_end_to_end(monkeypatch):
     _no_kill(monkeypatch)
     # Full offline pipeline over the real config baskets on an ephemeral DB (synthetic market).
     assert orchestrator.run_discover(demo=True) == 0
+
+
+def test_sentinel_slot_reservation_vetoes_when_full(convexity_db, monkeypatch):
+    _no_kill(monkeypatch)
+    conn = convexity_db
+    cfg = {**CONFIG, "discovery": {"sentinel_max_slots": 1}}
+    # One open sentinel-origin position already (its proposal carries sentinel_id).
+    sid = state.record_sentinel_candidate(conn, run_id=None, as_of=CLOCK.now().isoformat(),
+                                          symbol="OLD", direction="bullish", basket="ai_compute",
+                                          inflection_score=0.5, markers={})
+    pid = state.record_council_proposal(conn, run_id=None, as_of=CLOCK.now().isoformat(),
+                                        theme="ai_compute", symbol="OLD", direction="bullish",
+                                        conviction="HIGH", sentinel_id=sid)
+    state.record_convexity_position(conn, run_id=None, opened_at=CLOCK.now().isoformat(),
+                                    theme="ai_compute", symbol="OLD", direction="bullish",
+                                    structure_kind="C", contract_symbol="OLD_x", expiry="2026-09-30",
+                                    strike=1.0, dte=270, moneyness=0.25, contracts=1,
+                                    entry_premium_per_contract=10.0, total_premium=10.0, proposal_id=pid)
+    assert state.count_open_sentinel_positions(conn) == 1
+    # The reservation (1 >= 1) vetoes a NEW cheap discovered name BEFORE the gate even runs.
+    fcx = Theme("ai_compute", "FCX", "bullish", "discovery", source="sentinel", sentinel_id=999)
+    res = run_paper_cycle(config=cfg, conn=conn, clock=CLOCK,
+                          provider=SyntheticChainProvider(as_of=CLOCK.now().date()),
+                          broker=PaperBroker(100_000.0), themes=[fcx], run_id=None)
+    assert res.opened == 0 and res.vetoed == 1
+    row = conn.execute("SELECT decision FROM convexity_eval ORDER BY id DESC LIMIT 1").fetchone()
+    assert row["decision"] == "veto-sentinel-slots"
+
+
+def test_traded_sentinel_resolves_at_close(convexity_db):
+    conn = convexity_db
+    mcfg = {**CONFIG, "convexity_exits": {"profit_take_multiple": 4.0, "time_stop_dte": 21}}
+    sid = state.record_sentinel_candidate(conn, run_id=None, as_of="2026-01-01T00:00:00+00:00",
+                                          symbol="FCX", direction="bullish", basket="ai_compute",
+                                          inflection_score=0.5, markers={})
+    pid = state.record_council_proposal(conn, run_id=None, as_of="2026-01-01T00:00:00+00:00",
+                                        theme="ai_compute", symbol="FCX", direction="bullish",
+                                        conviction="HIGH", sentinel_id=sid)
+    state.link_sentinel_proposal(conn, sid, pid)  # the sentinel traded
+    state.record_convexity_position(conn, run_id=None, opened_at="2026-01-01T00:00:00+00:00",
+                                    theme="ai_compute", symbol="FCX", direction="bullish",
+                                    structure_kind="C", contract_symbol="FCX261218C00080000",
+                                    expiry="2026-12-18", strike=80.0, dte=270, moneyness=0.25,
+                                    contracts=1, entry_premium_per_contract=200.0, total_premium=200.0,
+                                    proposal_id=pid, entry_spot=60.0)
+    qp = StaticQuoteProvider({"FCX261218C00080000": 20.0})  # $2000 mark ≥ 4× $200 → profit-take
+    res = monitor_positions(conn=conn, clock=FixedClock(datetime(2026, 6, 1, tzinfo=UTC)),
+                            quote_provider=qp, config=mcfg)
+    assert res.profit_taken == 1
+    row = state.sentinel_by_id(conn, sid)
+    assert row["outcome"] == 1                                  # profit-take = favorable
+    assert row["realized_multiple"] is not None and abs(row["realized_multiple"] - 10.0) < 1e-6
+    assert row["terminal_event"] == "traded"

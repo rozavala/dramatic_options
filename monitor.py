@@ -17,6 +17,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
+import sentinel_scoring
 import state
 from broker import make_client_order_id
 from clock import Clock
@@ -36,6 +37,31 @@ def _close_and_resolve(conn, pos, *, exit_price, realized_pnl, reason, as_of, co
                                    realized_pnl=realized_pnl, reason=reason, as_of=as_of)
     _maybe_resolve_proposal(conn, pos, reason=reason, as_of=as_of, conviction_to_prob=conv_map,
                             intrinsic=intrinsic, exit_spot=exit_spot)
+    _maybe_resolve_sentinel(conn, pos, reason=reason, as_of=as_of, conviction_to_prob=conv_map,
+                            intrinsic=intrinsic, exit_spot=exit_spot, realized_pnl=realized_pnl)
+
+
+def _maybe_resolve_sentinel(
+    conn, pos, *, reason: str, as_of: str, conviction_to_prob, intrinsic=None, exit_spot=None,
+    realized_pnl=None,
+) -> None:
+    """Resolve a TRADED sentinel's forward outcome at close (T3): outcome + Brier + the realized
+    **multiple** (the tail-aware magnitude binary Brier discards). No-op unless the position's
+    proposal originated from a sentinel discovery. None outcome (unresolved) recorded, not faked."""
+    pid = pos["proposal_id"]
+    if not pid:
+        return
+    prop = state.council_proposal_by_id(conn, int(pid))
+    if prop is None or prop["sentinel_id"] is None:
+        return
+    outcome, b, mult = sentinel_scoring.resolve_traded_sentinel(
+        reason=reason, direction=pos["direction"], conviction=prop["conviction"],
+        intrinsic=intrinsic, exit_spot=exit_spot, entry_spot=pos["entry_spot"],
+        entry_premium=pos["total_premium"], realized_pnl=realized_pnl,
+        conviction_to_prob=conviction_to_prob,
+    )
+    state.resolve_sentinel(conn, int(prop["sentinel_id"]), resolved_at=as_of, outcome=outcome,
+                           brier=b, realized_multiple=mult, terminal_event="traded")
 
 
 def _maybe_resolve_proposal(

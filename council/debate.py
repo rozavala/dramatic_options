@@ -34,6 +34,7 @@ def _neutral_proposal(candidate: Theme, *, reason: str, agent_outputs, model_mix
         conviction="NEUTRAL", structural_vs_fad=None, weakest_point=reason,
         strategist_summary=f"dropped: {reason}", rationale={"dropped": reason},
         agent_outputs=agent_outputs, cost_usd=cost_usd, model_mix=model_mix, include=False,
+        sentinel_id=candidate.sentinel_id,
     )
 
 
@@ -117,4 +118,5 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
         cost_usd=total_cost,
         model_mix=mix,
         include=bool(sraw.get("include", False)),
+        sentinel_id=candidate.sentinel_id,
     )

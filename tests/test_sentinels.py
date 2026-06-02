@@ -122,6 +122,25 @@ def test_persist_discovery_records_surfaced_and_controls(convexity_db):
     assert "RANDX" not in state.active_sentinel_symbols(conn)     # control never unioned
 
 
+def test_persist_discovery_carries_framer_fields(convexity_db):
+    """The framer's confound-label (real/artifact/mean-reversion) is PERSISTED on the row, not just
+    acted on — otherwise the one output that makes the framer a skeptic, not a narrator, is unscored
+    (it gets bucketed by at resolution)."""
+    conn = convexity_db
+    res = DiscoveryResult(surfaced=[Surfaced(_mk("SMCI"), "bullish", 1.2, "momentum")])
+    framings = {"SMCI": {"direction": "bullish", "theme": "ai_compute",
+                         "seed_thesis": "momentum +0.40 inflection", "conviction": "HIGH",
+                         "structural_vs_fad": "structural", "confound_label": "real_inflection",
+                         "cost_usd": 0.01, "provider": "gemini", "model": "gemini-3.1-flash-lite"}}
+    sentinels.persist_discovery(conn, res, run_id=None, as_of_iso="2026-06-02T12:00:00+00:00",
+                                framings=framings)
+    row = conn.execute("SELECT * FROM sentinel_candidates WHERE symbol='SMCI'").fetchone()
+    assert row["confound_label"] == "real_inflection"   # the skeptic's verdict is recorded
+    assert row["framer_conviction"] == "HIGH"
+    assert row["seed_thesis"] == "momentum +0.40 inflection"
+    assert row["theme"] == "ai_compute" and row["provider"] == "gemini"
+
+
 def test_union_truncation_drops_weakest_sentinel_not_handseed():
     hand = [Theme("copper", "FCX", "bullish", "operator conviction"),
             Theme("space", "RKLB", "bullish", "operator conviction")]

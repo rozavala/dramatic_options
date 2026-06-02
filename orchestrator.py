@@ -124,6 +124,24 @@ def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
     return router, news
 
 
+def _build_framer_router(config: dict, *, demo: bool, disc: dict):
+    """Router for the T3 discovery framer (PR2). Demo → deterministic FakeRouter; live → a router
+    for the decorrelated framer role with the discovery cost cap. Returns None (fail-closed) when a
+    mapped provider has no key — the scan then frames nothing."""
+    cap = disc.get("cost_cap_usd")
+    if demo:
+        from council.sentinel import sentinel_fake_responder
+        return FakeRouter(responder=sentinel_fake_responder,
+                          cap_usd=float(cap) if cap is not None else None)
+    from council.sentinel import build_framer_router
+    try:
+        return build_framer_router(config, config.get("llm_keys", {}))
+    except RouterError as e:
+        log.error("Framer unavailable (%s) — no candidates framed this scan (fail-closed).", e)
+        notify.send("Discovery framer fail-closed", str(e))
+        return None
+
+
 def _safe_market_open(clock: Clock) -> bool:
     """``clock.is_market_open()`` wrapped FAIL-CLOSED (PR2 R5).
 
@@ -251,8 +269,22 @@ def run_discover(demo: bool = False) -> int:
             exclude_symbols=exclude, max_scan_names=int(disc.get("max_scan_names", 200)),
             top_k=int(disc.get("scan_top_k", 8)), n_controls=int(disc.get("n_random_controls", 5)),
         )
-        # PR1: deterministic persist (no LLM framer — PR2 inserts the framer between here and persist).
-        counts = sentinels.persist_discovery(conn, result, run_id=run_id, as_of_iso=as_of.isoformat())
+        # PR2: the bounded LLM framer adjudicates the confounds + grounds on the MARKERS over the
+        # top-K. Fail-closed: framer over-budget / unavailable → frame nothing (no new sentinels this
+        # scan). The skeptic disposes — only the framed survive (artifacts / NEUTRAL are dropped).
+        framings: dict = {}
+        if result.surfaced:
+            framer_router = _build_framer_router(config, demo=demo, disc=disc)
+            if framer_router is None:
+                result.surfaced = []
+            else:
+                from council.sentinel import frame_candidates
+
+                framings = frame_candidates(result.surfaced, framer_router, as_of=as_of)
+                log.info(framer_router.ledger.summary())
+                result.surfaced = [s for s in result.surfaced if s.markers.symbol in framings]
+        counts = sentinels.persist_discovery(conn, result, run_id=run_id,
+                                             as_of_iso=as_of.isoformat(), framings=framings)
         dormant = state.expire_stale_sentinels(
             conn, as_of=as_of, ttl_days=int(disc.get("sentinel_ttl_days", 35))
         )

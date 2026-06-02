@@ -50,7 +50,7 @@ def council_to_themes(
             direction=p.direction, conviction=p.conviction, structural_vs_fad=p.structural_vs_fad,
             weakest_point=p.weakest_point, rationale=p.rationale,
             strategist_summary=p.strategist_summary, cost_usd=p.cost_usd, model_mix=p.model_mix,
-            status="proposed" if is_trade else "dropped",
+            status="proposed" if is_trade else "dropped", sentinel_id=p.sentinel_id,
         )
         for ao in p.agent_outputs:
             state.record_agent_output(
