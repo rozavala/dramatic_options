@@ -21,7 +21,9 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+import discovery
 import notify
+import sentinels
 import state
 from broker import AlpacaPaperBroker, PaperBroker
 from clock import Clock, FixedClock, LiveClock
@@ -29,9 +31,11 @@ from config_loader import ConfigError, live_allowed, load_config, require_alpaca
 from convexity_data import AlpacaChainProvider, AlpacaQuoteProvider, SyntheticChainProvider
 from council.router import BudgetExceeded, FakeRouter, RouterError, build_router
 from council.wiring import council_to_themes
+from discovery import MarkerParams, scan_baskets
 from monitor import monitor_positions, reconcile_pending
 from paper_loop import kill_rule_status, run_paper_cycle
 from risk import kill_switch_active
+from sentinel_scoring import resolve_due_references
 from state import get_db, record_run
 from themes import active_themes, load_themes
 
@@ -152,6 +156,121 @@ def entries_allowed(*, forward_enabled: bool, market_open: bool, demo: bool) -> 
     return True, "ok"
 
 
+def _scan_universe(config: dict) -> tuple[dict[str, list[str]], str]:
+    """The discovery scan baskets + benchmark from config.universe (curated thematic baskets)."""
+    uni = config.get("universe", {})
+    baskets = {
+        str(k): [str(s).upper() for s in v]
+        for k, v in uni.get("themes", {}).items()
+        if not str(k).startswith("_")
+    }
+    benchmark = str(uni.get("benchmarks", {}).get("broad", "SPY")).upper()
+    return baskets, benchmark
+
+
+def run_discover(demo: bool = False) -> int:
+    """L0 weekly discovery scan (T3) — surface NEW candidates into the sentinel store.
+
+    DISCOVERS only: it never trades, never submits, runs no monitor. The candidates it persists
+    are judged by the council on the next L1 cycle and disposed by the deterministic gates (the
+    hard seam is unchanged). Kill-before-spend + FORWARD_ENABLED gating apply (PR1 spends nothing
+    — the LLM framer is PR2). Safe market-closed (reads as-of data, submits nothing).
+    """
+    if kill_switch_active():
+        log.warning("KILL switch engaged — discovery halted (no scan, no spend).")
+        return 0
+
+    config = load_config()
+    disc = config.get("discovery", {})
+    if not demo and not disc.get("enabled", False):
+        log.info("Discovery disabled (config.discovery.enabled=false).")
+        return 0
+    if not demo and not bool(config.get("forward_enabled", False)):
+        log.info("FORWARD_ENABLED=false — discovery inert (no scan, no spend).")
+        return 0
+    _banner("DISCOVERY (sentinel scan)" + (" · DEMO" if demo else ""))
+
+    demo_db = None
+    if demo:
+        demo_db = tempfile.NamedTemporaryFile(prefix="dramatic_disc_", suffix=".db", delete=False)
+        demo_db.close()
+        conn = state.connect(demo_db.name)
+    else:
+        conn = get_db(config)
+    client = None
+    try:
+        _ensure_schema(conn)
+        baskets, benchmark = _scan_universe(config)
+        if not baskets:
+            log.warning("No scan baskets configured (config.universe.themes) — nothing to discover.")
+            return 0
+        all_syms = sorted({s for members in baskets.values() for s in members} | {benchmark})
+        params = MarkerParams(**dict(disc.get("markers", {})))
+        horizon = int(disc.get("reference_horizon_days", 180))
+
+        if demo:
+            clock: Clock = FixedClock(datetime.now(UTC))
+            as_of = clock.now()
+            movers = [s for members in baskets.values() for s in members[:2]]  # first two per basket ramp
+            market = discovery.synthetic_market(all_syms, as_of, movers=movers)
+            run_id = record_run(conn, mode="DISCOVERY-DEMO", equity=None, note="discovery demo")
+            log.info("(demo: ephemeral DB %s — real sentinel store untouched)", demo_db.name)
+        else:
+            try:
+                api_key, secret_key = require_alpaca_credentials(config)
+            except ConfigError as e:
+                log.error("%s", e)
+                return 1
+            from data.alpaca_client import AlpacaClient
+            from data.cache import PointInTimeCache
+            from data.market import MarketData, default_fetch_window
+
+            client = AlpacaClient(api_key, secret_key, paper=config["alpaca"]["paper"])
+            clock = LiveClock(client)
+            as_of = clock.now()
+            fetch_start, _ = default_fetch_window(as_of)
+            cache = PointInTimeCache(config.get("cache", {}).get("dir", "data/cache"))
+            market = MarketData(cache, client=client, fetch_start=fetch_start, fetch_end=as_of)
+            run_id = record_run(conn, mode="DISCOVERY", equity=None, note="weekly scan")
+
+        # Kill-before-spend seam (the council-build discipline). PR1 spends nothing; the framer
+        # (PR2) sits behind this same guard.
+        if kill_rule_status(conn, config, clock).tripped:
+            log.warning("Kill rule tripped — discovery scan skipped (no spend).")
+            return 0
+
+        # Novelty/dedup: never re-surface a hand-seed name, an open position, or a live sentinel.
+        exclude = set(state.open_position_symbols(conn)) | state.active_sentinel_symbols(conn)
+        try:
+            exclude |= {t.symbol for t in active_themes(load_themes(config.get("themes_path", "themes.json")))}
+        except Exception as e:  # noqa: BLE001 — a missing themes.json must not break a scan
+            log.warning("themes.json load failed (%s) — scanning without hand-seed exclusion.", e)
+
+        result = scan_baskets(
+            baskets, as_of, market=market, benchmark=benchmark, params=params,
+            exclude_symbols=exclude, max_scan_names=int(disc.get("max_scan_names", 200)),
+            top_k=int(disc.get("scan_top_k", 8)), n_controls=int(disc.get("n_random_controls", 5)),
+        )
+        # PR1: deterministic persist (no LLM framer — PR2 inserts the framer between here and persist).
+        counts = sentinels.persist_discovery(conn, result, run_id=run_id, as_of_iso=as_of.isoformat())
+        dormant = state.expire_stale_sentinels(
+            conn, as_of=as_of, ttl_days=int(disc.get("sentinel_ttl_days", 35))
+        )
+        resolved = resolve_due_references(conn, market, now=as_of, horizon_days=horizon)
+        log.info(
+            "Discovery: scanned=%d cleared=%d surfaced=%d controls=%d · dormant(ttl)=%d refs_resolved=%d",
+            result.n_scanned, result.n_cleared, counts["sentinels"], counts["controls"], dormant, resolved,
+        )
+        for s in result.surfaced:
+            log.info("  + %-6s %-7s score=%.2f (%s) — basket=%s", s.markers.symbol, s.direction,
+                     s.inflection_score, s.gate_reason, s.markers.basket)
+        return 0
+    finally:
+        conn.close()
+        if demo_db is not None:
+            Path(demo_db.name).unlink(missing_ok=True)
+
+
 def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = False) -> int:
     if kill_switch_active():
         log.warning("KILL switch engaged — halting. Remove the KILL file/env to resume.")
@@ -255,7 +374,14 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             router, news_dep = _build_council_io(
                                 config, demo=demo, client=client, cache=chain_cache, clock=clock,
                             )
-                            candidates = active_themes(load_themes(config.get("themes_path", "themes.json")))
+                            # Candidate set = hand-seed (themes.json, FIRST/protected) ⊕ ranked
+                            # active sentinels (T3 discovery). Hand-seed-first ordering means the
+                            # council's [:max_candidates] truncation drops the WEAKEST sentinel,
+                            # never a hand-seed conviction or the newest arrival.
+                            candidates = sentinels.union_candidates(
+                                active_themes(load_themes(config.get("themes_path", "themes.json"))),
+                                sentinels.active_sentinel_candidates(conn),
+                            )
                             themes = council_to_themes(
                                 conn, candidates=candidates, router=router, config=config,
                                 clock=clock, news=news_dep, demo=demo, run_id=run_id,
@@ -308,7 +434,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--once", action="store_true", help="Run a single cycle (default; accepted for clarity).")
     parser.add_argument("--demo", action="store_true", help="Offline run on deterministic synthetic data (no creds/network).")
     parser.add_argument("--monitor", action="store_true", help="Mark + apply exits to open positions only; no new entries.")
+    parser.add_argument("--discover", action="store_true", help="L0 weekly sentinel discovery scan (no trading); surfaces candidates the council later judges.")
     args = parser.parse_args(argv)
+    if args.discover:
+        return run_discover(demo=args.demo)
     return run_once(cli_live=args.live, demo=args.demo, monitor_only=args.monitor)
 
 

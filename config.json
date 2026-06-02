@@ -9,8 +9,12 @@
     "path": "data/dramatic_options.db"
   },
   "universe": {
-    "_comment": "Reusable price/ADV/option-liquidity filter (universe.py). The forward thematic-convexity strategy is hand-seeded via themes.json; the thematic seed map below is vestigial from the shelved divergence edge and is not read by the paper loop.",
-    "benchmarks": {"broad": "SPY", "growth": "ARKK"}
+    "_comment": "Reusable price/ADV filter (universe.py) + the T3 discovery SCAN BASKETS (config.universe.themes). Baskets are the curated, version-controlled home of the second-order/VC reasoning (operator authors them, optionally LLM-assisted OUTSIDE the loop): an 'ai_compute' basket carries not just the obvious name but the under-narrated power/grid/copper/cooling/uranium derivatives ('copper-not-rockets'). Discovery scans these for a MOTION/STRUCTURAL trigger; the IV gate decides which are CHEAP now (PREREG §4). The paper loop itself is hand-seeded via themes.json and does NOT read this map.",
+    "benchmarks": {"broad": "SPY", "growth": "ARKK"},
+    "themes": {
+      "ai_compute": ["NVDA", "SMCI", "VRT", "ETN", "GEV", "CEG", "CCJ", "FCX", "NEE", "PWR"],
+      "space_defense": ["RKLB", "LMT", "NOC", "LHX", "RTX", "KTOS"]
+    }
   },
   "eligibility": {
     "_comment": "Live option-tradability floor (universe.check_eligibility mode='live'). The convexity loop also runs options_tradability.py for the per-contract bid/ask + OI gate (PREREG_THEMATIC_CONVEXITY §3).",
@@ -73,6 +77,23 @@
       "claude-sonnet-4-6": {"in": 3.0, "out": 15.0},
       "claude-haiku-4-5": {"in": 1.0, "out": 5.0},
       "grok-build-0.1": {"in": 1.0, "out": 2.0}
+    }
+  },
+  "discovery": {
+    "_comment": "T3 sentinel inflection discovery (weekly L0). DISCOVERS candidates → the council JUDGES → the deterministic gates DISPOSE (hard seam unchanged). The prescreen is a MOTION/STRUCTURAL funnel — it makes NO cheapness/alpha claim (cheapness is the IV gate's job, fresh + authoritative); inflection_score is a FUNNEL ranking, never a tradeable signal (PREREG §2). markers.* are the disjunctive absolute floors (surface iff |momentum|≥mom_floor OR rv_slope≥rv_slope_floor OR a structural event) + the within-basket rank knobs — funnel knobs, NOT a frozen gate. max_scan_names bounds the cold-cache data pass (C1); scan_top_k bounds the LLM framer (PR2). sentinel_max_slots reserves book/slots for hand-seed convictions so auto-traded discoveries can't starve them (load-bearing). framer model is DECORRELATED from the council roles (else the council just ratifies it). cost_cap_usd is a GENEROUS PROVISIONAL fail-closed cap — the real ceiling is an operator decision after seeing the printed per-scan ledger (T2 precedent).",
+    "enabled": true,
+    "max_scan_names": 200,
+    "scan_top_k": 8,
+    "n_random_controls": 5,
+    "sentinel_ttl_days": 35,
+    "sentinel_max_slots": 6,
+    "reference_horizon_days": 180,
+    "cost_cap_usd": 3.0,
+    "framer": {"provider": "gemini", "model": "gemini-3.1-flash-lite"},
+    "markers": {
+      "mom_lookback": 252, "mom_skip": 21, "rv_recent": 21, "rv_base": 252,
+      "adv_window": 20, "mom_floor": 0.15, "rv_slope_floor": 0.25,
+      "event_bonus": 1.0, "min_price": 3.0, "min_adv_usd": 3000000.0
     }
   },
   "execution": {

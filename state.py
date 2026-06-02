@@ -11,6 +11,7 @@ writes. Writes use the connection as a context manager for atomic transactions.
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -452,6 +453,178 @@ def council_proposal_by_id(conn: sqlite3.Connection, proposal_id: int) -> sqlite
     """A proposal by id (used at close to resolve its forward outcome), or None."""
     return conn.execute(
         "SELECT * FROM council_proposals WHERE id = ?", (proposal_id,)
+    ).fetchone()
+
+
+# ── Sentinel discovery (T3) ─────────────────────────────────────────────────────────────────
+# Discovery PROPOSES candidates into the set the council judges (the hard seam is unchanged).
+# A sentinel lineage is keyed by ``(symbol, direction)`` and updated IN PLACE on re-surface so a
+# secular theme that dips below threshold and returns stays one continuous bet (PREREG §7 /
+# forward-scoring substrate). ``kind='control'`` rows are the per-scan random null cohort.
+
+
+def _sentinel_live_lineage(conn: sqlite3.Connection, lineage_key: str) -> sqlite3.Row | None:
+    """The live (candidate|dormant) sentinel row for a lineage, or None."""
+    return conn.execute(
+        "SELECT * FROM sentinel_candidates WHERE kind='sentinel' AND lineage_key=? "
+        "AND status IN ('candidate','dormant') ORDER BY id DESC LIMIT 1",
+        (lineage_key,),
+    ).fetchone()
+
+
+def record_sentinel_candidate(
+    conn: sqlite3.Connection,
+    *,
+    run_id: int | None,
+    as_of: str,
+    symbol: str,
+    direction: str,
+    basket: str | None,
+    inflection_score: float | None,
+    markers: Any,
+    theme: str | None = None,
+    kind: str = "sentinel",
+    status: str = "candidate",
+    seed_thesis: str | None = None,
+    framer_conviction: str | None = None,
+    structural_vs_fad: str | None = None,
+    confound_label: str | None = None,
+    cost_usd: float | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    rationale_multi: Any = None,
+    related_lineage: str | None = None,
+) -> int:
+    """Upsert a discovered sentinel (or insert a control). Returns the row id. Atomic.
+
+    For ``kind='sentinel'`` a re-surfaced lineage UPDATEs in place (bumps ``surface_count`` /
+    ``last_seen_at``, revives 'dormant' → 'candidate', refreshes markers/score, merges the
+    multi-theme rationale) — provenance stays continuous, never fragmented into a "new"
+    discovery. ``kind='control'`` always inserts (the per-scan null cohort).
+    """
+    import json
+
+    symbol = symbol.upper()
+    lineage_key = f"{symbol}|{direction}"
+    if not isinstance(markers, str):
+        markers = json.dumps(markers, default=str)
+    if rationale_multi is not None and not isinstance(rationale_multi, str):
+        rationale_multi = json.dumps(rationale_multi, default=str)
+    theme = theme or basket
+    with conn:
+        existing = _sentinel_live_lineage(conn, lineage_key) if kind == "sentinel" else None
+        if existing is not None:
+            conn.execute(
+                "UPDATE sentinel_candidates SET status='candidate', "
+                "surface_count = surface_count + 1, last_seen_at=?, run_id=?, inflection_score=?, "
+                "markers=?, theme=?, basket=?, seed_thesis=COALESCE(?, seed_thesis), "
+                "framer_conviction=COALESCE(?, framer_conviction), "
+                "structural_vs_fad=COALESCE(?, structural_vs_fad), "
+                "confound_label=COALESCE(?, confound_label), "
+                "rationale_multi=COALESCE(?, rationale_multi), cost_usd=?, provider=?, model=? "
+                "WHERE id=?",
+                (as_of, run_id, inflection_score, markers, theme, basket, seed_thesis,
+                 framer_conviction, structural_vs_fad, confound_label, rationale_multi,
+                 cost_usd, provider, model, int(existing["id"])),
+            )
+            return int(existing["id"])
+        cur = conn.execute(
+            "INSERT INTO sentinel_candidates (run_id, lineage_key, kind, symbol, basket, theme, "
+            "direction, inflection_score, markers, rationale_multi, framer_conviction, "
+            "structural_vs_fad, seed_thesis, confound_label, cost_usd, provider, model, status, "
+            "surface_count, discovered_at, last_seen_at, related_lineage, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,datetime('now'))",
+            (run_id, lineage_key, kind, symbol, basket, theme, direction, inflection_score,
+             markers, rationale_multi, framer_conviction, structural_vs_fad, seed_thesis,
+             confound_label, cost_usd, provider, model, status, as_of, as_of, related_lineage),
+        )
+        return int(cur.lastrowid)
+
+
+def active_sentinel_rows(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Live tradeable sentinels, **ranked by inflection_score desc** (the union order). Controls
+    (kind='control') are NEVER returned — they only forward-score the null."""
+    return conn.execute(
+        "SELECT * FROM sentinel_candidates WHERE kind='sentinel' AND status='candidate' "
+        "ORDER BY inflection_score DESC, id ASC"
+    ).fetchall()
+
+
+def active_sentinel_symbols(conn: sqlite3.Connection) -> set[str]:
+    """Symbols with a live sentinel candidate (for discovery novelty/dedup)."""
+    rows = conn.execute(
+        "SELECT DISTINCT symbol FROM sentinel_candidates WHERE kind='sentinel' AND status='candidate'"
+    ).fetchall()
+    return {r["symbol"] for r in rows}
+
+
+def expire_stale_sentinels(conn: sqlite3.Connection, *, as_of: datetime, ttl_days: int) -> int:
+    """Flip candidates not re-surfaced within ``ttl_days`` to 'dormant' (kept in history, no
+    longer unioned to the council). Returns the count flipped. Date math in Python so a tz-aware
+    ISO ``last_seen_at`` parses reliably (SQLite julianday is finicky with tz offsets)."""
+    cutoff = as_of - timedelta(days=ttl_days)
+    rows = conn.execute(
+        "SELECT id, last_seen_at FROM sentinel_candidates WHERE kind='sentinel' AND status='candidate'"
+    ).fetchall()
+    stale: list[int] = []
+    for r in rows:
+        try:
+            seen = datetime.fromisoformat(r["last_seen_at"])
+        except (ValueError, TypeError):
+            continue
+        if seen < cutoff:
+            stale.append(int(r["id"]))
+    if stale:
+        with conn:
+            conn.executemany("UPDATE sentinel_candidates SET status='dormant' WHERE id=?",
+                             [(i,) for i in stale])
+    return len(stale)
+
+
+def set_sentinel_status(conn: sqlite3.Connection, sentinel_id: int, *, status: str) -> None:
+    """Set a sentinel's lifecycle status (e.g. daily re-validation → 'dormant'). Atomic."""
+    with conn:
+        conn.execute("UPDATE sentinel_candidates SET status=? WHERE id=?", (status, sentinel_id))
+
+
+def link_sentinel_proposal(conn: sqlite3.Connection, sentinel_id: int, proposal_id: int) -> None:
+    """Link a sentinel to the council proposal it became (provenance chain). Atomic."""
+    with conn:
+        conn.execute("UPDATE sentinel_candidates SET proposal_id=? WHERE id=?",
+                     (proposal_id, sentinel_id))
+        conn.execute("UPDATE council_proposals SET sentinel_id=? WHERE id=?",
+                     (sentinel_id, proposal_id))
+
+
+def resolve_sentinel(
+    conn: sqlite3.Connection,
+    sentinel_id: int,
+    *,
+    resolved_at: str,
+    outcome: int | None = None,
+    brier: float | None = None,
+    realized_multiple: float | None = None,
+    reference_return: float | None = None,
+    terminal_event: str | None = None,
+) -> None:
+    """Record a sentinel's forward outcome (traded→close, or never-traded→reference return).
+
+    ``outcome`` is 1/0/None (None = genuinely unresolved — never fabricated). ``terminal_event``
+    tags an early bar-series end ('acquired'/'delisted') so the upper-tail test isn't blind to
+    the fattest part of the tail. Atomic.
+    """
+    with conn:
+        conn.execute(
+            "UPDATE sentinel_candidates SET outcome=?, brier=?, realized_multiple=?, "
+            "reference_return=?, terminal_event=?, resolved_at=? WHERE id=?",
+            (outcome, brier, realized_multiple, reference_return, terminal_event,
+             resolved_at, sentinel_id),
+        )
+
+
+def sentinel_by_id(conn: sqlite3.Connection, sentinel_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM sentinel_candidates WHERE id=?", (sentinel_id,)
     ).fetchone()
 
 
