@@ -7,7 +7,14 @@
 > and graded negative — this is a deliberate pivot to a **forward, discretionary** strategy,
 > not a patch. Work one phase per session, in plan mode; each phase ends green.
 >
-> **Status: T0 · T1 · T1.5 · calibration · T2 (the council) COMPLETE · next = T2.5 run-it-forward.**
+> **Status: T0 · T1 · T1.5 · calibration · T2 (the council) · T2.5 (run-it-forward: PR1 close-side
+> execution + PR2 systemd timers/deploy/notify) COMPLETE · next = T3 sentinels (and T4 graduation).**
+> T2.5 PR2 operationalized the forward loop: `Type=oneshot` `orchestrator.py` on systemd timers
+> (L1 daily 15:45 ET pre-close = full cycle; L2 ~30min intraday `--monitor`), a fail-closed
+> `is_market_open()` gate + `FORWARD_ENABLED` flag (no entries/LLM-spend when closed or inert), a
+> `deploy.sh` that installs units on both envs but arms timers only where `FORWARD_ENABLED=true`
+> (PROD stays installed-but-inert until T4), and Pushover paging (`OnFailure` + in-app for the
+> soft exit-0 trips). DEV=paper runs it with `DRY_RUN=false`. See `DEPLOYMENT.md`.
 > **Thesis framing clarified 2026-06-01 (reprice-capture; tenor = runway).** For the far-OTM sleeve
 > this stays **hold-the-tail**: a calibration head-to-head graded a delta-trigger "exit-on-playout"
 > rule EV-inferior (caps the tail, break-even hit-rate 19%→~67%; GBM bias favored it yet it lost),

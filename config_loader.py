@@ -58,6 +58,13 @@ def load_config() -> dict[str, Any]:
     if os.getenv("DATA_FEED"):
         safety["data_feed"] = os.getenv("DATA_FEED").strip()
 
+    # FORWARD_ENABLED (T2.5): gates whether THIS env actively trades on the scheduled loop.
+    # Kept TOP-LEVEL and deliberately distinct from the live triple-gate above (PAPER /
+    # live_trading_enabled / --live): DEV (paper) runs the loop with forward_enabled=true; PROD
+    # (real-money) stays installed-but-inert with forward_enabled=false until T4. Default false
+    # (fail-safe: an env trades only when it opts in explicitly via .env).
+    config["forward_enabled"] = _as_bool(os.getenv("FORWARD_ENABLED"), default=False)
+
     # Alpaca credentials (never stored in config.json).
     config["alpaca"] = {
         "api_key": os.getenv("ALPACA_API_KEY"),

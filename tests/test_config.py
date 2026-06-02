@@ -91,6 +91,30 @@ def test_env_overrides_gates(monkeypatch):
     config_loader.load_config.cache_clear()
 
 
+def test_forward_enabled_defaults_false(monkeypatch, tmp_path):
+    """FORWARD_ENABLED is top-level and defaults False — an env trades only when it opts in."""
+    monkeypatch.setattr(config_loader, "ENV_PATH", tmp_path / "absent.env")
+    monkeypatch.delenv("FORWARD_ENABLED", raising=False)
+    config_loader.load_config.cache_clear()
+    assert config_loader.load_config()["forward_enabled"] is False
+    config_loader.load_config.cache_clear()
+
+
+def test_forward_enabled_env_override_is_distinct_from_live(monkeypatch, tmp_path):
+    """FORWARD_ENABLED=true arms the loop but is NOT the live triple-gate (stays paper)."""
+    monkeypatch.setattr(config_loader, "ENV_PATH", tmp_path / "absent.env")
+    monkeypatch.setenv("FORWARD_ENABLED", "true")
+    monkeypatch.delenv("PAPER", raising=False)
+    monkeypatch.delenv("LIVE_TRADING_ENABLED", raising=False)
+    config_loader.load_config.cache_clear()
+    cfg = config_loader.load_config()
+    assert cfg["forward_enabled"] is True
+    assert cfg["safety"]["paper"] is True              # forward_enabled does not touch the gates
+    assert cfg["safety"]["live_trading_enabled"] is False
+    assert live_allowed(cfg, cli_live=True) is False   # still no live path
+    config_loader.load_config.cache_clear()
+
+
 def test_require_alpaca_credentials_friendly_error():
     import pytest
 

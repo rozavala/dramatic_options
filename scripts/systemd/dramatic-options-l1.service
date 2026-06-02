@@ -1,0 +1,31 @@
+# Dramatic Options — L1 daily forward cycle (council + entries + monitor).
+# TEMPLATE: deploy.sh renders __REPO_ROOT__ / __USER__ / __GROUP__ at install time so the
+# same file is correct on DEV (rodrigo) and PROD (console). Never loaded raw.
+#
+# Type=oneshot fired by dramatic-options-l1.timer (15:45 ET, pre-close). Runs ONE full
+# orchestrator cycle: monitor pass → council → deterministic gates → entries. FORWARD_ENABLED
+# (from .env) decides whether this env actually trades; a closed market / inert env pays no
+# LLM cost and submits nothing (orchestrator §B).
+[Unit]
+Description=Dramatic Options L1 daily forward cycle (council + entries + monitor)
+After=network-online.target
+Wants=network-online.target
+# Hard, non-zero exits (no creds, broker unreachable, a TimeoutStartSec kill) page via Pushover.
+# The three SOFT exit-0 conditions (kill-rule / fail-closed council / cost-cap) page in-app
+# from the orchestrator, because OnFailure cannot catch a clean exit.
+OnFailure=dramatic-options-notify@%n.service
+
+[Service]
+Type=oneshot
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__REPO_ROOT__
+EnvironmentFile=__REPO_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
+# Hang ceiling (PR2 R2): TimeoutStartSec is the oneshot-correct knob (the unit is "activating"
+# for the whole of ExecStart). A stalled LLM/broker call is SIGTERM'd here → non-zero exit →
+# OnFailure → page. This bound is INDEPENDENT of the 16:00 ET close: the no-post-close-submit
+# guarantee is enforced by the orchestrator's post-council market-open RE-CHECK (PR2 R7), not
+# by this timeout — so moving the L1 time or this value never risks a post-close submit.
+TimeoutStartSec=1800
+ExecStart=__REPO_ROOT__/venv/bin/python -u orchestrator.py

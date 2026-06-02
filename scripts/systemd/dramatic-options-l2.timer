@@ -1,0 +1,17 @@
+# Dramatic Options — L2 intraday monitor timer (~every 30 min). Installed + enabled by
+# deploy.sh only where FORWARD_ENABLED=true.
+#
+# The exact bounds are NOT safety-critical: the orchestrator's market-open gate makes any
+# pre-open (09:00) or post-close (16:30) tick mark-only, so the grid only sets how often we
+# mark/exit during RTH. Persistent=false — a missed intraday mark is not replayed; the next
+# tick (or the next L1) reconciles. Stays OFF 15:45 so it doesn't collide with L1 (R8).
+[Unit]
+Description=Dramatic Options L2 intraday monitor timer (~30min, market hours)
+
+[Timer]
+OnCalendar=Mon..Fri 09..16:00/30 America/New_York
+Persistent=false
+Unit=dramatic-options-l2.service
+
+[Install]
+WantedBy=timers.target
