@@ -116,3 +116,13 @@ def test_cluster_allows_bounded_partial():
     d = convexity_position_size(**BASE, open_positions_count=1, open_premium_total=500.0,
                                 entry_premium_per_share=2.0, cluster_remaining=500.0)
     assert d.contracts == 2 and d.total_premium == 400.0
+
+
+def test_equal_weight_contracts_is_per_name_only_no_book_or_cluster():
+    from convexity_sizing import equal_weight_contracts
+    ew = lambda prem: equal_weight_contracts(account_equity=100_000.0, per_name_fraction=0.01,  # noqa: E731
+                                             entry_premium_per_share=prem)
+    assert ew(2.0) == 5      # $1000 per-name cap // $200/contract
+    assert ew(7.58) == 1     # $758/contract → 1
+    assert ew(11.0) == 0     # $1100/contract > $1000 per-name cap → can't afford one
+    assert equal_weight_contracts(account_equity=0.0, per_name_fraction=0.01, entry_premium_per_share=2.0) == 0

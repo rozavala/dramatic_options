@@ -91,3 +91,15 @@ def convexity_position_size(
         (f"greedy-to-cap: {n} contract(s), ${total:.0f} "
          f"(per-name cap ${per_name_cap:.0f}, book left ${book_remaining:.0f}{cluster_note})",),
     )
+
+
+def equal_weight_contracts(*, account_equity: float, per_name_fraction: float,
+                           entry_premium_per_share: float) -> int:
+    """Contracts at the per-name cap with **NO book / cluster / concurrency truncation** — the 3B
+    fixed-basket null's equal-weight sizing (PREREG_FIXED_BASKET_NULL §4: equal-weight the WHOLE basket,
+    because a cap-ON 3B would book only the ~10 names that fit the 10% book, which isn't "the basket").
+    Returns 0 if equity/premium are nonpositive or the per-name cap can't afford one contract."""
+    if account_equity <= 0 or entry_premium_per_share <= 0:
+        return 0
+    per_name_cap = account_equity * per_name_fraction
+    return int(per_name_cap // (entry_premium_per_share * CONTRACT_MULTIPLIER))
