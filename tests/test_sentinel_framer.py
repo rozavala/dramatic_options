@@ -99,8 +99,13 @@ def test_framer_drops_artifact_and_neutral():
 
 def test_parse_framer_coerces_and_fails_closed():
     assert parse_framer("not json").get("confidence") == "NEUTRAL"
+    # A non-NEUTRAL framing with an INVALID confound is incoherent (the framer's whole job IS naming
+    # the confound) → fail-closed NEUTRAL + parse_error (P1-#1 stricter validation).
     d = parse_framer(json.dumps({"confound": "weird", "confidence": "high"}))
-    assert d["confound"] is None and d["confidence"] == "HIGH"   # bad confound → None
+    assert d["confound"] is None and d["confidence"] == "NEUTRAL" and d["parse_error"] is True
+    # A valid non-NEUTRAL framing is preserved.
+    ok = parse_framer(json.dumps({"confound": "real_inflection", "direction": "bullish", "confidence": "high"}))
+    assert ok["confound"] == "real_inflection" and ok["confidence"] == "HIGH"
 
 
 # ── the council judges a discovered candidate (no NEUTRAL-drop for lack of news) ──────────────

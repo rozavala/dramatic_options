@@ -54,7 +54,7 @@ class _StubProvider:
         self._calls += 1
         if self._calls <= self._fail_times:
             raise RuntimeError("transient")
-        return self._text, self._in, self._out
+        return self._text, self._in, self._out, {"finish_reason": "STOP", "thoughts_tokens": None}
 
 
 def test_router_records_cost_and_returns_response():

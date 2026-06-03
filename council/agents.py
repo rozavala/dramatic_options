@@ -125,31 +125,77 @@ def strategist_prompt(pack, proposer_raw: dict, adversary_raw: dict, *, for_firs
 
 
 # ── Parsers (defensive; coerce to strict vocabulary; NEUTRAL on failure) ─────────────────────
+#
+# Two failure surfaces, both → NEUTRAL fail-closed:
+#   1. extract_json RAISES (no/unbalanced JSON — the #37 thinking-starvation truncation).
+#   2. Valid JSON of the WRONG SHAPE ({}, partial, truncated-but-balanced) — once response_mime_type
+#      forces parseable JSON this becomes the dominant mode; without a key check it silently coerces
+#      to NEUTRAL (the bug in a new costume). So we validate required keys per role.
+# A genuine NEUTRAL abstention is allowed to be minimal; only a NON-NEUTRAL claim must carry its
+# structure. Required key sets are DERIVED from the prompt templates above (kept in lock-step by a
+# test that asserts FakeRouter's per-role output satisfies them).
+
+RAW_TEXT_MAX = 2000  # how much of a failed model response to persist for forensics
+_PROPOSER_CLAIM_KEYS = ("structural_vs_fad", "inflection_thesis")
+_ADVERSARY_CLAIM_KEYS = ("counter_case",)
 
 
-def parse_proposer(text: str) -> dict:
-    try:
-        d = extract_json(text)
-    except (ValueError, json.JSONDecodeError):
-        return {"confidence": "NEUTRAL", "parse_error": True}
-    d["confidence"] = normalize_conviction(d.get("confidence"))
+def parse_error_fallback(text: str, *, reason: str, finish_reason=None, thoughts_tokens=None, **extra) -> dict:
+    """Fail-closed fallback that PRESERVES the evidence: the raw text + why it failed + the provider
+    finish_reason / thinking-token count. (The empty-text case has raw_text='' → finish_reason is the
+    only diagnostic, which is exactly why it's captured.) Flows to ``council_agent_outputs.raw``."""
+    d = {"confidence": "NEUTRAL", "parse_error": True, "raw_text": (text or "")[:RAW_TEXT_MAX],
+         "validation_error": reason, "finish_reason": finish_reason, "thoughts_tokens": thoughts_tokens}
+    d.update(extra)
     return d
 
 
-def parse_adversary(text: str) -> dict:
+def parse_proposer(text: str, *, finish_reason=None, thoughts_tokens=None) -> dict:
     try:
         d = extract_json(text)
-    except (ValueError, json.JSONDecodeError):
-        return {"confidence": "NEUTRAL", "parse_error": True}
-    d["confidence"] = normalize_conviction(d.get("confidence"))
+    except (ValueError, json.JSONDecodeError) as e:
+        return parse_error_fallback(text, reason=f"extract_json: {e}", finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    if "confidence" not in d:
+        return parse_error_fallback(text, reason="missing 'confidence'", finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    conf = normalize_conviction(d.get("confidence"))
+    if conf != "NEUTRAL":
+        missing = [k for k in _PROPOSER_CLAIM_KEYS if not d.get(k)]
+        if missing:
+            return parse_error_fallback(text, reason=f"non-NEUTRAL proposer missing {missing}",
+                                        finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    d["confidence"] = conf
     return d
 
 
-def parse_strategist(text: str) -> dict:
+def parse_adversary(text: str, *, finish_reason=None, thoughts_tokens=None) -> dict:
     try:
         d = extract_json(text)
-    except (ValueError, json.JSONDecodeError):
-        return {"include": False, "conviction": "NEUTRAL", "parse_error": True}
+    except (ValueError, json.JSONDecodeError) as e:
+        return parse_error_fallback(text, reason=f"extract_json: {e}", finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    if "confidence" not in d:
+        return parse_error_fallback(text, reason="missing 'confidence'", finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    conf = normalize_conviction(d.get("confidence"))
+    if conf != "NEUTRAL":
+        missing = [k for k in _ADVERSARY_CLAIM_KEYS if not d.get(k)]
+        if missing:
+            return parse_error_fallback(text, reason=f"non-NEUTRAL adversary missing {missing}",
+                                        finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    d["confidence"] = conf
+    return d
+
+
+def parse_strategist(text: str, *, finish_reason=None, thoughts_tokens=None) -> dict:
+    try:
+        d = extract_json(text)
+    except (ValueError, json.JSONDecodeError) as e:
+        return parse_error_fallback(text, reason=f"extract_json: {e}", include=False, conviction="NEUTRAL",
+                                    finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    if "conviction" not in d:
+        return parse_error_fallback(text, reason="missing 'conviction'", include=False, conviction="NEUTRAL",
+                                    finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
     d["conviction"] = normalize_conviction(d.get("conviction"))
     d["include"] = bool(d.get("include", False))
+    if d["include"] and d["conviction"] != "NEUTRAL" and not d.get("summary"):
+        return parse_error_fallback(text, reason="strategist include without summary", include=False,
+                                    conviction="NEUTRAL", finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
     return d

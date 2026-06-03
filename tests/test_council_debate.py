@@ -22,9 +22,20 @@ def test_extract_json_handles_fences_and_prose():
 
 
 def test_parsers_coerce_and_fail_closed():
-    assert agents.parse_proposer('{"confidence": "high"}')["confidence"] == "HIGH"
-    assert agents.parse_strategist("not json")["include"] is False
-    assert agents.parse_strategist("not json")["conviction"] == "NEUTRAL"
+    # A well-formed non-NEUTRAL proposal keeps its (normalized) confidence.
+    full = json.dumps({"confidence": "high", "structural_vs_fad": "structural",
+                       "inflection_thesis": "real backlog inflection"})
+    assert agents.parse_proposer(full)["confidence"] == "HIGH"
+    # A bare {confidence} with NO thesis/structure is JSON-mode's "valid but empty shape" → fail-closed
+    # NEUTRAL + parse_error (P1-#1: the bug in a new costume, caught).
+    bare = agents.parse_proposer('{"confidence": "high"}')
+    assert bare["confidence"] == "NEUTRAL" and bare["parse_error"] is True
+    # A genuine NEUTRAL abstention is allowed to be minimal — NOT a parse error.
+    neutral = agents.parse_proposer('{"confidence": "NEUTRAL"}')
+    assert neutral["confidence"] == "NEUTRAL" and not neutral.get("parse_error")
+    # Non-JSON → fail-closed, evidence preserved.
+    s = agents.parse_strategist("not json")
+    assert s["include"] is False and s["conviction"] == "NEUTRAL" and s["parse_error"] is True
 
 
 def test_adversary_prompt_is_direction_relative():

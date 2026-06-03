@@ -12,12 +12,27 @@ minimum. Router/budget errors propagate to ``council.propose`` (fail-closed).
 
 from __future__ import annotations
 
+import logging
 import random
 
 from council import agents
 from council.filters import apply_filter
 from council.proposal import AgentOutput, CouncilProposal, normalize_conviction
 from themes import VALID_DIRECTIONS, Theme
+
+log = logging.getLogger("council.debate")
+
+
+def _parsed(role: str, resp, parser, symbol: str) -> dict:
+    """Parse a role response, threading the forensic finish_reason/thoughts into the fallback and
+    logging LOUD on a parse/shape failure (the per-call signal; the cycle-level page is in the
+    orchestrator). A failure still resolves NEUTRAL → fail-closed, never traded."""
+    raw = parser(resp.text, finish_reason=resp.finish_reason, thoughts_tokens=resp.thoughts_tokens)
+    if raw.get("parse_error"):
+        log.warning("council %s parse-fail %s/%s for %s: %s (finish=%s, thoughts=%s)", role,
+                    resp.provider, resp.model, symbol, raw.get("validation_error"),
+                    resp.finish_reason, resp.thoughts_tokens)
+    return raw
 
 
 def _model_mix(router) -> dict:
@@ -55,7 +70,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     # 1. Proposer — argues FOR the candidate's direction.
     sys, user = agents.proposer_prompt(pack)
     presp = router.call(role="proposer", system=sys, user=user)
-    praw = agents.parse_proposer(presp.text)
+    praw = _parsed("proposer", presp, agents.parse_proposer, candidate.symbol)
     pconf, pfr = apply_filter([str(praw.get("inflection_thesis", "")), *map(str, praw.get("cited", []))],
                               pack, confidence=praw.get("confidence"))
     proposer_ao = AgentOutput(
@@ -70,7 +85,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     against_stance = agents.OPPOSITE.get(candidate.direction, "opposite")
     sys, user = agents.adversary_prompt(pack, praw)
     aresp = router.call(role="adversary", system=sys, user=user)
-    araw = agents.parse_adversary(aresp.text)
+    araw = _parsed("adversary", aresp, agents.parse_adversary, candidate.symbol)
     aconf, afr = apply_filter([str(araw.get("counter_case", "")), str(araw.get("weakest_point", "")),
                                *map(str, araw.get("cited", []))], pack, confidence=araw.get("confidence"))
     adversary_ao = AgentOutput(
@@ -83,7 +98,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     for_first = rng.random() < 0.5
     sys, user = agents.strategist_prompt(pack, praw, araw, for_first=for_first)
     sresp = router.call(role="strategist", system=sys, user=user)
-    sraw = agents.parse_strategist(sresp.text)
+    sraw = _parsed("strategist", sresp, agents.parse_strategist, candidate.symbol)
     sconf, sfr = apply_filter([str(sraw.get("summary", "")), str(sraw.get("weakest_point", ""))],
                               pack, confidence=sraw.get("conviction"))
     strategist_ao = AgentOutput(
