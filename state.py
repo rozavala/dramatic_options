@@ -542,6 +542,121 @@ def convexity_realized_multiples(conn: sqlite3.Connection) -> list[float]:
     return out
 
 
+# ── no-gate / fixed-basket null books (PREREG_FIXED_BASKET_NULL.md, migration 0010) ───────────────
+# Mirror the shadow_* helpers field-for-field, keyed additionally by `book` ('union_nogate'=3A /
+# 'basket_nogate'=3B), so the eventual null-book unification is a mechanical union. Simulated-only,
+# NEVER the broker; open → closed lifecycle.
+
+def record_fixed_basket_position(
+    conn: sqlite3.Connection, *, run_id: int | None, book: str, origin: str, opened_at: str, theme: str,
+    symbol: str, direction: str, structure_kind: str, contract_symbol: str, expiry: str, strike: float,
+    dte: int, moneyness: float, contracts: int, entry_premium_per_contract: float, total_premium: float,
+    entry_spot: float | None = None,
+) -> int:
+    """Book a simulated (NEVER broker) no-gate position at the chain mid. Returns its id. Atomic."""
+    with conn:
+        cur = conn.execute(
+            "INSERT INTO fixed_basket_positions (run_id, book, origin, opened_at, theme, symbol, "
+            "direction, structure_kind, contract_symbol, expiry, strike, dte, moneyness, contracts, "
+            "entry_premium_per_contract, total_premium, entry_spot, status, mark) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL)",
+            (run_id, book, origin, opened_at, theme, symbol, direction, structure_kind, contract_symbol,
+             expiry, strike, dte, moneyness, contracts, entry_premium_per_contract, total_premium, entry_spot),
+        )
+    return int(cur.lastrowid)
+
+
+def open_fixed_basket_positions(conn: sqlite3.Connection, book: str | None = None) -> list[sqlite3.Row]:
+    if book is None:
+        return conn.execute("SELECT * FROM fixed_basket_positions WHERE status='open' ORDER BY id").fetchall()
+    return conn.execute(
+        "SELECT * FROM fixed_basket_positions WHERE status='open' AND book=? ORDER BY id", (book,)
+    ).fetchall()
+
+
+def fixed_basket_open_symbols(conn: sqlite3.Connection, book: str) -> set[str]:
+    """Underlyings with a live position in this no-gate book (per-cycle dedup — one bet per name)."""
+    rows = conn.execute(
+        "SELECT DISTINCT symbol FROM fixed_basket_positions WHERE status='open' AND book=?", (book,)
+    ).fetchall()
+    return {r["symbol"] for r in rows}
+
+
+def count_open_fixed_basket_positions(conn: sqlite3.Connection, book: str) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM fixed_basket_positions WHERE status='open' AND book=?", (book,)
+    ).fetchone()
+    return int(row["n"]) if row else 0
+
+
+def count_open_fixed_basket_sentinel_positions(conn: sqlite3.Connection, book: str) -> int:
+    """Open sentinel-origin positions — so a cap-ON book (3A) applies the SAME slot reservation."""
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM fixed_basket_positions WHERE status='open' AND book=? AND origin='sentinel'",
+        (book,),
+    ).fetchone()
+    return int(row["n"]) if row else 0
+
+
+def fixed_basket_book_open_premium(conn: sqlite3.Connection, book: str) -> float:
+    row = conn.execute(
+        "SELECT COALESCE(SUM(total_premium),0.0) AS s FROM fixed_basket_positions WHERE status='open' AND book=?",
+        (book,),
+    ).fetchone()
+    return float(row["s"]) if row else 0.0
+
+
+def fixed_basket_cluster_open_premium(conn: sqlite3.Connection, symbols, book: str) -> float:
+    """Cluster entry-premium in this no-gate book (open only — sim books 'open' immediately). Empty → 0.0."""
+    syms = tuple(symbols)
+    if not syms:
+        return 0.0
+    placeholders = ",".join("?" * len(syms))
+    row = conn.execute(
+        "SELECT COALESCE(SUM(total_premium),0.0) AS s FROM fixed_basket_positions "
+        f"WHERE status='open' AND book=? AND symbol IN ({placeholders})",
+        (book, *syms),
+    ).fetchone()
+    return float(row["s"]) if row else 0.0
+
+
+def mark_fixed_basket_position(conn: sqlite3.Connection, position_id: int, *, mark: float, as_of: str) -> None:
+    with conn:
+        conn.execute(
+            "UPDATE fixed_basket_positions SET mark=?, marked_at=? WHERE id=?", (float(mark), as_of, position_id)
+        )
+
+
+def close_fixed_basket_position(
+    conn: sqlite3.Connection, position_id: int, *, exit_price: float, realized_pnl: float,
+    realized_multiple: float, reason: str, as_of: str,
+) -> None:
+    """Close a no-gate position in-DB (always at mark/intrinsic — there is no broker). Atomic."""
+    with conn:
+        conn.execute(
+            "UPDATE fixed_basket_positions SET status='closed', mark=?, realized_pnl=?, realized_multiple=?, "
+            "exit_reason=?, closed_at=?, marked_at=? WHERE id=?",
+            (float(exit_price), float(realized_pnl), float(realized_multiple), reason, as_of, as_of, position_id),
+        )
+
+
+def fixed_basket_realized_multiples(conn: sqlite3.Connection, book: str | None = None) -> dict[str, list[float]]:
+    """Closed positions' per-position realized multiples, grouped by `book` (the tail substrate for
+    `shadow − 3A` etc.). `book=None` → all books. Compared on the TAIL (PREREG §5), never an aggregate."""
+    out: dict[str, list[float]] = {}
+    if book is None:
+        q = ("SELECT book, realized_multiple FROM fixed_basket_positions "
+             "WHERE status='closed' AND realized_multiple IS NOT NULL ORDER BY id")
+        params: tuple = ()
+    else:
+        q = ("SELECT book, realized_multiple FROM fixed_basket_positions "
+             "WHERE status='closed' AND realized_multiple IS NOT NULL AND book=? ORDER BY id")
+        params = (book,)
+    for r in conn.execute(q, params):
+        out.setdefault(str(r["book"]), []).append(float(r["realized_multiple"]))
+    return out
+
+
 def record_council_proposal(
     conn: sqlite3.Connection,
     *,
