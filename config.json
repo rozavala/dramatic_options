@@ -102,6 +102,10 @@
       "event_bonus": 1.0, "min_price": 3.0, "min_adv_usd": 3000000.0
     }
   },
+  "fixed_basket": {
+    "_comment": "The no-gate / fixed-basket NULL books (PREREG_FIXED_BASKET_NULL.md) — test the IV GATE itself (the existing real/shadow pair only tests the council). PR2a ships book 3A ('union_nogate'): gate-OFF over the SAME candidate union the shadow book sees, cap-ON, every L1, so shadow−3A is the FSSD null≈signal control on the edge. PR2b adds 3B (whole basket, equal-weight, weekly) + the shares null. Simulated-only, NEVER the broker, fail-soft (a null bug never halts the real cycle). enabled=false disables the no-gate books; the real loop is unaffected.",
+    "enabled": true
+  },
   "execution": {
     "_comment": "Real Alpaca paper order path (broker.AlpacaPaperBroker). SENDING is gated by safety.dry_run: dry_run=true (default) logs the intended order + simulates the fill — nothing is transmitted; dry_run=false actually submits to the PAPER endpoint. cancel_unfilled: at reconcile, cancel a still-resting limit (it re-evaluates next cycle) instead of leaving it open.",
     "cancel_unfilled": true

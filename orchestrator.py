@@ -23,6 +23,7 @@ from pathlib import Path
 
 import clusters
 import discovery
+import fixed_basket
 import notify
 import sentinels
 import shadow_book
@@ -418,6 +419,21 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             log.warning("shadow mark pass failed (non-fatal): %s", e)
             notify.send("Shadow book mark failed (non-fatal)", str(e))
 
+        # 1c. No-gate 3A null book (PREREG_FIXED_BASKET_NULL, PR2a) — mark + exit the gate-off control
+        #     alongside, same fail-soft + never-broker. shadow − 3A = the IV gate's marginal value.
+        if config.get("fixed_basket", {}).get("enabled", True):
+            try:
+                fmr = fixed_basket.mark_fixed_basket_positions(
+                    conn=conn, clock=clock, quote_provider=quote_provider, config=config,
+                    underlying_price_of=provider.underlying_price,
+                )
+                if fmr.marked or fmr.closed:
+                    log.info("No-gate(3A) monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d)",
+                             fmr.marked, fmr.closed, fmr.expired, fmr.profit_taken, fmr.time_stopped)
+            except Exception as e:  # noqa: BLE001 — fail-soft: the gate null never breaks the cycle
+                log.warning("no-gate 3A mark pass failed (non-fatal): %s", e)
+                notify.send("Fixed-basket 3A mark failed (non-fatal)", str(e))
+
         # 2. Council pass → themes (T2). The council PROPOSES; the deterministic gates in
         #    run_paper_cycle still DISPOSE. Entries are gated BEFORE any LLM spend by
         #    FORWARD_ENABLED + market-open (PR2 §B): an inert env or a closed market pays
@@ -502,6 +518,22 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                     except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the real cycle
                         log.warning("shadow book pass failed (non-fatal): %s", e)
                         notify.send("Shadow book entry failed (non-fatal)", str(e))
+
+                    # No-gate 3A null book (PREREG_FIXED_BASKET_NULL, PR2a) — book over the SAME union
+                    # with the IV GATE OFF, cap-ON, alongside the shadow book. shadow − 3A = the gate's
+                    # marginal value (the FSSD null≈signal on the edge). FAIL-SOFT + never-broker.
+                    if config.get("fixed_basket", {}).get("enabled", True):
+                        try:
+                            fbr = fixed_basket.run_fixed_basket_3a_cycle(
+                                config=config, conn=conn, clock=clock, provider=provider, run_id=run_id,
+                            )
+                            if fbr.booked or fbr.halted:
+                                log.info("No-gate(3A) book: booked=%d %s vetoed=%d skipped=%d%s",
+                                         fbr.booked, dict(fbr.by_origin), fbr.vetoed, fbr.skipped,
+                                         " HALTED" if fbr.halted else "")
+                        except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the real cycle
+                            log.warning("no-gate 3A book pass failed (non-fatal): %s", e)
+                            notify.send("Fixed-basket 3A entry failed (non-fatal)", str(e))
 
         _print_book_summary(conn, config)
         return 0

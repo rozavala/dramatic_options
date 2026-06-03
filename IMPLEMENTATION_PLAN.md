@@ -159,8 +159,10 @@ baskets). **REMAINING:** a basket-quality report (close the survivorship → bas
 written BLIND via the R2/R3 plan red-team): the no-IV-gate book is the **headline gate test**
 (`shadow − 3A` = FSSD null≈signal on the edge), `real − 3B` the **bundled** beat-the-basket read;
 **p95**-tail + **bootstrap CIs** + **with/without-top-k** on the event-enriched gate-rejected cohort;
-shares = descriptive secondary; **live basket → `real − 3B` is the clean read**. **BUILD next** —
-PR2a (3A, every L1, cap-ON) then PR2b (3B + shares, weekly L0, equal-weight) — the null the T4
+shares = descriptive secondary; **live basket → `real − 3B` is the clean read**. **PR2a (book 3A)
+BUILT 2026-06-03** (`fixed_basket.py` + migration 0010, gate-OFF over the same union, cap-ON, fail-soft
++ never-broker; `--demo`: shadow books 1 vs no-gate-3A books 2, the gate rejected NVDA; 335 tests).
+**BUILD next:** PR2b (3B whole-basket equal-weight + the shares null, weekly L0) — the null the T4
 real-money decision hinges on; and a fast-follow trailing-return-**correlation diagnostic**
 (report-not-gate, the curation backstop — lands before the next Sunday L0 scan).
 
