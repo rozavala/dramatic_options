@@ -31,6 +31,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
+import clusters
 import state
 from clock import Clock
 from convexity_data import ChainProvider, QuoteProvider
@@ -110,6 +111,8 @@ def run_shadow_cycle(
     gate = config.get("convexity_gate", {})
     elig = config.get("eligibility", {}).get("live", {})
     account_equity = float(book.get("account_equity") or 0.0)
+    cluster_fraction = float(book.get("cluster_fraction") or 0.0)
+    cluster_map = clusters.load_cluster_map(config) if cluster_fraction > 0 else {}
     max_slots = config.get("discovery", {}).get("sentinel_max_slots")
     rv_window = int(gate.get("rv_window_days", 252))
     open_syms = state.shadow_open_symbols(conn)
@@ -139,6 +142,7 @@ def run_shadow_cycle(
                 theme, origin=origin, conn=conn, provider=provider, eligibility=_eligibility,
                 account_equity=account_equity, gate=gate, book=book, as_of=as_of,
                 as_of_iso=as_of_iso, rv_window=rv_window, run_id=run_id,
+                cluster_map=cluster_map, cluster_fraction=cluster_fraction,
             )
         except Exception as e:  # noqa: BLE001 — per-candidate fail-soft: log, never break the pass
             result.errors += 1
@@ -155,7 +159,7 @@ def run_shadow_cycle(
 
 def _eval_and_book(
     theme, *, origin, conn, provider, eligibility, account_equity, gate, book,
-    as_of, as_of_iso, rv_window, run_id,
+    as_of, as_of_iso, rv_window, run_id, cluster_map, cluster_fraction,
 ) -> bool:
     """Deterministic pipeline for one candidate; book a SIM position at the chain mid if it passes.
     No broker — the real book's paper sim-fill uses this same mid, so entry premia are
@@ -180,6 +184,16 @@ def _eval_and_book(
     )
     if not verdict.cheap:
         return False
+    # The SAME deterministic cluster cap the real book applies (only the council selection differs).
+    # Shadow books 'open' immediately (no broker → no 'pending'), so the open-only basis already counts
+    # within-cycle cluster-mates — the real book's committed/pending fix (#12) isn't needed here.
+    cluster = clusters.cluster_of(theme.symbol, cluster_map)
+    cluster_remaining = None
+    if cluster is not None:
+        cluster_remaining = account_equity * cluster_fraction - state.shadow_cluster_open_premium(
+            conn, clusters.members_of(cluster, cluster_map))
+        if cluster_remaining < structure.entry_premium * CONTRACT_MULTIPLIER:
+            return False
     sizing = convexity_position_size(
         account_equity=account_equity,
         book_fraction=float(book.get("book_fraction", 0.10)),
@@ -188,6 +202,7 @@ def _eval_and_book(
         open_positions_count=state.count_open_shadow_positions(conn),
         open_premium_total=state.shadow_book_open_premium(conn),
         entry_premium_per_share=structure.entry_premium,
+        cluster_remaining=cluster_remaining,
     )
     if sizing.contracts < 1:
         return False

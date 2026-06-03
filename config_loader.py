@@ -9,6 +9,7 @@ re-implemented for this system.
 from __future__ import annotations
 
 import functools
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -117,3 +118,28 @@ def live_allowed(config: dict[str, Any], cli_live: bool) -> bool:
         and safety.get("live_trading_enabled") is True
         and cli_live is True
     )
+
+
+def _drop_comments(obj: Any) -> Any:
+    """Strip ``_``-prefixed keys (e.g. ``_comment``) recursively, so a docs-only config edit doesn't
+    churn the frame version."""
+    if isinstance(obj, dict):
+        return {k: _drop_comments(v) for k, v in obj.items() if not str(k).startswith("_")}
+    if isinstance(obj, list):
+        return [_drop_comments(v) for v in obj]
+    return obj
+
+
+def frame_version(config: dict[str, Any]) -> str:
+    """A short deterministic stamp of the live FROZEN risk frame (PREREG §5) — the convexity book +
+    cluster taxonomy/cap, the IV gate, the exits, and the kill rule. Recorded per run (migration 0009)
+    so positions segment by risk regime at T4 and the breach audit can ask "was this entry admitted
+    under the THEN-LIVE frame." Changes whenever any frozen parameter changes; comment-only edits don't."""
+    frame = _drop_comments({
+        "convexity_book": config.get("convexity_book", {}),
+        "convexity_gate": config.get("convexity_gate", {}),
+        "convexity_exits": config.get("convexity_exits", {}),
+        "kill_rule": config.get("kill_rule", {}),
+    })
+    blob = json.dumps(frame, sort_keys=True, default=str)
+    return "frame-" + hashlib.sha1(blob.encode()).hexdigest()[:12]

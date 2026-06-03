@@ -36,6 +36,7 @@ def convexity_db(tmp_path):
     _apply_migration(conn, "0006_close_side.py")
     _apply_migration(conn, "0007_sentinels.py")
     _apply_migration(conn, "0008_shadow_book.py")
+    _apply_migration(conn, "0009_frame_version.py")
     try:
         yield conn
     finally:

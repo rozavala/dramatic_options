@@ -147,3 +147,127 @@ def test_sizing_veto_when_concurrency_full(convexity_db, monkeypatch):
     assert res.opened == 0 and res.vetoed == 1
     row = conn.execute("SELECT decision FROM convexity_eval ORDER BY id DESC LIMIT 1").fetchone()
     assert row["decision"] == "veto-sizing"
+
+
+# ── cluster exposure cap (PREREG §5 amendment 2026-06-03) ────────────────────────────────────────
+
+# Arbitrary symbols use the cheap DEFAULT synthetic profile → they clear the IV gate, so the CLUSTER
+# cap (not the gate) is the binding constraint — exactly the §C "correlated names look diversified" case.
+_BASKET = ["AAA", "BBB", "CCC", "DDD"]
+
+
+def _config_with_cluster(*, cluster_fraction, members, name="power", discovery=None):
+    book = {**CONFIG["convexity_book"], "cluster_fraction": cluster_fraction,
+            "clusters": {name: list(members)}}
+    cfg = {**CONFIG, "convexity_book": book}
+    if discovery is not None:
+        cfg["discovery"] = discovery
+    return cfg
+
+
+def _seed_open(conn, *, symbol, total_premium, direction="bullish", status="open"):
+    state.record_convexity_position(
+        conn, run_id=None, opened_at="2026-01-02T00:00:00+00:00", theme="seed", symbol=symbol,
+        direction=direction, structure_kind="C", contract_symbol=f"{symbol}_x", expiry="2026-09-30",
+        strike=60.0, dte=270, moneyness=0.25, contracts=1, entry_premium_per_contract=total_premium,
+        total_premium=total_premium, status=status,
+    )
+
+
+def test_per_name_cap_alone_opens_the_whole_correlated_basket(convexity_db, monkeypatch):
+    # Baseline: with NO cluster, the per-name cap reads 4 correlated names as 4 "diversified" bets.
+    _no_kill(monkeypatch)
+    themes = [Theme(f"t_{s}", s, "bullish", "cheap") for s in _BASKET]
+    res = run_paper_cycle(config=CONFIG, conn=convexity_db, clock=CLOCK, provider=_provider(),
+                          broker=PaperBroker(100_000.0), themes=themes, run_id=None)
+    assert res.opened == 4  # the false diversification the cluster cap exists to fix
+
+
+def test_cluster_cap_admits_only_a_subset(convexity_db, monkeypatch):
+    _no_kill(monkeypatch)
+    cfg = _config_with_cluster(cluster_fraction=0.02, members=_BASKET)  # cap = $2000 ≈ 2 full names
+    themes = [Theme(f"t_{s}", s, "bullish", "cheap") for s in _BASKET]
+    res = run_paper_cycle(config=cfg, conn=convexity_db, clock=CLOCK, provider=_provider(),
+                          broker=PaperBroker(100_000.0), themes=themes, run_id=None)
+    assert 0 < res.opened < 4                                            # the cap reduced the count
+    assert state.cluster_open_premium(convexity_db, set(_BASKET)) <= 100_000.0 * 0.02 + 1e-6
+    vetoes = convexity_db.execute(
+        "SELECT COUNT(*) AS n FROM convexity_eval WHERE decision = 'veto-cluster-cap'").fetchone()["n"]
+    assert vetoes >= 1                                                   # the rest were cluster-capped
+
+
+def test_cluster_premium_counts_pending_but_book_does_not(convexity_db):
+    # #12: a same-cycle just-submitted PENDING mate counts toward the CLUSTER budget (else a tight
+    # cluster over-admits its next mate under DRY_RUN=false) but NOT the book cap (deliberate divergence).
+    _seed_open(convexity_db, symbol="AAA", total_premium=900.0, status="pending")
+    assert state.cluster_open_premium(convexity_db, {"AAA"}) == 900.0   # committed basis counts pending
+    assert state.convexity_book_open_premium(convexity_db) == 0.0       # open/closing basis does not
+
+
+def test_same_cycle_pending_mate_caps_the_next_mate(convexity_db, monkeypatch):
+    # #12 end-to-end: a PENDING cluster-mate near the cap → the next cheap mate is cluster-capped THIS
+    # cycle. Without counting pending (the bug) FCX would open; with the fix it is veto-cluster-cap.
+    _no_kill(monkeypatch)
+    cfg = _config_with_cluster(cluster_fraction=0.01, members=["FCX", "AAA"])  # cap = $1000
+    _seed_open(convexity_db, symbol="AAA", total_premium=950.0, status="pending")
+    res = run_paper_cycle(config=cfg, conn=convexity_db, clock=CLOCK, provider=_provider(),
+                          broker=PaperBroker(100_000.0),
+                          themes=[Theme("t", "FCX", "bullish", "cheap")], run_id=None)
+    assert res.opened == 0
+    row = convexity_db.execute("SELECT decision FROM convexity_eval ORDER BY id DESC LIMIT 1").fetchone()
+    assert row["decision"] == "veto-cluster-cap"
+
+
+def test_cluster_capped_sentinel_does_not_consume_a_reserved_slot(convexity_db, monkeypatch):
+    # R2 2b: a sentinel in a FULL cluster records the structural veto-cluster-cap (cluster-veto fires
+    # BEFORE slot accounting) and consumes NO reserved sentinel slot (the reservation is occupancy-based).
+    _no_kill(monkeypatch)
+    cfg = _config_with_cluster(cluster_fraction=0.01, members=["FCX", "AAA"],
+                               discovery={"sentinel_max_slots": 6})
+    _seed_open(convexity_db, symbol="AAA", total_premium=1000.0)  # cluster full at the $1000 cap
+    sentinel = Theme("disc", "FCX", "bullish", "cheap", source="sentinel", sentinel_id=1)
+    res = run_paper_cycle(config=cfg, conn=convexity_db, clock=CLOCK, provider=_provider(),
+                          broker=PaperBroker(100_000.0), themes=[sentinel], run_id=None)
+    assert res.opened == 0
+    row = convexity_db.execute("SELECT decision FROM convexity_eval ORDER BY id DESC LIMIT 1").fetchone()
+    assert row["decision"] == "veto-cluster-cap"                       # NOT veto-sentinel-slots
+    assert state.count_open_sentinel_positions(convexity_db) == 0       # reserved slot still free
+
+
+def test_mixed_direction_cluster_logs_warning(convexity_db, monkeypatch, caplog):
+    import logging
+    _no_kill(monkeypatch)
+    cfg = _config_with_cluster(cluster_fraction=0.02, members=["AAA", "BBB"])
+    _seed_open(convexity_db, symbol="AAA", total_premium=100.0, direction="bullish")
+    _seed_open(convexity_db, symbol="BBB", total_premium=100.0, direction="bearish")
+    with caplog.at_level(logging.WARNING, logger="paper_loop"):
+        run_paper_cycle(config=cfg, conn=convexity_db, clock=CLOCK, provider=_provider(),
+                        broker=PaperBroker(100_000.0), themes=[], run_id=None)
+    assert any("mixed directions" in r.getMessage() for r in caplog.records)
+
+
+def test_open_eval_carries_the_per_decision_cluster_snapshot(convexity_db, monkeypatch):
+    # R4 2a: the breach-audit substrate — recompute within-cap-ness at the admission, never trust code.
+    import json
+    _no_kill(monkeypatch)
+    cfg = _config_with_cluster(cluster_fraction=0.05, members=["FCX"])  # room → FCX opens
+    res = run_paper_cycle(config=cfg, conn=convexity_db, clock=CLOCK, provider=_provider(),
+                          broker=PaperBroker(100_000.0),
+                          themes=[Theme("t", "FCX", "bullish", "cheap")], run_id=None)
+    assert res.opened == 1
+    row = convexity_db.execute("SELECT reasons FROM convexity_eval WHERE decision='open'").fetchone()
+    cs = json.loads(row["reasons"])["cluster_state"]
+    assert cs["cluster"] == "power" and cs["cap"] == 5000.0 and cs["equity"] == 100_000.0
+
+
+def test_unclustered_name_eval_keeps_the_plain_list_shape(convexity_db, monkeypatch):
+    # Converse: an unclustered name is unaffected and its eval reasons stay a plain list (byte-identical).
+    import json
+    _no_kill(monkeypatch)
+    cfg = _config_with_cluster(cluster_fraction=0.02, members=["AAA"])  # FCX not in the cluster
+    res = run_paper_cycle(config=cfg, conn=convexity_db, clock=CLOCK, provider=_provider(),
+                          broker=PaperBroker(100_000.0),
+                          themes=[Theme("t", "FCX", "bullish", "cheap")], run_id=None)
+    assert res.opened == 1
+    row = convexity_db.execute("SELECT reasons FROM convexity_eval WHERE decision='open'").fetchone()
+    assert isinstance(json.loads(row["reasons"]), list)
