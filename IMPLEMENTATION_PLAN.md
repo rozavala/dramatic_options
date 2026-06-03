@@ -172,6 +172,34 @@ risk frame, behind the existing three live gates.
 shape, build a theme library, broaden the universe; consider graduating the IV gate from the
 RV proxy to a true IV-rank once enough chain snapshots have accrued (PREREG §4b).
 
+## 5b. Cross-cutting workstreams (operator-requested 2026-06-03) — each its own plan-mode + red-team session
+
+**Observability / monitoring dashboard (Streamlit; greenfield — no `dashboard.py` yet).** A single
+operator surface over what the system is doing and how it's performing — read-only over the SQLite
+journal + the PIT cache, never a trade/authorization path, fail-soft, safe against the live DB:
+- **Discovery / scanning:** the latest L0 scan — surfaced sentinels (markers, `inflection_score`,
+  framer verdict), the random controls, the `ai_compute`-style baskets, TTL/dormancy, the cost ledger.
+- **Data gathered:** accrued chain snapshots (the forward IV baseline), realized-vol series, the
+  marker corpus — the substrate that later graduates the IV gate (§4b) and feeds the nulls.
+- **Positions:** the real `convexity_positions` book + the brain-off `shadow_positions` book +
+  (later) the fixed-basket null — status, marks, DTE, the survivorship `convexity_eval` log, and
+  **per-cluster occupancy vs the cap** (PREREG §5 amendment).
+- **Performance (the point):** realized-multiple **tails** per origin, Brier + council contribution,
+  the **real−shadow gap** (does the LLM layer add value) and the **book−fixed-basket gap** (does the
+  apparatus beat the basket), premium-bled-vs-paid, drawdown vs the kill threshold. Forward-only —
+  read as calibration, never a pass-gate (§6 / guardrail §6).
+
+**File-structure / architecture for scale** (currently **22 flat root modules** + `council/` /
+`data/` / `calibration/` / `scripts/` packages). Evolve toward domain packages — e.g. `discovery/`,
+`trading/` (structure · gate · sizing · clusters · paper_loop · monitor · broker · risk ·
+shadow_book), `data/`, `council/`, `observability/`, `infra/` (orchestrator · config · state · clock ·
+notify) — **incrementally and nimbly**: group the obvious clusters first; don't over-engineer a
+paper-stage system. **Hard constraints (high blast radius):** keep `orchestrator.py`'s entry stable
+for the systemd `ExecStart` + `deploy.sh` paths (or update them in lockstep); preserve the
+flat-layout `sys.path` shim in `conftest.py` (or migrate to an installed package); migrations stay
+numbered under `scripts/migrations/`. Its own carefully-sequenced PR(s), full suite green at each
+step — never mid-flight with the live loop unverified.
+
 ## 6. Forward measurement — calibration, not a pass-gate (PREREG §7)
 
 Per bet: theme, inflection thesis, IV-gate verdict, structure, size, rationale, outcome,
