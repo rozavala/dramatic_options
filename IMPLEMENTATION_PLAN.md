@@ -9,7 +9,7 @@
 >
 > **Status: T0 · T1 · T1.5 · calibration · T2 (the council) · T2.5 (run-it-forward: PR1 close-side
 > execution + PR2 systemd timers/deploy/notify) COMPLETE · T3 sentinels IN PROGRESS — PR1 (deterministic
-> discovery core) + PR2 (LLM framer + origin-aware grounding + provenance + slot reservation) landed & green; PR3-core (weekly L0 systemd/deploy + §C cold-cache timing) BUILT & green, held UNARMED until §A; PR3b (brain-off null shadow book) building; then T4.**
+> discovery core) + PR2 (LLM framer + origin-aware grounding + provenance + slot reservation) landed & green; PR3-core (weekly L0 systemd/deploy + §C cold-cache timing) BUILT & green, held UNARMED until §A; PR3b (brain-off null shadow book) BUILT & green; then T4.**
 > T2.5 PR2 operationalized the forward loop: `Type=oneshot` `orchestrator.py` on systemd timers
 > (L1 daily 15:45 ET pre-close = full cycle; L2 ~30min intraday `--monitor`), a fail-closed
 > `is_market_open()` gate + `FORWARD_ENABLED` flag (no entries/LLM-spend when closed or inert), a
@@ -140,8 +140,9 @@ resolve at close with outcome+Brier+realized-multiple, never-traded → the refe
 & green):** weekly L0 systemd timer (Sun 08:00 ET, Persistent, OnFailure) + deploy wiring + docs;
 `TimeoutStartSec=900` **derived** from the §C cold-cache run (exit-0 in 11s; $0.0019 over 8
 gemini-flash-lite framer calls — the first live LLM round-trip §A couldn't reach). Held UNARMED
-until §A re-verifies the live L1/L2 loop (merging auto-arms L0 = the go-live act). **PR3b (building):**
-the **brain-off null shadow book** — a parallel book running the deterministic pipeline over the SAME
+until §A re-verifies the live L1/L2 loop (merging auto-arms L0 = the go-live act). **PR3b (BUILT & green):**
+the **brain-off null shadow book** (`shadow_book.py` + migration 0008 + fail-soft L1/L2 wiring) — a
+parallel book running the deterministic pipeline over the SAME
 candidate union the council sees but brain-OFF (every gate-passer, no council include/exclude, no
 framer drop), **simulated fills only — NEVER the broker** (its own `shadow_positions` table + a
 never-broker merge-blocker test; fail-soft so a shadow bug never halts the real cycle), origin-tagged
