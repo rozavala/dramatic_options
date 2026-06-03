@@ -154,12 +154,15 @@ never-broker merge-blocker test; fail-soft so a shadow bug never halts the real 
 book = the LLM layer's marginal contribution. **Pre-T4:** the per-theme/cluster exposure cap
 **LANDED 2026-06-03** (PREREG §5 amendment, `clusters.py` + `cluster_fraction=0.02` + migration 0009;
 fixed the false diversification the first §C scan exposed — 7 correlated AI-capex-power names across two
-baskets). **REMAINING:** a basket-quality report (close the survivorship → basket-curation loop); a
-**fixed-basket null** — reframed headline = a **no-IV-gate mechanical options book** over the basket
-(tests the GATE itself = the edge claim, FSSD null≈signal style; shares buy-and-hold a secondary outer
-null), pre-registered **BLIND before forward results**, the null the T4 real-money decision hinges on;
-and a fast-follow trailing-return-**correlation diagnostic** (report-not-gate, the curation backstop —
-lands before the next Sunday L0 scan).
+baskets). **REMAINING:** a basket-quality report (close the survivorship → basket-curation loop); the
+**fixed-basket null** — **PR1 pre-registration FROZEN 2026-06-03** (`PREREG_FIXED_BASKET_NULL.md`,
+written BLIND via the R2/R3 plan red-team): the no-IV-gate book is the **headline gate test**
+(`shadow − 3A` = FSSD null≈signal on the edge), `real − 3B` the **bundled** beat-the-basket read;
+**p95**-tail + **bootstrap CIs** + **with/without-top-k** on the event-enriched gate-rejected cohort;
+shares = descriptive secondary; **live basket → `real − 3B` is the clean read**. **BUILD next** —
+PR2a (3A, every L1, cap-ON) then PR2b (3B + shares, weekly L0, equal-weight) — the null the T4
+real-money decision hinges on; and a fast-follow trailing-return-**correlation diagnostic**
+(report-not-gate, the curation backstop — lands before the next Sunday L0 scan).
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical
