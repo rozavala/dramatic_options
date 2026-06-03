@@ -31,7 +31,8 @@ import clusters
 import state
 from clock import Clock
 from convexity_data import ChainProvider, QuoteProvider
-from convexity_sizing import convexity_position_size
+from convexity_sizing import convexity_position_size, equal_weight_contracts
+from discovery import compute_markers, direction_of
 from paper_loop import kill_rule_status
 from risk import kill_switch_active
 from sentinels import active_sentinel_candidates, union_candidates
@@ -42,7 +43,8 @@ from themes import Theme, active_themes, load_themes
 log = logging.getLogger("fixed_basket")
 
 CONTRACT_MULTIPLIER = 100.0
-BOOK_UNION_NOGATE = "union_nogate"  # 3A — gate-off over the candidate union, cap-ON
+BOOK_UNION_NOGATE = "union_nogate"    # 3A — gate-off over the candidate union, cap-ON
+BOOK_BASKET_NOGATE = "basket_nogate"  # 3B — gate-off, equal-weight, motion-derived dir, whole basket
 
 
 @dataclass
@@ -198,6 +200,100 @@ def _eval_and_book_nogate(
         strike=structure.contract.strike, dte=structure.dte, moneyness=structure.moneyness,
         contracts=sizing.contracts, entry_premium_per_contract=entry_pc,
         total_premium=entry_pc * sizing.contracts, entry_spot=underlying_price,
+    )
+    return True
+
+
+def basket_symbols(config: dict) -> dict[str, str]:
+    """Flatten ``config.universe.themes`` → ``{symbol: basket_name}`` — the WHOLE curated basket (3B's
+    universe). First basket wins on overlap; ``_comment`` keys skipped."""
+    out: dict[str, str] = {}
+    for basket, members in (config.get("universe", {}).get("themes", {}) or {}).items():
+        if str(basket).startswith("_"):
+            continue
+        for s in members:
+            out.setdefault(s.strip().upper(), basket)
+    return out
+
+
+def run_fixed_basket_3b_cycle(
+    *, config: dict, conn, clock: Clock, provider: ChainProvider, market, benchmark, params,
+    run_id: int | None = None,
+) -> FixedBasketResult:
+    """Book 3B: gate-OFF, **EQUAL-WEIGHT** over the WHOLE eligible basket (``config.universe.themes``),
+    with the **MOTION-derived** direction (``discovery.direction_of`` — mechanical, no judgment) and **NO
+    book/cluster/slot truncation** (PREREG_FIXED_BASKET_NULL §4). ``real − 3B`` = the bundled apparatus-
+    vs-basket read. Weekly (L0 cadence). NEVER the broker. ``market``/``benchmark``/``params`` are the
+    discovery context (the motion read); ``provider`` supplies the option chains."""
+    result = FixedBasketResult(book=BOOK_BASKET_NOGATE)
+    if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
+        result.halted = True
+        return result
+    as_of_dt = clock.now()
+    as_of = as_of_dt.date()
+    as_of_iso = as_of_dt.isoformat()
+    book_cfg = config.get("convexity_book", {})
+    gate = config.get("convexity_gate", {})
+    elig = config.get("eligibility", {}).get("live", {})
+    account_equity = float(book_cfg.get("account_equity") or 0.0)
+    per_name_fraction = float(book_cfg.get("per_name_fraction", 0.01))
+    open_syms = state.fixed_basket_open_symbols(conn, BOOK_BASKET_NOGATE)
+
+    def _eligibility(c):
+        return contract_eligible(
+            c, max_spread_pct=float(elig.get("max_bid_ask_pct", 0.25)),
+            min_contract_price=0.10, max_contract_price=100.0, min_oi=elig.get("min_option_open_interest"),
+        )
+
+    for sym, basket in basket_symbols(config).items():
+        if sym in open_syms:
+            result.skipped += 1
+            continue
+        try:
+            m = compute_markers(sym, as_of_dt, market=market, benchmark=benchmark, params=params, basket=basket)
+            booked = _eval_and_book_3b(
+                sym=sym, basket=basket, direction=direction_of(m), conn=conn, provider=provider,
+                eligibility=_eligibility, account_equity=account_equity,
+                per_name_fraction=per_name_fraction, gate=gate, as_of=as_of, as_of_iso=as_of_iso, run_id=run_id,
+            )
+        except Exception as e:  # noqa: BLE001 — per-name fail-soft: log, never break the pass
+            result.errors += 1
+            log.debug("3B eval errored for %s: %s", sym, e)
+            continue
+        if booked:
+            result.booked += 1
+            result.by_origin["basket"] = result.by_origin.get("basket", 0) + 1
+            open_syms.add(sym)
+        else:
+            result.vetoed += 1
+    return result
+
+
+def _eval_and_book_3b(
+    *, sym, basket, direction, conn, provider, eligibility, account_equity, per_name_fraction, gate,
+    as_of, as_of_iso, run_id,
+) -> bool:
+    """Gate-off, EQUAL-WEIGHT booking for one basket name (no book/cluster/slot caps). True iff booked."""
+    underlying_price = provider.underlying_price(sym)
+    chain = provider.chain(sym)
+    structure, _ = select_structure(
+        chain, direction=direction, as_of=as_of, underlying_price=underlying_price,
+        tenor_min_days=int(gate.get("tenor_min_days", 180)), tenor_max_days=int(gate.get("tenor_max_days", 365)),
+        target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
+    )
+    if structure is None:
+        return False
+    n = equal_weight_contracts(account_equity=account_equity, per_name_fraction=per_name_fraction,
+                               entry_premium_per_share=structure.entry_premium)
+    if n < 1:
+        return False
+    entry_pc = structure.entry_premium * CONTRACT_MULTIPLIER
+    state.record_fixed_basket_position(
+        conn, run_id=run_id, book=BOOK_BASKET_NOGATE, origin="basket", opened_at=as_of_iso, theme=basket,
+        symbol=sym, direction=direction, structure_kind=structure.kind,
+        contract_symbol=structure.contract.symbol, expiry=structure.contract.expiry.isoformat(),
+        strike=structure.contract.strike, dte=structure.dte, moneyness=structure.moneyness,
+        contracts=n, entry_premium_per_contract=entry_pc, total_premium=entry_pc * n, entry_spot=underlying_price,
     )
     return True
 

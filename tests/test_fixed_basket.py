@@ -14,12 +14,14 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
+import discovery
 import fixed_basket
 import risk
 import shadow_book
 import state
 from clock import FixedClock
 from convexity_data import StaticQuoteProvider, SyntheticChainProvider
+from discovery import MarkerParams
 from themes import Theme
 
 CLOCK = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
@@ -164,3 +166,79 @@ def test_orchestrator_fixed_basket_failure_is_non_fatal(monkeypatch):
     monkeypatch.setattr(fixed_basket, "run_fixed_basket_3a_cycle", _boom)
     monkeypatch.setattr(fixed_basket, "mark_fixed_basket_positions", _boom)
     assert orchestrator.run_once(demo=True) == 0                 # the real demo cycle still completes (exit 0)
+
+
+# ── book 3B: whole basket, gate-OFF, EQUAL-WEIGHT, MOTION-derived direction ──────────────────────
+
+BOOK3B = fixed_basket.BOOK_BASKET_NOGATE
+_MARKERS = {"mom_lookback": 252, "mom_skip": 21, "rv_recent": 21, "rv_base": 252, "adv_window": 20,
+            "mom_floor": 0.15, "rv_slope_floor": 0.25, "min_price": 3.0, "min_adv_usd": 3000000.0}
+
+
+def _market(symbols, movers=()):
+    return discovery.synthetic_market(symbols, CLOCK.now(), movers=movers)
+
+
+def _down_market(symbols, down):
+    import tempfile
+    from datetime import timedelta
+
+    from data.cache import PointInTimeCache
+    from data.market import MarketData
+    n, as_of = 320, CLOCK.now()
+    start = as_of - timedelta(days=n)
+    cache = PointInTimeCache(tempfile.mkdtemp(prefix="fb_down_"))
+    dn = {s.upper() for s in down}
+    for sym in symbols:
+        s = sym.upper()
+        closes = [20.0 - 10.0 * i / (n - 1) for i in range(n)] if s in dn else [10.0] * n
+        bars = [{"ts": (start + timedelta(days=i)).isoformat(), "open": c, "high": c, "low": c,
+                 "close": c, "volume": 2_000_000} for i, c in enumerate(closes)]
+        cache.write("bars", s, bars, coverage_from=start - timedelta(days=2),
+                    coverage_through=as_of + timedelta(days=2))
+    return MarketData(cache, client=None, fetch_start=start, fetch_end=as_of + timedelta(days=2))
+
+
+def _basket_cfg(themes, **book):
+    cfg = {**CONFIG, "universe": {"themes": themes},
+           "discovery": {**CONFIG["discovery"], "markers": dict(_MARKERS)}}
+    if book:
+        cfg["convexity_book"] = {**CONFIG["convexity_book"], **book}
+    return cfg
+
+
+def _run_3b(conn, config, market, monkeypatch, benchmark="SPY"):
+    _no_kill(monkeypatch)
+    return fixed_basket.run_fixed_basket_3b_cycle(
+        config=config, conn=conn, clock=CLOCK, provider=_provider(), market=market,
+        benchmark=benchmark, params=MarkerParams(**dict(config["discovery"]["markers"])), run_id=None)
+
+
+def test_3b_books_the_whole_basket_equal_weight(convexity_db, monkeypatch):
+    cfg = _basket_cfg({"t": ["AAA", "BBB", "CCC"]})
+    res = _run_3b(convexity_db, cfg, _market(["AAA", "BBB", "CCC", "SPY"], movers=["AAA", "BBB", "CCC"]), monkeypatch)
+    assert res.booked == 3 and res.errors == 0
+    rows = state.open_fixed_basket_positions(convexity_db, BOOK3B)
+    assert {r["symbol"] for r in rows} == {"AAA", "BBB", "CCC"}
+    assert all(r["direction"] == "bullish" and r["structure_kind"] == "C" for r in rows)   # up-movers → calls
+
+
+def test_3b_universe_is_the_basket_not_the_union(convexity_db, monkeypatch):
+    # 3B reads config.universe.themes (NOT themes.json / the council union) — books a name no theme/sentinel has.
+    res = _run_3b(convexity_db, _basket_cfg({"t": ["ZZZ"]}), _market(["ZZZ", "SPY"]), monkeypatch)
+    assert res.booked == 1 and state.fixed_basket_open_symbols(convexity_db, BOOK3B) == {"ZZZ"}
+
+
+def test_3b_motion_derived_bearish_on_a_down_mover(convexity_db, monkeypatch):
+    res = _run_3b(convexity_db, _basket_cfg({"t": ["DOWN"]}), _down_market(["DOWN", "SPY"], down=["DOWN"]), monkeypatch)
+    assert res.booked == 1
+    row = state.open_fixed_basket_positions(convexity_db, BOOK3B)[0]
+    assert row["direction"] == "bearish" and row["structure_kind"] == "P"   # down-mover → puts
+
+
+def test_3b_equal_weight_ignores_the_cluster_cap(convexity_db, monkeypatch):
+    # 3B = the WHOLE basket, equal-weight, NO cluster truncation: a 3-name cluster ALL book (a cap-ON
+    # book would cap it at 2 at cluster_fraction=0.02). This is *why* real−3B is the bundled read.
+    cfg = _basket_cfg({"t": ["AAA", "BBB", "CCC"]}, cluster_fraction=0.02, clusters={"power": ["AAA", "BBB", "CCC"]})
+    res = _run_3b(convexity_db, cfg, _market(["AAA", "BBB", "CCC", "SPY"]), monkeypatch)
+    assert res.booked == 3   # all three despite the 0.02 (2-name) cluster cap — 3B doesn't truncate

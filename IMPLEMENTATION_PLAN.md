@@ -162,8 +162,10 @@ written BLIND via the R2/R3 plan red-team): the no-IV-gate book is the **headlin
 shares = descriptive secondary; **live basket → `real − 3B` is the clean read**. **PR2a (book 3A)
 BUILT 2026-06-03** (`fixed_basket.py` + migration 0010, gate-OFF over the same union, cap-ON, fail-soft
 + never-broker; `--demo`: shadow books 1 vs no-gate-3A books 2, the gate rejected NVDA; 335 tests).
-**BUILD next:** PR2b (3B whole-basket equal-weight + the shares null, weekly L0) — the null the T4
-real-money decision hinges on; and a fast-follow trailing-return-**correlation diagnostic**
+**PR2b (book 3B) BUILT 2026-06-03** (`run_fixed_basket_3b_cycle` + `equal_weight_contracts`; gate-OFF +
+EQUAL-WEIGHT over the WHOLE basket with the MOTION-derived direction, NO book/cluster truncation; weekly
+L0; `--discover --demo` books all 16; 340 tests) — `real − 3B` the bundled apparatus-vs-basket read.
+**BUILD next:** PR2c (the shares descriptive null); and a fast-follow trailing-return-**correlation diagnostic**
 (report-not-gate, the curation backstop — lands before the next Sunday L0 scan).
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff

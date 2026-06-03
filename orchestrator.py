@@ -315,6 +315,25 @@ def run_discover(demo: bool = False) -> int:
         for s in result.surfaced:
             log.info("  + %-6s %-7s score=%.2f (%s) — basket=%s", s.markers.symbol, s.direction,
                      s.inflection_score, s.gate_reason, s.markers.basket)
+
+        # No-gate fixed-basket book 3B (PREREG_FIXED_BASKET_NULL, PR2b) — weekly, gate-OFF + EQUAL-WEIGHT
+        # over the WHOLE eligible basket with the MOTION-derived direction. real−3B = the bundled
+        # apparatus-vs-basket read. FAIL-SOFT + never-broker.
+        if config.get("fixed_basket", {}).get("enabled", True):
+            try:
+                chain_provider = (SyntheticChainProvider(as_of=as_of.date()) if demo
+                                  else AlpacaChainProvider(client))
+                fbr3b = fixed_basket.run_fixed_basket_3b_cycle(
+                    config=config, conn=conn, clock=clock, provider=chain_provider, market=market,
+                    benchmark=benchmark, params=params, run_id=run_id,
+                )
+                if fbr3b.booked or fbr3b.halted:
+                    log.info("No-gate(3B basket) book: booked=%d vetoed=%d skipped=%d errors=%d%s",
+                             fbr3b.booked, fbr3b.vetoed, fbr3b.skipped, fbr3b.errors,
+                             " HALTED" if fbr3b.halted else "")
+            except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the scan
+                log.warning("no-gate 3B book pass failed (non-fatal): %s", e)
+                notify.send("Fixed-basket 3B failed (non-fatal)", str(e))
         return 0
     finally:
         conn.close()
