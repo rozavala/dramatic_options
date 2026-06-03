@@ -5,6 +5,7 @@ set -e
 #
 # Run model: the single-cycle orchestrator.py is fired by systemd TIMERS, not a
 # long-lived service:
+#   • dramatic-options-l0.{service,timer}  — weekly Sun 08:00 ET discovery scan (--discover, no trading)
 #   • dramatic-options-l1.{service,timer}  — daily 15:45 ET full cycle (council + entries + monitor)
 #   • dramatic-options-l2.{service,timer}  — ~30min intraday monitor (--monitor, no council/LLM)
 #   • dramatic-options-notify@.service     — OnFailure Pushover pager (instanced per failed unit)
@@ -35,8 +36,8 @@ ENV_NAME="${ENV_NAME:-DEV}"                       # DEV | PROD
 SERVICE_PREFIX="dramatic-options"
 SYSTEMD_SRC="scripts/systemd"                      # unit templates (rendered at install time)
 SYSTEMD_DST="/etc/systemd/system"
-TIMERS=("${SERVICE_PREFIX}-l1.timer" "${SERVICE_PREFIX}-l2.timer")
-SERVICES=("${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service")
+TIMERS=("${SERVICE_PREFIX}-l0.timer" "${SERVICE_PREFIX}-l1.timer" "${SERVICE_PREFIX}-l2.timer")
+SERVICES=("${SERVICE_PREFIX}-l0.service" "${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service")
 ENV_FILE="$REPO_ROOT/.env"                         # the file systemd EnvironmentFile reads
 HEALTH_URL="${HEALTH_URL:-}"                       # intentionally EMPTY — no HTTP server in this app
 
