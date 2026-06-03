@@ -9,7 +9,7 @@
 >
 > **Status: T0 · T1 · T1.5 · calibration · T2 (the council) · T2.5 (run-it-forward: PR1 close-side
 > execution + PR2 systemd timers/deploy/notify) COMPLETE · T3 sentinels IN PROGRESS — PR1 (deterministic
-> discovery core) + PR2 (LLM framer + origin-aware grounding + provenance + slot reservation) landed & green; PR3 (weekly L0 systemd) next; then T4.**
+> discovery core) + PR2 (LLM framer + origin-aware grounding + provenance + slot reservation) landed & green; PR3-core (weekly L0 systemd/deploy + §C cold-cache timing) BUILT & green, held UNARMED until §A; PR3b (brain-off null shadow book) building; then T4.**
 > T2.5 PR2 operationalized the forward loop: `Type=oneshot` `orchestrator.py` on systemd timers
 > (L1 daily 15:45 ET pre-close = full cycle; L2 ~30min intraday `--monitor`), a fail-closed
 > `is_market_open()` gate + `FORWARD_ENABLED` flag (no entries/LLM-spend when closed or inert), a
@@ -136,11 +136,22 @@ real-inflection/artifact/mean-reversion, model-decorrelated, fail-closed-to-zero
 grounding** (sentinels ground the framer AND the council on their MARKERS, not news — else a
 pre-news discovery is NEUTRAL-dropped) + the provenance chain (sentinel→proposal→position; traded →
 resolve at close with outcome+Brier+realized-multiple, never-traded → the reference sweep) + the
-`sentinel_max_slots` reservation (`veto-sentinel-slots`) + hard-seam guard tests. **PR3:** weekly L0
-systemd/deploy/docs (arming gated on the live-loop verification + a cold-cache timeout reality-check). **Pre-T4 (not blocking the build):** a
-per-theme/cluster exposure cap (a PREREG §5 amendment — correlated `ai_compute`-style clusters make
-the per-name cap false diversification), a brain-off mechanical-ladder null shadow book, and a
-basket-quality report (close the survivorship → basket-curation loop).
+`sentinel_max_slots` reservation (`veto-sentinel-slots`) + hard-seam guard tests. **PR3-core (BUILT
+& green):** weekly L0 systemd timer (Sun 08:00 ET, Persistent, OnFailure) + deploy wiring + docs;
+`TimeoutStartSec=900` **derived** from the §C cold-cache run (exit-0 in 11s; $0.0019 over 8
+gemini-flash-lite framer calls — the first live LLM round-trip §A couldn't reach). Held UNARMED
+until §A re-verifies the live L1/L2 loop (merging auto-arms L0 = the go-live act). **PR3b (building):**
+the **brain-off null shadow book** — a parallel book running the deterministic pipeline over the SAME
+candidate union the council sees but brain-OFF (every gate-passer, no council include/exclude, no
+framer drop), **simulated fills only — NEVER the broker** (its own `shadow_positions` table + a
+never-broker merge-blocker test; fail-soft so a shadow bug never halts the real cycle), origin-tagged
+(hand-seed vs sentinel), scored on the per-position realized-multiple **TAIL** — the gap to the real
+book = the LLM layer's marginal contribution. **Pre-T4 (not blocking the build):** a per-theme/cluster
+exposure cap (a PREREG §5 amendment — correlated `ai_compute`-style clusters make the per-name cap
+false diversification; **ELEVATED** — the first §C scan already surfaced 7 correlated AI-capex-power
+names), a basket-quality report (close the survivorship → basket-curation loop), and a **fixed-basket
+null** (a cheaper mechanical no-LLM sibling to the brain-off book — "does the apparatus beat just
+buying the basket?" — the null the T4 real-money decision hinges on).
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical

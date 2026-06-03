@@ -23,6 +23,12 @@
 > (the council, risk model, execution funnel, reuse map all still apply) — but where this
 > doc says "the edge is divergence" or "validate the edge in backtest before capital," read
 > `PREREG_THEMATIC_CONVEXITY.md` instead. The non-negotiable guardrails (§13) are unchanged.
+> **Build status** (canonical: `CLAUDE.md` / `IMPLEMENTATION_PLAN.md` / `DEPLOYMENT.md`) — as of
+> 2026-06 the forward loop runs on systemd timers (L1 daily full cycle, L2 intraday monitor) and
+> **T3 sentinel discovery** is operationalizing as a weekly **L0** scan (PR3; §C cold-cache timing
+> verified, held unarmed until the live-loop §A check). The "discovery" section below describes the
+> shelved *v1* narrative-clustering discovery — for T3's motion/structural funnel read
+> `IMPLEMENTATION_PLAN.md` §T3 + `discovery.py`.
 
 ---
 

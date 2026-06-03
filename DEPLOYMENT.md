@@ -20,9 +20,10 @@ code **and re-syncs the unit files** (not just `git reset`).
 
 | Unit | Fires | Does |
 |---|---|---|
+| `dramatic-options-l0.{service,timer}` | `Sun 08:00 ET`, `Persistent=true` | one **discovery** scan: `--discover` — surfaces sentinels for the next L1 council; **never trades / no broker** |
 | `dramatic-options-l1.{service,timer}` | `Mon..Fri 15:45 ET`, `Persistent=true` | one **full** cycle: monitor → council → gates → entries |
 | `dramatic-options-l2.{service,timer}` | `Mon..Fri 09..16:00/30 ET`, `Persistent=false` | `--monitor` only: mark-to-market + deterministic exits (**no council → no LLM spend**) |
-| `dramatic-options-notify@.service` | `OnFailure=` of L1/L2 | Pushover page for a unit that exited **non-zero** |
+| `dramatic-options-notify@.service` | `OnFailure=` of L0/L1/L2 | Pushover page for a unit that exited **non-zero** |
 
 The units under `scripts/systemd/` are **templates** (`__REPO_ROOT__`/`__USER__`/`__GROUP__`)
 rendered by `deploy.sh` at install time, so the same tracked files are correct on DEV
@@ -42,7 +43,19 @@ market. The orchestrator also **re-checks market-open immediately before submitt
 bounded by `TimeoutStartSec`. 15:45 is also kept **off** the L2 `:00/:30` grid so the two timers
 never start the same monitor pass concurrently.
 
-**Hang detection.** Each oneshot has `TimeoutStartSec=` (L1 1800s / L2 180s) — a stalled
+**L0 (weekly sentinel discovery — T3 PR3).** `Sun 08:00 ET` is off-market and off the L1/L2 grids:
+discovery reads as-of (Friday-close) data and **submits nothing**, surfacing candidates the Monday
+L1 council judges (the hard seam — discovery proposes, council judges, gates dispose). Its
+`TimeoutStartSec=900` is **derived from the §C cold-cache measurement**, not guessed: a healthy
+cold scan measured ≈11s ($0.0019 over 8 gemini-3.1-flash-lite framer calls); the ≤`scan_top_k`
+sequential framer calls bound the worst case ≈1460s; 900s clears a realistic-slow-but-healthy run
+(~540s) yet SIGTERMs+pages a broadly-degraded-provider scan ("fail loud", cf. L2). **L0 is held
+UNARMED until §A** — the live L1/L2 daily loop re-verified clean on paper post-T3 deploy. Because
+`deploy.sh` arms every timer where `FORWARD_ENABLED=true`, **merging the L0 PR is itself the
+go-live act**: it arms the weekly scan, and the surfaced sentinels then trigger the first real
+*council* LLM spend on the live book at the next L1.
+
+**Hang detection.** Each oneshot has `TimeoutStartSec=` (L0 900s / L1 1800s / L2 180s) — a stalled
 LLM/broker call is killed → non-zero exit → `OnFailure` → page. The three **soft, exit-0**
 conditions `OnFailure` cannot catch (kill-rule trip, fail-closed council, cost-cap trip) page
 **in-app** from the orchestrator via `notify.py`.
@@ -71,7 +84,7 @@ disabled), **no real-money broker path in code** (`AlpacaPaperBroker` hardcodes 
 | `.github/workflows/deploy.yml` | CI/CD trigger: `main`→DEV, `production`→PROD (runs `./deploy.sh`) |
 | `deploy.sh` | lifecycle: verify-gated install + timer arming, with rollback that re-syncs units |
 | `scripts/verify_deploy.sh` | health gate (disk, imports, critical files, **live-checkout `.env`**) |
-| `scripts/systemd/*.{service,timer}` | unit templates (L1, L2, notify@) rendered at install |
+| `scripts/systemd/*.{service,timer}` | unit templates (L0, L1, L2, notify@) rendered at install |
 | `notify.py` | Pushover sender (in-app + `--systemd-failure` for `OnFailure`) |
 | `scripts/sync_worktree.sh` | keeps the `…-claude` worktree in sync |
 | `.env.example` | per-host config template (copy to `.env`) |
