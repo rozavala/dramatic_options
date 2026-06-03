@@ -26,6 +26,10 @@ _OPENAI_COMPATIBLE_BASE_URLS = {
     "perplexity": "https://api.perplexity.ai",
 }
 
+# NOTE (forward-record determinism): no provider sets ``temperature`` — each uses the SDK default.
+# For a Brier-scored forward council that is INTENTIONAL (run-to-run variation is expected; a pinned
+# temperature is a separate, pre-registered decision), not an oversight.
+
 
 class RouterError(RuntimeError):
     """A provider call failed after retries (fail-closed → the council proposes nothing)."""

@@ -118,6 +118,15 @@ book's value is in the tail; the mean reads negative while the book works (most 
   cannot tail-compare an option *multiple* to a share *return*. Its return distribution is shown
   *alongside* as context for whether the convex book's bounded-downside / fat-upside is worth the
   premium bleed — explicitly **not** scored against the options tails.
+- **Censor council-bug-contaminated runs from the council-marginal read (added 2026-06-03, council
+  parse-fix; pinned blind before the window matures).** The `real − shadow` gap (the council's marginal
+  contribution) and the proposer Brier are read ONLY over runs stamped `runs.council_health = 'ok'`
+  (migration 0011). A run whose proposer LLM calls majority-`parse_error` (the Gemini-3.x
+  thinking-starvation that silently inerted L1 #37) is stamped `parse_fail` and **excluded** — the
+  council did not deliberate, so "council added nothing" there is a BUG artifact, not evidence. This
+  censor scopes to the **council-marginal attribution ONLY**: the brain-off shadow / 3A / 3B / shares
+  book tails are gate/cap reads that never invoke the council, so they stay VALID for those runs and are
+  NOT censored.
 
 ## 6. Survivorship — load-bearing here (the gate-rejected cohort is event-enriched)
 

@@ -9,7 +9,7 @@
 >
 > **Status: T0 · T1 · T1.5 · calibration · T2 (the council) · T2.5 (run-it-forward: PR1 close-side
 > execution + PR2 systemd timers/deploy/notify) COMPLETE · T3 sentinels IN PROGRESS — PR1 (deterministic
-> discovery core) + PR2 (LLM framer + origin-aware grounding + provenance + slot reservation) landed & green; PR3-core (weekly L0 systemd/deploy + §C cold-cache timing) BUILT & green, held UNARMED until §A; PR3b (brain-off null shadow book) BUILT & green; then T4.**
+> discovery core) + PR2 (LLM framer + origin-aware grounding + provenance + slot reservation) landed & green; PR3-core (weekly L0 systemd/deploy + §C cold-cache timing) BUILT & green, held UNARMED until §A; PR3b (brain-off null shadow book) BUILT & green; the cluster cap + the full fixed-basket null (shadow/3A/3B) shipped 2026-06-03; the **council parse-fix** BUILT & green (branch `council-parse-fix`, schema 11) — the `gemini-3.5-flash` proposer is a Gemini-3.x thinking model that thinking-starved its JSON at `max_tokens=1024` → silent fail-closed NEUTRAL on the first live council (L1 #37), so the adversary/strategist never fired; fixed with `thinking_level=minimal` + JSON-mode + post-parse schema validation + a parse-fail page + a `runs.council_health` censor stamp (migration 0011); 348 offline + 1 live; then T4.**
 > T2.5 PR2 operationalized the forward loop: `Type=oneshot` `orchestrator.py` on systemd timers
 > (L1 daily 15:45 ET pre-close = full cycle; L2 ~30min intraday `--monitor`), a fail-closed
 > `is_market_open()` gate + `FORWARD_ENABLED` flag (no entries/LLM-spend when closed or inert), a
@@ -27,6 +27,20 @@
 > profit-take/time-stop/expiry exits) and the real DRY_RUN-gated Alpaca paper-submit path; the
 > calibration harness (`PREREG_CONVEXITY_CALIBRATION.md`) graded the exit structure (→ 4×→10×
 > profit-take). T2 adds `council/` — the three-role LLM judgment layer that proposes themes.
+>
+> **Pre-committed T4-unlock conditions (operator, 2026-06-03 — recorded now so graduation is not a
+> post-hoc judgment).** T4 = building the real-money broker path LAST, behind the triple-gate; it is a
+> process/discipline gate, not a proof gate. Unlock requires **all**: (1) the council fix merged **and**
+> a multi-L1 prod window shows a HEALTHY apparatus (parse-fail ~0, adversary+strategist firing, the
+> parse-fail page silent) — measured *after* the `thinking_level` fix lands and a live 3-role round-trip
+> is confirmed, NOT on the assumption it worked (no parseable live round-trip existed before this PR);
+> (2) the null reads are live-plumbed (real / shadow / 3A per-position p95 + bootstrap CIs computing each
+> cycle, with ≥ some RESOLVED positions — plumbing, not significance); (3) the cluster-cap breach audit
+> has run over the window with zero breaches (the `frame_version` recompute); (4) resolved paper
+> positions show a payoff SHAPE matching the calibration's venture profile (sanity, not significance);
+> (5) the remaining pre-T4 items are done (PR2c, the correlation diagnostic / basket-quality report,
+> arguably the §5b dashboard). Graduating on ≈zero resolved trades + a just-discovered silent-inert
+> apparatus would be the capital-stakes HARKing this project killed twice.
 
 ---
 
