@@ -21,6 +21,7 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+import clusters
 import discovery
 import notify
 import sentinels
@@ -28,7 +29,15 @@ import shadow_book
 import state
 from broker import AlpacaPaperBroker, PaperBroker
 from clock import Clock, FixedClock, LiveClock
-from config_loader import ConfigError, live_allowed, load_config, require_alpaca_credentials
+from config_loader import (
+    ConfigError,
+    live_allowed,
+    load_config,
+    require_alpaca_credentials,
+)
+from config_loader import (
+    frame_version as compute_frame_version,
+)
 from convexity_data import AlpacaChainProvider, AlpacaQuoteProvider, SyntheticChainProvider
 from council.router import BudgetExceeded, FakeRouter, RouterError, build_router
 from council.wiring import council_to_themes
@@ -104,6 +113,12 @@ def _print_book_summary(conn, config: dict) -> None:
         n_open, open_prem, budget,
         f"{dd:.0%}" if have_marks else "n/a (unmarked)", halt * 100,
     )
+    # Per-cluster occupancy vs the correlation cap (PREREG §5 amendment) — visible deploy/T4 surface.
+    cap_val = float(book.get("account_equity", 0.0)) * float(book.get("cluster_fraction", 0.0) or 0.0)
+    for cname, members in clusters.load_cluster_map(config).items():
+        prem = state.cluster_open_premium(conn, members)
+        pct = (100.0 * prem / cap_val) if cap_val else 0.0
+        log.info("  cluster %-16s $%.0f / $%.0f (%.0f%%)", cname, prem, cap_val, pct)
 
 
 def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
@@ -232,7 +247,8 @@ def run_discover(demo: bool = False) -> int:
             as_of = clock.now()
             movers = [s for members in baskets.values() for s in members[:2]]  # first two per basket ramp
             market = discovery.synthetic_market(all_syms, as_of, movers=movers)
-            run_id = record_run(conn, mode="DISCOVERY-DEMO", equity=None, note="discovery demo")
+            run_id = record_run(conn, mode="DISCOVERY-DEMO", equity=None, note="discovery demo",
+                                frame_version=compute_frame_version(config))
             log.info("(demo: ephemeral DB %s — real sentinel store untouched)", demo_db.name)
         else:
             try:
@@ -250,7 +266,8 @@ def run_discover(demo: bool = False) -> int:
             fetch_start, _ = default_fetch_window(as_of)
             cache = PointInTimeCache(config.get("cache", {}).get("dir", "data/cache"))
             market = MarketData(cache, client=client, fetch_start=fetch_start, fetch_end=as_of)
-            run_id = record_run(conn, mode="DISCOVERY", equity=None, note="weekly scan")
+            run_id = record_run(conn, mode="DISCOVERY", equity=None, note="weekly scan",
+                                frame_version=compute_frame_version(config))
 
         # Kill-before-spend seam (the council-build discipline). PR1 spends nothing; the framer
         # (PR2) sits behind this same guard.
@@ -334,7 +351,8 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             provider = SyntheticChainProvider(as_of=clock.now().date())
             quote_provider = provider  # synthetic chain doubles as a QuoteProvider
             broker = PaperBroker(config.get("convexity_book", {}).get("account_equity", 100000.0))
-            run_id = record_run(conn, mode="PAPER-DEMO", equity=broker.account_equity(), note="demo")
+            run_id = record_run(conn, mode="PAPER-DEMO", equity=broker.account_equity(), note="demo",
+                                frame_version=compute_frame_version(config))
             log.info("(demo: ephemeral DB %s — real book untouched)", demo_db.name)
         else:
             try:
@@ -358,7 +376,8 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             # Real paper-order broker; DRY_RUN (default) logs-and-simulates, never transmits.
             broker = AlpacaPaperBroker(api_key, secret_key, dry_run=dry_run, equity=equity)
             chain_cache = PointInTimeCache(config.get("cache", {}).get("dir", "data/cache"))
-            run_id = record_run(conn, mode=mode, equity=equity, note="paper cycle")
+            run_id = record_run(conn, mode=mode, equity=equity, note="paper cycle",
+                                frame_version=compute_frame_version(config))
             log.info("Execution: %s", "DRY_RUN (orders logged, not sent)" if dry_run else "LIVE PAPER SUBMIT")
 
         # Market state, checked ONCE per cycle, FAIL-CLOSED (PR2 R5). Gates both the monitor's

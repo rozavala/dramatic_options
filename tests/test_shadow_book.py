@@ -223,3 +223,31 @@ def test_orchestrator_shadow_failure_is_non_fatal(monkeypatch):
     monkeypatch.setattr(shadow_book, "run_shadow_cycle", _boom)
     monkeypatch.setattr(shadow_book, "mark_shadow_positions", _boom)
     assert orchestrator.run_once(demo=True) == 0  # the real demo cycle still completes (exit 0)
+
+
+# ── cluster exposure cap parity with the real book (PREREG §5 amendment) ─────────────────────────
+
+def _cluster_cfg(cluster_fraction, members, name="power"):
+    return {**CONFIG, "convexity_book": {**CONFIG["convexity_book"],
+                                         "cluster_fraction": cluster_fraction,
+                                         "clusters": {name: list(members)}}}
+
+
+def test_cluster_cap_binds_identically_in_the_shadow_book(convexity_db, monkeypatch):
+    # The SAME deterministic cap the real book applies — only the council selection differs. A full
+    # cluster blocks a mate. (Shadow books 'open' immediately, so the open-only basis counts mates.)
+    cfg = _cluster_cfg(0.01, ["FCX", "AAA"])  # cap = $1000
+    _insert_shadow(convexity_db, symbol="AAA", contract="AAAx", entry_pc=1000.0, contracts=1)
+    res = _book(convexity_db, [Theme("c", "FCX", "bullish", "cheap")], monkeypatch, config=cfg)
+    assert res.booked == 0                                          # FCX cluster-capped
+    assert state.count_open_shadow_positions(convexity_db) == 1     # only the pre-seeded AAA
+
+
+def test_shadow_cluster_cap_admits_only_a_subset(convexity_db, monkeypatch):
+    # Brain-off books EVERY gate-passer, but still under the cluster cap (held identical to the real book).
+    cfg = _cluster_cfg(0.02, ["AAA", "BBB", "CCC", "DDD"])  # cap = $2000 ≈ 2 names
+    cands = [Theme(f"t_{s}", s, "bullish", "cheap") for s in ["AAA", "BBB", "CCC", "DDD"]]
+    res = _book(convexity_db, cands, monkeypatch, config=cfg)
+    assert 0 < res.booked < 4
+    assert state.shadow_cluster_open_premium(
+        convexity_db, {"AAA", "BBB", "CCC", "DDD"}) <= 100_000.0 * 0.02 + 1e-6

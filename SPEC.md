@@ -192,7 +192,9 @@ lacks numeric content.
   output of sizing, never a target.** Do not implement any "maximize leverage" path —
   overbetting a positive-edge game still leads to ruin.
 - **Portfolio caps:** max concurrent positions; max per name; max per theme/sector; max
-  aggregate premium-at-risk (gross).
+  aggregate premium-at-risk (gross). *(The per-theme/**cluster** cap landed 2026-06-03 — PREREG §5
+  amendment, `clusters.py` + `convexity_book.cluster_fraction`: a deterministic operator-curated
+  `symbol→cluster` correlation budget so a correlated basket can't pose as diversified.)*
 - **Drawdown circuit breaker:** warn / halt / panic thresholds (config).
 - **Daily-loss halt.** **Kill switch** (file or env) checked every cycle.
 - **Broker treated as unreliable:** fail-closed on ambiguity, aggressive reconciliation,

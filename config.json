@@ -27,11 +27,17 @@
     }
   },
   "convexity_book": {
-    "_comment": "Frozen risk frame — PREREG_THEMATIC_CONVEXITY §5. Operator decisions 2026-05-31. account_equity is a paper nominal until a broker supplies it.",
+    "_comment": "Frozen risk frame — PREREG_THEMATIC_CONVEXITY §5. Operator decisions 2026-05-31; per-cluster cap added by the 2026-06-03 amendment. account_equity is a paper nominal until a broker supplies it. cluster_fraction caps aggregate ENTRY-premium per correlation cluster (a name in <=1 cluster; keyed on a deterministic symbol->cluster map, NEVER a theme/basket label — a label can be LLM-set). 0.02 = 2 full names = 20% of book; graduate to 0.03 only once >=4 clusters are curated (dated re-amendment).",
     "account_equity": 100000.0,
     "book_fraction": 0.10,
     "per_name_fraction": 0.01,
-    "max_open_positions": 15
+    "max_open_positions": 15,
+    "cluster_fraction": 0.02,
+    "clusters": {
+      "_comment": "Correlation-budget partition (PREREG §5 amendment 2026-06-03), documented BY DRIVER so future names route correctly. ai_capex_power = the AI-datacenter power-demand bet the first L0 scan surfaced (CEG nuclear-gen + NEE utility folded in, CCJ uranium kept, FCX dropped — copper variance is diluted by construction/EV/industrial; a thematic power/uranium ETF like URA would co-cluster here). space_defense = a distinct driver (defense/space budgets) — routes LMT/RTX/AVAV.",
+      "ai_capex_power": ["VRT", "PWR", "GEV", "ETN", "CCJ", "CEG", "NEE"],
+      "space_defense": ["RKLB", "KTOS"]
+    }
   },
   "convexity_gate": {
     "_comment": "Frozen IV/cheap-convexity gate — PREREG_THEMATIC_CONVEXITY §4. No historical IV exists (forward-only chains) → cheapness is measured vs the underlying's trailing realized vol (from bars) + the live skew shape. Thresholds changed only by documented operator edit, never to justify a trade.",

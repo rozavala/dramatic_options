@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+import clusters
 import state
 from broker import Broker, make_client_order_id
 from clock import Clock
@@ -122,6 +123,14 @@ def run_paper_cycle(
     # notional against real equity before any capital. Broker equity is logged, not sized on.
     account_equity = float(book.get("account_equity") or broker.account_equity())
 
+    # Correlation-cluster exposure cap (PREREG §5 amendment 2026-06-03): an operator-curated
+    # symbol→cluster map caps aggregate ENTRY-premium per correlated cluster — the per-name cap alone
+    # reads a correlated basket (e.g. the AI-capex-into-power names) as false diversification. Inert
+    # without a positive cluster_fraction (then every name is its own singleton). load raises on a
+    # malformed map (overlap / cap < per-name) — fail-closed.
+    cluster_fraction = float(book.get("cluster_fraction") or 0.0)
+    cluster_map = clusters.load_cluster_map(config) if cluster_fraction > 0 else {}
+
     # Dedup: one open position per underlying for T1 (one name per theme). Re-running the loop
     # must not stack duplicate bets on a theme that is already on.
     open_syms = state.open_position_symbols(conn)
@@ -151,6 +160,7 @@ def run_paper_cycle(
             _process_theme(
                 theme, config=config, conn=conn, provider=provider, broker=broker,
                 eligibility=_eligibility, account_equity=account_equity, gate=gate, book=book,
+                cluster_map=cluster_map, cluster_fraction=cluster_fraction,
                 as_of=as_of, as_of_dt=as_of_dt, as_of_iso=as_of_iso, run_id=run_id,
                 result=result, chain_cache=chain_cache,
             )
@@ -163,6 +173,17 @@ def run_paper_cycle(
             )
             log.error("Theme %s (%s) errored: %s", theme.name, theme.symbol, e)
 
+    # Non-fatal mixed-direction warning per cluster (the cap sums premium-at-risk regardless of
+    # direction; a coherent cluster is single-direction — PREREG §5 / R2 2d). Per-cluster occupancy %
+    # is surfaced visibly by the orchestrator's book summary.
+    for cname, members in cluster_map.items():
+        dirs = state.cluster_open_directions(conn, members)
+        if len(dirs) > 1:
+            log.warning(
+                "Cluster %s holds mixed directions %s — cap sums them as additive risk "
+                "(clusters are assumed directionally coherent)", cname, sorted(dirs),
+            )
+
     log.info(
         "Paper cycle: evaluated=%d opened=%d vetoed=%d skipped=%d errors=%d",
         result.evaluated, result.opened, result.vetoed, result.skipped, result.errors,
@@ -172,8 +193,34 @@ def run_paper_cycle(
 
 def _process_theme(
     theme: Theme, *, config, conn, provider, broker, eligibility, account_equity, gate, book,
-    as_of, as_of_dt, as_of_iso, run_id, result: CycleResult, chain_cache=None,
+    cluster_map, cluster_fraction, as_of, as_of_dt, as_of_iso, run_id, result: CycleResult,
+    chain_cache=None,
 ) -> None:
+    # Correlation-cluster exposure cap (PREREG §5 amendment) — COARSE check FIRST, before the slot
+    # reservation: a structurally-full cluster records the structural ``veto-cluster-cap`` (the true
+    # binding constraint) over the transient ``veto-sentinel-slots``, keeping the survivorship log's
+    # reason honest for a future reason-segmented score (R2 2b/R3). ``cluster_state`` is the
+    # per-decision breach-audit substrate — recompute within-cap-ness at the admission, never trust the
+    # enforcement code (R4 2a). None cluster ⇒ unclustered singleton ⇒ cap inert (per-name still binds).
+    cluster = clusters.cluster_of(theme.symbol, cluster_map)
+    cluster_remaining = cluster_state = None
+    if cluster is not None:
+        members = clusters.members_of(cluster, cluster_map)
+        cluster_premium = state.cluster_open_premium(conn, members)
+        cluster_cap = account_equity * cluster_fraction
+        cluster_remaining = cluster_cap - cluster_premium
+        cluster_state = {"cluster": cluster, "premium": cluster_premium, "cap": cluster_cap,
+                         "equity": account_equity, "remaining": cluster_remaining}
+        if cluster_remaining <= 0:
+            result.vetoed += 1
+            state.record_convexity_eval(
+                conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+                direction=theme.direction, decision="veto-cluster-cap", proposal_id=theme.proposal_id,
+                reasons=[f"cluster {cluster!r} at/over budget (${cluster_premium:.0f} >= ${cluster_cap:.0f})"],
+                cluster_state=cluster_state,
+            )
+            return
+
     # Discovery slot reservation (PREREG §5 / P1): a sentinel-origin candidate may not consume more
     # than config.discovery.sentinel_max_slots of the book's live positions, so auto-traded
     # discoveries can't starve hand-seed convictions. Hand-seed (sentinel_id None) is unbounded here.
@@ -238,8 +285,23 @@ def _process_theme(
         )
         return
 
-    # 3. Flat-by-slots sizing under the frozen caps.
+    # 3. Sizing under the frozen caps. FINE cluster check first — a cluster with room but < one
+    # contract records the structural veto-cluster-cap (not a generic veto-sizing); otherwise the
+    # cluster budget tightens the greedy allocation to a bounded partial (composes into sizing's min()).
     from convexity_sizing import convexity_position_size
+
+    premium_per_contract = structure.entry_premium * 100.0
+    if cluster_remaining is not None and cluster_remaining < premium_per_contract:
+        result.vetoed += 1
+        state.record_convexity_eval(
+            conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+            direction=theme.direction, eligible=True, gate_cheap=True,
+            iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
+            decision="veto-cluster-cap", proposal_id=theme.proposal_id,
+            reasons=[f"cluster {cluster!r} budget ${cluster_remaining:.0f} < one contract ${premium_per_contract:.0f}"],
+            cluster_state=cluster_state,
+        )
+        return
 
     sizing = convexity_position_size(
         account_equity=account_equity,
@@ -249,6 +311,7 @@ def _process_theme(
         open_positions_count=state.count_open_convexity_positions(conn),
         open_premium_total=state.convexity_book_open_premium(conn),
         entry_premium_per_share=structure.entry_premium,
+        cluster_remaining=cluster_remaining,
     )
     if sizing.contracts < 1:
         result.vetoed += 1
@@ -257,6 +320,7 @@ def _process_theme(
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-sizing", proposal_id=theme.proposal_id, reasons=list(sizing.reasons),
+            cluster_state=cluster_state,
         )
         return
 
@@ -311,7 +375,7 @@ def _process_theme(
         direction=theme.direction, eligible=True, gate_cheap=True,
         iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
         decision=("submit-pending" if pending else "open"), position_id=pos_id,
-        proposal_id=theme.proposal_id, reasons=list(verdict.reasons),
+        proposal_id=theme.proposal_id, reasons=list(verdict.reasons), cluster_state=cluster_state,
     )
     result.opened += 1
     result.opened_ids.append(pos_id)

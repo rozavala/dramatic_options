@@ -86,6 +86,10 @@ Frozen in `config.json:convexity_book` / `kill_rule` (operator decisions, 2026-0
 - **Convexity book = 10%** of account (total premium-at-risk; the only money that can be
   lost — long options are inherently defined-risk).
 - **Per-name cap ≤ 1%** of account; per-theme = per-name for T1.
+- **Per-cluster cap ≤ 2%** of account (correlation budget — PREREG §5 amendment 2026-06-03): a
+  deterministic, operator-curated `symbol→cluster` map (never an LLM label), **entry-premium** basis
+  counting committed-incl-**pending**; composes as `min(per-name, book, cluster)`; applies to the
+  brain-off shadow book too.
 - **Max concurrent positions = 15.**
 - **Sizing = flat-by-slots, capped — NOT Kelly** (a far-OTM lotto Kelly-sizes to ~0).
 - **Kill rule:** halt new entries at **20% book drawdown OR 9 months** zero payoff; plus the
@@ -147,12 +151,15 @@ candidate union the council sees but brain-OFF (every gate-passer, no council in
 framer drop), **simulated fills only — NEVER the broker** (its own `shadow_positions` table + a
 never-broker merge-blocker test; fail-soft so a shadow bug never halts the real cycle), origin-tagged
 (hand-seed vs sentinel), scored on the per-position realized-multiple **TAIL** — the gap to the real
-book = the LLM layer's marginal contribution. **Pre-T4 (not blocking the build):** a per-theme/cluster
-exposure cap (a PREREG §5 amendment — correlated `ai_compute`-style clusters make the per-name cap
-false diversification; **ELEVATED** — the first §C scan already surfaced 7 correlated AI-capex-power
-names), a basket-quality report (close the survivorship → basket-curation loop), and a **fixed-basket
-null** (a cheaper mechanical no-LLM sibling to the brain-off book — "does the apparatus beat just
-buying the basket?" — the null the T4 real-money decision hinges on).
+book = the LLM layer's marginal contribution. **Pre-T4:** the per-theme/cluster exposure cap
+**LANDED 2026-06-03** (PREREG §5 amendment, `clusters.py` + `cluster_fraction=0.02` + migration 0009;
+fixed the false diversification the first §C scan exposed — 7 correlated AI-capex-power names across two
+baskets). **REMAINING:** a basket-quality report (close the survivorship → basket-curation loop); a
+**fixed-basket null** — reframed headline = a **no-IV-gate mechanical options book** over the basket
+(tests the GATE itself = the edge claim, FSSD null≈signal style; shares buy-and-hold a secondary outer
+null), pre-registered **BLIND before forward results**, the null the T4 real-money decision hinges on;
+and a fast-follow trailing-return-**correlation diagnostic** (report-not-gate, the curation backstop —
+lands before the next Sunday L0 scan).
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical

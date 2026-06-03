@@ -45,13 +45,19 @@ def record_run(
     mode: str,
     equity: float | None,
     note: str = "",
+    frame_version: str | None = None,
 ) -> int:
-    """Insert a row into ``runs`` and return its id. Atomic."""
+    """Insert a row into ``runs`` and return its id. Atomic.
+
+    ``frame_version`` (migration 0009) stamps the live risk-frame/taxonomy version so positions — real
+    and shadow, both carrying ``run_id`` — segment by risk regime at T4 and the breach audit can ask
+    "was this entry admitted under the THEN-LIVE frame" (PREREG §5 cluster-cap amendment).
+    """
     with conn:  # commits on success, rolls back on exception
         cur = conn.execute(
-            "INSERT INTO runs (started_at, mode, equity, note) "
-            "VALUES (datetime('now'), ?, ?, ?)",
-            (mode, equity, note),
+            "INSERT INTO runs (started_at, mode, equity, note, frame_version) "
+            "VALUES (datetime('now'), ?, ?, ?, ?)",
+            (mode, equity, note, frame_version),
         )
     return int(cur.lastrowid)
 
@@ -102,6 +108,7 @@ def record_convexity_eval(
     position_id: int | None = None,
     proposal_id: int | None = None,
     reasons: Any = None,
+    cluster_state: dict | None = None,
 ) -> int:
     """Append a survivorship-log row for EVERY evaluated bet (open or veto). Atomic.
 
@@ -112,8 +119,13 @@ def record_convexity_eval(
     """
     import json
 
-    if not isinstance(reasons, str):
-        reasons = json.dumps(reasons, default=str)
+    # cluster_state (PREREG §5 amendment, un-backfillable): the per-decision cluster snapshot — name,
+    # committed premium, cap, equity — so a future breach audit can RECOMPUTE within-cap-ness at the
+    # admission instead of trusting the enforcement code. Nested under the existing reasons column only
+    # when present, so every non-cluster call site stays byte-identical.
+    payload = reasons if cluster_state is None else {"reasons": reasons, "cluster_state": cluster_state}
+    if not isinstance(payload, str):
+        payload = json.dumps(payload, default=str)
     with conn:
         cur = conn.execute(
             "INSERT INTO convexity_eval (run_id, evaluated_at, theme, symbol, direction, "
@@ -123,7 +135,7 @@ def record_convexity_eval(
                 run_id, as_of, theme, symbol, direction,
                 None if eligible is None else int(eligible),
                 None if gate_cheap is None else int(gate_cheap),
-                iv_rv, otm_skew, decision, position_id, proposal_id, reasons,
+                iv_rv, otm_skew, decision, position_id, proposal_id, payload,
             ),
         )
     return int(cur.lastrowid)
@@ -350,6 +362,44 @@ def convexity_book_open_premium(conn: sqlite3.Connection) -> float:
     return float(row["s"]) if row else 0.0
 
 
+def cluster_open_premium(conn: sqlite3.Connection, symbols) -> float:
+    """Total **committed** entry-premium across a correlation cluster's symbols — the basis for the
+    cluster cap (PREREG §5 amendment 2026-06-03). Counts ``status IN ('open','closing','pending')``.
+
+    Unlike the book cap (open/closing only), the cluster cap MUST count a same-cycle just-submitted-
+    but-``pending`` sibling: under ``DRY_RUN=false`` a resting limit is recorded 'pending' and
+    ``reconcile_pending`` runs only in the monitor pass, so an open/closing-only basis would let a
+    tight (e.g. 2-name) cluster over-admit on its 3rd same-cycle mate — the exact crowding the cap
+    exists to stop. The ~10-slot book absorbs that window; a tight cluster cannot (a deliberate,
+    documented divergence). Empty symbol set → 0.0."""
+    syms = tuple(symbols)
+    if not syms:
+        return 0.0
+    placeholders = ",".join("?" * len(syms))
+    row = conn.execute(
+        "SELECT COALESCE(SUM(total_premium), 0.0) AS s FROM convexity_positions "
+        f"WHERE status IN ('open', 'closing', 'pending') AND symbol IN ({placeholders})",
+        syms,
+    ).fetchone()
+    return float(row["s"]) if row else 0.0
+
+
+def cluster_open_directions(conn: sqlite3.Connection, symbols) -> set[str]:
+    """Distinct directions of a cluster's live (open/closing/pending) positions — for the non-fatal
+    mixed-direction warning (the cap sums premium-at-risk regardless of direction; a coherent cluster
+    is single-direction). Empty symbol set → empty set."""
+    syms = tuple(symbols)
+    if not syms:
+        return set()
+    placeholders = ",".join("?" * len(syms))
+    rows = conn.execute(
+        "SELECT DISTINCT direction FROM convexity_positions "
+        f"WHERE status IN ('open', 'closing', 'pending') AND symbol IN ({placeholders})",
+        syms,
+    ).fetchall()
+    return {r["direction"] for r in rows}
+
+
 # ── brain-off NULL shadow book (T3 PR3b) ─────────────────────────────────────────────────────────
 # A SEPARATE table + helpers from convexity_positions, ON PURPOSE: the shadow book is simulated-only
 # and must never share a code path that can reach the broker (migration 0008). Its lifecycle is just
@@ -420,6 +470,22 @@ def count_open_shadow_sentinel_positions(conn: sqlite3.Connection) -> int:
 def shadow_book_open_premium(conn: sqlite3.Connection) -> float:
     row = conn.execute(
         "SELECT COALESCE(SUM(total_premium), 0.0) AS s FROM shadow_positions WHERE status = 'open'"
+    ).fetchone()
+    return float(row["s"]) if row else 0.0
+
+
+def shadow_cluster_open_premium(conn: sqlite3.Connection, symbols) -> float:
+    """Total entry-premium across a cluster's symbols in the shadow book (``status='open'``). The
+    shadow book records 'open' immediately (no broker → no 'pending'), so within-cycle cluster-mates
+    are already counted — the real book's committed-basis pending fix is unnecessary here. Empty → 0.0."""
+    syms = tuple(symbols)
+    if not syms:
+        return 0.0
+    placeholders = ",".join("?" * len(syms))
+    row = conn.execute(
+        "SELECT COALESCE(SUM(total_premium), 0.0) AS s FROM shadow_positions "
+        f"WHERE status = 'open' AND symbol IN ({placeholders})",
+        syms,
     ).fetchone()
     return float(row["s"]) if row else 0.0
 

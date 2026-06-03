@@ -125,6 +125,47 @@ Operator decisions, set 2026-05-31, in `config.json:convexity_book`:
   zero — append-only. This is the only honest basis for ever judging edge vs. luck, and it
   counters the bias toward remembering the winners.
 
+**Amendment 2026-06-03 — per-theme/cluster exposure cap (operator-authorized, §C-instance-cited).**
+The per-name 1% cap treats every underlying as independent, so a basket of *correlated* names reads as
+"diversified" when it is one bet. The first live discovery scan (2026-06-03) made this concrete: 7 of 8
+surfaced sentinels were a single AI-capex-into-power bet (VRT/PWR/GEV/ETN datacenter power + CCJ uranium
++ RKLB/KTOS space-defense) spanning **two** scan baskets — at 1%/name they would have loaded **7% of the
+10% book** into one trade the log would record as "7 diversified positions." This adds a **cluster-level
+entry-premium cap**:
+
+- **Cluster cap.** Aggregate **entry** premium-at-risk across a *correlation cluster* ≤
+  `cluster_fraction` × account equity (`config.json:convexity_book.cluster_fraction = 0.02` = **2 full
+  names** = 20% of book). It composes with the existing caps:
+  `alloc = min(per_name_cap, book_remaining, cluster_remaining)`. Graduate to 0.03 only once **≥4
+  clusters** are curated (two clusters at 0.03 = 60% of book in two correlated bets) — itself a dated
+  re-amendment.
+- **Cluster = an operator-curated, DETERMINISTIC `symbol → cluster` partition** (a name in **≤1**
+  cluster), documented **by driver** so future names route correctly. It is **never** keyed on a
+  theme/basket *label* (a sentinel's label can be set by the LLM framer; letting that move a risk cap
+  would breach the §2 hard seam). Shipped: `ai_capex_power` (AI-datacenter power demand) =
+  VRT/PWR/GEV/ETN/CCJ/CEG/NEE (CEG/NEE folded in, CCJ kept, **FCX dropped** — copper variance is
+  diluted; a power/uranium ETF like URA would co-cluster); `space_defense` (defense/space budgets) =
+  RKLB/KTOS. Overlap / `cluster_fraction < per_name_fraction` / a malformed map **fail closed** (raise
+  at load); an **absent** map is inert (every name a singleton) — an optional additive control must not
+  fail-closed-to-zero-trades on absence.
+- **Direction-agnostic, no netting.** The cap sums premium-at-risk regardless of direction (defined
+  risk: you can lose all of it); it does **not** net long/short — a netting model would need clean beta
+  the free feed can't give. Clusters are curated to be directionally coherent; a mixed-direction cluster
+  logs a non-fatal warning.
+- **Committed basis (incl. pending).** The cluster cap counts `status IN (open, closing, pending)` —
+  unlike the book cap's open/closing basis — so a same-cycle just-submitted (`DRY_RUN=false` resting
+  limit, reconciled only in the monitor pass) mate is counted and a tight cluster cannot over-admit on
+  its next mate the same cycle. The ~10-slot book absorbs that window; a 2-slot cluster cannot.
+- **Gates new entries, never force-closes** a pre-cap over-budget cluster (mirrors §6). Applies
+  **identically to the brain-off shadow book** (a deterministic cap; only the council selection differs).
+  **Breach = an entry admitted in violation of the THEN-LIVE frame**, not "book currently within caps":
+  each run stamps its frame version (`runs.frame_version`, migration 0009) and each cluster decision
+  stamps the per-decision occupancy/cap/equity into the survivorship log, so the T4 breach audit
+  recomputes within-cap-ness at the admission rather than trusting the enforcement code.
+
+This only **tightens** the frame (the lowest-risk §5 edit) and makes no edge claim — pure concentration
+risk-control. Converged over the operator's R2/R3/R4 plan red-team. *(Operator-authorized 2026-06-03.)*
+
 ## 6. Kill rule (frozen)
 
 Halt **new entries** for human review if **either**:
@@ -185,9 +226,9 @@ council and **changes no frozen gate**: it only widens the *candidate set*, and 
 candidate still faces the unchanged §3 eligibility + §4 IV gate + §5 sizing/caps + §6 kill. Its
 prescreen thresholds are a candidate **funnel** (like eligibility), config-tunable, NOT
 pre-registered frozen gates; **prescreen rank is a funnel, never a tradeable signal** (the reused
-divergence plumbing is not a revived edge). *(A future per-theme/cluster exposure cap for correlated
-baskets — the `ai_compute`-style cluster makes the per-name cap false diversification — WOULD touch
-§5 and is a separate, dated, operator-authorized amendment when proposed.)* Any change to a frozen
+divergence plumbing is not a revived edge). *(The per-theme/cluster exposure cap foreseen here LANDED
+2026-06-03 as the §5 amendment above — the `ai_compute`-style cluster made the per-name cap false
+diversification on the very first live scan.)* Any change to a frozen
 threshold or gate structure is a documented edit to this doc + `config.json`, dated, never retroactive.
 
 ---
