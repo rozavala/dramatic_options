@@ -38,6 +38,28 @@ def test_parsers_coerce_and_fail_closed():
     assert s["include"] is False and s["conviction"] == "NEUTRAL" and s["parse_error"] is True
 
 
+def test_parse_error_captures_forensics():
+    # Forensic fields ride into the fallback so council_agent_outputs.raw is self-diagnosing — critical
+    # for the thinking-starvation case where the body is empty/truncated (raw_text='' → finish_reason
+    # is the only signal).
+    d = agents.parse_proposer("", finish_reason="MAX_TOKENS", thoughts_tokens=981)
+    assert d["parse_error"] is True and d["finish_reason"] == "MAX_TOKENS" and d["thoughts_tokens"] == 981
+    assert "raw_text" in d and "validation_error" in d
+    d2 = agents.parse_adversary("here is my answer, no json at all", finish_reason="STOP")
+    assert d2["parse_error"] is True and d2["raw_text"].startswith("here is my answer")
+
+
+def test_fakerouter_outputs_satisfy_validation():
+    # Ground-truth P1-#1: the validation required-key sets must stay in lock-step with what the agents
+    # emit. If a prompt/responder edit desyncs them, every REAL call fails-closed and the apparatus goes
+    # inert with a NEW root cause — so assert FakeRouter's output validates clean (no parse_error).
+    fr = FakeRouter()
+    user = "CANDIDATE: FCX bullish copper\n\nmarkers..."
+    assert not agents.parse_proposer(fr.call(role="proposer", system="s", user=user).text).get("parse_error")
+    assert not agents.parse_adversary(fr.call(role="adversary", system="s", user=user).text).get("parse_error")
+    assert not agents.parse_strategist(fr.call(role="strategist", system="s", user=user).text).get("parse_error")
+
+
 def test_adversary_prompt_is_direction_relative():
     pack = synthetic_context_pack(BEAR)
     _, user = agents.adversary_prompt(pack, {"inflection_thesis": "rollover"})

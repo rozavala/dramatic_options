@@ -108,6 +108,14 @@ def test_parse_framer_coerces_and_fails_closed():
     assert ok["confound"] == "real_inflection" and ok["confidence"] == "HIGH"
 
 
+def test_sentinel_fake_responder_satisfies_framer_validation():
+    # Ground-truth: the framer's required-key validation must stay in lock-step with what the responder
+    # emits, else every real framer call fail-closes (P1-#1, framer arm).
+    from council.sentinel import sentinel_fake_responder
+    out = sentinel_fake_responder("framer", "s", "CANDIDATE: RKLB bullish space_launch\n")
+    assert not parse_framer(out).get("parse_error")
+
+
 # ── the council judges a discovered candidate (no NEUTRAL-drop for lack of news) ──────────────
 
 

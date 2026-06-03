@@ -20,4 +20,9 @@ ignore = ["E501"]  # long log/SQL strings are fine
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# Deselect the live (real-LLM-spending) acceptance tests by default so CI / offline runs never spend
+# or need keys. Run them on-host with:  pytest -m live
+addopts = "-q -m 'not live'"
+markers = [
+    "live: real-LLM-spending council acceptance (the #37 fix); deselected by default, run on-host",
+]
