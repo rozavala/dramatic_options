@@ -26,6 +26,10 @@ _OPENAI_COMPATIBLE_BASE_URLS = {
     "perplexity": "https://api.perplexity.ai",
 }
 
+# NOTE (forward-record determinism): no provider sets ``temperature`` — each uses the SDK default.
+# For a Brier-scored forward council that is INTENTIONAL (run-to-run variation is expected; a pinned
+# temperature is a separate, pre-registered decision), not an oversight.
+
 
 class RouterError(RuntimeError):
     """A provider call failed after retries (fail-closed → the council proposes nothing)."""
@@ -43,6 +47,8 @@ class LLMResponse:
     input_tokens: int
     output_tokens: int
     cost_usd: float
+    finish_reason: str | None = None   # provider stop reason (MAX_TOKENS ⇒ truncation/thinking-starvation)
+    thoughts_tokens: int | None = None  # gemini thinking-token count (forensic; None when not a thinking model)
 
 
 @dataclass
@@ -113,23 +119,26 @@ class AnthropicProvider:
             self._client = anthropic.Anthropic(api_key=self._api_key)
         return self._client
 
-    def complete(self, *, model: str, system: str, user: str, timeout_s: float, max_tokens: int) -> tuple[str, int, int]:
+    def complete(self, *, model: str, system: str, user: str, timeout_s: float, max_tokens: int) -> tuple[str, int, int, dict]:
         client = self._ensure()
         resp = client.messages.create(
             model=model, max_tokens=max_tokens, system=system,
             messages=[{"role": "user", "content": user}], timeout=timeout_s,
         )
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
-        return text, int(resp.usage.input_tokens), int(resp.usage.output_tokens)
+        meta = {"finish_reason": getattr(resp, "stop_reason", None), "thoughts_tokens": None}
+        return text, int(resp.usage.input_tokens), int(resp.usage.output_tokens), meta
 
 
 class OpenAIProvider:
     """Serves OpenAI, xAI/Grok, and Perplexity (chat-completions compatible) via base_url."""
 
-    def __init__(self, api_key: str, *, name: str = "openai", base_url: str | None = None) -> None:
+    def __init__(self, api_key: str, *, name: str = "openai", base_url: str | None = None,
+                 json_mode: bool = True) -> None:
         self.name = name
         self._api_key = api_key
         self._base_url = base_url
+        self._json_mode = json_mode
         self._client = None
 
     def _ensure(self):
@@ -139,22 +148,45 @@ class OpenAIProvider:
             self._client = OpenAI(api_key=self._api_key, base_url=self._base_url)
         return self._client
 
-    def complete(self, *, model: str, system: str, user: str, timeout_s: float, max_tokens: int) -> tuple[str, int, int]:
+    def complete(self, *, model: str, system: str, user: str, timeout_s: float, max_tokens: int) -> tuple[str, int, int, dict]:
         client = self._ensure()
-        resp = client.chat.completions.create(
-            model=model, max_tokens=max_tokens, timeout=timeout_s,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-        )
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        kwargs = dict(model=model, max_tokens=max_tokens, timeout=timeout_s, messages=messages)
+        # JSON mode REQUIRES the literal "json" in the messages (OpenAI/xAI precondition) — without it the
+        # API 400s, or worse streams unbounded whitespace to the token cap. Our role prompts all say
+        # "Reply with ONE JSON object", so the gate passes; if a compat endpoint rejects response_format we
+        # retry once WITHOUT it (loud) — the prompt + the Part-2 schema validation still elicit/guard JSON.
+        use_json = self._json_mode and ("json" in system.lower() or "json" in user.lower())
+        if use_json:
+            kwargs["response_format"] = {"type": "json_object"}
+        try:
+            resp = client.chat.completions.create(**kwargs)
+        except Exception as e:  # noqa: BLE001
+            if use_json and getattr(e, "status_code", None) == 400:
+                log.warning("openai %s/%s: response_format rejected (%s) — retrying without json_object", self.name, model, e)
+                kwargs.pop("response_format", None)
+                resp = client.chat.completions.create(**kwargs)
+            else:
+                raise
         text = resp.choices[0].message.content or ""
         usage = resp.usage
-        return text, int(usage.prompt_tokens), int(usage.completion_tokens)
+        meta = {"finish_reason": getattr(resp.choices[0], "finish_reason", None), "thoughts_tokens": None}
+        return text, int(usage.prompt_tokens), int(usage.completion_tokens), meta
 
 
 class GeminiProvider:
     name = "gemini"
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, *, json_mode: bool = True,
+                 thinking_level: str | None = "minimal", thinking_budget: int | None = None) -> None:
         self._api_key = api_key
+        self._json_mode = json_mode
+        # Gemini 3.x uses thinking_LEVEL (minimal/low/medium/high); 2.5 used thinking_BUDGET. They are
+        # mutually exclusive (the API 400s if both are set), and on a 3.x thinking model the DEFAULT
+        # thinking eats max_output_tokens → truncated/empty JSON (the #37 bug). We default to
+        # thinking_level="minimal" (the documented 3.x "as little thinking as possible" knob).
+        self._thinking_level = thinking_level
+        self._thinking_budget = thinking_budget
         self._client = None
 
     def _ensure(self):
@@ -164,20 +196,49 @@ class GeminiProvider:
             self._client = genai.Client(api_key=self._api_key)
         return self._client
 
-    def complete(self, *, model: str, system: str, user: str, timeout_s: float, max_tokens: int) -> tuple[str, int, int]:
+    def _thinking_config(self, types):
+        """thinking_level XOR thinking_budget (never both). Prefer level (the 3.x knob). Fail LOUD on a
+        bad level rather than silently dropping it back to default thinking (which re-creates the bug)."""
+        if self._thinking_level:
+            member = getattr(types.ThinkingLevel, str(self._thinking_level).upper(), None)
+            if member is None:
+                raise RouterError(f"unknown gemini thinking_level {self._thinking_level!r}")
+            return types.ThinkingConfig(thinking_level=member)
+        if self._thinking_budget is not None:
+            return types.ThinkingConfig(thinking_budget=int(self._thinking_budget))
+        return None
+
+    def complete(self, *, model: str, system: str, user: str, timeout_s: float, max_tokens: int) -> tuple[str, int, int, dict]:
         client = self._ensure()
         from google.genai import types  # lazy
 
+        cfg_kwargs = dict(
+            system_instruction=system, max_output_tokens=max_tokens,
+            http_options=types.HttpOptions(timeout=int(timeout_s * 1000)),
+        )
+        if self._json_mode:
+            cfg_kwargs["response_mime_type"] = "application/json"
+        tcfg = self._thinking_config(types)
+        if tcfg is not None:
+            cfg_kwargs["thinking_config"] = tcfg
+
         resp = client.models.generate_content(
-            model=model, contents=user,
-            config=types.GenerateContentConfig(
-                system_instruction=system, max_output_tokens=max_tokens,
-                http_options=types.HttpOptions(timeout=int(timeout_s * 1000)),
-            ),
+            model=model, contents=user, config=types.GenerateContentConfig(**cfg_kwargs),
         )
         text = resp.text or ""
         um = resp.usage_metadata
-        return text, int(um.prompt_token_count or 0), int(um.candidates_token_count or 0)
+        finish_reason = None
+        try:
+            finish_reason = str(resp.candidates[0].finish_reason)
+        except Exception:  # noqa: BLE001 — finish_reason is forensic only
+            pass
+        thoughts = getattr(um, "thoughts_token_count", None)
+        if not text:
+            # Loud (not silent): an empty body on a billed call is the #37 failure mode — surface it.
+            log.warning("gemini %s returned EMPTY text (finish_reason=%s, thoughts_tokens=%s, max_tokens=%s)",
+                        model, finish_reason, thoughts, max_tokens)
+        return (text, int(um.prompt_token_count or 0), int(um.candidates_token_count or 0),
+                {"finish_reason": finish_reason, "thoughts_tokens": thoughts})
 
 
 # ── The router ──────────────────────────────────────────────────────────────────────────────
@@ -195,7 +256,7 @@ class Router:
         ledger: CostLedger,
         timeout_s: float = 60.0,
         max_retries: int = 2,
-        max_tokens: int = 1024,
+        max_tokens: int = 2048,
     ) -> None:
         self._providers = providers
         self._roles = roles
@@ -222,13 +283,16 @@ class Router:
         last_err: Exception | None = None
         for attempt in range(self._max_retries + 1):
             try:
-                text, in_tok, out_tok = provider.complete(
+                text, in_tok, out_tok, meta = provider.complete(
                     model=model, system=system, user=user,
                     timeout_s=self._timeout_s, max_tokens=max_tokens or self._max_tokens,
                 )
                 cost = price_call(self._prices, model, in_tok, out_tok)
                 self.ledger.record(CostEntry(role, provider_name, model, in_tok, out_tok, cost))
-                return LLMResponse(text, provider_name, model, in_tok, out_tok, cost)
+                meta = meta or {}
+                return LLMResponse(text, provider_name, model, in_tok, out_tok, cost,
+                                   finish_reason=meta.get("finish_reason"),
+                                   thoughts_tokens=meta.get("thoughts_tokens"))
             except Exception as e:  # noqa: BLE001 — provider/transport errors → retry then fail-closed
                 last_err = e
                 log.warning("router %s/%s call failed (attempt %d/%d): %s",
@@ -236,6 +300,23 @@ class Router:
                 if attempt < self._max_retries:
                     time.sleep(min(2.0 ** attempt, 5.0))
         raise RouterError(f"{role} ({provider_name}/{model}) failed after {self._max_retries + 1} attempts: {last_err}")
+
+
+_PROVIDER_KNOB_KEYS = ("thinking_level", "thinking_budget", "json_mode")
+
+
+def _provider_knobs(provider_name: str, roles: dict, provider_default: dict) -> dict:
+    """Resolve generation knobs for a provider: the ``council.<provider>`` default overlaid by any
+    per-role override (``roles.<role>.thinking_level`` / ``json_mode`` …) for the role(s) using it.
+    One role per provider in practice (proposer→gemini, adversary→xai, strategist→anthropic,
+    framer→gemini); the per-role hook is the expansion path (P3-#11 — a future thinking-wanting role)."""
+    knobs = dict(provider_default)
+    for spec in roles.values():
+        if spec.get("provider") == provider_name:
+            for k in _PROVIDER_KNOB_KEYS:
+                if k in spec:
+                    knobs[k] = spec[k]
+    return knobs
 
 
 def build_router(config: dict, llm_keys: dict, *, ledger: CostLedger | None = None) -> Router:
@@ -257,9 +338,16 @@ def build_router(config: dict, llm_keys: dict, *, ledger: CostLedger | None = No
         if name == "anthropic":
             providers[name] = AnthropicProvider(key)
         elif name == "gemini":
-            providers[name] = GeminiProvider(key)
+            knobs = _provider_knobs(name, roles, council.get("gemini", {}))
+            providers[name] = GeminiProvider(
+                key, json_mode=bool(knobs.get("json_mode", True)),
+                thinking_level=knobs.get("thinking_level", "minimal"),
+                thinking_budget=knobs.get("thinking_budget"))
         elif name in _OPENAI_COMPATIBLE_BASE_URLS:
-            providers[name] = OpenAIProvider(key, name=name, base_url=_OPENAI_COMPATIBLE_BASE_URLS[name])
+            knobs = _provider_knobs(name, roles, council.get("openai", {}))
+            providers[name] = OpenAIProvider(
+                key, name=name, base_url=_OPENAI_COMPATIBLE_BASE_URLS[name],
+                json_mode=bool(knobs.get("json_mode", True)))
         else:
             raise RouterError(f"unknown council provider {name!r}")
 
@@ -270,6 +358,7 @@ def build_router(config: dict, llm_keys: dict, *, ledger: CostLedger | None = No
         providers=providers, roles=roles, prices=prices, ledger=ledger,
         timeout_s=float(council.get("timeout_s", 60)),
         max_retries=int(council.get("max_retries", 2)),
+        max_tokens=int(council.get("max_tokens", 2048)),
     )
 
 

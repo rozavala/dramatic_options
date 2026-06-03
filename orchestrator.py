@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import logging
 import sys
 import tempfile
@@ -120,6 +121,32 @@ def _print_book_summary(conn, config: dict) -> None:
         prem = state.cluster_open_premium(conn, members)
         pct = (100.0 * prem / cap_val) if cap_val else 0.0
         log.info("  cluster %-16s $%.0f / $%.0f (%.0f%%)", cname, prem, cap_val, pct)
+
+
+def _stamp_council_health(conn, run_id: int, config: dict, router) -> None:
+    """Page + stamp the cycle's proposer parse-health. A high parse-fail rate means the council was
+    INERT for a BUG reason (a model/SDK regression), not deliberate abstention — the #37 trap, which
+    looks identical to fail-closed selectivity and otherwise trips no page. Also stamps the resolved
+    per-role model_mix (a record-segmentation key). Best-effort: never raises into the trade cycle."""
+    try:
+        health = state.council_parse_health(conn, run_id)
+        mix = {role: "/".join(router.provider_model(role)) for role in ("proposer", "adversary", "strategist")}
+        if health["called"]:
+            log.info("Council proposer parse-health: %d/%d failed (%.0f%%)",
+                     health["parse_failed"], health["called"], health["rate"] * 100)
+        page_rate = float(config.get("council", {}).get("parse_fail_page_rate", 0.5))
+        inert = health["called"] >= 2 and health["rate"] >= page_rate
+        if inert:
+            log.error("Council proposer parse-fail %d/%d (>=%.0f%%) — apparatus INERT (likely a model/SDK "
+                      "regression, not judgment). Inspect council_agent_outputs.raw.",
+                      health["parse_failed"], health["called"], page_rate * 100)
+            notify.send("Council parse-fail — inert apparatus",
+                        f"{health['parse_failed']}/{health['called']} proposer calls failed to parse this "
+                        f"cycle → the council included nothing for a BUG reason. Check council_agent_outputs.raw.")
+        state.update_run_council_health(conn, run_id, council_health="parse_fail" if inert else "ok",
+                                        model_mix=json.dumps(mix))
+    except Exception as e:  # noqa: BLE001 — health/paging is a control, must never break the trade cycle
+        log.warning("council health stamp failed (non-fatal): %s", e)
 
 
 def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
@@ -489,15 +516,18 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                 clock=clock, news=news_dep, demo=demo, run_id=run_id,
                             )
                             log.info(router.ledger.summary())
+                            _stamp_council_health(conn, run_id, config, router)
                         except BudgetExceeded as e:
                             # Soft, exit-0 condition: OnFailure can't catch it → page in-app (PR2 R-C).
                             log.error("Council cost cap hit (%s) — fail-closed: NO entries this cycle.", e)
                             notify.send("Council cost cap hit", f"{e}\nNo entries submitted this cycle.")
                             themes = []
+                            state.update_run_council_health(conn, run_id, council_health="cost_cap")
                         except RouterError as e:
                             log.error("Council unavailable (%s) — fail-closed: NO entries this cycle.", e)
                             notify.send("Council fail-closed — 0 entries", str(e))
                             themes = []
+                            state.update_run_council_health(conn, run_id, council_health="fail_closed")
 
                 # Post-council re-check (PR2 R7): the council can take minutes; re-confirm the
                 # market is still open immediately before submitting so "no entry outside RTH"

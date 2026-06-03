@@ -54,7 +54,7 @@ class _StubProvider:
         self._calls += 1
         if self._calls <= self._fail_times:
             raise RuntimeError("transient")
-        return self._text, self._in, self._out
+        return self._text, self._in, self._out, {"finish_reason": "STOP", "thoughts_tokens": None}
 
 
 def test_router_records_cost_and_returns_response():
@@ -121,3 +121,21 @@ def test_fake_router_is_deterministic_and_free():
 def test_fake_router_custom_responder():
     fr = FakeRouter(responder=lambda role, system, user: json.dumps({"role": role}))
     assert json.loads(fr.call(role="adversary", system="s", user="u").text) == {"role": "adversary"}
+
+
+def test_build_router_threads_gemini_thinking_knobs():
+    # The P0 fix is config-driven: the gemini provider must receive thinking_level + json_mode so a 3.x
+    # thinking model doesn't starve its output budget (SDKs lazy → no network).
+    config = {"council": {"roles": {"proposer": {"provider": "gemini", "model": "gemini-3.5-flash"}},
+                          "gemini": {"thinking_level": "minimal", "json_mode": True}}}
+    prov = build_router(config, llm_keys={"gemini": "g"})._providers["gemini"]
+    assert prov._thinking_level == "minimal" and prov._json_mode is True
+
+
+def test_build_router_per_role_knob_overrides_provider_default():
+    # P3-#11: a per-role knob overrides the council.<provider> default (the expansion path).
+    config = {"council": {"roles": {"proposer": {"provider": "gemini", "model": "m",
+                                                 "thinking_level": "low", "json_mode": False}},
+                          "gemini": {"thinking_level": "minimal", "json_mode": True}}}
+    prov = build_router(config, llm_keys={"gemini": "g"})._providers["gemini"]
+    assert prov._thinking_level == "low" and prov._json_mode is False

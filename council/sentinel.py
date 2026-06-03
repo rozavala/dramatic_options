@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 
-from council.agents import extract_json
+from council.agents import extract_json, parse_error_fallback
 from council.context import sentinel_context_pack
 from council.filters import apply_filter
 from council.proposal import normalize_conviction
@@ -49,16 +49,29 @@ def framer_prompt(pack) -> tuple[str, str]:
     return FRAMER_SYSTEM, pack.as_prompt_block()
 
 
-def parse_framer(text: str) -> dict:
+def parse_framer(text: str, *, finish_reason=None, thoughts_tokens=None) -> dict:
     """Defensive parse → strict confidence + a confound in the controlled vocabulary (else None).
-    A parse failure resolves to NEUTRAL (fail-closed → the candidate is dropped, never surfaced)."""
+    A parse/shape failure resolves to NEUTRAL (fail-closed → dropped, never surfaced) and preserves the
+    raw text + finish_reason for forensics. A genuine NEUTRAL abstention is allowed to be minimal; a
+    non-NEUTRAL framing must carry a valid confound + direction."""
     try:
         d = extract_json(text)
-    except (ValueError, json.JSONDecodeError):
-        return {"confidence": "NEUTRAL", "confound": None, "parse_error": True}
-    d["confidence"] = normalize_conviction(d.get("confidence"))
+    except (ValueError, json.JSONDecodeError) as e:
+        return parse_error_fallback(text, reason=f"extract_json: {e}", confound=None,
+                                    finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    if "confidence" not in d:
+        return parse_error_fallback(text, reason="missing 'confidence'", confound=None,
+                                    finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    conf = normalize_conviction(d.get("confidence"))
     c = str(d.get("confound", "")).strip().lower()
-    d["confound"] = c if c in CONFOUNDS else None
+    confound = c if c in CONFOUNDS else None
+    if conf != "NEUTRAL":
+        direction = str(d.get("direction", "")).strip().lower()
+        if confound is None or direction not in ("bullish", "bearish"):
+            return parse_error_fallback(text, reason="non-NEUTRAL framer missing confound/direction",
+                                        confound=None, finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    d["confidence"] = conf
+    d["confound"] = confound
     return d
 
 
@@ -84,7 +97,10 @@ def frame_candidates(surfaced, router, *, as_of) -> dict[str, dict]:
         except RouterError as e:
             log.warning("Framer dropped %s (%s) — provider error.", m.symbol, e)
             continue
-        raw = parse_framer(resp.text)
+        raw = parse_framer(resp.text, finish_reason=resp.finish_reason, thoughts_tokens=resp.thoughts_tokens)
+        if raw.get("parse_error"):
+            log.warning("framer parse-fail %s/%s for %s: %s (finish=%s, thoughts=%s)", resp.provider,
+                        resp.model, m.symbol, raw.get("validation_error"), resp.finish_reason, resp.thoughts_tokens)
         conf, _fr = apply_filter([str(raw.get("seed_thesis", "")), str(raw.get("theme", ""))],
                                  pack, confidence=raw.get("confidence"))
         if conf == "NEUTRAL" or raw.get("confound") == "artifact":
@@ -116,6 +132,11 @@ def build_framer_router(config: dict, llm_keys: dict):
         "cost_cap_usd": disc.get("cost_cap_usd"),
         "timeout_s": disc.get("timeout_s", council.get("timeout_s", 60)),
         "max_retries": disc.get("max_retries", council.get("max_retries", 2)),
+        "max_tokens": council.get("max_tokens", 2048),
+        # Forward the gemini/openai generation knobs so the framer gets thinking_level=minimal too
+        # (gemini-3.1-flash-lite is also 3.x — same thinking-starvation risk on a longer marker block).
+        "gemini": council.get("gemini", {}),
+        "openai": council.get("openai", {}),
     }}
     return build_router(cfg, llm_keys)
 

@@ -22,9 +22,42 @@ def test_extract_json_handles_fences_and_prose():
 
 
 def test_parsers_coerce_and_fail_closed():
-    assert agents.parse_proposer('{"confidence": "high"}')["confidence"] == "HIGH"
-    assert agents.parse_strategist("not json")["include"] is False
-    assert agents.parse_strategist("not json")["conviction"] == "NEUTRAL"
+    # A well-formed non-NEUTRAL proposal keeps its (normalized) confidence.
+    full = json.dumps({"confidence": "high", "structural_vs_fad": "structural",
+                       "inflection_thesis": "real backlog inflection"})
+    assert agents.parse_proposer(full)["confidence"] == "HIGH"
+    # A bare {confidence} with NO thesis/structure is JSON-mode's "valid but empty shape" → fail-closed
+    # NEUTRAL + parse_error (P1-#1: the bug in a new costume, caught).
+    bare = agents.parse_proposer('{"confidence": "high"}')
+    assert bare["confidence"] == "NEUTRAL" and bare["parse_error"] is True
+    # A genuine NEUTRAL abstention is allowed to be minimal — NOT a parse error.
+    neutral = agents.parse_proposer('{"confidence": "NEUTRAL"}')
+    assert neutral["confidence"] == "NEUTRAL" and not neutral.get("parse_error")
+    # Non-JSON → fail-closed, evidence preserved.
+    s = agents.parse_strategist("not json")
+    assert s["include"] is False and s["conviction"] == "NEUTRAL" and s["parse_error"] is True
+
+
+def test_parse_error_captures_forensics():
+    # Forensic fields ride into the fallback so council_agent_outputs.raw is self-diagnosing — critical
+    # for the thinking-starvation case where the body is empty/truncated (raw_text='' → finish_reason
+    # is the only signal).
+    d = agents.parse_proposer("", finish_reason="MAX_TOKENS", thoughts_tokens=981)
+    assert d["parse_error"] is True and d["finish_reason"] == "MAX_TOKENS" and d["thoughts_tokens"] == 981
+    assert "raw_text" in d and "validation_error" in d
+    d2 = agents.parse_adversary("here is my answer, no json at all", finish_reason="STOP")
+    assert d2["parse_error"] is True and d2["raw_text"].startswith("here is my answer")
+
+
+def test_fakerouter_outputs_satisfy_validation():
+    # Ground-truth P1-#1: the validation required-key sets must stay in lock-step with what the agents
+    # emit. If a prompt/responder edit desyncs them, every REAL call fails-closed and the apparatus goes
+    # inert with a NEW root cause — so assert FakeRouter's output validates clean (no parse_error).
+    fr = FakeRouter()
+    user = "CANDIDATE: FCX bullish copper\n\nmarkers..."
+    assert not agents.parse_proposer(fr.call(role="proposer", system="s", user=user).text).get("parse_error")
+    assert not agents.parse_adversary(fr.call(role="adversary", system="s", user=user).text).get("parse_error")
+    assert not agents.parse_strategist(fr.call(role="strategist", system="s", user=user).text).get("parse_error")
 
 
 def test_adversary_prompt_is_direction_relative():

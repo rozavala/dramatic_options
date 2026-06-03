@@ -732,6 +732,52 @@ def record_agent_output(
     return int(cur.lastrowid)
 
 
+def _is_parse_error(raw) -> bool:
+    """True if a stored agent_output ``raw`` is the fail-closed parse_error fallback. Robust to the
+    JSON-string form it's persisted in (``record_agent_output`` json.dumps it) or a dict."""
+    if not raw:
+        return False
+    if isinstance(raw, dict):
+        return bool(raw.get("parse_error"))
+    try:
+        import json
+        return bool(json.loads(raw).get("parse_error"))
+    except Exception:  # noqa: BLE001 — non-JSON raw can't be a structured parse_error
+        return '"parse_error": true' in str(raw)
+
+
+def council_parse_health(conn: sqlite3.Connection, run_id: int) -> dict:
+    """Cycle-level proposer parse-health for a run: how many proposer LLM calls were made and how many
+    FAILED to parse. Excludes ungrounded $0 early-exits (those record no proposer agent_output), so a
+    high rate means the apparatus was INERT for a BUG reason — not deliberate abstention."""
+    rows = conn.execute(
+        "SELECT ao.raw AS raw FROM council_agent_outputs ao "
+        "JOIN council_proposals cp ON cp.id = ao.proposal_id "
+        "WHERE cp.run_id = ? AND ao.role = 'proposer'",
+        (run_id,),
+    ).fetchall()
+    called = len(rows)
+    failed = sum(1 for r in rows if _is_parse_error(r["raw"]))
+    return {"called": called, "parse_failed": failed, "rate": (failed / called) if called else 0.0}
+
+
+def update_run_council_health(
+    conn: sqlite3.Connection, run_id: int, *, council_health: str, model_mix: str | None = None
+) -> None:
+    """Stamp a run's council HEALTH ('ok'|'parse_fail'|'cost_cap'|'fail_closed') and resolved per-role
+    MODEL_MIX (migration 0011). The health stamp lets the T4 analysis CENSOR the council-marginal
+    attribution of a bug-contaminated run (the brain-off null books stay valid); the model_mix stamp
+    makes a deliberate model upgrade a record-segmenting event (companion to ``frame_version``)."""
+    with conn:
+        if model_mix is not None:
+            conn.execute(
+                "UPDATE runs SET council_health = ?, model_mix = ? WHERE id = ?",
+                (council_health, model_mix, run_id),
+            )
+        else:
+            conn.execute("UPDATE runs SET council_health = ? WHERE id = ?", (council_health, run_id))
+
+
 def link_proposal_position(
     conn: sqlite3.Connection, proposal_id: int, position_id: int, *, status: str = "traded"
 ) -> None:
