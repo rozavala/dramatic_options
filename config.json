@@ -72,6 +72,10 @@
     "conviction_to_prob": {"LOW": 0.55, "MODERATE": 0.65, "HIGH": 0.75, "EXTREME": 0.85},
     "timeout_s": 60,
     "max_retries": 2,
+    "max_tokens": 2048,
+    "parse_fail_page_rate": 0.5,
+    "gemini": {"thinking_level": "minimal", "json_mode": true},
+    "openai": {"json_mode": true},
     "max_candidates": 12,
     "news_lookback_days": 90,
     "prices_per_mtok": {
