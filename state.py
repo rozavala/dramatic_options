@@ -350,6 +350,132 @@ def convexity_book_open_premium(conn: sqlite3.Connection) -> float:
     return float(row["s"]) if row else 0.0
 
 
+# ── brain-off NULL shadow book (T3 PR3b) ─────────────────────────────────────────────────────────
+# A SEPARATE table + helpers from convexity_positions, ON PURPOSE: the shadow book is simulated-only
+# and must never share a code path that can reach the broker (migration 0008). Its lifecycle is just
+# open → closed (no pending/closing/order_id). Sizing/dedup mirror the real book but against the
+# SHADOW book's OWN occupancy, so the only difference vs the real book is the brain-off selection.
+
+
+def record_shadow_position(
+    conn: sqlite3.Connection,
+    *,
+    run_id: int | None,
+    origin: str,
+    opened_at: str,
+    theme: str,
+    symbol: str,
+    direction: str,
+    structure_kind: str,
+    contract_symbol: str,
+    expiry: str,
+    strike: float,
+    dte: int,
+    moneyness: float,
+    contracts: int,
+    entry_premium_per_contract: float,
+    total_premium: float,
+    entry_spot: float | None = None,
+) -> int:
+    """Book a simulated (NEVER broker) shadow position at the chain mid. Returns its id. Atomic."""
+    with conn:
+        cur = conn.execute(
+            "INSERT INTO shadow_positions (run_id, origin, opened_at, theme, symbol, direction, "
+            "structure_kind, contract_symbol, expiry, strike, dte, moneyness, contracts, "
+            "entry_premium_per_contract, total_premium, entry_spot, status, mark) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL)",
+            (
+                run_id, origin, opened_at, theme, symbol, direction, structure_kind,
+                contract_symbol, expiry, strike, dte, moneyness, contracts,
+                entry_premium_per_contract, total_premium, entry_spot,
+            ),
+        )
+    return int(cur.lastrowid)
+
+
+def open_shadow_positions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM shadow_positions WHERE status = 'open' ORDER BY id").fetchall()
+
+
+def shadow_open_symbols(conn: sqlite3.Connection) -> set[str]:
+    """Underlyings with a live shadow position (per-cycle dedup — one shadow bet per name)."""
+    rows = conn.execute("SELECT DISTINCT symbol FROM shadow_positions WHERE status = 'open'").fetchall()
+    return {r["symbol"] for r in rows}
+
+
+def count_open_shadow_positions(conn: sqlite3.Connection) -> int:
+    row = conn.execute("SELECT COUNT(*) AS n FROM shadow_positions WHERE status = 'open'").fetchone()
+    return int(row["n"]) if row else 0
+
+
+def count_open_shadow_sentinel_positions(conn: sqlite3.Connection) -> int:
+    """Open shadow positions of sentinel origin — so the shadow can apply the SAME slot reservation the
+    real book uses (the brain-off difference is the council's include/exclude, never the deterministic cap)."""
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM shadow_positions WHERE status = 'open' AND origin = 'sentinel'"
+    ).fetchone()
+    return int(row["n"]) if row else 0
+
+
+def shadow_book_open_premium(conn: sqlite3.Connection) -> float:
+    row = conn.execute(
+        "SELECT COALESCE(SUM(total_premium), 0.0) AS s FROM shadow_positions WHERE status = 'open'"
+    ).fetchone()
+    return float(row["s"]) if row else 0.0
+
+
+def mark_shadow_position(conn: sqlite3.Connection, position_id: int, *, mark: float, as_of: str) -> None:
+    with conn:
+        conn.execute(
+            "UPDATE shadow_positions SET mark = ?, marked_at = ? WHERE id = ?",
+            (float(mark), as_of, position_id),
+        )
+
+
+def close_shadow_position(
+    conn: sqlite3.Connection,
+    position_id: int,
+    *,
+    exit_price: float,
+    realized_pnl: float,
+    realized_multiple: float,
+    reason: str,
+    as_of: str,
+) -> None:
+    """Close a shadow position in-DB (always at mark/intrinsic — there is no broker). Atomic."""
+    with conn:
+        conn.execute(
+            "UPDATE shadow_positions SET status = 'closed', mark = ?, realized_pnl = ?, "
+            "realized_multiple = ?, exit_reason = ?, closed_at = ?, marked_at = ? WHERE id = ?",
+            (float(exit_price), float(realized_pnl), float(realized_multiple), reason, as_of, as_of, position_id),
+        )
+
+
+def shadow_realized_multiples(conn: sqlite3.Connection) -> dict[str, list[float]]:
+    """Closed shadow positions' per-position realized multiples, grouped by ``origin`` (the TAIL
+    substrate — refinement #2: a convex book's value is in the tail, and the brain-off book is larger,
+    so compare per-position multiples, never an aggregate book total)."""
+    out: dict[str, list[float]] = {}
+    for r in conn.execute(
+        "SELECT origin, realized_multiple FROM shadow_positions "
+        "WHERE status = 'closed' AND realized_multiple IS NOT NULL ORDER BY id"
+    ):
+        out.setdefault(str(r["origin"]), []).append(float(r["realized_multiple"]))
+    return out
+
+
+def convexity_realized_multiples(conn: sqlite3.Connection) -> list[float]:
+    """The REAL (brain-on) book's per-position realized multiples (exit value ÷ entry premium) over
+    closed positions — the other side of the brain-off-vs-brain-on tail comparison."""
+    out: list[float] = []
+    for r in conn.execute(
+        "SELECT total_premium, realized_pnl FROM convexity_positions "
+        "WHERE status = 'closed' AND realized_pnl IS NOT NULL AND total_premium > 0 ORDER BY id"
+    ):
+        out.append((float(r["total_premium"]) + float(r["realized_pnl"])) / float(r["total_premium"]))
+    return out
+
+
 def record_council_proposal(
     conn: sqlite3.Connection,
     *,

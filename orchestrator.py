@@ -24,6 +24,7 @@ from pathlib import Path
 import discovery
 import notify
 import sentinels
+import shadow_book
 import state
 from broker import AlpacaPaperBroker, PaperBroker
 from clock import Clock, FixedClock, LiveClock
@@ -383,6 +384,21 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             mres.unmarked, mres.realized_pnl,
         )
 
+        # 1b. Brain-off NULL shadow book (T3 PR3b) — mark + exit the simulated control book alongside
+        #     the real monitor, every cycle. FAIL-SOFT: a measurement-control bug must never halt the
+        #     real trade cycle, and it never reaches the broker (shadow_book imports none).
+        try:
+            smr = shadow_book.mark_shadow_positions(
+                conn=conn, clock=clock, quote_provider=quote_provider, config=config,
+                underlying_price_of=provider.underlying_price,
+            )
+            if smr.marked or smr.closed:
+                log.info("Shadow(null) monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d)",
+                         smr.marked, smr.closed, smr.expired, smr.profit_taken, smr.time_stopped)
+        except Exception as e:  # noqa: BLE001 — fail-soft: the shadow control never breaks the cycle
+            log.warning("shadow mark pass failed (non-fatal): %s", e)
+            notify.send("Shadow book mark failed (non-fatal)", str(e))
+
         # 2. Council pass → themes (T2). The council PROPOSES; the deterministic gates in
         #    run_paper_cycle still DISPOSE. Entries are gated BEFORE any LLM spend by
         #    FORWARD_ENABLED + market-open (PR2 §B): an inert env or a closed market pays
@@ -451,6 +467,22 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             "; ".join(result.notes) or "halted", priority=1,
                         )
                     _print_survivorship(conn, run_id)
+
+                    # Brain-off NULL shadow book (T3 PR3b) — book EVERY gate-passer over the SAME
+                    # candidate union the council saw, brain-OFF (no council narrowing, no framer
+                    # drop). FAIL-SOFT + never-broker. The forward gap to the real book's tail = the
+                    # LLM layer's marginal contribution.
+                    try:
+                        sbr = shadow_book.run_shadow_cycle(
+                            config=config, conn=conn, clock=clock, provider=provider, run_id=run_id,
+                        )
+                        if sbr.booked or sbr.halted:
+                            log.info("Shadow(null) book: booked=%d %s vetoed=%d skipped=%d%s",
+                                     sbr.booked, dict(sbr.by_origin), sbr.vetoed, sbr.skipped,
+                                     " HALTED" if sbr.halted else "")
+                    except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the real cycle
+                        log.warning("shadow book pass failed (non-fatal): %s", e)
+                        notify.send("Shadow book entry failed (non-fatal)", str(e))
 
         _print_book_summary(conn, config)
         return 0

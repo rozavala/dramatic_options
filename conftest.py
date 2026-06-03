@@ -27,7 +27,7 @@ def _apply_migration(conn, name: str) -> None:
 
 @pytest.fixture
 def convexity_db(tmp_path):
-    """A migrated SQLite connection with runs + convexity + council + sentinel tables."""
+    """A migrated SQLite connection with runs + convexity + council + sentinel + shadow tables."""
     conn = state.connect(tmp_path / "t.db")
     _apply_migration(conn, "0001_initial.py")
     _apply_migration(conn, "0003_convexity.py")
@@ -35,6 +35,7 @@ def convexity_db(tmp_path):
     _apply_migration(conn, "0005_council.py")
     _apply_migration(conn, "0006_close_side.py")
     _apply_migration(conn, "0007_sentinels.py")
+    _apply_migration(conn, "0008_shadow_book.py")
     try:
         yield conn
     finally:
