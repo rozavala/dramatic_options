@@ -28,6 +28,7 @@ import fixed_basket
 import notify
 import sentinels
 import shadow_book
+import shares_basket
 import state
 from broker import AlpacaPaperBroker, PaperBroker
 from clock import Clock, FixedClock, LiveClock
@@ -361,6 +362,27 @@ def run_discover(demo: bool = False) -> int:
             except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the scan
                 log.warning("no-gate 3B book pass failed (non-fatal): %s", e)
                 notify.send("Fixed-basket 3B failed (non-fatal)", str(e))
+
+        # Shares descriptive null (PREREG_FIXED_BASKET_NULL §2/§5, PR2c) — convexity vs LINEAR over the
+        # SAME option-eligible basket names. The report is DESCRIPTIVE, shown ALONGSIDE the option tails,
+        # NEVER scored against them (§5). FAIL-SOFT + never-broker.
+        if config.get("shares_basket", {}).get("enabled", True):
+            try:
+                sh_provider = (SyntheticChainProvider(as_of=as_of.date()) if demo
+                               else AlpacaChainProvider(client))
+                sbr = shares_basket.run_shares_basket_cycle(
+                    config=config, conn=conn, clock=clock, provider=sh_provider, market=market,
+                    benchmark=benchmark, params=params, run_id=run_id,
+                )
+                if sbr.booked or sbr.halted:
+                    log.info("Shares(null) book: booked=%d vetoed=%d skipped=%d errors=%d%s",
+                             sbr.booked, sbr.vetoed, sbr.skipped, sbr.errors,
+                             " HALTED" if sbr.halted else "")
+                report = shares_basket.shares_return_report(conn, market, now=as_of)
+                log.info("Shares(null) DESCRIPTIVE return report (NOT vs the option tails): %s", report["horizons"])
+            except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the scan
+                log.warning("shares null book pass failed (non-fatal): %s", e)
+                notify.send("Shares null failed (non-fatal)", str(e))
         return 0
     finally:
         conn.close()
