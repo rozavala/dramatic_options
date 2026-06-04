@@ -115,6 +115,16 @@
     "enabled": true,
     "horizons": [180, 270, 365]
   },
+  "cluster_diagnostic": {
+    "_comment": "Report-not-gate cluster-cap curation BACKSTOP (PREREG §5). Trailing-return correlation over the names the system trades/considers; flags co-moving pairs NOT co-clustered so the operator can curate convexity_book.clusters. It NEVER edits the map (hard seam) and NEVER gates a trade. Tuned for SENSITIVITY (a false negative under-protects the cap): union flag max(raw,resid,spearman), top_n SORTED not hard-filtered (the threshold highlights, never drops a near-miss), Pearson treated as a LOWER BOUND on the tail co-dependence a convex book concentrates. window_days matched to the ~250d convex hold (the cap's horizon); residual strips residual_benchmark beta = the shared-driver attribution, NOT the gatekeeper (residual β is noisy on the free feed); min_overlap is the reporting floor — below it a name is invisible, covered instead by the cap's conservative over-cluster default. All PINNED (§7). Read-only over the warm cache (client=None ⇒ no fetch); fail-soft in L0.",
+    "enabled": true,
+    "window_days": 252,
+    "secondary_window_days": 63,
+    "high_corr_threshold": 0.7,
+    "min_overlap": 63,
+    "top_n": 25,
+    "residual_benchmark": "SPY"
+  },
   "execution": {
     "_comment": "Real Alpaca paper order path (broker.AlpacaPaperBroker). SENDING is gated by safety.dry_run: dry_run=true (default) logs the intended order + simulates the fill — nothing is transmitted; dry_run=false actually submits to the PAPER endpoint. cancel_unfilled: at reconcile, cancel a still-resting limit (it re-evaluates next cycle) instead of leaving it open.",
     "cancel_unfilled": true
