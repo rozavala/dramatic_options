@@ -110,6 +110,11 @@
     "_comment": "The no-gate / fixed-basket NULL books (PREREG_FIXED_BASKET_NULL.md) — test the IV GATE itself (the existing real/shadow pair only tests the council). PR2a ships book 3A ('union_nogate'): gate-OFF over the SAME candidate union the shadow book sees, cap-ON, every L1, so shadow−3A is the FSSD null≈signal control on the edge. PR2b adds 3B (whole basket, equal-weight, weekly) + the shares null. Simulated-only, NEVER the broker, fail-soft (a null bug never halts the real cycle). enabled=false disables the no-gate books; the real loop is unaffected.",
     "enabled": true
   },
+  "shares_basket": {
+    "_comment": "The SHARES descriptive null (PREREG_FIXED_BASKET_NULL §2/§5, PR2c) — convexity vs LINEAR. An append-only entry log over the option-eligible basket names (weekly L0, motion-derived direction, equal-weight = one unit); signed returns are computed at REPORT time from bars at the horizon set below, with the §6 terminal-event survivorship guard. DESCRIPTIVE only — shown ALONGSIDE the option tails, NEVER scored against them; forward, never a pass-gate. Simulated, NEVER the broker, fail-soft. horizons mirror the calibration tenor sweep (the convex book holds ~250d median, not 180d).",
+    "enabled": true,
+    "horizons": [180, 270, 365]
+  },
   "execution": {
     "_comment": "Real Alpaca paper order path (broker.AlpacaPaperBroker). SENDING is gated by safety.dry_run: dry_run=true (default) logs the intended order + simulates the fill — nothing is transmitted; dry_run=false actually submits to the PAPER endpoint. cancel_unfilled: at reconcile, cancel a still-resting limit (it re-evaluates next cycle) instead of leaving it open.",
     "cancel_unfilled": true

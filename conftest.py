@@ -39,6 +39,7 @@ def convexity_db(tmp_path):
     _apply_migration(conn, "0009_frame_version.py")
     _apply_migration(conn, "0010_fixed_basket.py")
     _apply_migration(conn, "0011_council_health.py")
+    _apply_migration(conn, "0012_shares_basket.py")
     try:
         yield conn
     finally:

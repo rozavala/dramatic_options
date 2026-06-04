@@ -657,6 +657,39 @@ def fixed_basket_realized_multiples(conn: sqlite3.Connection, book: str | None =
     return out
 
 
+# ── shares descriptive null (PREREG_FIXED_BASKET_NULL §2/§5, migration 0012) ──────────────────────
+# An append-only ENTRY LOG (not a position book): convexity-vs-linear context. Signed returns are
+# computed at REPORT time from bars (shares_basket.shares_return_report), so there is no mark/close here.
+
+def record_shares_position(
+    conn: sqlite3.Connection, *, run_id: int | None, basket: str | None, symbol: str, direction: str,
+    entry_spot: float, entry_at: str,
+) -> int:
+    """Log a simulated (NEVER broker) shares entry — the forward linear bet on a basket name. Atomic."""
+    with conn:
+        cur = conn.execute(
+            "INSERT INTO shares_positions (run_id, basket, symbol, direction, entry_spot, entry_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (run_id, basket, symbol, direction, float(entry_spot), entry_at),
+        )
+    return int(cur.lastrowid)
+
+
+def shares_recent_symbols(conn: sqlite3.Connection, *, since_iso: str) -> set[str]:
+    """Underlyings entered since ``since_iso`` — the time-dedup window (≈ the longest horizon), so a name
+    isn't re-booked while its longest-horizon return is still in flight (the linear analog of the option
+    books' 'skip already-open')."""
+    rows = conn.execute(
+        "SELECT DISTINCT symbol FROM shares_positions WHERE entry_at >= ?", (since_iso,)
+    ).fetchall()
+    return {r["symbol"] for r in rows}
+
+
+def all_shares_positions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Every shares entry (the report computes per-horizon signed returns from bars on demand)."""
+    return conn.execute("SELECT * FROM shares_positions ORDER BY id").fetchall()
+
+
 def record_council_proposal(
     conn: sqlite3.Connection,
     *,

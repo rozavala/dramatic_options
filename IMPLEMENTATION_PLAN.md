@@ -179,8 +179,14 @@ BUILT 2026-06-03** (`fixed_basket.py` + migration 0010, gate-OFF over the same u
 **PR2b (book 3B) BUILT 2026-06-03** (`run_fixed_basket_3b_cycle` + `equal_weight_contracts`; gate-OFF +
 EQUAL-WEIGHT over the WHOLE basket with the MOTION-derived direction, NO book/cluster truncation; weekly
 L0; `--discover --demo` books all 16; 340 tests) — `real − 3B` the bundled apparatus-vs-basket read.
-**BUILD next:** PR2c (the shares descriptive null); and a fast-follow trailing-return-**correlation diagnostic**
-(report-not-gate, the curation backstop — lands before the next Sunday L0 scan).
+**PR2c (the SHARES descriptive null) BUILT 2026-06-04** (`shares_basket.py` + migration 0012
+`shares_positions`, an append-only entry log; convexity-vs-LINEAR over the same option-eligible basket
+names, weekly L0, motion-direction, equal-weight; signed returns computed at REPORT time from bars at the
+{180,270,365} horizon set with the §6 terminal guard reused per-horizon; DESCRIPTIVE, shown ALONGSIDE the
+option tails, never scored against them; never-broker + fail-soft; 358 tests) → **the fixed-basket null
+hierarchy is COMPLETE** (real / shadow / 3A / 3B / shares). **BUILD next:** a fast-follow
+trailing-return-**correlation diagnostic** (report-not-gate, the cluster-cap curation backstop — before the
+next Sunday L0 scan) + the basket-quality report.
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical
