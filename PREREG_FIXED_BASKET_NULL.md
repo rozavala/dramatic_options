@@ -163,7 +163,14 @@ gate-passers** — in the very arm that decides the verdict.
 - **PR2a = book 3A** (gate-off over the union, cap-ON) — every L1, cheap (the names the cycle already
   processes); the headline gate test (`shadow − 3A`).
 - **PR2b = book 3B (gate-off, whole basket, equal-weight) + the shares basket** — weekly (L0 cadence),
-  the fetch bounded by the cost ledger.
+  the fetch bounded by the cost ledger. *(BUILT: 3B landed 2026-06-03; the **shares basket split out as
+  PR2c**, BUILT 2026-06-04 — `shares_basket.py` + migration 0012 `shares_positions`. Design refined from
+  "resolve-and-store one return" to an **append-only entry log + report-time, multi-horizon {180,270,365}
+  returns**: the convex book holds ~250d median, not 180d, so a single fixed horizon would mismeasure and —
+  load-bearing per §6 — would miss an event landing between 180d and the option's resolution; computing per
+  horizon at report time (the §6 `reference_return_from_bars` terminal guard reused per horizon) fixes both.
+  Two pinned caveats emitted: descriptive/not-a-contest, and the signed short is FRICTIONLESS → a
+  deliberately conservative benchmark.)*
 
 Each new book is a **new never-broker module + table** mirroring `shadow_positions` field-for-field
 (so the eventual null-book unification is a mechanical union, `IMPLEMENTATION_PLAN §5b`), reuses the
