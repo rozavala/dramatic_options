@@ -34,9 +34,9 @@
     "max_open_positions": 15,
     "cluster_fraction": 0.02,
     "clusters": {
-      "_comment": "Correlation-budget partition (PREREG §5 amendment 2026-06-03), documented BY DRIVER so future names route correctly. ai_capex_power = the AI-datacenter power-demand bet the first L0 scan surfaced (CEG nuclear-gen + NEE utility folded in, CCJ uranium kept, FCX dropped — copper variance is diluted by construction/EV/industrial; a thematic power/uranium ETF like URA would co-cluster here). space_defense = a distinct driver (defense/space budgets) — routes LMT/RTX/AVAV.",
+      "_comment": "Correlation-budget partition (PREREG §5 amendment 2026-06-03; curated via the trailing-return correlation diagnostic 2026-06-04), documented BY DRIVER so future names route correctly. ai_capex_power = the AI-datacenter power-demand bet (CEG nuclear-gen + NEE utility + CCJ uranium; FCX dropped — copper datacenter-exposure is a sliver of its demand). RE-EXAMINED 2026-06-04: CCJ-NEE pairwise corr is only 0.045, but that is SPOKE-vs-SPOKE — membership is each name's link to the DRIVER, not whether two spokes co-move; uranium-fuel + utility-delivery + electrical-equipment are different supply-side spokes of ONE AI-power-demand bet (nuclear is a MORE direct AI-power spoke than copper ever was; NEE carries a large UNREGULATED renewables/development arm, not a pure regulated utility); cluster mean 0.40 >> 0.26 universe median = cohesive -> KEPT both. Trim a spoke on tail/catalyst evidence (the FCX pattern), never on a single daily-correlation print. space_defense = defense/space-budget driver; EXTENDED 2026-06-04 with the defense primes LMT/NOC/LHX/RTX (the scan basket already held them, the cluster did not — the diagnostic surfaced them at 0.50-0.68 SHARED-driver, resid~=raw so NOT market beta; KTOS bridged to LHX at 0.52). RKLB is the loosest member (0.38-0.45, still > the 0.26 median; national-security launch shares the driver) — KEPT (conservative over-cluster + tail co-dependence on a defense/geopolitical catalyst), the future-split-on-evidence candidate.",
       "ai_capex_power": ["VRT", "PWR", "GEV", "ETN", "CCJ", "CEG", "NEE"],
-      "space_defense": ["RKLB", "KTOS"]
+      "space_defense": ["RKLB", "KTOS", "LMT", "NOC", "LHX", "RTX"]
     }
   },
   "convexity_gate": {

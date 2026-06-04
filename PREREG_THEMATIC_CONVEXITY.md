@@ -145,7 +145,11 @@ entry-premium cap**:
   would breach the §2 hard seam). Shipped: `ai_capex_power` (AI-datacenter power demand) =
   VRT/PWR/GEV/ETN/CCJ/CEG/NEE (CEG/NEE folded in, CCJ kept, **FCX dropped** — copper variance is
   diluted; a power/uranium ETF like URA would co-cluster); `space_defense` (defense/space budgets) =
-  RKLB/KTOS. Overlap / `cluster_fraction < per_name_fraction` / a malformed map **fail closed** (raise
+  RKLB/KTOS/LMT/NOC/LHX/RTX (**extended 2026-06-04** — the trailing-return correlation diagnostic
+  `cluster_diagnostic.py` surfaced the defense primes LMT/NOC/LHX/RTX as a 0.50–0.68 SHARED-driver cluster
+  the scan basket already held but the cluster didn't; RKLB the loosest member = future-split-on-evidence,
+  the FCX pattern). The diagnostic is the ongoing **report-not-gate curation backstop** (it never edits the
+  map — hard seam). Overlap / `cluster_fraction < per_name_fraction` / a malformed map **fail closed** (raise
   at load); an **absent** map is inert (every name a singleton) — an optional additive control must not
   fail-closed-to-zero-trades on absence.
 - **Direction-agnostic, no netting.** The cap sums premium-at-risk regardless of direction (defined
