@@ -180,6 +180,27 @@ gate-off ⊇ gate-on **superset invariant is asserted at the pre-cap candidate/e
 (turning the gate off can only *add* candidates); the *booked* superset holds only where the cluster
 cap doesn't bind (the cap + first-come ordering can let a gate-reject displace a gate-passer).
 
+## 9. The basket-quality report — curation-drift sibling (pinned BLIND, dated edit 2026-06-04)
+
+`3B-absolute` is **curation-contaminated** (§3 — it runs over the live basket). The **basket-quality report**
+(`basket_quality.py`, report-not-gate; `IMPLEMENTATION_PLAN.md:171`) is the sibling that makes that
+contamination auditable: heavy curation drift there → discount `3B-absolute`; **`real − 3B` stays the clean
+read**. To keep it honest, its forward *contrast* is pinned here **blind, before any forward result exists**:
+
+- **The decisive surfaced-vs-control null belongs to the sentinel-scoring layer** (the FSSD-style null≈signal
+  test, tail not mean). The basket-quality report **surfaces** that contrast — it does not re-own or re-derive it.
+- **Pooled, not per-basket** (option ii — a single global control baseline). Per-basket control N is ~1–2/scan,
+  too thin to slice; per-basket forward cells are **descriptive surfaced tails only**, never a per-basket contest.
+- **Statistic pinned:** the **p95** tail gap (surfaced − control) with a **bootstrap CI**, over the
+  report-time multi-horizon **{180, 270, 365}** reference returns (the §6 `reference_return_from_bars` terminal
+  guard reused per horizon — NOT the stored 180d). No post-hoc choice of quantile or horizon.
+- **Computed-when-mature:** the contrast is emitted only once each arm clears `min_resolved_references_for_flag`;
+  before that it reads `insufficient_evidence`, never a point estimate on a thin set.
+- **The maturity gate is load-bearing for THIS null's integrity:** because 3B-absolute runs over the live basket,
+  outcome-conditioned pruning of basket names on a thin record would make the curation contamination
+  **adaptive and outcome-correlated**. So outcome/prune flags are maturity-gated, default KEEP; relaxing the gate
+  later is a frozen-frame-grade change. Only data-dead + degenerate-basket flags are evidence-independent.
+
 ---
 
 *Frozen 2026-06-03, before any forward results exist. Changes are documented, dated edits to this
