@@ -34,9 +34,9 @@
     "max_open_positions": 15,
     "cluster_fraction": 0.02,
     "clusters": {
-      "_comment": "Correlation-budget partition (PREREG §5 amendment 2026-06-03), documented BY DRIVER so future names route correctly. ai_capex_power = the AI-datacenter power-demand bet the first L0 scan surfaced (CEG nuclear-gen + NEE utility folded in, CCJ uranium kept, FCX dropped — copper variance is diluted by construction/EV/industrial; a thematic power/uranium ETF like URA would co-cluster here). space_defense = a distinct driver (defense/space budgets) — routes LMT/RTX/AVAV.",
+      "_comment": "Correlation-budget partition (PREREG §5 amendment 2026-06-03; curated via the trailing-return correlation diagnostic 2026-06-04), documented BY DRIVER so future names route correctly. ai_capex_power = the AI-datacenter power-demand bet (CEG nuclear-gen + NEE utility + CCJ uranium; FCX dropped — copper datacenter-exposure is a sliver of its demand). RE-EXAMINED 2026-06-04: CCJ-NEE pairwise corr is only 0.045, but that is SPOKE-vs-SPOKE — membership is each name's link to the DRIVER, not whether two spokes co-move; uranium-fuel + utility-delivery + electrical-equipment are different supply-side spokes of ONE AI-power-demand bet (nuclear is a MORE direct AI-power spoke than copper ever was; NEE carries a large UNREGULATED renewables/development arm, not a pure regulated utility); cluster mean 0.40 >> 0.26 universe median = cohesive -> KEPT both. Trim a spoke on tail/catalyst evidence (the FCX pattern), never on a single daily-correlation print. space_defense = defense/space-budget driver; EXTENDED 2026-06-04 with the defense primes LMT/NOC/LHX/RTX (the scan basket already held them, the cluster did not — the diagnostic surfaced them at 0.50-0.68 SHARED-driver, resid~=raw so NOT market beta; KTOS bridged to LHX at 0.52). RKLB is the loosest member (0.38-0.45, still > the 0.26 median; national-security launch shares the driver) — KEPT (conservative over-cluster + tail co-dependence on a defense/geopolitical catalyst), the future-split-on-evidence candidate.",
       "ai_capex_power": ["VRT", "PWR", "GEV", "ETN", "CCJ", "CEG", "NEE"],
-      "space_defense": ["RKLB", "KTOS"]
+      "space_defense": ["RKLB", "KTOS", "LMT", "NOC", "LHX", "RTX"]
     }
   },
   "convexity_gate": {
@@ -114,6 +114,16 @@
     "_comment": "The SHARES descriptive null (PREREG_FIXED_BASKET_NULL §2/§5, PR2c) — convexity vs LINEAR. An append-only entry log over the option-eligible basket names (weekly L0, motion-derived direction, equal-weight = one unit); signed returns are computed at REPORT time from bars at the horizon set below, with the §6 terminal-event survivorship guard. DESCRIPTIVE only — shown ALONGSIDE the option tails, NEVER scored against them; forward, never a pass-gate. Simulated, NEVER the broker, fail-soft. horizons mirror the calibration tenor sweep (the convex book holds ~250d median, not 180d).",
     "enabled": true,
     "horizons": [180, 270, 365]
+  },
+  "cluster_diagnostic": {
+    "_comment": "Report-not-gate cluster-cap curation BACKSTOP (PREREG §5). Trailing-return correlation over the names the system trades/considers; flags co-moving pairs NOT co-clustered so the operator can curate convexity_book.clusters. It NEVER edits the map (hard seam) and NEVER gates a trade. Tuned for SENSITIVITY (a false negative under-protects the cap): union flag max(raw,resid,spearman), top_n SORTED not hard-filtered (the threshold highlights, never drops a near-miss), Pearson treated as a LOWER BOUND on the tail co-dependence a convex book concentrates. window_days matched to the ~250d convex hold (the cap's horizon); residual strips residual_benchmark beta = the shared-driver attribution, NOT the gatekeeper (residual β is noisy on the free feed); min_overlap is the reporting floor — below it a name is invisible, covered instead by the cap's conservative over-cluster default. All PINNED (§7). Read-only over the warm cache (client=None ⇒ no fetch); fail-soft in L0.",
+    "enabled": true,
+    "window_days": 252,
+    "secondary_window_days": 63,
+    "high_corr_threshold": 0.7,
+    "min_overlap": 63,
+    "top_n": 25,
+    "residual_benchmark": "SPY"
   },
   "execution": {
     "_comment": "Real Alpaca paper order path (broker.AlpacaPaperBroker). SENDING is gated by safety.dry_run: dry_run=true (default) logs the intended order + simulates the fill — nothing is transmitted; dry_run=false actually submits to the PAPER endpoint. cancel_unfilled: at reconcile, cancel a still-resting limit (it re-evaluates next cycle) instead of leaving it open.",

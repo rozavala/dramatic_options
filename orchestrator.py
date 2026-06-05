@@ -383,6 +383,25 @@ def run_discover(demo: bool = False) -> int:
             except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the scan
                 log.warning("shares null book pass failed (non-fatal): %s", e)
                 notify.send("Shares null failed (non-fatal)", str(e))
+
+        # Cluster-cap curation backstop (PREREG §5, report-not-gate) — trailing-return correlations over the
+        # names the system considers; surfaces co-moving pairs NOT co-clustered so the operator can curate
+        # the map. It NEVER edits the map (hard seam) or gates a trade. The NO-FETCH read uses client=None so
+        # it can't fetch beyond what the scan already cached. INDEPENDENT fail-soft block.
+        if config.get("cluster_diagnostic", {}).get("enabled", True):
+            try:
+                import cluster_diagnostic
+                from data.market import MarketData as _MarketData
+                nofetch = _MarketData(market.cache, client=None, fetch_start=market.fetch_start,
+                                      fetch_end=market.fetch_end)
+                crep = cluster_diagnostic.cluster_curation_report(conn, config, as_of, nofetch)
+                gaps = crep["gaps_full_n"]
+                log.info("Cluster diagnostic: universe=%d median_corr=%s · %d full-N non-co-clustered gap(s)%s",
+                         crep["universe_n"], crep["universe_median_corr"], len(gaps),
+                         f" (top {gaps[0]['pair']} flag={gaps[0]['flag']})" if gaps else "")
+            except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the scan
+                log.warning("cluster diagnostic failed (non-fatal): %s", e)
+                notify.send("Cluster diagnostic failed (non-fatal)", str(e))
         return 0
     finally:
         conn.close()

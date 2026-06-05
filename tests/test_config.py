@@ -21,16 +21,19 @@ def test_frozen_exit_rules_match_prereg():
 
 
 def test_frozen_cluster_cap_matches_prereg():
-    """Pin the shipped cluster cap + taxonomy (PREREG §5 amendment 2026-06-03) against silent drift.
+    """Pin the shipped cluster cap + taxonomy (PREREG §5 amendment 2026-06-03; curated 2026-06-04)
+    against silent drift.
 
     cluster_fraction = 0.02 (2 full names; graduate to 0.03 only at >=4 curated clusters) and the two
     driver-documented clusters. A change must be a dated PREREG edit — mirrors the §6a exit pin above.
+    2026-06-04: space_defense EXTENDED with the defense primes LMT/NOC/LHX/RTX, surfaced by the
+    trailing-return correlation diagnostic as a 0.50-0.68 shared-driver cluster (operator-curated, hard seam).
     """
     config_loader.load_config.cache_clear()
     book = config_loader.load_config()["convexity_book"]
     assert book["cluster_fraction"] == 0.02
     assert set(book["clusters"]["ai_capex_power"]) == {"VRT", "PWR", "GEV", "ETN", "CCJ", "CEG", "NEE"}
-    assert set(book["clusters"]["space_defense"]) == {"RKLB", "KTOS"}
+    assert set(book["clusters"]["space_defense"]) == {"RKLB", "KTOS", "LMT", "NOC", "LHX", "RTX"}
     config_loader.load_config.cache_clear()
 
 
