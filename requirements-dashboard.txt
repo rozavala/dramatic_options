@@ -1,0 +1,9 @@
+# Observability dashboard (§5b) — operator-run tooling, NOT part of the trading runtime.
+# Deliberately SEPARATE from requirements.txt so the systemd/CI trading runtime stays lean and
+# "pin what you import" stays clean: the dashboard is `streamlit run dashboard.py`, never a service.
+# Install only where the dashboard runs:  pip install -r requirements-dashboard.txt
+#
+# The dashboard DATA layer (`dashboard_data.py`) imports only stdlib + numpy/pandas (already core) +
+# the project's read modules, so `pytest`/CI need NONE of this — the tests import dashboard_data, not
+# streamlit. PIN EXACT (build principle): re-verify on bump (the st.* API moves between minors).
+streamlit==1.58.0
