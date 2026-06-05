@@ -30,16 +30,18 @@
 >
 > **Pre-committed T4-unlock conditions (operator, 2026-06-03 — recorded now so graduation is not a
 > post-hoc judgment).** T4 = building the real-money broker path LAST, behind the triple-gate; it is a
-> process/discipline gate, not a proof gate. Unlock requires **all**: (1) the council fix merged **and**
-> a multi-L1 prod window shows a HEALTHY apparatus (parse-fail ~0, adversary+strategist firing, the
-> parse-fail page silent) — measured *after* the `thinking_level` fix lands and a live 3-role round-trip
-> is confirmed, NOT on the assumption it worked (no parseable live round-trip existed before this PR);
+> process/discipline gate, not a proof gate. Unlock requires **all**: (1) **✅ MET 2026-06-05** — the council fix merged **and**
+> a multi-L1 prod window showed a HEALTHY apparatus (parse-fail ~0, adversary+strategist firing, the
+> parse-fail page silent), measured *after* the `thinking_level` fix landed and a live 3-role round-trip
+> was confirmed: **Thu L1 #55 + Fri L1 #72 both `ROUNDTRIP_CONFIRMED`** (#72's reasoned strategist NEUTRAL
+> abstention on SMCI prompted a grader refinement — credit a *deliberated* abstention; the `parse_error`
+> flag, not the conviction vocab, is the abstention-vs-failure discriminator);
 > (2) the null reads are live-plumbed (real / shadow / 3A per-position p95 + bootstrap CIs computing each
 > cycle, with ≥ some RESOLVED positions — plumbing, not significance); (3) the cluster-cap breach audit
 > has run over the window with zero breaches (the `frame_version` recompute); (4) resolved paper
 > positions show a payoff SHAPE matching the calibration's venture profile (sanity, not significance);
-> (5) the remaining pre-T4 items are done (PR2c, the correlation diagnostic / basket-quality report,
-> arguably the §5b dashboard). Graduating on ≈zero resolved trades + a just-discovered silent-inert
+> (5) the remaining pre-T4 items are done (PR2c ✅, the correlation diagnostic ✅ + basket-quality report ✅,
+> all merged 2026-06-05; the §5b dashboard still pending — its own plan-mode+red-team session). Graduating on ≈zero resolved trades + a just-discovered silent-inert
 > apparatus would be the capital-stakes HARKing this project killed twice.
 
 ---
@@ -184,9 +186,10 @@ L0; `--discover --demo` books all 16; 340 tests) — `real − 3B` the bundled a
 names, weekly L0, motion-direction, equal-weight; signed returns computed at REPORT time from bars at the
 {180,270,365} horizon set with the §6 terminal guard reused per-horizon; DESCRIPTIVE, shown ALONGSIDE the
 option tails, never scored against them; never-broker + fail-soft; 358 tests) → **the fixed-basket null
-hierarchy is COMPLETE** (real / shadow / 3A / 3B / shares). **PRE-T4 REPORTS BUILT (held behind the
-two-for-two L1 window):** the trailing-return **correlation diagnostic** (report-not-gate, cluster-cap
-curation backstop, held PR #35) + the **basket-quality report** (`basket_quality.py` +
+hierarchy is COMPLETE** (real / shadow / 3A / 3B / shares). **PRE-T4 REPORTS MERGED & LIVE ON DEV 2026-06-05 (the two-for-two L1 window COMPLETE — Thu #55 + Fri #72
+`ROUNDTRIP_CONFIRMED`; merged #34→#35→#36, 3 deploys green, schema still 12):** the trailing-return
+**correlation diagnostic** (report-not-gate, cluster-cap curation backstop, #35 — incl. the operator-curated
+`space_defense`+defense-primes map edit) + the **basket-quality report** (`basket_quality.py` +
 `tests/test_basket_quality.py`, 386 tests — closes the survivorship→basket-curation loop over
 `config.universe.themes`; three cache-only sources [discovery-survivorship funnel · `convexity_eval`
 gate profile · report-time prescreen]; forward read SPLIT — horizon-indexed `reference_forward`
