@@ -8,11 +8,13 @@ Run it where the live state lives, and bind to localhost only — it renders the
 (operator-confidential), so never expose it on a public port:
 
     pip install -r requirements-dashboard.txt
-    # on the box (state at ~/dramatic_options): run from there so the relative DB path resolves to the live DB,
-    # or set DRAMATIC_DB / DRAMATIC_CACHE_DIR to the live checkout explicitly:
+    # Run from the live checkout so the relative DB path resolves to the live DB (or set DRAMATIC_DB /
+    # DRAMATIC_CACHE_DIR explicitly). `.streamlit/config.toml` pins PORT 8502 + localhost so it NEVER
+    # collides with the real_options dashboard on 8501; pass --server.port / --server.address to override
+    # (e.g. the tailnet IP for remote access — but it renders the whole book + cluster map, so prefer a tunnel).
     DRAMATIC_DB=~/dramatic_options/data/dramatic_options.db \
     DRAMATIC_CACHE_DIR=~/dramatic_options/data/cache \
-    streamlit run dashboard.py --server.address 127.0.0.1
+    streamlit run dashboard.py --server.port 8502
 
 The performance/null panels are EMPTY (accruing) for ~6mo until positions resolve — they render "n=0 /
 accruing" by design, never a misleading "0.0×".
