@@ -90,7 +90,7 @@ def test_l1_health_roundtrip_confirmed(convexity_db):
     rep = council_l1_health(convexity_db, run_id=rid)
     assert rep["verdict"] == "ROUNDTRIP_CONFIRMED"
     assert rep["roundtrip"] == {"n": 1, "adversary_direction_relative": 1, "strategist_valid_conviction": 1,
-                                "any_role_parse_error": False}
+                                "strategist_abstained": 0, "any_role_parse_error": False}
     assert rep["cost_usd"] > 0 and rep["cost_by_role"]["strategist"] > 0 and rep["council_health"] == "ok"
 
 
@@ -115,6 +115,41 @@ def test_l1_health_degraded_when_adversary_not_direction_relative(convexity_db):
     state.update_run_council_health(convexity_db, rid, council_health="ok")
     _roundtrip(convexity_db, rid, "SMCI", "bearish", adv_stance="bearish")    # SAME as proposal → not dir-relative
     assert council_l1_health(convexity_db, run_id=rid)["verdict"] == "ROUNDTRIP_DEGRADED"
+
+
+def test_l1_health_confirmed_with_strategist_abstention(convexity_db):
+    # A GENUINE strategist NEUTRAL abstention (reasoned exclude, no parse_error) is VALID — the round-trip
+    # is still CONFIRMED, with the abstention surfaced. This is the live Friday-L1 #72 case (strategist
+    # abstained on SMCI: "the move is mean-reverting; elevated RV → convexity already expensive").
+    rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
+    state.update_run_council_health(convexity_db, rid, council_health="ok")
+    _roundtrip(convexity_db, rid, "SMCI", "bearish", adv_stance="bullish", strat_conv="NEUTRAL")
+    rep = council_l1_health(convexity_db, run_id=rid)
+    assert rep["verdict"] == "ROUNDTRIP_CONFIRMED"
+    assert rep["roundtrip"]["strategist_valid_conviction"] == 1
+    assert rep["roundtrip"]["strategist_abstained"] == 1
+
+
+def test_l1_health_degraded_when_strategist_parse_error(convexity_db):
+    # A FAIL-CLOSED strategist NEUTRAL carries parse_error → NOT a valid abstention → still degraded
+    # (the bug in a new costume must not pass as healthy selectivity).
+    rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
+    state.update_run_council_health(convexity_db, rid, council_health="ok")
+    pid = state.record_council_proposal(convexity_db, run_id=rid, as_of="t", theme="x", symbol="SMCI",
+                                        direction="bearish", conviction="NEUTRAL", status="proposed")
+    state.record_agent_output(convexity_db, proposal_id=pid, role="proposer", provider="g", model="m",
+                              confidence="MODERATE", stance="bearish",
+                              raw={"confidence": "MODERATE", "inflection_thesis": "x"}, cost_usd=0.003)
+    state.record_agent_output(convexity_db, proposal_id=pid, role="adversary", provider="x", model="m",
+                              confidence="MODERATE", stance="bullish",
+                              raw={"confidence": "MODERATE", "counter_case": "c"}, cost_usd=0.003)
+    state.record_agent_output(convexity_db, proposal_id=pid, role="strategist", provider="a", model="m",
+                              confidence="NEUTRAL", stance="bearish",
+                              raw={"parse_error": True, "finish_reason": "MAX_TOKENS"}, cost_usd=0.003)
+    rep = council_l1_health(convexity_db, run_id=rid)
+    assert rep["verdict"] == "ROUNDTRIP_DEGRADED"
+    assert rep["roundtrip"]["any_role_parse_error"] is True
+    assert rep["roundtrip"]["strategist_abstained"] == 0   # a parse_error abstention is NOT credited
 
 
 def test_l1_health_no_council(convexity_db):

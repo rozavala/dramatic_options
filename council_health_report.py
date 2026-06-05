@@ -10,7 +10,10 @@ the full 3-role round-trip needs ≥1 above-floor proposal (the proposer short-c
 strategist on NEUTRAL — `debate.py`). And a **NO-ENTRY outcome is HEALTHY** (the IV gate disposing rich
 convexity is the design) — this grades whether the council DELIBERATED parseably, not whether a position
 appeared. "no parse-fail page" is a FALSE all-clear on its own: a proposer can fire while the adversary
-returns a degenerate row, or the cost can be anomalous — both are graded here.
+returns a degenerate row, or the cost can be anomalous — both are graded here. A genuine strategist NEUTRAL
+**abstention** (a reasoned exclude — full schema, no parse_error) is a VALID round-trip outcome (the Master
+Strategist declining a weak name), surfaced as ``strategist_abstained`` and distinct from a fail-closed
+coercion (which carries parse_error and IS degraded).
 
     python council_health_report.py [run_id]      # latest council run if run_id omitted
 
@@ -27,6 +30,11 @@ from council.proposal import CONVICTION_LEVELS, normalize_conviction, passes_flo
 
 OPPOSITE = {"bullish": "bearish", "bearish": "bullish"}
 _ROLES = ("proposer", "adversary", "strategist")
+# A strategist verdict is VALID if it DELIBERATED: a real conviction (LOW-EXTREME) or a genuine NEUTRAL
+# abstention (a reasoned exclude — full schema, no parse_error). A fail-closed coercion carries parse_error
+# (caught by any_parse_error) and is NOT credited here. (normalize_conviction maps anything unrecognized →
+# NEUTRAL, so the parse_error flag — not the vocab — is the real abstention-vs-failure discriminator.)
+_STRATEGIST_VALID = CONVICTION_LEVELS + ("NEUTRAL",)
 
 
 def _is_parse_error(raw) -> bool:
@@ -69,7 +77,7 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str = "MODERATE
         if a["role"] in cost_by_role:
             cost_by_role[a["role"]] += float(a["cost_usd"] or 0.0)
 
-    roundtrip, adv_dir_rel, strat_valid, any_parse_error = [], 0, 0, False
+    roundtrip, adv_dir_rel, strat_valid, strat_abstained, any_parse_error = [], 0, 0, 0, False
     for p in props:
         roles = by_prop.get(p["id"], {})
         if any(_is_parse_error(a["raw"]) for a in roles.values()):
@@ -78,8 +86,12 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str = "MODERATE
             roundtrip.append(p["id"])
             if (roles["adversary"]["stance"] or "").lower() == OPPOSITE.get((p["direction"] or "").lower()):
                 adv_dir_rel += 1                                     # bull case on a bearish name (direction-relative)
-            if normalize_conviction(roles["strategist"]["confidence"]) in CONVICTION_LEVELS:
-                strat_valid += 1
+            strat = roles["strategist"]
+            strat_conv = normalize_conviction(strat["confidence"])
+            if not _is_parse_error(strat["raw"]) and strat_conv in _STRATEGIST_VALID:
+                strat_valid += 1                                    # a real conviction OR a reasoned NEUTRAL abstain
+                if strat_conv == "NEUTRAL":
+                    strat_abstained += 1
 
     cost = round(sum(cost_by_role.values()), 6)
     above_floor = sum(1 for p in props if passes_floor(p["conviction"], floor))
@@ -101,7 +113,8 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str = "MODERATE
                      "parse_fail_rate": round(parse["rate"], 4), "page_would_fire": parse["called"] >= 2
                      and parse["rate"] >= page_rate, "above_floor_proposals": above_floor},
         "roundtrip": {"n": len(roundtrip), "adversary_direction_relative": adv_dir_rel,
-                      "strategist_valid_conviction": strat_valid, "any_role_parse_error": any_parse_error},
+                      "strategist_valid_conviction": strat_valid, "strategist_abstained": strat_abstained,
+                      "any_role_parse_error": any_parse_error},
         "cost_usd": cost, "cost_by_role": {r: round(c, 6) for r, c in cost_by_role.items()},
         "notes": [
             "NO-ENTRY is HEALTHY — this grades parseable DELIBERATION, not a booked position.",
