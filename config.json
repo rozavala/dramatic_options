@@ -125,6 +125,15 @@
     "top_n": 25,
     "residual_benchmark": "SPY"
   },
+  "basket_quality": {
+    "_comment": "Report-not-gate basket-curation diagnostic (IMPLEMENTATION_PLAN.md:171; PREREG_FIXED_BASKET_NULL 74-79). Closes the survivorship -> basket-curation loop: per curated scan basket (config.universe.themes), ties what it PRODUCED (surfaced sentinels, framer verdicts, traded outcomes, forward returns) back to the roster so the operator can curate the basket BY HAND (hard seam — it never edits universe.themes, never gates a trade, writes no DB row, no migration). It is the sibling that makes 3B-absolute's curation contamination auditable (heavy drift -> discount 3B-absolute; real-3B stays clean). Cache-only (NO-FETCH, client=None), fail-soft in L0. FORWARD READ is SPLIT by horizon semantics: reference_forward is horizon-indexed (stock returns, surfaced-never-traded + controls, §6 terminal guard reused per horizon — the §6-correct multi-horizon read, NOT the stored 180d); traded_outcomes is pooled (option realized-multiple resolves once at the ~250d exit). horizons mirror the calibration/shares tenor sweep. MATURITY-GATED (load-bearing for the null hierarchy: 3B runs over the live basket, so outcome-conditioned pruning on a thin record would make the contamination adaptive): outcome/never-productive flags need window_age >= max(horizon) AND the per-metric min thresholds; default is KEEP; only data-dead + degenerate-basket flags are evidence-independent. basket != cluster — the correlation diagnostic curates convexity_book.clusters, this curates universe.themes. PINNED (never tuned to a gap).",
+    "enabled": true,
+    "horizons": [180, 270, 365],
+    "min_resolved_references_for_flag": 20,
+    "min_traded_outcomes_for_flag": 10,
+    "min_live_names_per_basket": 2,
+    "top_n_per_name": 40
+  },
   "execution": {
     "_comment": "Real Alpaca paper order path (broker.AlpacaPaperBroker). SENDING is gated by safety.dry_run: dry_run=true (default) logs the intended order + simulates the fill — nothing is transmitted; dry_run=false actually submits to the PAPER endpoint. cancel_unfilled: at reconcile, cancel a still-resting limit (it re-evaluates next cycle) instead of leaving it open.",
     "cancel_unfilled": true

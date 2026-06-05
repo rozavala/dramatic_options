@@ -402,6 +402,27 @@ def run_discover(demo: bool = False) -> int:
             except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the scan
                 log.warning("cluster diagnostic failed (non-fatal): %s", e)
                 notify.send("Cluster diagnostic failed (non-fatal)", str(e))
+
+        # Basket-quality report (IMPLEMENTATION_PLAN.md:171; PREREG_FIXED_BASKET_NULL 74-79; report-not-gate) —
+        # closes the survivorship→basket-curation loop over the curated scan baskets; surfaces curation drift so
+        # the operator can curate universe.themes BY HAND (hard seam, never auto). Writes no DB row, no migration.
+        # NO-FETCH (client=None). INDEPENDENT fail-soft block.
+        if config.get("basket_quality", {}).get("enabled", True):
+            try:
+                import basket_quality
+                from data.market import MarketData as _MarketData
+                bq_nofetch = _MarketData(market.cache, client=None, fetch_start=market.fetch_start,
+                                         fetch_end=market.fetch_end)
+                brep = basket_quality.basket_quality_report(conn, config, as_of, bq_nofetch)
+                drift = brep["curation_drift_indicators"]
+                dd = sum(1 for d in drift if "data-dead" in d["indicator"])
+                deg = sum(1 for d in drift if "degenerate" in d["indicator"])
+                nsurf = sum(len(b["funnel"]["never_surfaced_curated"]) for b in brep["baskets"].values())
+                log.info("Basket quality: %d baskets · %d data-dead · %d never-surfaced curated · %d degenerate%s",
+                         len(brep["baskets"]), dd, nsurf, deg, "" if brep["mature"] else " (record ACCRUING)")
+            except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the scan
+                log.warning("basket-quality report failed (non-fatal): %s", e)
+                notify.send("Basket-quality report failed (non-fatal)", str(e))
         return 0
     finally:
         conn.close()

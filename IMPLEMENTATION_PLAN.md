@@ -168,7 +168,7 @@ never-broker merge-blocker test; fail-soft so a shadow bug never halts the real 
 book = the LLM layer's marginal contribution. **Pre-T4:** the per-theme/cluster exposure cap
 **LANDED 2026-06-03** (PREREG §5 amendment, `clusters.py` + `cluster_fraction=0.02` + migration 0009;
 fixed the false diversification the first §C scan exposed — 7 correlated AI-capex-power names across two
-baskets). **REMAINING:** a basket-quality report (close the survivorship → basket-curation loop); the
+baskets). **REMAINING (now BUILT — see PRE-T4 REPORTS below):** the basket-quality report (closes the survivorship → basket-curation loop); the
 **fixed-basket null** — **PR1 pre-registration FROZEN 2026-06-03** (`PREREG_FIXED_BASKET_NULL.md`,
 written BLIND via the R2/R3 plan red-team): the no-IV-gate book is the **headline gate test**
 (`shadow − 3A` = FSSD null≈signal on the edge), `real − 3B` the **bundled** beat-the-basket read;
@@ -184,9 +184,16 @@ L0; `--discover --demo` books all 16; 340 tests) — `real − 3B` the bundled a
 names, weekly L0, motion-direction, equal-weight; signed returns computed at REPORT time from bars at the
 {180,270,365} horizon set with the §6 terminal guard reused per-horizon; DESCRIPTIVE, shown ALONGSIDE the
 option tails, never scored against them; never-broker + fail-soft; 358 tests) → **the fixed-basket null
-hierarchy is COMPLETE** (real / shadow / 3A / 3B / shares). **BUILD next:** a fast-follow
-trailing-return-**correlation diagnostic** (report-not-gate, the cluster-cap curation backstop — before the
-next Sunday L0 scan) + the basket-quality report.
+hierarchy is COMPLETE** (real / shadow / 3A / 3B / shares). **PRE-T4 REPORTS BUILT (held behind the
+two-for-two L1 window):** the trailing-return **correlation diagnostic** (report-not-gate, cluster-cap
+curation backstop, held PR #35) + the **basket-quality report** (`basket_quality.py` +
+`tests/test_basket_quality.py`, 386 tests — closes the survivorship→basket-curation loop over
+`config.universe.themes`; three cache-only sources [discovery-survivorship funnel · `convexity_eval`
+gate profile · report-time prescreen]; forward read SPLIT — horizon-indexed `reference_forward`
+{180,270,365} vs pooled `traded_outcomes`; maturity-gated, report-not-gate, no migration, schema 12
+unchanged; the pooled surfaced-vs-control contrast pinned blind in `PREREG_FIXED_BASKET_NULL §9`;
+converged over a 2-round plan red-team). **BUILD next:** the §5b observability dashboard + the §5b
+file-structure refactor.
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical
