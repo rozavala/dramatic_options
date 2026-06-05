@@ -140,9 +140,18 @@ def header_status(conn, *, now: datetime | None = None) -> dict:
     mark_age = _age_hours(last_mark, now=now)
 
     def _beat(ts, key):
+        # Tri-state (borrowed from the real_options heartbeat): OFFLINE = never ran (a config/deploy
+        # problem) is a DIFFERENT diagnosis from STALE = ran but the timer has gone quiet past its
+        # cadence. `stale` (= not ONLINE) is kept for back-compat.
         age = _age_hours(ts, now=now)
+        if ts is None:
+            status = "OFFLINE"
+        elif age is not None and age > STALE_HOURS[key]:
+            status = "STALE"
+        else:
+            status = "ONLINE"
         return {"at": ts, "age_hours": None if age is None else round(age, 1),
-                "stale": (age is not None and age > STALE_HOURS[key]) or (ts is None)}
+                "status": status, "stale": status != "ONLINE"}
 
     return {
         "schema_version": schema,

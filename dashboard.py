@@ -121,7 +121,7 @@ def main() -> None:
             beat = header[key]
             age = beat["age_hours"]
             col.metric(f"last {key}", "—" if age is None else f"{age:.0f}h ago",
-                       delta="STALE" if beat["stale"] else None, delta_color="inverse")
+                       delta=(beat["status"] if beat["status"] != "ONLINE" else None), delta_color="inverse")
 
     st.subheader("T4-readiness scoreboard")
     st.caption("A scoreboard, not a graduation verdict — conditions 2 & 4 are plumbing/accruing (no checkmark).")

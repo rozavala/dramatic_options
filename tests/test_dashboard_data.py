@@ -85,11 +85,15 @@ def test_schema_ahead_warning(convexity_db, monkeypatch):
 
 
 def test_staleness_flag(convexity_db):
+    # no runs → OFFLINE (never ran), distinct from STALE
+    assert dd.header_status(convexity_db)["cycle"]["status"] == "OFFLINE"
     convexity_db.execute("INSERT INTO runs(started_at, mode) VALUES('2020-01-01T00:00:00+00:00','PAPER')")
     convexity_db.commit()
-    assert dd.header_status(convexity_db)["cycle"]["stale"] is True
+    cyc = dd.header_status(convexity_db)["cycle"]
+    assert cyc["stale"] is True and cyc["status"] == "STALE"
     state.record_run(convexity_db, mode="PAPER", equity=None)
-    assert dd.header_status(convexity_db)["cycle"]["stale"] is False
+    cyc = dd.header_status(convexity_db)["cycle"]
+    assert cyc["stale"] is False and cyc["status"] == "ONLINE"
 
 
 def test_performance_empty_accruing(convexity_db):
