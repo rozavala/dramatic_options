@@ -143,7 +143,9 @@ reactive on exit (slow exits compound losses and bleed theta). Anything fast is
   adaptive limit walking, liquidity gate, missed-order persistence.
 - **`monitor`** — the L2 fast loop (intraday exits, falsifier checks).
 - **`observability`** — funnel diagnostics, debate forensics, abstention monitor, **cost
-  ledger per stage** (first-class — the whole design is a cost argument).
+  ledger per stage** (first-class — the whole design is a cost argument). _BUILT 2026-06-05
+  (§5b PR-A): `dashboard.py` + `dashboard_data.py` + `breach_audit.py` — a read-only Streamlit
+  surface (`?mode=ro` / NO-FETCH / fail-soft) with a T4-readiness scoreboard spine._
 - **`data/`** — adapters (§8).
 
 ---

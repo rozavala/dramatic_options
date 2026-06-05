@@ -41,7 +41,7 @@
 > has run over the window with zero breaches (the `frame_version` recompute); (4) resolved paper
 > positions show a payoff SHAPE matching the calibration's venture profile (sanity, not significance);
 > (5) the remaining pre-T4 items are done (PR2c ✅, the correlation diagnostic ✅ + basket-quality report ✅,
-> all merged 2026-06-05; the §5b dashboard still pending — its own plan-mode+red-team session). Graduating on ≈zero resolved trades + a just-discovered silent-inert
+> all merged 2026-06-05; the §5b dashboard PR-A BUILT & green 2026-06-05 — read-only; it RENDERS this condition's evidence (the breach-audit recompute + the per-arm null plumbing) but does NOT adjudicate; the §5b file-structure refactor remains). Graduating on ≈zero resolved trades + a just-discovered silent-inert
 > apparatus would be the capital-stakes HARKing this project killed twice.
 
 ---
@@ -195,8 +195,20 @@ hierarchy is COMPLETE** (real / shadow / 3A / 3B / shares). **PRE-T4 REPORTS MER
 gate profile · report-time prescreen]; forward read SPLIT — horizon-indexed `reference_forward`
 {180,270,365} vs pooled `traded_outcomes`; maturity-gated, report-not-gate, no migration, schema 12
 unchanged; the pooled surfaced-vs-control contrast pinned blind in `PREREG_FIXED_BASKET_NULL §9`;
-converged over a 2-round plan red-team). **BUILD next:** the §5b observability dashboard + the §5b
-file-structure refactor.
+converged over a 2-round plan red-team). **§5b observability DASHBOARD — PR-A BUILT & green 2026-06-05
+(branch `dashboard-pr-a`):** a read-only Streamlit surface (`dashboard.py` thin shell + `dashboard_data.py`
+pure tested data layer + `breach_audit.py` the standalone T4 #3 cluster-cap recompute) over the journal +
+PIT cache — `?mode=ro` (a write raises), NO-FETCH (`MarketData(client=None)`), per-panel fail-soft,
+observation-only (never edits clusters/themes/config). Spine = a **T4-readiness scoreboard** (renders unlock
+conds 2/3/4 as plumbing/accruing; only 1/3/5 binary; cond 1 re-derived LIVE from trailing `council_health`).
+RENDERS the existing reports (`tail_report`/`council_l1_health`/`cluster_diagnostic`/`basket_quality`/
+`agent_contribution`) + a thin read-only AGGREGATION layer (two-cadence funnel, premium-bled, per-origin/
+theme/cluster P&L, per-book p95+bootstrap-CI, veto/fail-closed rates, cost ledger) — every net-new number
+pinned to a HAND-CHECKED value test (anti-HARK, PREREG_CONVEXITY_CALIBRATION §6); per-book CIs side-by-side,
+**NO `real−shadow`/`real−3B` gap VERDICT** (deferred to the blind/mature null layer); staleness honesty
+(data-as-of + L0/L1/L2 heartbeat). `requirements-dashboard.txt` keeps streamlit OUT of the trading runtime
+(CI green without it; the AppTest smoke is `importorskip`-gated). 416 tests, ruff clean. **BUILD next:** the
+§5b file-structure refactor.
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical
@@ -208,9 +220,11 @@ RV proxy to a true IV-rank once enough chain snapshots have accrued (PREREG §4b
 
 ## 5b. Cross-cutting workstreams (operator-requested 2026-06-03) — each its own plan-mode + red-team session
 
-**Observability / monitoring dashboard (Streamlit; greenfield — no `dashboard.py` yet).** A single
-operator surface over what the system is doing and how it's performing — read-only over the SQLite
-journal + the PIT cache, never a trade/authorization path, fail-soft, safe against the live DB:
+**Observability / monitoring dashboard (Streamlit) — PR-A BUILT & green 2026-06-05** (`dashboard.py` +
+`dashboard_data.py` + `breach_audit.py`; read-only `?mode=ro` / NO-FETCH / per-panel fail-soft;
+T4-readiness scoreboard spine; hand-checked value tests; the file-structure refactor below is the remaining
+§5b item). A single operator surface over what the system is doing and how it's performing — read-only over
+the SQLite journal + the PIT cache, never a trade/authorization path, fail-soft, safe against the live DB:
 - **Discovery / scanning:** the latest L0 scan — surfaced sentinels (markers, `inflection_score`,
   framer verdict), the random controls, the `ai_compute`-style baskets, TTL/dormancy, the cost ledger.
 - **Data gathered:** accrued chain snapshots (the forward IV baseline), realized-vol series, the
