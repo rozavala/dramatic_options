@@ -77,6 +77,25 @@ disabled), **no real-money broker path in code** (`AlpacaPaperBroker` hardcodes 
 `DRY_RUN` not set false, and the live triple-gate unsatisfied. DEV runs `DRY_RUN=false`
 (real two-sided paper submit) for an honest forward record toward T4.
 
+## Observability dashboard (read-only)
+
+A long-running **systemd service** (`dramatic-options-dashboard.service`, `Type=simple`) — distinct from the
+oneshot L0/L1/L2 trading units. `deploy.sh apply_dashboard` **enables + starts** it where `forward_enabled ||
+ENV_NAME=DEV` (DEV always — observe even a paused book; PROD auto-arms at T4 go-live), else installs-but-stops
+it (start when needed: `sudo systemctl start dramatic-options-dashboard`).
+
+- **Bind:** `scripts/dashboard_run.sh` resolves the per-box **Tailscale IP** at start (polls ~60s; **fail-closed**
+  — never a wildcard/public bind) and runs `streamlit run dashboard.py --server.port 8502` (port 8502 so it never
+  collides with real_options' dashboard on 8501). Reach it at `all-options-<env>.tail57521e.ts.net:8502`.
+- **Keyless:** the unit omits `EnvironmentFile` **and** sets `DRAMATIC_SKIP_DOTENV=1`, so
+  `config_loader.load_config` loads `config.json` tunables but **never reads `.env`** — the read-only process
+  holds no broker/LLM/Pushover keys. Confirm on the box:
+  `tr '\0' '\n' </proc/$(pgrep -f 'server.port 8502')/environ | grep -cE 'ALPACA|GEMINI|XAI|ANTHROPIC|PUSHOVER'` ⇒ 0.
+- **Fail-soft:** arming swallows errors and is **outside** the verify/rollback gate — a dashboard problem never
+  fails or rolls back the trading deploy. `streamlit` installs from `requirements-dashboard.txt` (deploy STEP 3),
+  kept out of `requirements.txt`; a CI `test-dashboard` job installs the combined venv so a dep conflict fails CI.
+- Stricter exposure (if the tailnet trust set changes): keep a localhost bind + SSH tunnel, or a Tailscale ACL on 8502.
+
 ## Files
 
 | File | Role |
@@ -84,7 +103,9 @@ disabled), **no real-money broker path in code** (`AlpacaPaperBroker` hardcodes 
 | `.github/workflows/deploy.yml` | CI/CD trigger: `main`→DEV, `production`→PROD (runs `./deploy.sh`) |
 | `deploy.sh` | lifecycle: verify-gated install + timer arming, with rollback that re-syncs units |
 | `scripts/verify_deploy.sh` | health gate (disk, imports, critical files, **live-checkout `.env`**) |
-| `scripts/systemd/*.{service,timer}` | unit templates (L0, L1, L2, notify@) rendered at install |
+| `scripts/systemd/*.{service,timer}` | unit templates (L0, L1, L2, notify@, dashboard) rendered at install |
+| `scripts/dashboard_run.sh` | dashboard launch wrapper — resolves the tailnet IP (fail-closed), binds 8502 |
+| `requirements-dashboard.txt` | dashboard-only deps (streamlit); installed by deploy STEP 3, not in CI's base job |
 | `notify.py` | Pushover sender (in-app + `--systemd-failure` for `OnFailure`) |
 | `scripts/sync_worktree.sh` | keeps the `…-claude` worktree in sync |
 | `.env.example` | per-host config template (copy to `.env`) |

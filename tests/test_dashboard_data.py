@@ -7,10 +7,13 @@ value; PREREG_CONVEXITY_CALIBRATION §6). The fixture `convexity_db` (conftest) 
 
 from __future__ import annotations
 
+import os
 import sqlite3
+from pathlib import Path
 
 import pytest
 
+import config_loader
 import dashboard_data as dd
 import state
 
@@ -231,3 +234,42 @@ def test_t4_scoreboard_breach_cell(convexity_db):
     cond1 = next(c for c in t4["conditions"] if c["id"] == 1)
     assert cond1["verdict"] == "NOT_OK"  # no healthy council runs yet
     assert cond1["checkable"] is True and next(c for c in t4["conditions"] if c["id"] == 2)["checkable"] is False
+
+
+# ── keyless dashboard invariants (S1: the dashboard process must hold NO broker/LLM secrets) ──────
+_KEY_VARS = ("ALPACA_API_KEY", "ALPACA_SECRET_KEY", "GEMINI_API_KEY", "XAI_API_KEY",
+             "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "PERPLEXITY_API_KEY")
+
+
+def test_dotenv_optout_keeps_config_keyless(monkeypatch, tmp_path):
+    envf = tmp_path / ".env"
+    envf.write_text("ALPACA_API_KEY=SECRET\nGEMINI_API_KEY=G\n")
+    monkeypatch.setattr(config_loader, "ENV_PATH", envf)
+    for k in _KEY_VARS:
+        monkeypatch.delenv(k, raising=False)
+    try:
+        monkeypatch.setenv("DRAMATIC_SKIP_DOTENV", "1")  # the dashboard's flag → .env is NOT read
+        config_loader.load_config.cache_clear()
+        cfg = config_loader.load_config()
+        assert cfg["alpaca"]["api_key"] is None
+        assert cfg["llm_keys"]["gemini"] is None
+        assert os.getenv("ALPACA_API_KEY") is None  # load_dotenv never ran → nothing injected
+        # control: WITHOUT the flag the SAME .env IS read (proves the test .env is wired, not vacuous)
+        monkeypatch.delenv("DRAMATIC_SKIP_DOTENV", raising=False)
+        config_loader.load_config.cache_clear()
+        assert config_loader.load_config()["alpaca"]["api_key"] == "SECRET"
+    finally:
+        for k in _KEY_VARS:
+            os.environ.pop(k, None)
+        config_loader.load_config.cache_clear()  # don't poison other tests with the temp config
+
+
+def test_dashboard_graph_has_no_ungated_dotenv():
+    # The dashboard's data-layer import graph must stay keyless: no module may call load_dotenv at import,
+    # which would bypass the config_loader DRAMATIC_SKIP_DOTENV gate and re-introduce secrets. The only
+    # permitted reader is config_loader (gated), which the graph imports LAZILY, never at module load.
+    root = Path(config_loader.__file__).resolve().parent
+    graph = ["dashboard_data.py", "breach_audit.py", "clusters.py", "fixed_basket.py", "shadow_book.py",
+             "state.py", "council_health_report.py", "council/scoring.py", "council/proposal.py"]
+    offenders = [m for m in graph if "load_dotenv" in (root / m).read_text()]
+    assert not offenders, f"dashboard graph modules call load_dotenv (must stay keyless): {offenders}"
