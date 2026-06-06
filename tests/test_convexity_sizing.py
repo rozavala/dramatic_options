@@ -1,6 +1,6 @@
 """Greedy-to-per-name-cap convexity sizing: caps, book budget, concurrency, edge cases."""
 
-from convexity_sizing import convexity_position_size
+from dramatic_options.convexity_sizing import convexity_position_size
 
 BASE = dict(account_equity=100_000.0, book_fraction=0.10, per_name_fraction=0.01,
             max_open_positions=15)
@@ -119,7 +119,7 @@ def test_cluster_allows_bounded_partial():
 
 
 def test_equal_weight_contracts_is_per_name_only_no_book_or_cluster():
-    from convexity_sizing import equal_weight_contracts
+    from dramatic_options.convexity_sizing import equal_weight_contracts
     ew = lambda prem: equal_weight_contracts(account_equity=100_000.0, per_name_fraction=0.01,  # noqa: E731
                                              entry_premium_per_share=prem)
     assert ew(2.0) == 5      # $1000 per-name cap // $200/contract

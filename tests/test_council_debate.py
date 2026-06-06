@@ -3,12 +3,12 @@
 import json
 import random
 
-from council import agents
-from council.context import synthetic_context_pack
-from council.debate import run_candidate
-from council.filters import apply_filter, authenticity_scan, dampen
-from council.router import FakeRouter
-from themes import Theme
+from dramatic_options.council import agents
+from dramatic_options.council.context import synthetic_context_pack
+from dramatic_options.council.debate import run_candidate
+from dramatic_options.council.filters import apply_filter, authenticity_scan, dampen
+from dramatic_options.council.router import FakeRouter
+from dramatic_options.themes import Theme
 
 BULL = Theme("copper_electrification", "FCX", "bullish", "unloved industrial tailwind")
 BEAR = Theme("legacy_rollover", "XYZ", "bearish", "secular demand rollover not yet consensus")

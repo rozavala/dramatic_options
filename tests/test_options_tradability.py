@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from options_tradability import parse_osi, spread_pct, summarize_put_tradability
+from dramatic_options.options_tradability import parse_osi, spread_pct, summarize_put_tradability
 
 
 def test_parse_osi():

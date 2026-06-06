@@ -3,11 +3,11 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-import risk
-from clock import FixedClock
-from council.council import propose
-from council.router import FakeRouter, RouterError
-from themes import Theme
+from dramatic_options import risk
+from dramatic_options.clock import FixedClock
+from dramatic_options.council.council import propose
+from dramatic_options.council.router import FakeRouter, RouterError
+from dramatic_options.themes import Theme
 
 CLOCK = FixedClock(datetime(2026, 6, 1, tzinfo=UTC))
 CONFIG = {"council": {"max_candidates": 12, "news_lookback_days": 90}}

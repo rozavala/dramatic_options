@@ -2,8 +2,8 @@
 
 from datetime import UTC, datetime
 
-from council.context import build_context_pack, synthetic_context_pack
-from themes import Theme
+from dramatic_options.council.context import build_context_pack, synthetic_context_pack
+from dramatic_options.themes import Theme
 
 AS_OF = datetime(2026, 6, 1, tzinfo=UTC)
 CAND = Theme("copper_electrification", "FCX", "bullish", "unloved industrial tailwind")

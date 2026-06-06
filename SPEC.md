@@ -254,38 +254,44 @@ execution — the aggressive small-caps often have untradable options.
 
 ---
 
-## 10. Repo structure (sketch)
+## 10. Repo structure
+
+The core is the importable **`dramatic_options/`** package; the Streamlit dashboard,
+`scripts/`, `tests/`, and the runtime config files sit at the repo root. Run as a module
+(`python -m dramatic_options.orchestrator`) or `pip install -e .`. Tests resolve the package
+via the repo-root `conftest.py` without an install.
 
 ```
-dramatic_options/
+dramatic_options/                # the package (importable as `dramatic_options`)
   __init__.py
-  orchestrator.py        # long-running asyncio loop: schedules L1, runs L2, handles L3
-  config.json            # models, thresholds, risk budget, schedule
-  config_loader.py       # config + .env overrides
-  discovery.py           # two-layer evidence-based theme/basket discovery
-  divergence.py          # narrative-vs-delivery scorer (core edge)
-  themes.py              # theme/thesis store + lifecycle
-  graph.py               # causal driver graph (Phase 6+)
-  council/
-    specialists.py       # Tier-2 analysts
-    debate.py            # Permabull/bear, strategist, devil's advocate, risk agent
-    router.py            # heterogeneous LLM routing
-  risk.py                # risk budget, portfolio caps, drawdown breaker, compliance gate
-  sizing.py              # fractional-Kelly sizing
-  execution.py           # Alpaca MLEG orders, liquidity gate, missed-order persistence
-  monitor.py             # L2 fast position monitor (intraday exits)
-  observability.py       # funnel, forensics, cost ledger
-  tms.py                 # transactive memory (ChromaDB)
-  data/                  # alpaca, edgar, news, earnings, macro, social adapters
+  orchestrator.py        # single-cycle loop: reconcile → monitor/exits → council → entries
+  config_loader.py       # config.json + .env overrides; the live-trading gates
+  clock.py               # injectable Clock (point-in-time everything)
+  themes.py              # conviction theme watchlist (themes.json) store + lifecycle
+  discovery.py           # evidence-based theme/basket discovery (L0)
+  convexity_data.py      # option-chain / quote providers (Alpaca + synthetic)
+  convexity_gate.py      # the edge: IV/RV + OTM-skew cheap-convexity gate (fail-closed)
+  convexity_sizing.py    # flat-by-slots position sizing
+  structure.py           # defined-risk structure selection
+  broker.py              # Alpaca paper/real broker + client-order-id helpers
+  paper_loop.py          # the per-cycle entry loop
+  monitor.py             # mark positions + fire deterministic exits (L2)
+  risk.py                # kill switch / kill-rule, caps
+  sentinels.py           # event sentinels; sentinel_scoring.py forward-scores them
+  universe.py            # eligibility floor
+  options_tradability.py # OSI parse + spread/tradability checks
+  notify.py              # Pushover paging (systemd OnFailure + in-app)
   state.py               # atomic SQLite state/journal
-backtest/                # replay harness for the divergence signal
-dashboard.py
-pages/                   # Streamlit pages
-scripts/                 # deploy, migrations, readiness check
+  council/               # T2 LLM council: router, agents, debate, proposal, scoring, wiring
+  data/                  # alpaca_client, cache, news + reusable point-in-time adapters
+  calibration/           # parametric Monte-Carlo convexity calibration (calibrate-not-prove)
+config.json              # thresholds, risk budget, council/model config  (repo root)
+themes.json              # conviction theme candidate watchlist            (repo root)
+dashboard.py             # Streamlit dashboard (streamlit run dashboard.py)
+scripts/                 # deploy, migrations, systemd unit templates, readiness check
 tests/
-SPEC.md                  # this document
-CLAUDE.md                # lean project context (points here)
-.env.example
+shelf/                   # parked backtest-gate machinery (graded-negative edges; kept)
+conftest.py · pyproject.toml · SPEC.md · CLAUDE.md · .env.example
 ```
 
 ---

@@ -20,4 +20,4 @@ Environment=PYTHONUNBUFFERED=1
 # Comfortable now; if Alpaca is slow against a full 15-position book it fails LOUD (SIGTERM →
 # OnFailure → page) rather than silently — the correct direction. Bump if it pages on slow days.
 TimeoutStartSec=180
-ExecStart=__REPO_ROOT__/venv/bin/python -u orchestrator.py --monitor
+ExecStart=__REPO_ROOT__/venv/bin/python -u -m dramatic_options.orchestrator --monitor

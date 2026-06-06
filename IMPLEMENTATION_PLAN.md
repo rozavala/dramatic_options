@@ -237,16 +237,21 @@ the SQLite journal + the PIT cache, never a trade/authorization path, fail-soft,
   apparatus beat the basket), premium-bled-vs-paid, drawdown vs the kill threshold. Forward-only —
   read as calibration, never a pass-gate (§6 / guardrail §6).
 
-**File-structure / architecture for scale** (currently **22 flat root modules** + `council/` /
-`data/` / `calibration/` / `scripts/` packages). Evolve toward domain packages — e.g. `discovery/`,
-`trading/` (structure · gate · sizing · clusters · paper_loop · monitor · broker · risk ·
-shadow_book), `data/`, `council/`, `observability/`, `infra/` (orchestrator · config · state · clock ·
-notify) — **incrementally and nimbly**: group the obvious clusters first; don't over-engineer a
-paper-stage system. **Hard constraints (high blast radius):** keep `orchestrator.py`'s entry stable
-for the systemd `ExecStart` + `deploy.sh` paths (or update them in lockstep); preserve the
-flat-layout `sys.path` shim in `conftest.py` (or migrate to an installed package); migrations stay
-numbered under `scripts/migrations/`. Its own carefully-sequenced PR(s), full suite green at each
-step — never mid-flight with the live loop unverified.
+**File-structure / architecture for scale.** ✅ **Step 1 done** — the flat root modules are now
+consolidated into the importable **`dramatic_options/`** package (SPEC §10), with `council/` /
+`data/` / `calibration/` as subpackages; `dashboard.py`, `scripts/`, `tests/`, `config.json`,
+and `themes.json` stay at the repo root. The entry point moved from `python orchestrator.py` to
+`python -m dramatic_options.orchestrator` (systemd `ExecStart`, `deploy.sh`/`verify_deploy.sh`,
+and the docs were updated in lockstep); the `conftest.py` repo-root `sys.path` shim still lets the
+suite run without an install, and `pyproject.toml` now declares the package so `pip install -e .`
+works too; migrations stay numbered under `scripts/migrations/`.
+
+**Optional next (incremental, only if it earns its keep):** subdivide the package into domain
+subpackages — e.g. `discovery/`, `trading/` (structure · gate · sizing · clusters · paper_loop ·
+monitor · broker · risk · shadow_book), `observability/`, `infra/` (orchestrator · config · state ·
+clock · notify). Do it **nimbly**: group the obvious clusters first; don't over-engineer a
+paper-stage system. Same constraints (keep the `-m dramatic_options.orchestrator` entry stable or
+update `ExecStart`/`deploy.sh` in lockstep; full suite green at each step).
 
 ## 6. Forward measurement — calibration, not a pass-gate (PREREG §7)
 

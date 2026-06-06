@@ -9,15 +9,13 @@ on the discovery scan itself.
 from datetime import UTC, datetime
 from pathlib import Path
 
-import orchestrator
-import risk
-import state
-from broker import PaperBroker
-from clock import FixedClock
-from convexity_data import StaticQuoteProvider, SyntheticChainProvider
-from monitor import monitor_positions
-from paper_loop import run_paper_cycle
-from themes import Theme
+from dramatic_options import orchestrator, risk, state
+from dramatic_options.broker import PaperBroker
+from dramatic_options.clock import FixedClock
+from dramatic_options.convexity_data import StaticQuoteProvider, SyntheticChainProvider
+from dramatic_options.monitor import monitor_positions
+from dramatic_options.paper_loop import run_paper_cycle
+from dramatic_options.themes import Theme
 
 CONFIG = {
     "convexity_book": {"account_equity": 100_000.0, "book_fraction": 0.10,

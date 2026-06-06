@@ -19,4 +19,4 @@ SupplementaryGroups=systemd-journal
 WorkingDirectory=__REPO_ROOT__
 EnvironmentFile=-__REPO_ROOT__/.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=__REPO_ROOT__/venv/bin/python -u notify.py --systemd-failure %i
+ExecStart=__REPO_ROOT__/venv/bin/python -u -m dramatic_options.notify --systemd-failure %i

@@ -9,14 +9,18 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-import risk
-from clock import FixedClock
-from council.context import build_context_pack, sentinel_context_pack
-from council.council import propose
-from council.router import FakeRouter
-from council.sentinel import frame_candidates, parse_framer, sentinel_fake_responder
-from discovery import MarkerSet, Surfaced
-from themes import Theme
+from dramatic_options import risk
+from dramatic_options.clock import FixedClock
+from dramatic_options.council.context import build_context_pack, sentinel_context_pack
+from dramatic_options.council.council import propose
+from dramatic_options.council.router import FakeRouter
+from dramatic_options.council.sentinel import (
+    frame_candidates,
+    parse_framer,
+    sentinel_fake_responder,
+)
+from dramatic_options.discovery import MarkerSet, Surfaced
+from dramatic_options.themes import Theme
 
 AS_OF = datetime(2026, 6, 2, tzinfo=UTC)
 CLOCK = FixedClock(AS_OF)
@@ -111,7 +115,7 @@ def test_parse_framer_coerces_and_fails_closed():
 def test_sentinel_fake_responder_satisfies_framer_validation():
     # Ground-truth: the framer's required-key validation must stay in lock-step with what the responder
     # emits, else every real framer call fail-closes (P1-#1, framer arm).
-    from council.sentinel import sentinel_fake_responder
+    from dramatic_options.council.sentinel import sentinel_fake_responder
     out = sentinel_fake_responder("framer", "s", "CANDIDATE: RKLB bullish space_launch\n")
     assert not parse_framer(out).get("parse_error")
 

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from data.fundamentals import extract_quarterly_revenue, revenue_yoy
+from dramatic_options.data.fundamentals import extract_quarterly_revenue, revenue_yoy
 
 
 def _q(start, end, val, filed):

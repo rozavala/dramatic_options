@@ -1,8 +1,8 @@
-"""Root conftest — makes the flat-layout top-level modules importable in tests.
+"""Root conftest — makes the ``dramatic_options`` package importable in tests.
 
-pytest prepends the directory containing the first conftest.py onto sys.path, so
-``import config_loader``, ``import state``, ``import data.alpaca_client`` etc. all
-resolve from the repo root without an installed package.
+pytest prepends the directory containing the first conftest.py (the repo root) onto
+sys.path, so ``from dramatic_options.config_loader import ...``, ``from dramatic_options
+import state``, etc. resolve without an installed package (SPEC §10 layout).
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-import state
+from dramatic_options import state
 
 _ROOT = Path(__file__).resolve().parent
 

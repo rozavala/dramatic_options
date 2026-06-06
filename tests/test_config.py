@@ -2,8 +2,8 @@
 
 import itertools
 
-import config_loader
-from config_loader import _as_bool, live_allowed
+from dramatic_options import config_loader
+from dramatic_options.config_loader import _as_bool, live_allowed
 
 
 def test_frozen_exit_rules_match_prereg():
@@ -38,7 +38,7 @@ def test_frozen_cluster_cap_matches_prereg():
 
 
 def test_frame_version_changes_with_frozen_params_not_comments():
-    from config_loader import frame_version
+    from dramatic_options.config_loader import frame_version
     base = {"convexity_book": {"cluster_fraction": 0.02}, "convexity_gate": {"iv_rv_max": 1.2}}
     v0 = frame_version(base)
     # a comment-only edit does NOT churn the version
@@ -146,7 +146,7 @@ def test_forward_enabled_env_override_is_distinct_from_live(monkeypatch, tmp_pat
 def test_require_alpaca_credentials_friendly_error():
     import pytest
 
-    from config_loader import ConfigError, require_alpaca_credentials
+    from dramatic_options.config_loader import ConfigError, require_alpaca_credentials
 
     with pytest.raises(ConfigError, match="Alpaca credentials missing"):
         require_alpaca_credentials({"alpaca": {"api_key": None, "secret_key": None}})

@@ -3,13 +3,12 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-import risk
-import state
-from broker import PaperBroker
-from clock import FixedClock
-from convexity_data import SyntheticChainProvider
-from paper_loop import run_paper_cycle
-from themes import Theme
+from dramatic_options import risk, state
+from dramatic_options.broker import PaperBroker
+from dramatic_options.clock import FixedClock
+from dramatic_options.convexity_data import SyntheticChainProvider
+from dramatic_options.paper_loop import run_paper_cycle
+from dramatic_options.themes import Theme
 
 CONFIG = {
     "convexity_book": {"account_equity": 100_000.0, "book_fraction": 0.10,
@@ -117,8 +116,8 @@ def test_book_sized_off_config_not_broker_equity(convexity_db, monkeypatch):
 
 
 def test_chain_cache_accrual(convexity_db, monkeypatch, tmp_path):
-    from convexity_data import SNAPSHOT_SOURCE
-    from data.cache import PointInTimeCache
+    from dramatic_options.convexity_data import SNAPSHOT_SOURCE
+    from dramatic_options.data.cache import PointInTimeCache
 
     _no_kill(monkeypatch)
     cache = PointInTimeCache(tmp_path)

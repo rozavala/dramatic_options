@@ -1,6 +1,6 @@
 """Council proposal types + the proposal→Theme hard-seam adapter (T2)."""
 
-from council.proposal import (
+from dramatic_options.council.proposal import (
     AgentOutput,
     CouncilProposal,
     normalize_conviction,

@@ -7,8 +7,8 @@ not relative z — the auto-trade failure mode the planted-signal test alone can
 
 from datetime import UTC, datetime, timedelta
 
-from data.cache import PointInTimeCache
-from discovery import (
+from dramatic_options.data.cache import PointInTimeCache
+from dramatic_options.discovery import (
     MarkerParams,
     MarkerSet,
     clears_gate,
@@ -51,7 +51,7 @@ def _md(tmp_path, series: dict[str, list[float]]):
     for sym, closes in series.items():
         cache.write("bars", sym, _bars(closes),
                     coverage_from=START - timedelta(days=5), coverage_through=end)
-    from data.market import MarketData
+    from dramatic_options.data.market import MarketData
     return MarketData(cache, client=None, fetch_start=START - timedelta(days=5), fetch_end=end)
 
 

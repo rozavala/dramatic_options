@@ -2,10 +2,9 @@
 
 from datetime import UTC, datetime, timedelta
 
-import sentinels
-import state
-from discovery import DiscoveryResult, MarkerParams, MarkerSet, Surfaced
-from themes import Theme
+from dramatic_options import sentinels, state
+from dramatic_options.discovery import DiscoveryResult, MarkerParams, MarkerSet, Surfaced
+from dramatic_options.themes import Theme
 
 
 def _rec(conn, symbol, direction, score, *, kind="sentinel", as_of="2026-06-02T12:00:00+00:00",
@@ -162,8 +161,8 @@ def test_revalidate_dormants_dead_motion_keeps_event_origin(convexity_db, tmp_pa
                                     symbol="EVT", direction="bullish", basket="b",
                                     inflection_score=0.5, markers={"has_event": True, "event_kind": "13D"})
     # a MarketData where DEAD is now flat (no motion)
-    from data.cache import PointInTimeCache
-    from data.market import MarketData
+    from dramatic_options.data.cache import PointInTimeCache
+    from dramatic_options.data.market import MarketData
     start = datetime(2025, 6, 1, tzinfo=UTC)
     as_of = start + timedelta(days=319)
     cache = PointInTimeCache(tmp_path)

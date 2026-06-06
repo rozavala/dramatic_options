@@ -1,6 +1,6 @@
 """Convexity state: tables, position + survivorship-log + MTM/close helpers."""
 
-import state
+from dramatic_options import state
 
 
 def test_mark_close_and_drawdown(convexity_db):

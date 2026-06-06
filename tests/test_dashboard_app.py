@@ -15,7 +15,7 @@ pytest.importorskip("streamlit")  # noqa: E402 — gate before importing the str
 
 from streamlit.testing.v1 import AppTest  # noqa: E402
 
-import state  # noqa: E402
+from dramatic_options import state  # noqa: E402
 
 _APP = str(Path(__file__).resolve().parent.parent / "dashboard.py")
 

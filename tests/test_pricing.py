@@ -4,7 +4,12 @@ import math
 
 import numpy as np
 
-from calibration.pricing import bs_delta, bs_price, intrinsic_value, simulate_gbm_path
+from dramatic_options.calibration.pricing import (
+    bs_delta,
+    bs_price,
+    intrinsic_value,
+    simulate_gbm_path,
+)
 
 
 def test_put_call_parity():

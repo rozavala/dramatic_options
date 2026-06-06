@@ -3,8 +3,8 @@
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
-from data.cache import PointInTimeCache
-from data.news import NewsData, _news_records
+from dramatic_options.data.cache import PointInTimeCache
+from dramatic_options.data.news import NewsData, _news_records
 
 
 class _FakeNewsSet:

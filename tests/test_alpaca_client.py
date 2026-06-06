@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import data.alpaca_client as ac
+import dramatic_options.data.alpaca_client as ac
 
 
 def _client(monkeypatch):

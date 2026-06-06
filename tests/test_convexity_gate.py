@@ -3,7 +3,7 @@
 import math
 from datetime import date
 
-from convexity_gate import Contract, atm_iv, is_cheap_convexity, realized_vol
+from dramatic_options.convexity_gate import Contract, atm_iv, is_cheap_convexity, realized_vol
 
 EXP = date(2026, 9, 30)
 

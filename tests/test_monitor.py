@@ -2,11 +2,11 @@
 
 from datetime import UTC, datetime, timedelta
 
-import state
-from clock import FixedClock
-from convexity_data import StaticQuoteProvider
-from monitor import intrinsic_value, monitor_positions
-from paper_loop import kill_rule_status
+from dramatic_options import state
+from dramatic_options.clock import FixedClock
+from dramatic_options.convexity_data import StaticQuoteProvider
+from dramatic_options.monitor import intrinsic_value, monitor_positions
+from dramatic_options.paper_loop import kill_rule_status
 
 CONFIG = {
     "convexity_book": {"account_equity": 100_000.0, "book_fraction": 0.10,
@@ -119,7 +119,7 @@ class _FakeBroker:
     """Records SELL_TO_CLOSE submits; returns a configurable Fill + order statuses."""
 
     def __init__(self, *, sell=None):
-        from broker import Fill
+        from dramatic_options.broker import Fill
         self.sells = []
         self.cancelled = []
         self._statuses = {}

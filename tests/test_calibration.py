@@ -2,13 +2,13 @@
 
 import numpy as np
 
-from calibration.engine import (
+from dramatic_options.calibration.engine import (
     Structure,
     run_cell_historical,
     run_cell_mc,
     simulate_option_on_path,
 )
-from calibration.metrics import breakeven_hit_rate, payoff_stats
+from dramatic_options.calibration.metrics import breakeven_hit_rate, payoff_stats
 
 
 def _struct(rule="hold", mny=0.25, tenor=270, smult=1.0, **kw):

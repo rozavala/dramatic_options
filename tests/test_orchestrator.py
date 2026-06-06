@@ -8,7 +8,7 @@ exercised by the offline `--demo` run.
 
 from datetime import UTC, datetime
 
-import orchestrator
+from dramatic_options import orchestrator
 
 
 class _Clock:

@@ -14,16 +14,12 @@ import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import discovery
-import fixed_basket
-import risk
-import shares_basket
-import state
-from clock import FixedClock
-from convexity_data import SyntheticChainProvider
-from data.cache import PointInTimeCache
-from data.market import MarketData
-from discovery import MarkerParams
+from dramatic_options import discovery, fixed_basket, risk, shares_basket, state
+from dramatic_options.clock import FixedClock
+from dramatic_options.convexity_data import SyntheticChainProvider
+from dramatic_options.data.cache import PointInTimeCache
+from dramatic_options.data.market import MarketData
+from dramatic_options.discovery import MarkerParams
 
 CLOCK = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
 _MARKERS = {"mom_lookback": 252, "mom_skip": 21, "rv_recent": 21, "rv_base": 252, "adv_window": 20,

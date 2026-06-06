@@ -2,8 +2,8 @@
 
 from datetime import UTC, datetime
 
-import risk
-from clock import FixedClock
+from dramatic_options import risk
+from dramatic_options.clock import FixedClock
 
 
 def test_kill_switch_via_file(tmp_path, monkeypatch):

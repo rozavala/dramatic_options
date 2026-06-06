@@ -1,6 +1,6 @@
 """424B5 deal-size parse: shares×price, gross fallback, recall (parseable vs not)."""
 
-from data.prospectus import offering_vs_float, parse_offering_size
+from dramatic_options.data.prospectus import offering_vs_float, parse_offering_size
 
 _PARSEABLE = """
 PROSPECTUS SUPPLEMENT

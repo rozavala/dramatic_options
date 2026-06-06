@@ -4,8 +4,17 @@ version = "0.0.0"
 description = "Thesis-first thematic equity-options trading system (Alpaca, paper-first)."
 requires-python = ">=3.11"
 
-# Flat module layout (modules at repo root), so no [tool.setuptools] packages — this
-# project is run, not pip-installed. pyproject exists for ruff + pytest config only.
+# Package layout (SPEC §10): the core lives in the `dramatic_options/` package; the
+# Streamlit `dashboard.py`, `scripts/`, and `tests/` sit at the repo root. Run as a module
+# (`python -m dramatic_options.orchestrator`) or `pip install -e .` for an importable
+# install. Tests resolve the package via the repo-root conftest without requiring install.
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["dramatic_options*"]
 
 [tool.ruff]
 line-length = 100

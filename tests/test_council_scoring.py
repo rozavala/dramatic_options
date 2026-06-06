@@ -2,8 +2,8 @@
 
 import pytest
 
-from council.proposal import AgentOutput
-from council.scoring import (
+from dramatic_options.council.proposal import AgentOutput
+from dramatic_options.council.scoring import (
     agent_contribution,
     brier,
     conviction_prob,

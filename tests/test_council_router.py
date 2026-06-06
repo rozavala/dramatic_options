@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from council.router import (
+from dramatic_options.council.router import (
     BudgetExceeded,
     CostLedger,
     FakeRouter,
@@ -32,7 +32,7 @@ def test_price_call_from_table():
 def test_cost_ledger_total_and_cap():
     led = CostLedger(cap_usd=1.0)
     assert not led.over_cap and led.total_usd == 0.0
-    from council.router import CostEntry
+    from dramatic_options.council.router import CostEntry
 
     led.record(CostEntry("strategist", "anthropic", "m", 100, 100, 0.6))
     assert not led.over_cap

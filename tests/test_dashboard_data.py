@@ -11,8 +11,8 @@ import sqlite3
 
 import pytest
 
-import dashboard_data as dd
-import state
+import dramatic_options.dashboard_data as dd
+from dramatic_options import state
 
 CONFIG = {
     "database": {"path": "data/dramatic_options.db"},

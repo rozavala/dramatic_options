@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from clock import Clock, FixedClock, LiveClock
+from dramatic_options.clock import Clock, FixedClock, LiveClock
 
 
 def test_fixedclock_is_deterministic():

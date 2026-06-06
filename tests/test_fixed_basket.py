@@ -14,15 +14,11 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-import discovery
-import fixed_basket
-import risk
-import shadow_book
-import state
-from clock import FixedClock
-from convexity_data import StaticQuoteProvider, SyntheticChainProvider
-from discovery import MarkerParams
-from themes import Theme
+from dramatic_options import discovery, fixed_basket, risk, shadow_book, state
+from dramatic_options.clock import FixedClock
+from dramatic_options.convexity_data import StaticQuoteProvider, SyntheticChainProvider
+from dramatic_options.discovery import MarkerParams
+from dramatic_options.themes import Theme
 
 CLOCK = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
 CONFIG = {
@@ -157,7 +153,7 @@ def test_fixed_basket_never_touches_the_broker(convexity_db, monkeypatch):
 
 
 def test_orchestrator_fixed_basket_failure_is_non_fatal(monkeypatch):
-    import orchestrator
+    from dramatic_options import orchestrator
     monkeypatch.delenv("KILL", raising=False)
 
     def _boom(**kwargs):
@@ -183,8 +179,8 @@ def _down_market(symbols, down):
     import tempfile
     from datetime import timedelta
 
-    from data.cache import PointInTimeCache
-    from data.market import MarketData
+    from dramatic_options.data.cache import PointInTimeCache
+    from dramatic_options.data.market import MarketData
     n, as_of = 320, CLOCK.now()
     start = as_of - timedelta(days=n)
     cache = PointInTimeCache(tempfile.mkdtemp(prefix="fb_down_"))

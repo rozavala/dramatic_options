@@ -2,8 +2,8 @@
 
 from types import SimpleNamespace
 
-import broker as broker_mod
-from broker import AlpacaPaperBroker, Fill, PaperBroker
+import dramatic_options.broker as broker_mod
+from dramatic_options.broker import AlpacaPaperBroker, Fill, PaperBroker
 
 
 class FakeTradingClient:
@@ -107,7 +107,7 @@ def test_sell_to_close_side_intent_and_client_order_id(monkeypatch):
 
 
 def test_make_client_order_id_stable_and_sanitized():
-    from broker import make_client_order_id
+    from dramatic_options.broker import make_client_order_id
 
     a = make_client_order_id("open", "FCX270319C00080000", "2026-06-01")
     assert a == make_client_order_id("open", "FCX270319C00080000", "2026-06-01")  # idempotent

@@ -2,8 +2,8 @@
 
 import pytest
 
-import clusters
-from clusters import ClusterConfigError
+from dramatic_options import clusters
+from dramatic_options.clusters import ClusterConfigError
 
 
 def _cfg(clusters_map, *, cluster_fraction=0.02, per_name_fraction=0.01):
@@ -51,7 +51,7 @@ def test_bad_member_types_raise():
 
 
 def test_shipped_config_taxonomy_is_a_valid_partition():
-    import config_loader
+    from dramatic_options import config_loader
     config_loader.load_config.cache_clear()
     cmap = clusters.load_cluster_map(config_loader.load_config())
     config_loader.load_config.cache_clear()

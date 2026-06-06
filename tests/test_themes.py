@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from themes import ThemeError, active_themes, load_themes
+from dramatic_options.themes import ThemeError, active_themes, load_themes
 
 REPO = Path(__file__).resolve().parent.parent
 

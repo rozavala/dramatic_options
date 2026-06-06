@@ -3,7 +3,7 @@
 import importlib.util
 from pathlib import Path
 
-import state
+from dramatic_options import state
 
 _M0011 = Path(__file__).resolve().parent.parent / "scripts" / "migrations" / "0011_council_health.py"
 
@@ -65,7 +65,7 @@ def test_migration_0011_backfills_only_majority_parse_error_runs(convexity_db):
 
 # ── council_health_report: the codified L1 verification checklist ──────────────────────────────
 
-from council_health_report import council_l1_health  # noqa: E402
+from dramatic_options.council_health_report import council_l1_health  # noqa: E402
 
 
 def _roundtrip(conn, run_id, symbol, direction, *, adv_stance, strat_conv="MODERATE", cost=0.003):

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from data.shares_out import (
+from dramatic_options.data.shares_out import (
     extract_shares_points,
     shares_out_asof,
     shares_out_delta,

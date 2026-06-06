@@ -9,15 +9,14 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-import risk
-import state
-from clock import FixedClock
-from convexity_data import StaticQuoteProvider, SyntheticChainProvider
-from council.router import FakeRouter, _parse_candidate_header
-from council.wiring import council_to_themes
-from monitor import monitor_positions
-from paper_loop import run_paper_cycle
-from themes import Theme
+from dramatic_options import risk, state
+from dramatic_options.clock import FixedClock
+from dramatic_options.convexity_data import StaticQuoteProvider, SyntheticChainProvider
+from dramatic_options.council.router import FakeRouter, _parse_candidate_header
+from dramatic_options.council.wiring import council_to_themes
+from dramatic_options.monitor import monitor_positions
+from dramatic_options.paper_loop import run_paper_cycle
+from dramatic_options.themes import Theme
 
 CLOCK = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
 COUNCIL = {
@@ -142,7 +141,7 @@ def test_over_budget_yields_zero_entries(convexity_db, monkeypatch):
 # ── 5. KILL → the council is never invoked (orchestrator path) ───────────────
 
 def test_kill_switch_means_council_never_invoked(monkeypatch):
-    import orchestrator
+    from dramatic_options import orchestrator
 
     calls = {"n": 0}
 
@@ -225,7 +224,7 @@ def test_resolution_unresolved_without_underlying(convexity_db):
 # ── test helpers ─────────────────────────────────────────────────────────────
 
 def _broker():
-    from broker import PaperBroker
+    from dramatic_options.broker import PaperBroker
 
     return PaperBroker(100_000.0)
 

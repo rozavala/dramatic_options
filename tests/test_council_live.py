@@ -14,12 +14,12 @@ from datetime import UTC, datetime
 
 import pytest
 
-from config_loader import load_config
-from council import agents
-from council.context import sentinel_context_pack
-from council.debate import run_candidate
-from council.router import build_router
-from themes import Theme
+from dramatic_options.config_loader import load_config
+from dramatic_options.council import agents
+from dramatic_options.council.context import sentinel_context_pack
+from dramatic_options.council.debate import run_candidate
+from dramatic_options.council.router import build_router
+from dramatic_options.themes import Theme
 
 pytestmark = pytest.mark.live
 

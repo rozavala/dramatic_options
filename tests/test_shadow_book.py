@@ -13,12 +13,10 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-import risk
-import shadow_book
-import state
-from clock import FixedClock
-from convexity_data import StaticQuoteProvider, SyntheticChainProvider
-from themes import Theme
+from dramatic_options import risk, shadow_book, state
+from dramatic_options.clock import FixedClock
+from dramatic_options.convexity_data import StaticQuoteProvider, SyntheticChainProvider
+from dramatic_options.themes import Theme
 
 CLOCK = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
 CONFIG = {
@@ -213,7 +211,7 @@ def test_shadow_path_never_touches_the_broker(convexity_db, monkeypatch):
 # ── fail-soft: a shadow bug must never halt the real trade cycle ─────────────────────────────────
 
 def test_orchestrator_shadow_failure_is_non_fatal(monkeypatch):
-    import orchestrator
+    from dramatic_options import orchestrator
 
     monkeypatch.delenv("KILL", raising=False)
 

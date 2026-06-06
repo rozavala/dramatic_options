@@ -6,8 +6,7 @@ account_equity·cluster_fraction = 100000·0.02 = $2000 for ai_capex_power.
 
 from __future__ import annotations
 
-import breach_audit
-import state
+from dramatic_options import breach_audit, state
 
 CONFIG = {
     "convexity_book": {

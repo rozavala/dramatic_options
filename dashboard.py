@@ -26,16 +26,16 @@ from datetime import UTC, datetime
 
 import streamlit as st
 
-import dashboard_data as dd
-from config_loader import load_config
+import dramatic_options.dashboard_data as dd
+from dramatic_options.config_loader import load_config
 
 
 def _market(cache_dir: str):
     """A NO-FETCH MarketData over the cache (client=None ⇒ never fetches; a cache miss raises CacheMiss,
     surfaced as 'accruing' by dd.safe). Returns None on any setup error (curation then shows 'accruing')."""
     try:
-        from data.cache import PointInTimeCache
-        from data.market import MarketData, default_fetch_window
+        from dramatic_options.data.cache import PointInTimeCache
+        from dramatic_options.data.market import MarketData, default_fetch_window
 
         now = datetime.now(UTC)
         start, _ = default_fetch_window(now)

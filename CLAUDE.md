@@ -74,10 +74,10 @@ Streamlit (dashboard) · systemd on a Digital Ocean droplet · GitHub Actions CI
 (Stubs until Phase 0 lands them.)
 
 ```bash
-pip install -r requirements.txt   # install
-python orchestrator.py            # run (paper, default)
-pytest                            # tests
-streamlit run dashboard.py        # dashboard
+pip install -r requirements.txt          # install
+python -m dramatic_options.orchestrator  # run (paper, default)
+pytest                                   # tests
+streamlit run dashboard.py               # dashboard
 touch KILL                        # halt everything
 ```
 

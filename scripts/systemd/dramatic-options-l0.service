@@ -33,4 +33,4 @@ Environment=PYTHONUNBUFFERED=1
 # Lower than L1's 1800 because L0 has no 3-role council debate, no entries, no broker reconcile.
 # Bump if it ever pages on a legitimately slow week.
 TimeoutStartSec=900
-ExecStart=__REPO_ROOT__/venv/bin/python -u orchestrator.py --discover
+ExecStart=__REPO_ROOT__/venv/bin/python -u -m dramatic_options.orchestrator --discover

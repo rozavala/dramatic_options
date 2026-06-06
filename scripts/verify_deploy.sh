@@ -26,19 +26,19 @@ if [ "${DISK_USAGE:-0}" -gt 90 ]; then
 fi
 
 # -------------------------------------------------------------------------
-# CHECK 2: Core module imports (flat layout — no top-level package)
+# CHECK 2: Core package imports (SPEC §10 — dramatic_options/ package)
 # -------------------------------------------------------------------------
-echo "  [verify] Checking core module imports..."
-if [ -f "config_loader.py" ]; then
+echo "  [verify] Checking core package imports..."
+if [ -d "dramatic_options" ]; then
     PYBIN="python"
     [ -x "venv/bin/python" ] && PYBIN="venv/bin/python"
-    if ! "$PYBIN" -c "import config_loader" 2>/dev/null; then
-        echo "  [verify] CRITICAL: cannot import config_loader"
-        echo "$(date --iso=s) — FAIL: import config_loader" >> "$HEALTH_LOG"
+    if ! "$PYBIN" -c "import dramatic_options.config_loader" 2>/dev/null; then
+        echo "  [verify] CRITICAL: cannot import dramatic_options.config_loader"
+        echo "$(date --iso=s) — FAIL: import dramatic_options.config_loader" >> "$HEALTH_LOG"
         FAILED=1
     fi
 else
-    echo "  [verify] (config_loader.py not present yet — skipping import check)"
+    echo "  [verify] (dramatic_options/ package not present yet — skipping import check)"
 fi
 
 # -------------------------------------------------------------------------
@@ -59,7 +59,7 @@ fi
 # CHECK 4: Critical files exist
 # -------------------------------------------------------------------------
 echo "  [verify] Checking critical files..."
-CRITICAL_FILES=("deploy.sh" "orchestrator.py")
+CRITICAL_FILES=("deploy.sh" "dramatic_options/orchestrator.py")
 for _f in "${CRITICAL_FILES[@]}"; do
     if [ ! -f "$_f" ]; then
         echo "  [verify] CRITICAL: Missing $_f"

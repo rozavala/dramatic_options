@@ -2,7 +2,7 @@
 
 import pytest
 
-import notify
+from dramatic_options import notify
 
 
 def test_send_noop_without_keys(monkeypatch):

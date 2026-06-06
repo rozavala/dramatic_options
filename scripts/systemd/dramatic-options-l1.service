@@ -28,4 +28,4 @@ Environment=PYTHONUNBUFFERED=1
 # guarantee is enforced by the orchestrator's post-council market-open RE-CHECK (PR2 R7), not
 # by this timeout — so moving the L1 time or this value never risks a post-close submit.
 TimeoutStartSec=1800
-ExecStart=__REPO_ROOT__/venv/bin/python -u orchestrator.py
+ExecStart=__REPO_ROOT__/venv/bin/python -u -m dramatic_options.orchestrator

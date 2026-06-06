@@ -3,7 +3,7 @@
 import importlib.util
 from pathlib import Path
 
-import state
+from dramatic_options import state
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MIGRATION_0001 = REPO_ROOT / "scripts" / "migrations" / "0001_initial.py"

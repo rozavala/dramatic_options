@@ -2,8 +2,8 @@
 
 from datetime import date, timedelta
 
-from convexity_gate import Contract
-from structure import contract_eligible, mid_price, select_structure
+from dramatic_options.convexity_gate import Contract
+from dramatic_options.structure import contract_eligible, mid_price, select_structure
 
 AS_OF = date(2026, 1, 2)
 

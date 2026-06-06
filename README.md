@@ -27,9 +27,9 @@ pytest                              # offline test suite (no network)
 ## Run
 
 ```bash
-python orchestrator.py --demo   # one paper cycle on deterministic synthetic data (no creds)
-python orchestrator.py          # one paper cycle on themes.json (needs Alpaca paper creds)
-touch KILL                      # halt everything (checked every cycle)
+python -m dramatic_options.orchestrator --demo   # one paper cycle on deterministic synthetic data (no creds)
+python -m dramatic_options.orchestrator          # one paper cycle on themes.json (needs Alpaca paper creds)
+touch KILL                                       # halt everything (checked every cycle)
 ```
 
 `--demo` is the offline acceptance path: it logs a paper position for a *cheap* seeded theme
@@ -55,13 +55,17 @@ sizing, kill at 20% book DD or 9mo dry. Forward measurement is **calibrate-not-p
 
 ## Layout
 
-Flat modules at repo root: plumbing (`config_loader`, `clock`, `state`, `risk`,
-`orchestrator`, `universe`, `options_tradability`) + the T1 strategy (`themes`,
-`convexity_gate`, `structure`, `convexity_sizing`, `broker`, `convexity_data`,
-`paper_loop`, `monitor`) + the T2 **`council/`** package (heterogeneous `router` + `FakeRouter`,
-`context`, `agents`, `filters`, `debate`, `proposal`, `scoring`, `wiring`) + `data/`
-(`alpaca_client`, `cache`, `news`, and the reusable point-in-time adapters)
-+ `scripts/` + `tests/`. Parked backtest-gate machinery lives in **`shelf/`** (not deleted —
-see `shelf/README.md`). Tunables in `config.json`; secrets in `.env` (never committed).
-Point-in-time everything — all "now"/market-state flows through an injectable `Clock`.
+The core lives in the **`dramatic_options/`** package (SPEC §10), run as a module
+(`python -m dramatic_options.orchestrator`). Inside it: plumbing (`config_loader`, `clock`,
+`state`, `risk`, `orchestrator`, `universe`, `options_tradability`) + the T1 strategy
+(`themes`, `convexity_gate`, `structure`, `convexity_sizing`, `broker`, `convexity_data`,
+`paper_loop`, `monitor`) + the T2 **`council/`** subpackage (heterogeneous `router` +
+`FakeRouter`, `context`, `agents`, `filters`, `debate`, `proposal`, `scoring`, `wiring`) +
+the **`data/`** subpackage (`alpaca_client`, `cache`, `news`, and the reusable point-in-time
+adapters) + the **`calibration/`** Monte-Carlo engine. At the **repo root** sit the Streamlit
+`dashboard.py`, `scripts/` (deploy, migrations, systemd templates), `tests/`, and the runtime
+files `config.json` / `themes.json` / `.env`. Parked backtest-gate machinery lives in
+**`shelf/`** (not deleted — see `shelf/README.md`). Tunables in `config.json`; secrets in
+`.env` (never committed). Point-in-time everything — all "now"/market-state flows through an
+injectable `Clock`.
 ```

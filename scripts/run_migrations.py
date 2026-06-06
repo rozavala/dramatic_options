@@ -24,8 +24,8 @@ MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 # Make repo-root modules (state, config_loader) importable when run directly.
 sys.path.insert(0, str(REPO_ROOT))
 
-from config_loader import load_config  # noqa: E402
-from state import get_db  # noqa: E402
+from dramatic_options.config_loader import load_config  # noqa: E402
+from dramatic_options.state import get_db  # noqa: E402
 
 _NUM_RE = re.compile(r"^(\d+)_")
 

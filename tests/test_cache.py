@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from data.cache import CacheMiss, PointInTimeCache
+from dramatic_options.data.cache import CacheMiss, PointInTimeCache
 
 
 def _dt(s):
