@@ -1,0 +1,33 @@
+# Dramatic Options — observability dashboard (read-only Streamlit, §5b).
+# TEMPLATE: deploy.sh renders __REPO_ROOT__ / __USER__ / __GROUP__ at install time (DEV=rodrigo / PROD=console).
+#
+# Long-running (Type=simple), UNLIKE the oneshot l0/l1/l2 trading units: deploy.sh enables+starts it where
+# `forward_enabled || ENV_NAME=DEV` (DEV always armed — observe even a paused book; PROD auto-arms at T4 go-live),
+# else installs-but-stops it. Its failure is fail-soft + outside the verify/rollback gate (a dashboard hiccup
+# never touches trading).
+#
+# READ-ONLY + KEYLESS: deliberately NO EnvironmentFile, plus DRAMATIC_SKIP_DOTENV=1 → config_loader loads
+# config.json tunables but never reads .env, so the process holds no broker/LLM/Pushover keys (nothing for a
+# long-running HTTP server to leak). The wrapper resolves the per-box Tailscale IP and fail-closes if absent.
+[Unit]
+Description=Dramatic Options observability dashboard (read-only Streamlit, §5b)
+Wants=network-online.target
+After=network-online.target tailscaled.service
+# A persistent failure (missing binary/wrapper, a dep break) trips to a visible `failed` after ~5 tries; a
+# transient tailnet-IP lag is absorbed inside the wrapper's ~60s poll, so it never spends this budget.
+StartLimitIntervalSec=900
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__REPO_ROOT__
+Environment=PYTHONUNBUFFERED=1
+Environment=DRAMATIC_SKIP_DOTENV=1
+ExecStart=__REPO_ROOT__/scripts/dashboard_run.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

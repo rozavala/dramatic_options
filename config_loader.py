@@ -45,8 +45,12 @@ def load_config() -> dict[str, Any]:
     except json.JSONDecodeError as e:
         raise ConfigError(f"config.json is not valid JSON: {e}") from e
 
-    # .env holds secrets + per-host overrides. Absent is fine (e.g. CI).
-    load_dotenv(ENV_PATH)
+    # .env holds secrets + per-host overrides. Absent is fine (e.g. CI). The read-only observability
+    # dashboard sets DRAMATIC_SKIP_DOTENV=1 so it loads config.json tunables but NEVER reads .env — the
+    # process stays keyless (nothing for a long-running HTTP server to leak). The trading loop leaves the
+    # flag unset (default path); the L1/L2 systemd units inject their keys via EnvironmentFile regardless.
+    if not os.getenv("DRAMATIC_SKIP_DOTENV"):
+        load_dotenv(ENV_PATH)
 
     safety = config.setdefault("safety", {})
     # Env wins over file for the gates; default to the safe (paper) values.

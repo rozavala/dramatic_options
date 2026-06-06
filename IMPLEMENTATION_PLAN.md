@@ -207,7 +207,11 @@ theme/cluster P&L, per-book p95+bootstrap-CI, veto/fail-closed rates, cost ledge
 pinned to a HAND-CHECKED value test (anti-HARK, PREREG_CONVEXITY_CALIBRATION §6); per-book CIs side-by-side,
 **NO `real−shadow`/`real−3B` gap VERDICT** (deferred to the blind/mature null layer); staleness honesty
 (data-as-of + L0/L1/L2 heartbeat). `requirements-dashboard.txt` keeps streamlit OUT of the trading runtime
-(CI green without it; the AppTest smoke is `importorskip`-gated). 416 tests, ruff clean. **BUILD next:** the
+(CI green without it; the AppTest smoke is `importorskip`-gated). **Now a keyless systemd SERVICE 2026-06-06**
+(`dramatic-options-dashboard.service` + `scripts/dashboard_run.sh`; DEV-armed / PROD-install-but-inert via
+`forward_enabled || ENV_NAME=DEV`; per-box Tailscale-IP:8502 bind — wrapper polls ~60s then fail-closes;
+`DRAMATIC_SKIP_DOTENV=1` keyless via the `config_loader` opt-out + a CI import-graph invariant; fail-soft +
+outside the verify gate; a CI combined-venv job mirrors the box). 421 tests, ruff clean. **BUILD next:** the
 §5b file-structure refactor.
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
@@ -220,7 +224,7 @@ RV proxy to a true IV-rank once enough chain snapshots have accrued (PREREG §4b
 
 ## 5b. Cross-cutting workstreams (operator-requested 2026-06-03) — each its own plan-mode + red-team session
 
-**Observability / monitoring dashboard (Streamlit) — PR-A BUILT & green 2026-06-05** (`dashboard.py` +
+**Observability / monitoring dashboard (Streamlit) — PR-A BUILT & green 2026-06-05; a keyless systemd SERVICE 2026-06-06** (`dashboard.py` +
 `dashboard_data.py` + `breach_audit.py`; read-only `?mode=ro` / NO-FETCH / per-panel fail-soft;
 T4-readiness scoreboard spine; hand-checked value tests; the file-structure refactor below is the remaining
 §5b item). A single operator surface over what the system is doing and how it's performing — read-only over

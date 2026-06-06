@@ -38,8 +38,14 @@ SYSTEMD_SRC="scripts/systemd"                      # unit templates (rendered at
 SYSTEMD_DST="/etc/systemd/system"
 TIMERS=("${SERVICE_PREFIX}-l0.timer" "${SERVICE_PREFIX}-l1.timer" "${SERVICE_PREFIX}-l2.timer")
 SERVICES=("${SERVICE_PREFIX}-l0.service" "${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service")
+# The §5b observability dashboard — a LONG-RUNNING service (not a oneshot timer-fired one), armed separately
+# (apply_dashboard) and fail-soft: its failure never rolls back trading. install_units globs *.service so the
+# unit lands on both boxes automatically; only the arming differs by env.
+DASHBOARD_SERVICE="${SERVICE_PREFIX}-dashboard.service"
 ENV_FILE="$REPO_ROOT/.env"                         # the file systemd EnvironmentFile reads
-HEALTH_URL="${HEALTH_URL:-}"                       # intentionally EMPTY — no HTTP server in this app
+HEALTH_URL="${HEALTH_URL:-}"                       # EMPTY: the trading loop has no HTTP endpoint. (The §5b
+                                                   # dashboard IS an HTTP server on 8502, deliberately kept OUT
+                                                   # of the verify gate — its failure is fail-soft.)
 
 # Prevent overlapping deploys
 DEPLOY_LOCK="/tmp/${SERVICE_PREFIX}-deploy.lock"
@@ -119,9 +125,34 @@ apply_timers() {
     fi
 }
 
+# Arm the LONG-RUNNING dashboard service. Distinct from apply_timers: armed where this env OBSERVES — DEV
+# always (watch even a paused book), PROD once it goes live (forward_enabled=true at T4) — else installed but
+# stopped (start when needed). FAIL-SOFT by design: a dashboard problem must NEVER fail or roll back the
+# trading deploy, so this swallows errors and is never in the verify gate. Guards on the wrapper's PRESENCE
+# (a rollback ACROSS the introducing commit has no wrapper → don't enable a unit whose ExecStart is gone).
+apply_dashboard() {
+    if [ ! -f scripts/dashboard_run.sh ]; then
+        echo "  Dashboard: no scripts/dashboard_run.sh in this tree — leaving it stopped."
+        sudo systemctl disable --now "$DASHBOARD_SERVICE" 2>/dev/null || true
+        return 0
+    fi
+    chmod +x scripts/dashboard_run.sh 2>/dev/null || true   # repair an exec bit stripped on the box
+    if [ "$(forward_enabled)" = "true" ] || [ "$ENV_NAME" = "DEV" ]; then
+        echo "  Dashboard: enabling + starting ($DASHBOARD_SERVICE)."
+        sudo systemctl enable --now "$DASHBOARD_SERVICE" \
+            || echo "  WARNING: dashboard enable --now failed (fail-soft — trading is unaffected)"
+    else
+        echo "  Dashboard: installed but stopped on $ENV_NAME (start when needed: systemctl start $DASHBOARD_SERVICE)."
+        sudo systemctl disable --now "$DASHBOARD_SERVICE" 2>/dev/null || true
+    fi
+}
+
 # Stop scheduling AND any in-flight oneshot so a `git reset` never lands under a live cycle (R4).
 stop_units() {
-    sudo systemctl stop "${TIMERS[@]}" "${SERVICES[@]}" 2>/dev/null || true
+    sudo systemctl stop "${TIMERS[@]}" "${SERVICES[@]}" "$DASHBOARD_SERVICE" 2>/dev/null || true
+    # Belt-and-suspenders: reap a hand-started dashboard (the pre-service manual instance / an orphan).
+    # PORT-qualified — real_options' dashboard is ALSO `streamlit run dashboard.py` on this host (port 8501).
+    pkill -f "streamlit.*server.port 8502" 2>/dev/null || true
 }
 
 # Verify the TIMERS are active where the env trades. We assert the timers (a oneshot .service is
@@ -158,6 +189,7 @@ rollback_and_restart() {
         mkdir -p logs
         install_units      # re-render the rolled-back tree's units (R4)
         apply_timers       # re-arm per the rolled-back .env
+        apply_dashboard    # re-arm the dashboard per the rolled-back tree (fail-soft, guarded)
         echo "--- Rollback complete. Units re-synced to $PREV_COMMIT. ---"
         echo "--- MANUAL INVESTIGATION REQUIRED ---"
     else
@@ -198,6 +230,10 @@ if [ -f requirements.txt ]; then
 else
     echo "  No requirements.txt — skipping"
 fi
+# The §5b dashboard's deps (streamlit) — kept OUT of requirements.txt so the trading runtime stays lean;
+# installed here so the live venv can run dramatic-options-dashboard.service. (CI's test-dashboard job
+# installs the same combined set, so a dep conflict fails CI rather than only the box.)
+[ -f requirements-dashboard.txt ] && pip install -r requirements-dashboard.txt
 
 # =========================================================================
 # STEP 4: Directory scaffolding (idempotent)
@@ -235,6 +271,7 @@ fi
 echo "--- 7. Installing systemd units + arming timers... ---"
 install_units
 apply_timers
+apply_dashboard   # fail-soft, never rolls back trading
 
 # =========================================================================
 # STEP 8: Verify the timers are active (where this env trades)
