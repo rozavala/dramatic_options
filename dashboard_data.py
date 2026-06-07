@@ -22,10 +22,11 @@ from __future__ import annotations
 import os
 import sqlite3
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import numpy as np
 
@@ -41,6 +42,18 @@ SCHEMA_EXPECTED = 12
 # Staleness thresholds (hours) — documented, generous enough to not false-alarm over a normal weekend/holiday.
 STALE_HOURS = {"cycle": 26.0, "council": 96.0, "discovery": 8.0 * 24.0}
 MIN_CI_N = 8  # below this, a percentile bootstrap is degenerate → suppress the CI (operator R2: n=3 reads tight)
+RECENT_COUNCIL_N = 4  # trailing council-run window for the Health strip + T4 cond-1 (single-sourced)
+
+# Market-aware staleness (pure datetime — NEVER LiveClock.is_market_open, which fetches via Alpaca). The live
+# cadence comes from the systemd timers: L1/council = Mon–Fri 15:45 ET; L2 monitor = every 30 min across
+# 09:00–16:00 ET weekdays. Anchoring on these means a weekend (nothing scheduled) never false-alarms.
+# Holidays are NOT modeled (a holiday weekday → a one-evening benign false-STALE, raw age shown beside); a
+# static holiday set is deferred.
+_ET = ZoneInfo("America/New_York")
+_L1_SLOT_HM = (15, 45)              # council/L1 daily slot (ET)
+_L1_GRACE_MIN = 20                  # a slot counts as "due" only once now ≥ slot + this (start/record latency)
+_L2_WINDOW_HM = ((9, 0), (16, 0))  # L2 monitor cadence window (ET)
+_L2_STALE_MIN = 50                 # one 30-min L2 interval + 20 slack before calling an intraday stall
 
 
 # ── connection / paths ────────────────────────────────────────────────────────────────────────
@@ -118,6 +131,120 @@ def _bootstrap_p95_ci(xs: list[float], *, iters: int = 2000, seed: int = 0, min_
     return {"n": n, "p95": round(p95, 4), "ci90": [round(float(lo), 4), round(float(hi), 4)], "flag": None}
 
 
+# ── market-aware staleness (pure datetime; the two beats have different cadences) ───────────────
+def _et_date(ts):
+    """ET calendar date of a timestamp, or None."""
+    dt = _parse_dt(ts)
+    return None if dt is None else dt.astimezone(_ET).date()
+
+
+def _most_recent_due_l1_date(now_et: datetime):
+    """ET date of the most recent weekday 15:45-ET L1 slot already DUE (now ≥ slot + grace), walking back
+    across weekends/long weekends; None if none in the last ~8 days."""
+    grace = timedelta(minutes=_L1_GRACE_MIN)
+    day = now_et
+    for _ in range(8):
+        if day.weekday() < 5:
+            slot = day.replace(hour=_L1_SLOT_HM[0], minute=_L1_SLOT_HM[1], second=0, microsecond=0)
+            if now_et >= slot + grace:
+                return slot.date()
+        day -= timedelta(days=1)
+    return None
+
+
+def council_session_stale(last_council_ts, *, now: datetime | None = None) -> str:
+    """Market-aware staleness for the daily L1/council cadence (Mon–Fri 15:45 ET). OFFLINE if never run;
+    STALE iff a weekday 15:45-ET slot has come DUE on a date strictly after the last council run's date;
+    else ONLINE. ``last_council_ts`` is the run started_at — a same-day catch-up before the slot still counts
+    (date-based), so a Persistent catch-up doesn't false-alarm. Pure datetime (no fetch)."""
+    now = now or datetime.now(UTC)
+    last_date = _et_date(last_council_ts)
+    if last_date is None:
+        return "OFFLINE"
+    due_date = _most_recent_due_l1_date(now.astimezone(_ET))
+    if due_date is None:
+        return "ONLINE"
+    return "STALE" if last_date < due_date else "ONLINE"
+
+
+def cycle_session_stale(last_cycle_ts, *, now: datetime | None = None) -> str:
+    """Market-aware staleness for the L1∪L2 loop liveness (L2 monitor every ~30 min across 09:00–16:00 ET
+    weekdays). OFFLINE if never run; ONLINE outside the RTH cadence window / weekends (nothing scheduled);
+    inside it, STALE iff the last loop run is older than one L2 interval + slack — the intraday-stall the flat
+    age threshold never caught. Pure datetime (no fetch)."""
+    now = now or datetime.now(UTC)
+    last = _parse_dt(last_cycle_ts)
+    if last is None:
+        return "OFFLINE"
+    now_et = now.astimezone(_ET)
+    (oh, om), (ch, cm) = _L2_WINDOW_HM
+    open_dt = now_et.replace(hour=oh, minute=om, second=0, microsecond=0)
+    close_dt = now_et.replace(hour=ch, minute=cm, second=0, microsecond=0)
+    # don't expect freshness on weekends, in the first interval+slack of the window, or after close
+    if now_et.weekday() >= 5 or now_et < open_dt + timedelta(minutes=_L2_STALE_MIN) or now_et >= close_dt:
+        return "ONLINE"
+    return "STALE" if (now - last).total_seconds() / 60.0 > _L2_STALE_MIN else "ONLINE"
+
+
+def system_status(snap: dict) -> dict:
+    """Collapse the snapshot's health signals into ONE glanceable verdict + the things that want a look.
+    Defensive: a missing/errored panel is handled, and an errored panel is ITSELF flagged (a green banner
+    must never sit above fail-soft error boxes). Returns {level: success|warn|error, headline, issues}."""
+    issues: list[str] = []
+    critical = False
+    header = snap.get("header") or {}
+    risk = snap.get("risk") or {}
+    council = snap.get("council") or {}
+
+    if isinstance(header, dict) and not header.get("error"):
+        if header.get("kill_switch_engaged"):
+            issues.append("🛑 KILL switch ENGAGED")
+            critical = True
+        if header.get("schema_warning"):
+            issues.append(f"schema {header.get('schema_version')}≠{header.get('schema_expected')}")
+        for key in ("cycle", "council", "discovery"):
+            beat = header.get(key) or {}
+            if beat.get("status") and beat["status"] != "ONLINE":
+                issues.append(f"{key} heartbeat {beat['status']}")
+    if isinstance(risk, dict) and not risk.get("error"):
+        kr = risk.get("kill_rule") or {}
+        if kr.get("tripped"):
+            issues.append(f"🚨 kill rule TRIPPED ({', '.join(kr.get('reasons') or [])})")
+            critical = True
+        if (risk.get("cost_cap") or {}).get("tripped"):
+            issues.append("cost-cap tripped")
+    if isinstance(council, dict) and not council.get("error"):
+        v = (council.get("health") or {}).get("verdict")
+        if v in ("PARSE_FAIL", "ROUNDTRIP_DEGRADED"):
+            issues.append(f"council {v}")
+            if v == "PARSE_FAIL":
+                critical = True
+
+    errored = sorted(k for k, val in snap.items() if isinstance(val, dict) and val.get("error"))
+    if errored:
+        issues.append(f"{len(errored)} panel(s) unavailable (fail-soft): {', '.join(errored)}")
+
+    if critical:
+        return {"level": "error", "headline": "🔴 Attention required", "issues": issues}
+    if issues:
+        return {"level": "warn", "headline": "🟡 A few things to check", "issues": issues}
+
+    bits: list[str] = []
+    if isinstance(risk, dict) and not risk.get("error"):
+        bk = risk.get("book") or {}
+        bits.append(f"book {bk.get('open', '?')}/{bk.get('max', '?')}")
+    if isinstance(header, dict) and not header.get("error"):
+        age = (header.get("cycle") or {}).get("age_hours")
+        bits.append("last cycle " + ("—" if age is None else f"{age:.0f}h ago"))
+    if isinstance(council, dict) and not council.get("error"):
+        v = (council.get("health") or {}).get("verdict")
+        if v:
+            bits.append(f"council {v}")
+    bits.append("KILL off")
+    return {"level": "success",
+            "headline": "🟢 All systems nominal — " + " · ".join(bits) + " · nothing to action", "issues": []}
+
+
 # ── A · header / heartbeat / op-health ──────────────────────────────────────────────────────────
 def header_status(conn, *, now: datetime | None = None) -> dict:
     """Schema + heartbeats + KILL. NOTE: L1 (full cycle) and L2 (monitor) BOTH record mode='PAPER'
@@ -141,10 +268,15 @@ def header_status(conn, *, now: datetime | None = None) -> dict:
 
     def _beat(ts, key):
         # Tri-state (borrowed from the real_options heartbeat): OFFLINE = never ran (a config/deploy
-        # problem) is a DIFFERENT diagnosis from STALE = ran but the timer has gone quiet past its
-        # cadence. `stale` (= not ONLINE) is kept for back-compat.
+        # problem) is a DIFFERENT diagnosis from STALE = ran but the timer has gone quiet past its cadence.
+        # cycle/council use MARKET-AWARE rules (weekends/holidays don't false-alarm); discovery keeps the flat
+        # age threshold (weekly L0). `stale` (= not ONLINE) is kept for back-compat.
         age = _age_hours(ts, now=now)
-        if ts is None:
+        if key == "council":
+            status = council_session_stale(ts, now=now)
+        elif key == "cycle":
+            status = cycle_session_stale(ts, now=now)
+        elif ts is None:
             status = "OFFLINE"
         elif age is not None and age > STALE_HOURS[key]:
             status = "STALE"
@@ -479,9 +611,12 @@ def _book_table(conn, sql: str, params: tuple = ()) -> list[dict]:
 def positions_panel(conn, *, stale_pending_cycles: int = 6) -> dict:
     """All 5 books — open + recent closed. Surfaces pending/closing distinctly + STALE-PENDING (a resting limit
     unfilled across many cycles = the v2 analog of a missed order; a dedicated queue is unbuilt in v2)."""
-    real_open = _book_table(conn, "SELECT id, symbol, direction, contract_symbol, status, dte, contracts, "
-                                  "total_premium, mark, marked_at, opened_at FROM convexity_positions "
-                                  "WHERE status IN ('open','closing','pending') ORDER BY id DESC")
+    real_open = _book_table(conn, "SELECT p.id, p.symbol, p.direction, p.contract_symbol, p.status, p.dte, "
+                                  "p.contracts, p.total_premium, p.mark, p.marked_at, p.opened_at, "
+                                  "cp.run_id AS origin_run, cp.conviction AS origin_conviction "
+                                  "FROM convexity_positions p LEFT JOIN council_proposals cp "
+                                  "ON p.proposal_id = cp.id WHERE p.status IN ('open','closing','pending') "
+                                  "ORDER BY p.id DESC")
     real_closed = _book_table(conn, "SELECT id, symbol, direction, status, total_premium, realized_pnl, "
                                     "exit_reason, closed_at FROM convexity_positions WHERE status='closed' "
                                     "ORDER BY closed_at DESC LIMIT 25")
@@ -504,19 +639,68 @@ def positions_panel(conn, *, stale_pending_cycles: int = 6) -> dict:
     }
 
 
+def recent_council_health(conn, n: int = RECENT_COUNCIL_N) -> list[dict]:
+    """Trailing window of COUNCIL-deliberated runs (``council_health`` stamped — NOT the L2 monitor passes,
+    which never stamp a health), OLDEST→NEWEST so ``window[-1]`` is the latest. The SINGLE source for the
+    Health strip, T4 cond-1, and ``council_panel.by_provider`` — so they can't disagree at a glance. Per run:
+    ``run_id``, ``started_at``, the stamped ``council_health``, the richer ``council_l1_health`` round-trip
+    ``verdict`` (the stamp is proposer-parse-only and can read 'ok' on a DEGRADED run), the proposer
+    parse-rate, and per-provider parse counts in the SAME shape ({calls, parse_error, parse_error_rate})."""
+    rows = conn.execute(
+        "SELECT id, started_at, council_health FROM runs WHERE council_health IS NOT NULL "
+        "ORDER BY id DESC LIMIT ?", (n,)).fetchall()
+    out: list[dict] = []
+    for r in reversed(rows):  # oldest → newest, so window[-1] is the latest run
+        rid = r["id"]
+        by_provider: dict[str, dict] = {}
+        for a in conn.execute(
+            "SELECT ao.provider AS provider, ao.raw AS raw FROM council_agent_outputs ao "
+            "JOIN council_proposals cp ON cp.id = ao.proposal_id WHERE cp.run_id = ? AND ao.provider IS NOT NULL",
+            (rid,)):
+            slot = by_provider.setdefault(a["provider"], {"calls": 0, "parse_error": 0})
+            slot["calls"] += 1
+            slot["parse_error"] += 1 if state._is_parse_error(a["raw"]) else 0
+        for p in by_provider.values():
+            p["parse_error_rate"] = round(p["parse_error"] / p["calls"], 4) if p["calls"] else None
+        parse = state.council_parse_health(conn, rid)
+        out.append({
+            "run_id": rid, "started_at": r["started_at"], "council_health": r["council_health"],
+            "verdict": council_l1_health(conn, run_id=rid).get("verdict"),
+            "proposer_parse_rate": round(parse["rate"], 4), "proposer_called": parse["called"],
+            "proposer_parse_failed": parse["parse_failed"], "by_provider": by_provider,
+        })
+    return out
+
+
 def council_panel(conn, config: dict) -> dict:
-    """Latest L1 health verdict (REUSE council_l1_health) + per-provider parse/error rate + model_mix + cost."""
-    health = council_l1_health(conn)
-    by_provider: dict[str, dict] = {}
-    for r in conn.execute("SELECT provider, raw FROM council_agent_outputs WHERE provider IS NOT NULL"):
-        slot = by_provider.setdefault(r["provider"], {"calls": 0, "parse_error": 0})
-        slot["calls"] += 1
-        slot["parse_error"] += 1 if state._is_parse_error(r["raw"]) else 0
-    for p in by_provider.values():
-        p["parse_error_rate"] = round(p["parse_error"] / p["calls"], 4) if p["calls"] else None
+    """Latest L1 health verdict (REUSE council_l1_health) + per-provider parse rate scoped to the LATEST run
+    (via recent_council_health — so it can't show all-time #37 contamination beside a CONFIRMED verdict) +
+    the recent-runs window for the strip + model_mix + cost."""
+    window = recent_council_health(conn, RECENT_COUNCIL_N)
+    by_provider = window[-1]["by_provider"] if window else {}
     model_mix = _scalar(conn, "SELECT model_mix FROM runs WHERE model_mix IS NOT NULL ORDER BY id DESC LIMIT 1")
-    return {"health": health, "by_provider": by_provider, "model_mix": model_mix,
-            "cost": cost_ledger(conn)}
+    return {"health": council_l1_health(conn), "by_provider": by_provider, "recent": window,
+            "model_mix": model_mix, "cost": cost_ledger(conn)}
+
+
+def latest_run_deliberation(conn) -> list[dict]:
+    """The latest council run's per-name reasoning (the 'why' — bounded to the FORWARD record, no §6 backtest):
+    proposer direction, adversary stance, strategist final conviction. Empty list if no council has run."""
+    rid = _scalar(conn, "SELECT MAX(run_id) FROM council_proposals")
+    if rid is None:
+        return []
+    out: list[dict] = []
+    for p in conn.execute(
+        "SELECT id, symbol, direction, conviction FROM council_proposals WHERE run_id = ? ORDER BY symbol", (rid,)):
+        roles = {a["role"]: a for a in conn.execute(
+            "SELECT role, stance, confidence FROM council_agent_outputs WHERE proposal_id = ?", (p["id"],))}
+        adv = roles.get("adversary")
+        out.append({
+            "run_id": rid, "symbol": p["symbol"], "proposer_direction": p["direction"],
+            "adversary_stance": adv["stance"] if adv else None,
+            "strategist_conviction": p["conviction"],
+        })
+    return out
 
 
 def curation_panel(conn, config: dict, market=None) -> dict:
@@ -554,14 +738,21 @@ def data_gathered_panel(cache_dir: str | Path) -> dict:
 
 
 # ── the T4-readiness scoreboard (the spine) ─────────────────────────────────────────────────────
-def t4_scoreboard(conn, config: dict, *, recent_council: int = 4) -> dict:
+def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N) -> dict:
     """Map the pre-committed unlock conditions → live state. ASYMMETRY IS STRUCTURAL: only (1),(3),(5) can be
     binary; (2),(4) render state with NO verdict (deferred to the blind/mature null layer + the human). (1) is
     re-derived LIVE from trailing council_health (NOT frozen — it flips if the council regresses). (3) reports
     breaches over N admissions (0/0 = vacuous, not a pass)."""
-    recent = [r["council_health"] for r in conn.execute(
-        "SELECT council_health FROM runs WHERE council_health IS NOT NULL ORDER BY id DESC LIMIT ?", (recent_council,))]
-    c1_ok = len(recent) > 0 and all(h == "ok" for h in recent)
+    # cond-1: censor the pre-fix parse_fail (bug) runs, then require ≥2 remaining AND all ROUNDTRIP_CONFIRMED
+    # (the prereg "adversary+strategist firing, ≥2 clean L1s" + the parse-fix censoring discipline). The
+    # stamped 'ok' is proposer-parse-only — a run can be 'ok'-but-DEGRADED, so we key on the round-trip verdict.
+    window = recent_council_health(conn, recent_council)
+    non_bug = [w for w in window if w["council_health"] != "parse_fail"]
+    c1_confirmed = [w for w in non_bug if w["verdict"] == "ROUNDTRIP_CONFIRMED"]
+    c1_ok = len(non_bug) >= 2 and len(c1_confirmed) == len(non_bug)
+    c1_detail = " · ".join(
+        f"#{w['run_id']} {w['verdict']}" + (" (pre-fix, censored)" if w["council_health"] == "parse_fail" else "")
+        for w in window) or "no council runs yet"
 
     breach = breach_audit.audit_cluster_breaches(conn, config)
 
@@ -572,9 +763,9 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = 4) -> dict:
 
     return {
         "conditions": [
-            {"id": 1, "name": "council healthy (live)", "checkable": True,
+            {"id": 1, "name": "council healthy (live, ≥2 round-trips confirmed)", "checkable": True,
              "verdict": "MET" if c1_ok else "NOT_OK",
-             "detail": f"last {len(recent)} council runs: {recent or 'none'}"},
+             "detail": f"censor parse_fail, need ≥2 all-CONFIRMED — {c1_detail}"},
             {"id": 2, "name": "null reads live-plumbed (resolved counts + CIs)", "checkable": False,
              "verdict": None, "detail": f"resolved — real={real_n}, shadow={shadow_n}, 3A={fb3a_n} "
                                         "(accruing; verdict deferred to the null layer)"},
