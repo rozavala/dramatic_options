@@ -1,6 +1,9 @@
 """Config gates: the live-trading invariant truth table + coercion + defaults."""
 
 import itertools
+import json
+
+import pytest
 
 import config_loader
 from config_loader import _as_bool, live_allowed
@@ -98,7 +101,7 @@ def test_live_allowed_only_one_true_combo():
 
 def test_load_config_defaults_to_paper(monkeypatch):
     """With no gate env vars set, defaults are the safe paper values."""
-    for var in ("PAPER", "LIVE_TRADING_ENABLED", "DRY_RUN", "DATA_FEED"):
+    for var in ("PAPER", "LIVE_TRADING_ENABLED", "DRY_RUN"):
         monkeypatch.delenv(var, raising=False)
     config_loader.load_config.cache_clear()
     cfg = config_loader.load_config()
@@ -106,6 +109,32 @@ def test_load_config_defaults_to_paper(monkeypatch):
     assert safety["paper"] is True
     assert safety["live_trading_enabled"] is False
     assert safety["dry_run"] is True
+    config_loader.load_config.cache_clear()
+
+
+def test_data_feed_block_structured_and_valid():
+    """The shipped config exposes data_feed as a top-level structured block (the dead-knob fix),
+    no longer a string under safety."""
+    config_loader.load_config.cache_clear()
+    cfg = config_loader.load_config()
+    df = cfg["data_feed"]
+    assert df["equity_bars"] in ("iex", "sip")
+    assert df["option_gate"] in ("indicative", "opra")
+    assert df["option_monitor"] in ("indicative", "opra")
+    assert "data_feed" not in cfg["safety"]  # relocated top-level; the old dead safety knob is gone
+    config_loader.load_config.cache_clear()
+
+
+def test_data_feed_typo_fails_closed(tmp_path, monkeypatch):
+    """An unknown feed value fails CLOSED at config load (never a silent fallback)."""
+    bad = tmp_path / "config.json"
+    bad.write_text(json.dumps({"safety": {}, "data_feed": {
+        "equity_bars": "sipp", "option_gate": "indicative", "option_monitor": "indicative"}}))
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", bad)
+    monkeypatch.setenv("DRAMATIC_SKIP_DOTENV", "1")  # don't read the real .env
+    config_loader.load_config.cache_clear()
+    with pytest.raises(config_loader.ConfigError):
+        config_loader.load_config()
     config_loader.load_config.cache_clear()
 
 

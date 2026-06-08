@@ -2,8 +2,13 @@
   "safety": {
     "paper": true,
     "live_trading_enabled": false,
-    "dry_run": true,
-    "data_feed": "indicative"
+    "dry_run": true
+  },
+  "data_feed": {
+    "_comment": "Data-feed provenance (the data-feed upgrade). Each role is wired to its provider — PR1 fixed the previously-DEAD knob (config.data_feed was read but never passed to a fetch, so every fetch silently used the IEX/INDICATIVE defaults). equity_bars feeds the gate's RV closes + underlying + the discovery prescreen markers (sip = the official consolidated close; iex is ~2-3% of volume → an unrepresentative sample, esp. for ADV/volume markers — so this is a gate-INPUT + candidate-FUNNEL change, segmented per-run). option_gate is the L1 ENTRY-AUTHORIZATION IV/skew — fail-closed (a premium-feed lapse VETOES, never downgrades); PR3 flips it indicative->opra once the PR2 dual-read confirms across-session agreement. option_monitor is the L2 mark path, pinned FREE/indicative (risk monitoring degrades-and-continues, never blinded). A role change is a record-segmenting data-provenance event (stamped per-run via runs.data_feed, migration 0013; dated in PREREG_THEMATIC_CONVEXITY). Allowed: equity_bars iex|sip; option_* indicative|opra (an unknown value fails CLOSED at config load).",
+    "equity_bars": "sip",
+    "option_gate": "indicative",
+    "option_monitor": "indicative"
   },
   "database": {
     "path": "data/dramatic_options.db"

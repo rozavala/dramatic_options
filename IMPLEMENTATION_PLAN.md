@@ -224,6 +224,18 @@ RV proxy to a true IV-rank once enough chain snapshots have accrued (PREREG §4b
 
 ## 5b. Cross-cutting workstreams (operator-requested 2026-06-03) — each its own plan-mode + red-team session
 
+**Data-feed upgrade (Alpaca Algo Trader Plus) — PR1 BUILT & green 2026-06-08 (branch `data-feed-pr1`),
+measure-first.** The `config.data_feed` knob was DEAD (read but never wired to a fetch → the IEX/INDICATIVE
+defaults always won). PR1 wires it criticality-aware (the 3 feed roles are already separate provider methods):
+`equity_bars`→**SIP** (RV closes + the discovery markers — a gate-INPUT + candidate-funnel data-provenance
+change: PREREG §4 dated line + per-run `runs.data_feed` stamp, migration 0013), `option_gate` STAYS
+**INDICATIVE** (L1 entry authorization — fail-closed, no silent fallback), `option_monitor` pinned **free**
+(L2 marks, degrade-and-continue). New `feeds.py` resolver (unknown→fail-closed at load) + a `classify_feed_error`
+scaffold. PR2 = the time-boxed simultaneous OPRA-vs-INDICATIVE **dual-read** (measures across-session agreement,
+with an OPRA-arm coverage guard so a dead shadow arm can't read as "agree"). PR3 = the evidence-gated
+`option_gate`→**OPRA** flip. (Probe 2026-06-08: feeds agree closely at the close, OPRA marginally better IV
+population → low-risk, lower-value than feared.) See `dramatic-options-data-feed-upgrade` memory.
+
 **Observability / monitoring dashboard (Streamlit) — PR-A BUILT & green 2026-06-05; a keyless systemd SERVICE 2026-06-06;
 a full LEGIBILITY REFRESH BUILT & green 2026-06-07 (branch `dashboard-legibility`, HELD from merge until after the Mon
 2026-06-08 L1 — single-variable window)** (`dashboard.py` +
