@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -88,14 +90,17 @@ def test_schema_ahead_warning(convexity_db, monkeypatch):
 
 
 def test_staleness_flag(convexity_db):
-    # no runs → OFFLINE (never ran), distinct from STALE
-    assert dd.header_status(convexity_db)["cycle"]["status"] == "OFFLINE"
-    convexity_db.execute("INSERT INTO runs(started_at, mode) VALUES('2020-01-01T00:00:00+00:00','PAPER')")
+    # market-aware CYCLE beat (L2 RTH grid) — pin `now` to a weekday mid-session so it's deterministic
+    # (the old flat-26h test would flip ONLINE↔STALE depending on the wall-clock day it ran).
+    now = datetime(2026, 6, 9, 12, 0, tzinfo=ZoneInfo("America/New_York"))  # Tue, mid-session
+    assert dd.header_status(convexity_db, now=now)["cycle"]["status"] == "OFFLINE"  # no runs → never ran
+    convexity_db.execute("INSERT INTO runs(started_at, mode) VALUES('2026-06-09T09:00:00-04:00','PAPER')")
     convexity_db.commit()
-    cyc = dd.header_status(convexity_db)["cycle"]
+    cyc = dd.header_status(convexity_db, now=now)["cycle"]  # 3h-old intraday run → STALE
     assert cyc["stale"] is True and cyc["status"] == "STALE"
-    state.record_run(convexity_db, mode="PAPER", equity=None)
-    cyc = dd.header_status(convexity_db)["cycle"]
+    convexity_db.execute("INSERT INTO runs(started_at, mode) VALUES('2026-06-09T11:45:00-04:00','PAPER')")
+    convexity_db.commit()
+    cyc = dd.header_status(convexity_db, now=now)["cycle"]  # 15-min-old run → ONLINE
     assert cyc["stale"] is False and cyc["status"] == "ONLINE"
 
 
@@ -234,6 +239,172 @@ def test_t4_scoreboard_breach_cell(convexity_db):
     cond1 = next(c for c in t4["conditions"] if c["id"] == 1)
     assert cond1["verdict"] == "NOT_OK"  # no healthy council runs yet
     assert cond1["checkable"] is True and next(c for c in t4["conditions"] if c["id"] == 2)["checkable"] is False
+
+
+# ── market-aware staleness (pure datetime matrices — the whole point is to NOT false-alarm) ───────
+_ET = ZoneInfo("America/New_York")
+
+
+@pytest.mark.parametrize("last, now, expected", [
+    ("2026-06-05T15:45:30-04:00", datetime(2026, 6, 7, 12, 0, tzinfo=_ET), "ONLINE"),    # Fri run, Sun now (weekend)
+    ("2026-06-05T15:45:30-04:00", datetime(2026, 6, 8, 17, 0, tzinfo=_ET), "STALE"),     # Fri run, Mon eve (missed Mon)
+    ("2026-06-05T15:45:30-04:00", datetime(2026, 6, 8, 10, 0, tzinfo=_ET), "ONLINE"),    # Fri run, Mon AM (slot not due)
+    ("2026-06-08T15:45:05-04:00", datetime(2026, 6, 8, 15, 46, tzinfo=_ET), "ONLINE"),   # right after the 15:45 run
+    ("2026-06-08T09:00:00-04:00", datetime(2026, 6, 8, 17, 0, tzinfo=_ET), "ONLINE"),    # Persistent catch-up, same day
+    ("2026-03-06T15:45:00-05:00", datetime(2026, 3, 8, 12, 0, tzinfo=_ET), "ONLINE"),    # spring-DST weekend
+    ("2026-10-30T15:45:00-04:00", datetime(2026, 11, 1, 12, 0, tzinfo=_ET), "ONLINE"),   # fall-DST weekend
+    (None, datetime(2026, 6, 8, 17, 0, tzinfo=_ET), "OFFLINE"),
+])
+def test_council_session_stale_matrix(last, now, expected):
+    assert dd.council_session_stale(last, now=now) == expected
+
+
+def test_council_session_stale_holiday_is_accepted_false_stale():
+    # A weekday holiday with no run is the documented benign false-STALE (no holiday calendar is modeled).
+    # Pin it so the behavior is explicit: MLK Mon 2026-01-19, last run the prior Fri → STALE (accepted; raw
+    # age is shown beside it). A static holiday set is the deferred mitigation.
+    assert dd.council_session_stale("2026-01-16T15:45:00-05:00",
+                                    now=datetime(2026, 1, 19, 17, 0, tzinfo=_ET)) == "STALE"
+
+
+@pytest.mark.parametrize("last, now, expected", [
+    ("2026-06-09T09:30:00-04:00", datetime(2026, 6, 9, 11, 0, tzinfo=_ET), "STALE"),     # intraday stall (90m)
+    ("2026-06-09T10:45:00-04:00", datetime(2026, 6, 9, 11, 0, tzinfo=_ET), "ONLINE"),    # just ticked (15m)
+    ("2026-06-05T16:00:00-04:00", datetime(2026, 6, 7, 12, 0, tzinfo=_ET), "ONLINE"),    # weekend → not expected
+    ("2026-06-08T16:00:00-04:00", datetime(2026, 6, 9, 9, 10, tzinfo=_ET), "ONLINE"),    # pre-open (before tick+slack)
+    ("2026-06-09T15:30:00-04:00", datetime(2026, 6, 9, 20, 0, tzinfo=_ET), "ONLINE"),    # after close → not expected
+    (None, datetime(2026, 6, 9, 11, 0, tzinfo=_ET), "OFFLINE"),
+])
+def test_cycle_session_stale_matrix(last, now, expected):
+    assert dd.cycle_session_stale(last, now=now) == expected
+
+
+# ── system_status banner collapser (selection incl. an errored panel) ─────────────────────────────
+def test_system_status_green_when_all_nominal():
+    snap = {
+        "header": {"kill_switch_engaged": False, "cycle": {"status": "ONLINE", "age_hours": 3.0},
+                   "council": {"status": "ONLINE"}, "discovery": {"status": "ONLINE"}},
+        "risk": {"kill_rule": {"tripped": False}, "cost_cap": {"tripped": False}, "book": {"open": 0, "max": 15}},
+        "council": {"health": {"verdict": "ROUNDTRIP_CONFIRMED"}},
+    }
+    assert dd.system_status(snap)["level"] == "success"
+
+
+def test_system_status_red_on_kill():
+    s = dd.system_status({"header": {"kill_switch_engaged": True}, "risk": {}, "council": {}})
+    assert s["level"] == "error" and any("KILL" in i for i in s["issues"])
+
+
+def test_system_status_warn_on_stale_beat():
+    snap = {"header": {"kill_switch_engaged": False, "cycle": {"status": "STALE"}}, "risk": {}, "council": {}}
+    assert dd.system_status(snap)["level"] == "warn"
+
+
+def test_system_status_degrades_on_errored_panel():
+    # A fail-soft panel that returned {"error":…} must pull the banner off green (no green-over-error-boxes).
+    snap = {"header": {"kill_switch_engaged": False}, "risk": {}, "council": {}, "performance": {"error": "boom"}}
+    s = dd.system_status(snap)
+    assert s["level"] == "warn" and any("unavailable" in i for i in s["issues"])
+
+
+# ── recent_council_health + cond-1 redefinition + deliberation + provenance ───────────────────────
+def _roundtrip(conn, run_id, symbol, direction, *, adv_stance, strat_conv="MODERATE", cost=0.003):
+    pid = state.record_council_proposal(conn, run_id=run_id, as_of="t", theme="x", symbol=symbol,
+                                        direction=direction, conviction=strat_conv, status="proposed")
+    state.record_agent_output(conn, proposal_id=pid, role="proposer", provider="gemini", model="m",
+                              confidence="MODERATE", stance=direction,
+                              raw={"confidence": "MODERATE", "inflection_thesis": "real"}, cost_usd=cost)
+    state.record_agent_output(conn, proposal_id=pid, role="adversary", provider="xai", model="m",
+                              confidence="MODERATE", stance=adv_stance,
+                              raw={"confidence": "MODERATE", "counter_case": "c"}, cost_usd=cost)
+    state.record_agent_output(conn, proposal_id=pid, role="strategist", provider="anthropic", model="m",
+                              confidence=strat_conv, stance=direction,
+                              raw={"conviction": strat_conv, "summary": "s"}, cost_usd=cost)
+    return pid
+
+
+def _confirmed_run(conn, symbol="SMCI"):
+    rid = state.record_run(conn, mode="PAPER", equity=10000)
+    state.update_run_council_health(conn, rid, council_health="ok")
+    _roundtrip(conn, rid, symbol, "bearish", adv_stance="bullish")   # adversary = bull case on a bear → dir-relative
+    return rid
+
+
+def _degraded_run(conn, symbol="SMCI"):
+    rid = state.record_run(conn, mode="PAPER", equity=10000)
+    state.update_run_council_health(conn, rid, council_health="ok")   # stamped 'ok' but NOT direction-relative
+    _roundtrip(conn, rid, symbol, "bearish", adv_stance="bearish")
+    return rid
+
+
+def _parsefail_run(conn):
+    rid = state.record_run(conn, mode="PAPER", equity=10000)
+    state.update_run_council_health(conn, rid, council_health="parse_fail")
+    return rid
+
+
+def test_recent_council_health_anchored_and_shaped(convexity_db):
+    conn = convexity_db
+    state.record_run(conn, mode="PAPER", equity=10000)               # a bare L2-style run, no council_health
+    r = _confirmed_run(conn, "SMCI")
+    win = dd.recent_council_health(conn)
+    assert [w["run_id"] for w in win] == [r]                          # the null-health run is excluded
+    w = win[-1]
+    assert w["council_health"] == "ok" and w["verdict"] == "ROUNDTRIP_CONFIRMED"
+    assert w["by_provider"]["gemini"] == {"calls": 1, "parse_error": 0, "parse_error_rate": 0.0}
+    assert dd.council_panel(conn, CONFIG)["by_provider"] == w["by_provider"]   # window[-1] is the drop-in
+
+
+def test_recent_council_health_ordering_oldest_to_newest(convexity_db):
+    a = _confirmed_run(convexity_db, "AAA")
+    b = _confirmed_run(convexity_db, "BBB")
+    assert [w["run_id"] for w in dd.recent_council_health(convexity_db)] == [a, b]
+
+
+def _cond1(conn):
+    return next(c for c in dd.t4_scoreboard(conn, CONFIG)["conditions"] if c["id"] == 1)
+
+
+def test_cond1_met_censors_parsefail_and_requires_two_confirmed(convexity_db):
+    conn = convexity_db
+    _parsefail_run(conn)            # the pre-fix bug run — censored, not counted against MET
+    _confirmed_run(conn, "AAA")
+    _confirmed_run(conn, "BBB")
+    c1 = _cond1(conn)
+    assert c1["verdict"] == "MET" and "censored" in c1["detail"]
+
+
+def test_cond1_not_met_on_ok_but_degraded(convexity_db):
+    conn = convexity_db
+    _confirmed_run(conn, "AAA")
+    _degraded_run(conn, "BBB")      # stamped 'ok' but DEGRADED → not all-CONFIRMED → NOT_OK
+    assert _cond1(conn)["verdict"] == "NOT_OK"
+
+
+def test_cond1_not_met_on_single_confirmed(convexity_db):
+    _confirmed_run(convexity_db, "AAA")   # only ONE clean run → the ≥2 rule fails
+    assert _cond1(convexity_db)["verdict"] == "NOT_OK"
+
+
+def test_latest_run_deliberation_shape(convexity_db):
+    rid = _confirmed_run(convexity_db, "SMCI")
+    delib = dd.latest_run_deliberation(convexity_db)
+    assert len(delib) == 1
+    row = delib[0]
+    assert row["symbol"] == "SMCI" and row["proposer_direction"] == "bearish"
+    assert row["adversary_stance"] == "bullish" and row["strategist_conviction"] == "MODERATE"
+    assert row["run_id"] == rid
+
+
+def test_position_provenance_columns(convexity_db):
+    conn = convexity_db
+    rid = state.record_run(conn, mode="PAPER", equity=10000)
+    pp = state.record_council_proposal(conn, run_id=rid, as_of="t", theme="ai_compute", symbol="VRT",
+                                       direction="bullish", conviction="HIGH")
+    _pos(conn, "VRT", 1000.0, status="open", run_id=rid, proposal_id=pp)
+    real_open = dd.positions_panel(conn)["real_open"]
+    assert len(real_open) == 1
+    assert real_open[0]["origin_run"] == rid and real_open[0]["origin_conviction"] == "HIGH"
 
 
 # ── keyless dashboard invariants (S1: the dashboard process must hold NO broker/LLM secrets) ──────

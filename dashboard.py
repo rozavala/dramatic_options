@@ -2,7 +2,8 @@
 
 ALL data/compute lives in `dashboard_data` (pure, streamlit-free, tested); this file only renders. It is
 **read-only** (`?mode=ro`), **NO-FETCH** (`MarketData(client=None)`), **fail-soft** (every panel via
-`dd.safe`), and observation-only (never edits clusters/themes/config, never a trade/auth path).
+`dd.safe`), and observation-only (never edits clusters/themes/config, never a trade/auth path). The render
+favours labelled metrics/tables + hover-help over raw JSON; the raw dict stays behind an expander per panel.
 
 Run it where the live state lives, and bind to localhost only — it renders the whole book + the cluster map
 (operator-confidential), so never expose it on a public port:
@@ -16,8 +17,8 @@ Run it where the live state lives, and bind to localhost only — it renders the
     DRAMATIC_CACHE_DIR=~/dramatic_options/data/cache \
     streamlit run dashboard.py --server.port 8502
 
-The performance/null panels are EMPTY (accruing) for ~6mo until positions resolve — they render "n=0 /
-accruing" by design, never a misleading "0.0×".
+The performance/null panels are EMPTY (accruing) for ~6mo until positions resolve — they render a friendly
+"accruing" empty-state by design, never a misleading "0.0×".
 """
 
 from __future__ import annotations
@@ -61,6 +62,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "sentinels": dd.safe(dd.sentinels_panel, conn),
             "positions": dd.safe(dd.positions_panel, conn),
             "council": dd.safe(dd.council_panel, conn, config),
+            "deliberation": dd.safe(dd.latest_run_deliberation, conn),
             "performance": dd.safe(dd.performance_panel, conn),
             "nulls": dd.safe(dd.null_hierarchy, conn),
             "attribution": dd.safe(dd.attribution_panel, conn, config),
@@ -76,11 +78,11 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
         conn.close()
 
 
-def _err(panel: dict) -> str | None:
+def _err(panel) -> str | None:
     return panel.get("error") if isinstance(panel, dict) else None
 
 
-def _show(panel: dict, label: str = "") -> bool:
+def _show(panel, label: str = "") -> bool:
     """Render a panel's error box if it failed; return True if OK to render the body."""
     e = _err(panel)
     if e:
@@ -89,12 +91,333 @@ def _show(panel: dict, label: str = "") -> bool:
     return True
 
 
+def _accruing(what: str) -> None:
+    st.info(f"⏳ Accruing — nothing has resolved yet. First read once positions open and resolve (~6–12mo "
+            f"after the first entry; the book is empty today). This will then show {what}.")
+
+
+def _is_accruing(d) -> bool:
+    """A per-book CI/tail cell is accruing when n==0 (or its flag says so)."""
+    return isinstance(d, dict) and (d.get("n") == 0 or str(d.get("flag") or "").startswith("accruing"))
+
+
+def _ci_rows(arms: dict) -> list[dict]:
+    """{name: {n,p95,ci90,flag}} → table rows (shared by Performance + Null books)."""
+    rows = []
+    for name, a in arms.items():
+        lo, hi = (a.get("ci90") or [None, None])
+        rows.append({"book": name, "n": a.get("n"), "p95": a.get("p95"),
+                     "CI90 low": lo, "CI90 high": hi, "note": a.get("flag")})
+    return rows
+
+
+# Plain-English meaning for each council round-trip verdict (display copy; the logic lives in dashboard_data).
+_VERDICT_ICON = {
+    "ROUNDTRIP_CONFIRMED": "✅", "PROPOSER_CLEAN_NO_ROUNDTRIP": "🟡",
+    "ROUNDTRIP_DEGRADED": "⚠️", "PARSE_FAIL": "🚨", "NO_COUNCIL": "⏳",
+}
+_VERDICT_HELP = {
+    "ROUNDTRIP_CONFIRMED": "Full 3-role debate fired and parsed cleanly (direction-relative adversary, "
+                           "deliberated strategist). A no-entry result is still healthy — the gate may veto rich convexity.",
+    "PROPOSER_CLEAN_NO_ROUNDTRIP": "Proposer parsed but judged everything NEUTRAL, so the adversary + strategist "
+                                   "didn't fire. Benign, but they stay live-unconfirmed until an above-floor proposal exercises them.",
+    "ROUNDTRIP_DEGRADED": "The debate fired but something's off — a degenerate row, a non-direction-relative "
+                          "adversary, or $0 cost. Worth a look.",
+    "PARSE_FAIL": "The council couldn't deliberate — a JSON parse failure (the #37 thinking-starvation class). This pages the operator.",
+    "NO_COUNCIL": "No council has run on this DB yet.",
+}
+
+_T4_MARK = {"MET": "✅", "PASS": "✅", "NOT_OK": "❌", "BREACH": "🚨", "VACUOUS": "◻️", "IN_PROGRESS": "🔧", None: "⏳"}
+
+_LEGEND = (
+    "- **The five books** — **real** (the live paper book) · **shadow** (gate-on, no council → isolates the "
+    "council's value) · **3A** (gate-off, same names → isolates the IV gate) · **3B** (gate-off, whole basket, "
+    "equal-weight → beat-the-basket) · **shares** (linear stock, descriptive). All but *real* are "
+    "simulated-only, **never** sent to the broker.\n"
+    "- **Realized multiple (×)** — exit value ÷ entry premium of a closed bet. A few big winners carry a convex "
+    "book, so the **p95 tail** is the read, not the mean.\n"
+    "- **Brier** — forward calibration score for the council's conviction (lower = better; 0 = perfect).\n"
+    "- **Accruing** — no positions have resolved yet (~6–12mo), so a metric is genuinely empty, not zero.\n"
+    "- **The hard seam** — deterministic gates DISPOSE; the LLM council only PROPOSES. This surface is "
+    "read-only and never trades."
+)
+
+
+def _render_health_risk(snap) -> None:
+    st.caption("Is the book within its risk limits, and is the LLM council deliberating cleanly?")
+    risk = snap["risk"]
+    if _show(risk, "risk"):
+        kr, bk, cc = risk["kill_rule"], risk["book"], risk["cost_cap"]
+        c = st.columns(4)
+        c[0].metric("Book drawdown", f"{kr['book_drawdown']:.1%}",
+                    delta="TRIPPED" if kr["tripped"] else f"halt @ {kr['drawdown_halt']:.0%}",
+                    delta_color="inverse" if kr["tripped"] else "off",
+                    help="Marked-down loss vs the book's premium budget. The kill rule halts all NEW entries at the halt threshold.")
+        c[1].metric("Open positions", f"{bk['open']}/{bk['max']}",
+                    help="Open option positions vs the concurrent cap (the frozen PREREG risk frame).")
+        c[2].metric("Open premium", f"${bk['open_premium']:,.0f}", delta=f"of ${bk['budget']:,.0f} budget",
+                    delta_color="off",
+                    help="Premium-at-risk deployed vs the total book budget (~10% of account). Defined-risk, so this is the max loss.")
+        c[3].metric("KILL switch", "ENGAGED" if risk["kill_switch_engaged"] else "off", delta_color="inverse",
+                    help="The always-on manual halt (KILL file/env), checked every cycle.")
+        st.caption(f"Cost-cap — last council health `{cc['last_council_health']}` · cap ${cc['cap_usd']:,.2f}"
+                   + (" · ⚠ TRIPPED" if cc["tripped"] else ""))
+        st.markdown("**Per-cluster exposure vs the correlation cap**")
+        st.caption("Each correlated cluster is capped at ~2% of account (premium-at-risk) so a crowded theme "
+                   "can't pass as diversification. The bar is the fraction of that cluster's cap in use.")
+        crows = [{"cluster": r["cluster"], "premium": r["premium"], "cap": r["cap"],
+                  "% of cap": round((r["frac"] or 0) * 100, 1), "directions": ", ".join(r["directions"])}
+                 for r in risk["clusters"]]
+        st.dataframe(crows, width="stretch", column_config={
+            "premium": st.column_config.NumberColumn("premium", format="$%.0f"),
+            "cap": st.column_config.NumberColumn("cap", format="$%.0f"),
+            "% of cap": st.column_config.ProgressColumn("% of cap", min_value=0, max_value=100, format="%.0f%%")})
+
+    if _show(snap["council"], "council"):
+        cp = snap["council"]
+        h = cp["health"]
+        verdict = h.get("verdict", "—")
+        st.markdown("**LLM council — latest L1 round-trip**")
+        st.markdown(f"### {_VERDICT_ICON.get(verdict, '•')} {verdict.replace('_', ' ').title()}")
+        st.caption(_VERDICT_HELP.get(verdict, ""))
+        if verdict == "NO_COUNCIL":
+            st.info("No council has run on this DB yet.")
+        else:
+            rt, pr = h.get("roundtrip", {}), h.get("proposer", {})
+            c = st.columns(4)
+            c[0].metric("Run", h.get("run_id", "—"), help="The L1 cycle id behind this verdict.")
+            c[1].metric("Full round-trips", rt.get("n", "—"),
+                        help="Names that got all 3 roles (proposer → adversary → strategist). The last two only fire on an above-floor proposal.")
+            c[2].metric("Proposer parse-fails", f"{pr.get('parse_failed', '—')}/{pr.get('called', '—')}",
+                        help="0 is healthy. The #37 bug was 100% parse-fail — a silent fail-closed to NEUTRAL.")
+            c[3].metric("Council cost", f"${h.get('cost_usd', 0):.4f}",
+                        help="LLM spend for this council run across all 3 providers.")
+            if rt.get("strategist_abstained"):
+                st.caption(f"🧠 strategist reasoned-abstained on {rt['strategist_abstained']} name(s) — a healthy exclude, not a failure.")
+        st.caption(f"models: {cp.get('model_mix') or '—'}")
+
+        bp = cp.get("by_provider") or {}
+        if bp:
+            st.markdown("**Per-provider parse health** (latest run)")
+            prov = [{"provider": k, "calls": v.get("calls"), "parse errors": v.get("parse_error"),
+                     "error rate": round((v.get("parse_error_rate") or 0) * 100, 1)} for k, v in bp.items()]
+            st.dataframe(prov, width="stretch", column_config={
+                "error rate": st.column_config.ProgressColumn("error rate", min_value=0, max_value=100, format="%.0f%%")})
+
+        recent = cp.get("recent") or []
+        if recent:
+            st.markdown("**Recent council runs** (oldest → newest — a regression shows here before it flips a checkmark)")
+            provs = sorted({p for w in recent for p in (w.get("by_provider") or {})})
+            strip = []
+            for w in recent:
+                row = {"run": f"#{w['run_id']}", "health": w["council_health"], "verdict": w["verdict"],
+                       "proposer parse%": round((w.get("proposer_parse_rate") or 0) * 100, 1)}
+                for p in provs:
+                    row[f"{p} err%"] = round(((w.get("by_provider") or {}).get(p, {}).get("parse_error_rate") or 0) * 100, 1)
+                strip.append(row)
+            st.dataframe(strip, width="stretch")
+
+        with st.expander("raw council-health JSON (for the curious)"):
+            st.json(h)
+
+
+def _render_performance(snap) -> None:
+    st.caption("Does the convex book pay off in the tail? (accruing for ~6mo until positions resolve)")
+    perf = snap["performance"]
+    if not _show(perf, "performance"):
+        return
+    st.caption(perf["caveat"])
+    ci = perf["p95_ci"]
+    st.markdown("**Per-book realized-multiple tail** (p95 + bootstrap CI — substrate, no gap verdict)")
+    if all(_is_accruing(v) for v in ci.values()):
+        _accruing("each book's p95 realized-multiple with a bootstrap CI, side by side")
+    else:
+        st.dataframe(_ci_rows(ci), width="stretch",
+                     column_config={"p95": st.column_config.NumberColumn("p95", format="%.2f×")})
+    pb, hr = perf["premium_bled"], perf["hit_rate"]
+    c = st.columns(3)
+    c[0].metric("Premium paid", f"${pb['paid']:,.0f}", help="Σ premium over all booked bets (the max at risk).")
+    c[1].metric("Bled (running)", f"{(pb['running_fraction'] or 0) * 100:.0f}%" if pb["running_fraction"] is not None else "—",
+                delta=f"${pb['running_bled']:,.0f}", delta_color="off",
+                help="Premium decayed so far = realized losses + mark-decay on open positions, ÷ paid.")
+    c[2].metric("Hit rate", f"{hr['hit_rate'] * 100:.0f}%" if hr["hit_rate"] is not None else "accruing",
+                delta=f"{hr['hits']}/{hr['closed']} closed", delta_color="off",
+                help="Fraction of closed bets with positive P&L. Pairs with the calibration break-even hit-rate.")
+    with st.expander("per-origin tails + raw"):
+        st.json({"tails": perf["tails"], "real_by_origin": perf["real_by_origin"]})
+
+
+def _render_nulls(snap) -> None:
+    st.caption("Does the apparatus beat brain-off? Each step is one contrast; the VERDICT (significance) "
+               "belongs to the blind/mature null layer — this is the plumbing, shown side by side.")
+    nulls = snap["nulls"]
+    if not _show(nulls, "nulls"):
+        return
+    for step in nulls["steps"]:
+        badge = "🟦 clean (1 variable)" if step["clean"] else f"🟨 bundled — {step.get('bundled', '')}"
+        extra = (f" · {step['censored_parse_fail_runs']} parse_fail run(s) censored"
+                 if "censored_parse_fail_runs" in step else "")
+        st.markdown(f"**{step['name']}** — {badge}{extra}")
+        st.dataframe(_ci_rows(step["arms"]), width="stretch",
+                     column_config={"p95": st.column_config.NumberColumn("p95", format="%.2f×")})
+    st.caption(nulls["note"])
+
+
+def _render_market(snap) -> None:
+    st.caption("Is the thesis playing out on open positions, and what regime is convexity priced in?")
+    mc = snap["market_ctx"]
+    if not _show(mc, "market context"):
+        return
+    st.markdown("**Open positions — mark ÷ entry** (the robust 'is the thesis playing out' read)")
+    if mc["open_positions"]:
+        st.dataframe(mc["open_positions"], width="stretch", column_config={
+            "mark_over_entry": st.column_config.NumberColumn("mark÷entry", format="%.2f×")})
+    else:
+        st.caption("No open positions.")
+    c = st.columns(2)
+    for col, key, label, helptext in (
+        (c[0], "universe_iv_rv", "IV / RV regime",
+         "ATM IV ÷ trailing realized vol across evaluated names. ≤1.2 is the gate's 'cheap'."),
+        (c[1], "universe_otm_skew", "OTM skew regime",
+         "OTM-wing minus ATM, in vol points, across evaluated names. ≤10 is the gate's 'cheap wing'."),
+    ):
+        d = mc[key]
+        col.markdown(f"**{label}**")
+        if d.get("n"):
+            col.metric("median", f"{d['p50']}", help=helptext)
+            col.caption(f"p90 {d['p90']} · max {d['max']} · n={d['n']}")
+        else:
+            col.caption("accruing — no evaluated names yet")
+    st.caption("Current regime across the universe (a snapshot, not a 'cheap vs its own history' verdict). "
+               "Distance-to-strike is deferred (a dormant name's cached spot lags).")
+
+
+def _render_attribution(snap) -> None:
+    st.caption("Where is P&L coming from, and is the council's conviction calibrated?")
+    attr = snap["attribution"]
+    if not _show(attr, "attribution"):
+        return
+    c = st.columns(2)
+    for col, key, label in ((c[0], "pnl_by_theme", "P&L by theme"), (c[1], "pnl_by_cluster", "P&L by cluster")):
+        col.markdown(f"**{label}** (realized + running)")
+        d = attr[key]
+        if d:
+            rows = [{"group": g, "realized": v["realized"], "running": v["running"], "n": v["n"]}
+                    for g, v in d.items()]
+            col.dataframe(rows, width="stretch", column_config={
+                "realized": st.column_config.NumberColumn("realized", format="$%.0f"),
+                "running": st.column_config.NumberColumn("running", format="$%.0f")})
+        else:
+            col.caption("no booked positions yet")
+    st.markdown("**Brier** (lower = better; forward calibration)")
+    pbri, rc = attr["proposal_brier"], attr["role_contribution_brier"]
+    cc = st.columns(1 + len(rc))
+    cc[0].metric("strategist final", pbri["mean"] if pbri["mean"] is not None else "—",
+                 help=f"Persisted strategist conviction Brier (n={pbri['n']}).")
+    for col, (role, v) in zip(cc[1:], sorted(rc.items()), strict=False):
+        col.metric(role, v["mean"], help=f"Per-role contribution Brier, recomputed (n={v['n']}).")
+    if pbri["mean"] is None:
+        st.caption("accruing — no resolved proposals yet")
+
+
+def _render_funnel(snap) -> None:
+    st.caption("Where do candidates stop — and why was each one judged the way it was?")
+    fn = snap["funnel"]
+    if _show(fn, "funnel"):
+        d = fn["l1_decision"]
+        st.markdown(f"**L1 decision funnel** (run #{d.get('run_id')})")
+        cc = st.columns(4)
+        cc[0].metric("proposed", d["proposed"], help="Candidates the council proposed this cycle.")
+        cc[1].metric("evaluated", d["evaluated"], help="Candidates the deterministic gate evaluated.")
+        cc[2].metric("opened", d["opened"], help="Positions actually opened (0 is healthy if nothing was cheap).")
+        cc[3].metric("wasted LLM $", d["wasted_llm_spend"],
+                     help="Proposals the council paid to judge that the gate then vetoed at eligibility/IV (the council runs before the gate).")
+        if d.get("by_decision"):
+            st.caption("by veto stage: " + " · ".join(f"{k}={v}" for k, v in d["by_decision"].items()))
+        st.caption(f"L0 discovery (run #{fn['l0_discovery'].get('run_id')}): "
+                   f"surfaced {fn['l0_discovery'].get('surfaced')} · controls {fn['l0_discovery'].get('controls')}")
+
+    delib = snap["deliberation"]
+    if isinstance(delib, dict) and delib.get("error"):
+        st.warning(f"deliberation unavailable (fail-soft): {delib['error']}")
+    elif delib:
+        st.markdown("**Latest run — per-name deliberation** (the 'why': proposer → adversary → strategist)")
+        st.dataframe(delib, width="stretch")
+    else:
+        st.caption("No council deliberation recorded yet.")
+
+    if _show(snap["gate_reasons"], "gate reasons"):
+        ivg = snap["gate_reasons"]["iv_gate"]
+        st.markdown("**IV-gate vetoes**")
+        cc = st.columns(3)
+        cc[0].metric("total", ivg["total"])
+        cc[1].metric("real (too rich)", ivg["real_veto"],
+                     help="Vetoed because IV/RV or skew exceeded the cheap threshold — a real read.")
+        cc[2].metric("fail-closed (missing data)", ivg["fail_closed_missing_data"],
+                     help="Vetoed because an input was missing — fail-closed, NOT a richness read.")
+        st.caption(f"eligibility vetoes: {snap['gate_reasons']['eligibility_vetoes']}")
+    if _show(snap["cap_flow"], "cap flow"):
+        cf = snap["cap_flow"]
+        st.caption(f"cluster-cap rejections of otherwise-passing candidates: "
+                   f"**{cf['cluster_cap_rejections_of_passing']}** ({cf['tightening_note']})")
+    if _show(snap["cost"], "cost"):
+        co = snap["cost"]
+        st.markdown("**LLM cost ledger**")
+        cc = st.columns(3)
+        cc[0].metric("L0 framer", f"${co['l0_framer_usd']:.4f}", help="Weekly discovery framer spend.")
+        cc[1].metric("L1 council", f"${co['l1_council_usd']:.4f}", help="Daily 3-role council spend.")
+        cc[2].metric("cumulative", f"${co['cumulative_usd']:.4f}")
+
+
+def _render_scanning(snap) -> None:
+    st.caption("What the scanner surfaced, what's in each book (with provenance), and what data has accrued.")
+    if _show(snap["sentinels"], "sentinels"):
+        se = snap["sentinels"]
+        st.markdown(f"**Active sentinels** — {se['active_n']} active · {se['dormant']} dormant")
+        if se["active"]:
+            st.dataframe(se["active"], width="stretch")
+        else:
+            st.caption("no active sentinels")
+        with st.expander("recent discovery runs"):
+            st.dataframe(se["discovery_runs"], width="stretch")
+    if _show(snap["positions"], "positions"):
+        ps = snap["positions"]
+        st.markdown("**Real book — open / pending** (with originating run + conviction)")
+        if ps["real_open"]:
+            st.dataframe(ps["real_open"], width="stretch")
+        else:
+            st.caption("real book is empty")
+        if ps["pending"]:
+            st.caption(f"⚠ {len(ps['pending'])} pending (watch for stale-pending)")
+        st.markdown("**Null books** — simulated-only, never broker")
+        for k, label in (("shadow_open", "shadow (gate-on, no council)"),
+                         ("nogate_3A_open", "3A (gate-off, same names)"),
+                         ("nogate_3B_open", "3B (gate-off, whole basket)"),
+                         ("shares", "shares (linear)")):
+            rows = ps[k]
+            with st.expander(f"{label} — {len(rows)} rows"):
+                st.dataframe(rows, width="stretch") if rows else st.caption("empty")
+    if _show(snap["curation"], "curation"):
+        cu = snap["curation"]
+        with st.expander("cluster diagnostic (the correlation backstop for the cluster map)"):
+            st.json(cu["cluster"])
+        with st.expander("basket quality (the survivorship → curation loop)"):
+            st.json(cu["basket"])
+    if _show(snap["data_gathered"], "data gathered"):
+        dg = snap["data_gathered"]
+        cg = dg.get("chain_snapshots", {})
+        st.markdown("**Data gathered** — the forward IV baseline accruing")
+        cc = st.columns(3)
+        cc[0].metric("chain-snapshot symbols", cg.get("symbols", 0))
+        cc[1].metric("bar-coverage symbols", dg.get("bar_coverage_symbols", 0))
+        cc[2].metric("latest snapshot", (cg.get("latest") or "—")[:10] if cg.get("latest") else "—")
+
+
 def main() -> None:
     st.set_page_config(page_title="Dramatic Options — observability", layout="wide")
     config = load_config()
     paths = dd.resolve_paths(config)
 
-    # ── sidebar: which DB, schema, heartbeat, KILL, refresh ──
     with st.sidebar:
         st.header("Dramatic Options")
         st.caption("read-only · NO-FETCH · fail-soft · observation-only")
@@ -110,144 +433,65 @@ def main() -> None:
         st.error(snap["_fatal"])
         return
 
+    # ── one-glance system status (the headline) ──
+    status = dd.system_status(snap)
+    {"error": st.error, "warn": st.warning, "success": st.success}[status["level"]](status["headline"])
+    if status["issues"]:
+        st.caption("wants a look: " + " · ".join(status["issues"]))
+    with st.expander("ℹ️ How to read this"):
+        st.markdown(_LEGEND)
+
     header = snap["header"]
     if _show(header, "header"):
         if header.get("schema_warning"):
             st.warning(f"⚠ {header['schema_warning']}")
         cols = st.columns(5)
-        cols[0].metric("schema", header["schema_version"])
-        cols[1].metric("KILL", "ENGAGED" if header["kill_switch_engaged"] else "off")
-        for col, key in ((cols[2], "cycle"), (cols[3], "council"), (cols[4], "discovery")):
+        cols[0].metric("schema", header["schema_version"], help="DB migration version vs what the dashboard expects.")
+        cols[1].metric("KILL", "ENGAGED" if header["kill_switch_engaged"] else "off",
+                       help="The always-on manual halt, checked every cycle.")
+        for col, key, helptext in (
+            (cols[2], "cycle", "L1∪L2 loop liveness (market-aware: weekends don't false-alarm)."),
+            (cols[3], "council", "Last L1 that deliberated (market-aware daily cadence)."),
+            (cols[4], "discovery", "Weekly L0 discovery scan."),
+        ):
             beat = header[key]
             age = beat["age_hours"]
             col.metric(f"last {key}", "—" if age is None else f"{age:.0f}h ago",
-                       delta=(beat["status"] if beat["status"] != "ONLINE" else None), delta_color="inverse")
+                       delta=(beat["status"] if beat["status"] != "ONLINE" else None), delta_color="inverse",
+                       help=helptext)
 
     st.subheader("T4-readiness scoreboard")
-    st.caption("A scoreboard, not a graduation verdict — conditions 2 & 4 are plumbing/accruing (no checkmark).")
+    st.caption("**Automatable checks only — NOT a go signal.** Conditions 2 & 4 need ~6 months of resolved "
+               "positions and stay verdict-less; T4 (real-money go-live) is the operator's decision.")
     t4 = snap["t4"]
     if _show(t4, "T4 scoreboard"):
+        checkable = [c for c in t4["conditions"] if c["checkable"]]
+        met = [c for c in checkable if c["verdict"] in ("MET", "PASS")]
+        accruing = [c for c in t4["conditions"] if not c["checkable"]]
+        st.caption(f"{len(met)}/{len(checkable)} automatable checks pass · {len(accruing)} conditions accruing (no verdict)")
         for c in t4["conditions"]:
-            mark = {"MET": "✅", "PASS": "✅", "NOT_OK": "❌", "BREACH": "🚨",
-                    "VACUOUS": "◻️", "IN_PROGRESS": "🔧", None: "⏳"}.get(c["verdict"], "⏳")
+            mark = _T4_MARK.get(c["verdict"], "⏳")
             tag = "" if c["checkable"] else " · (accruing — verdict deferred)"
             st.markdown(f"{mark} **({c['id']}) {c['name']}** — {c['verdict'] or 'accruing'}{tag}  \n"
                         f"&nbsp;&nbsp;&nbsp;{c['detail']}")
 
-    tabs = st.tabs(["A · health/risk", "B · performance", "C · nulls", "D · market",
-                    "E · drivers", "F · bottleneck", "G · scanning/positions/data"])
-
+    tabs = st.tabs(["🩺 Health & Risk", "📈 Performance", "🧪 Null books — does the brain help?",
+                    "🌡️ Market context", "🧭 Attribution", "🚦 Funnel — where trades stop",
+                    "🔍 Scanning · positions · data"])
     with tabs[0]:
-        risk = snap["risk"]
-        if _show(risk, "risk"):
-            kr = risk["kill_rule"]
-            st.metric("book drawdown", f"{kr['book_drawdown']:.1%}",
-                      delta="TRIPPED" if kr["tripped"] else f"halt @ {kr['drawdown_halt']:.0%}",
-                      delta_color="inverse" if kr["tripped"] else "off")
-            st.write(f"open positions: **{risk['book']['open']}/{risk['book']['max']}** · "
-                     f"open premium ${risk['book']['open_premium']:,.0f} / ${risk['book']['budget']:,.0f}")
-            st.write(f"cost-cap: last council health = `{risk['cost_cap']['last_council_health']}`"
-                     f"{' · TRIPPED' if risk['cost_cap']['tripped'] else ''}")
-            st.markdown("**Per-cluster exposure vs cap**")
-            st.dataframe(risk["clusters"], width="stretch")
-        if _show(snap["council"], "council"):
-            st.markdown("**Council health (latest L1)**")
-            st.json(snap["council"]["health"], expanded=False)
-            st.markdown("**Per-provider parse/error rate**")
-            st.json(snap["council"]["by_provider"], expanded=False)
-            st.caption(f"model_mix: {snap['council']['model_mix']}")
-
+        _render_health_risk(snap)
     with tabs[1]:
-        perf = snap["performance"]
-        if _show(perf, "performance"):
-            st.caption(perf["caveat"])
-            st.markdown("**Per-book realized-multiple tails**")
-            st.json(perf["tails"], expanded=False)
-            st.markdown("**Per-book p95 + bootstrap CI** (substrate — small-n suppressed; no gap verdict)")
-            st.json(perf["p95_ci"], expanded=True)
-            st.markdown("**Real book by origin (hand_seed vs sentinel)**")
-            st.json(perf["real_by_origin"], expanded=False)
-            c = st.columns(2)
-            c[0].markdown("**Premium bled vs paid**")
-            c[0].json(perf["premium_bled"])
-            c[1].markdown("**Hit rate**")
-            c[1].json(perf["hit_rate"])
-
+        _render_performance(snap)
     with tabs[2]:
-        nulls = snap["nulls"]
-        if _show(nulls, "nulls"):
-            st.caption(nulls["note"])
-            for step in nulls["steps"]:
-                tag = "clean (1 variable)" if step["clean"] else f"BUNDLED — {step.get('bundled', '')}"
-                st.markdown(f"**{step['name']}** — _{tag}_"
-                            + (f" · {step['censored_parse_fail_runs']} parse_fail runs censored"
-                               if "censored_parse_fail_runs" in step else ""))
-                st.json(step["arms"], expanded=False)
-
+        _render_nulls(snap)
     with tabs[3]:
-        mc = snap["market_ctx"]
-        if _show(mc, "market context"):
-            st.markdown("**Open positions — mark ÷ entry** (the robust 'is the thesis playing out' signal)")
-            st.dataframe(mc["open_positions"], width="stretch")
-            c = st.columns(2)
-            c[0].markdown("**Universe IV/RV regime**")
-            c[0].json(mc["universe_iv_rv"])
-            c[1].markdown("**Universe OTM skew regime**")
-            c[1].json(mc["universe_otm_skew"])
-            st.caption("distance-to-strike deferred (cached-snapshot as-of; a dormant name's spot lags).")
-
+        _render_market(snap)
     with tabs[4]:
-        attr = snap["attribution"]
-        if _show(attr, "attribution"):
-            c = st.columns(2)
-            c[0].markdown("**P&L by theme** (realized + running)")
-            c[0].json(attr["pnl_by_theme"], expanded=False)
-            c[1].markdown("**P&L by cluster**")
-            c[1].json(attr["pnl_by_cluster"], expanded=False)
-            st.markdown("**Brier** — strategist final (persisted) + per-role contribution (recomputed)")
-            st.json({"proposal_brier": attr["proposal_brier"],
-                     "role_contribution_brier": attr["role_contribution_brier"]}, expanded=False)
-
+        _render_attribution(snap)
     with tabs[5]:
-        fn = snap["funnel"]
-        if _show(fn, "funnel"):
-            st.markdown("**L1 decision funnel** (the bottleneck view)")
-            st.json(fn["l1_decision"], expanded=True)
-            st.markdown("**L0 discovery funnel**")
-            st.json(fn["l0_discovery"], expanded=False)
-        if _show(snap["gate_reasons"], "gate reasons"):
-            st.markdown("**Veto reasons + fail-closed-on-missing-data**")
-            st.json(snap["gate_reasons"], expanded=False)
-        if _show(snap["cap_flow"], "cap flow"):
-            st.json(snap["cap_flow"])
-        if _show(snap["cost"], "cost"):
-            st.markdown("**Cost ledger (per stage + cumulative)**")
-            st.json(snap["cost"])
-
+        _render_funnel(snap)
     with tabs[6]:
-        if _show(snap["sentinels"], "sentinels"):
-            st.markdown(f"**Active sentinels** ({snap['sentinels']['active_n']}) · "
-                        f"dormant {snap['sentinels']['dormant']}")
-            st.dataframe(snap["sentinels"]["active"], width="stretch")
-            st.caption("recent discovery runs")
-            st.json(snap["sentinels"]["discovery_runs"], expanded=False)
-        if _show(snap["positions"], "positions"):
-            st.markdown("**Real book — open/pending**")
-            st.dataframe(snap["positions"]["real_open"], width="stretch")
-            if snap["positions"]["pending"]:
-                st.caption(f"{len(snap['positions']['pending'])} pending (watch stale-pending)")
-            st.markdown("**Null books (shadow / 3A / 3B / shares)**")
-            for k in ("shadow_open", "nogate_3A_open", "nogate_3B_open", "shares"):
-                st.caption(k)
-                st.dataframe(snap["positions"][k], width="stretch")
-        if _show(snap["curation"], "curation"):
-            st.markdown("**Cluster diagnostic**")
-            st.json(snap["curation"]["cluster"], expanded=False)
-            st.markdown("**Basket quality**")
-            st.json(snap["curation"]["basket"], expanded=False)
-        if _show(snap["data_gathered"], "data gathered"):
-            st.markdown("**Data gathered (chain snapshots = the forward IV baseline)**")
-            st.json(snap["data_gathered"], expanded=False)
+        _render_scanning(snap)
 
 
 if __name__ == "__main__":

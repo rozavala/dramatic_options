@@ -224,10 +224,21 @@ RV proxy to a true IV-rank once enough chain snapshots have accrued (PREREG §4b
 
 ## 5b. Cross-cutting workstreams (operator-requested 2026-06-03) — each its own plan-mode + red-team session
 
-**Observability / monitoring dashboard (Streamlit) — PR-A BUILT & green 2026-06-05; a keyless systemd SERVICE 2026-06-06** (`dashboard.py` +
+**Observability / monitoring dashboard (Streamlit) — PR-A BUILT & green 2026-06-05; a keyless systemd SERVICE 2026-06-06;
+a full LEGIBILITY REFRESH BUILT & green 2026-06-07 (branch `dashboard-legibility`, HELD from merge until after the Mon
+2026-06-08 L1 — single-variable window)** (`dashboard.py` +
 `dashboard_data.py` + `breach_audit.py`; read-only `?mode=ro` / NO-FETCH / per-panel fail-soft;
 T4-readiness scoreboard spine; hand-checked value tests; the file-structure refactor below is the remaining
-§5b item). A single operator surface over what the system is doing and how it's performing — read-only over
+§5b item). **Legibility refresh:** every tab reshaped from raw `st.json` dumps to labelled metrics/tables +
+hover-help + friendly accruing empty-states (raw dict kept behind an expander); a one-glance 🟢/🟡/🔴 status
+banner (`dd.system_status`, degrades on any errored panel); plain-language tab names + a "How to read this"
+legend; **market-aware staleness** (pure-datetime two-beat split — council = weekday 15:45 ET, cycle = the L2
+RTH grid — so a weekend no longer false-alarms and an intraday L2 stall is caught); per-provider parse health
+**scoped to the latest run** (was all-time); a **recent-council-runs strip** + a **latest-run deliberation
+table** (the 'why') + **provenance columns** (originating run + conviction) on the positions book — all
+single-sourced through `recent_council_health`; and a **cond-1 redefinition** (censor `parse_fail` bug runs +
+require ≥2 `ROUNDTRIP_CONFIRMED`, faithful to the prereg + the parse-fix censoring discipline + the #55/#72
+two-for-two). Over-time charts (drawdown/spend) stay deferred to PR-B (degenerate on today's empty book). A single operator surface over what the system is doing and how it's performing — read-only over
 the SQLite journal + the PIT cache, never a trade/authorization path, fail-soft, safe against the live DB:
 - **Discovery / scanning:** the latest L0 scan — surfaced sentinels (markers, `inflection_score`,
   framer verdict), the random controls, the `ai_compute`-style baskets, TTL/dormancy, the cost ledger.
