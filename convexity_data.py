@@ -79,14 +79,17 @@ class ChainProvider(Protocol):
 class AlpacaChainProvider:
     """Live provider over the read-only ``AlpacaClient`` wrapper."""
 
-    def __init__(self, client) -> None:  # noqa: ANN001 — AlpacaClient, duck-typed
+    def __init__(self, client, *, equity_feed=None, option_feed=None) -> None:  # noqa: ANN001
         self._client = client
+        self._equity_feed = equity_feed  # alpaca DataFeed (RV/underlying bars); None → client default (IEX)
+        self._option_feed = option_feed  # alpaca OptionsFeed (the gate's chain); None → client default (INDICATIVE)
 
     def closes(self, symbol: str, *, window: int) -> list[float]:
         from datetime import datetime
 
         start = datetime.now().astimezone() - timedelta(days=int(window * 1.6) + 10)
-        bars = self._client.get_stock_bars(symbol, start=start)
+        kw = {} if self._equity_feed is None else {"feed": self._equity_feed}
+        bars = self._client.get_stock_bars(symbol, start=start, **kw)
         data = getattr(bars, "data", {}) or {}
         rows = data.get(symbol, [])
         return [float(b.close) for b in rows if getattr(b, "close", None)]
@@ -96,7 +99,8 @@ class AlpacaChainProvider:
         return c[-1] if c else None
 
     def chain(self, symbol: str) -> list[Contract]:
-        raw = self._client.get_option_chain(symbol)
+        kw = {} if self._option_feed is None else {"feed": self._option_feed}
+        raw = self._client.get_option_chain(symbol, **kw)
         items = raw.items() if hasattr(raw, "items") else []
         out: list[Contract] = []
         for osym, snap in items:
@@ -136,13 +140,15 @@ class AlpacaQuoteProvider:
     no-historical-options wall (PREREG §4). Caches one chain pull per underlying per call-set.
     """
 
-    def __init__(self, client) -> None:  # noqa: ANN001 — AlpacaClient, duck-typed
+    def __init__(self, client, *, option_feed=None) -> None:  # noqa: ANN001 — AlpacaClient, duck-typed
         self._client = client
+        self._option_feed = option_feed  # alpaca OptionsFeed (L2 marks); None → client default (INDICATIVE)
         self._cache: dict[str, dict[str, tuple[float | None, float | None]]] = {}
 
     def _underlying_quotes(self, underlying: str) -> dict[str, tuple[float | None, float | None]]:
         if underlying not in self._cache:
-            quotes = self._client.option_quote_tuples(underlying)
+            kw = {} if self._option_feed is None else {"feed": self._option_feed}
+            quotes = self._client.option_quote_tuples(underlying, **kw)
             self._cache[underlying] = {
                 q["symbol"]: (q.get("bid"), q.get("ask")) for q in quotes
             }

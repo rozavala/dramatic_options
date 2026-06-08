@@ -17,6 +17,9 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from feeds import FeedConfigError
+from feeds import validate as validate_data_feed
+
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config.json"
 ENV_PATH = BASE_DIR / ".env"
@@ -60,8 +63,19 @@ def load_config() -> dict[str, Any]:
         default=bool(safety.get("live_trading_enabled", False)),
     )
     safety["dry_run"] = _as_bool(os.getenv("DRY_RUN"), default=bool(safety.get("dry_run", True)))
-    if os.getenv("DATA_FEED"):
-        safety["data_feed"] = os.getenv("DATA_FEED").strip()
+
+    # Data-feed roles (the data-feed upgrade). config.json is the source of truth — there is NO env
+    # override (the old flat DATA_FEED knob was dead: read into safety.data_feed but never wired to a
+    # fetch). Default to the SAFE/current feeds if a (minimal) config omits the block, then validate so
+    # an unknown value fails CLOSED at load — never a silent fallback to a default feed.
+    df = config.setdefault("data_feed", {})
+    df.setdefault("equity_bars", "iex")
+    df.setdefault("option_gate", "indicative")
+    df.setdefault("option_monitor", "indicative")
+    try:
+        validate_data_feed(df)
+    except FeedConfigError as e:
+        raise ConfigError(str(e)) from e
 
     # FORWARD_ENABLED (T2.5): gates whether THIS env actively trades on the scheduled loop.
     # Kept TOP-LEVEL and deliberately distinct from the live triple-gate above (PAPER /
@@ -147,3 +161,12 @@ def frame_version(config: dict[str, Any]) -> str:
     })
     blob = json.dumps(frame, sort_keys=True, default=str)
     return "frame-" + hashlib.sha1(blob.encode()).hexdigest()[:12]
+
+
+def data_feed_stamp(config: dict[str, Any]) -> str:
+    """A compact JSON stamp of the resolved data-feed roles, recorded per run (migration 0013).
+
+    Lets the forward record segment by data regime — the gate's RV/option inputs and the discovery
+    funnel all hang off these (companion to ``frame_version`` / ``model_mix``). Comment keys dropped so
+    a docs-only edit doesn't churn the stamp."""
+    return json.dumps(_drop_comments(config.get("data_feed", {})), sort_keys=True, default=str)

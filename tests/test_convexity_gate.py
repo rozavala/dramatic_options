@@ -19,6 +19,19 @@ def _chain():
     return [_c("C", 100, 0.40), _c("C", 105, 0.41), _c("C", 125, 0.42), _c("P", 75, 0.45)]
 
 
+def test_rv_source_shift_across_iv_rv_boundary_flips_verdict():
+    """The data-feed upgrade moves RV's closes IEX→SIP. A candidate near iv/rv=1.2 can flip — the
+    SIP consolidated close is the more-correct input, so a flip here is the EXPECTED effect, not a
+    regression. atm_iv=0.40 → boundary at rv = 0.40/1.2 ≈ 0.333 (skew 2vp, well within 10)."""
+    wing = _c("C", 125, 0.42)
+    sip = is_cheap_convexity(_chain(), underlying_price=100.0, wing=wing, rv=0.34,
+                             iv_rv_max=1.2, otm_skew_max_volpts=10.0)   # 0.40/0.34=1.18 ≤ 1.2 → cheap
+    iex = is_cheap_convexity(_chain(), underlying_price=100.0, wing=wing, rv=0.33,
+                             iv_rv_max=1.2, otm_skew_max_volpts=10.0)   # 0.40/0.33=1.21 > 1.2 → veto
+    assert sip.cheap is True
+    assert iex.cheap is False
+
+
 def test_realized_vol_constant_is_zero():
     assert realized_vol([10.0] * 30, window=20) == 0.0
 

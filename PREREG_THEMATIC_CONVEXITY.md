@@ -108,6 +108,19 @@ separately-pre-registered change.)
 Frozen values (T0): `τ_ivrv = 1.2`, `τ_skew = 10.0` vol pts, `rv_window_days = 252`,
 tenor window `[180, 365]` days, `target_moneyness = 0.25` (≈25% OTM).
 
+**Data-provenance amendment (2026-06-08) — `equity_bars` IEX→SIP (the data-feed upgrade, PR1).** The
+gate's `RV_h` is computed from daily closes; PR1 moves those closes from the free **IEX** feed (~2–3% of
+consolidated volume; its last print ≠ the official close) to the paid **SIP** consolidated feed (Algo
+Trader Plus, confirmed live on the paper key). This is a **gate-INPUT change**, not a non-event: `IV_atm/RV`
+shifts, so a candidate near `τ_ivrv = 1.2` can flip — the SIP close is the *more-correct* input, so such a
+flip is the **expected effect, not a regression**. The same `equity_bars` switch also feeds the **discovery
+prescreen markers** (`data/market.py`), so the surfaced candidate funnel can shift too (the volume/ADV
+markers were most undercounted on IEX). The **option** feeds are unchanged in PR1: `option_gate` stays
+**INDICATIVE** (L1 entry authorization) and `option_monitor` stays free — `option_gate` flips
+INDICATIVE→**OPRA** in a later, separately-noted amendment (PR3) once the PR2 dual-read confirms
+across-session agreement. Stamped per-run via `runs.data_feed` (migration 0013). The frozen thresholds
+(`τ_ivrv`, `τ_skew`, …) are **UNCHANGED** — this changes the *data source*, not the gate.
+
 ## 5. Risk frame (frozen) — FIRST-CLASS; the discipline
 
 Operator decisions, set 2026-05-31, in `config.json:convexity_book`:

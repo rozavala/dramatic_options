@@ -46,18 +46,21 @@ def record_run(
     equity: float | None,
     note: str = "",
     frame_version: str | None = None,
+    data_feed: str | None = None,
 ) -> int:
     """Insert a row into ``runs`` and return its id. Atomic.
 
     ``frame_version`` (migration 0009) stamps the live risk-frame/taxonomy version so positions — real
     and shadow, both carrying ``run_id`` — segment by risk regime at T4 and the breach audit can ask
     "was this entry admitted under the THEN-LIVE frame" (PREREG §5 cluster-cap amendment).
+    ``data_feed`` (migration 0013) likewise stamps the resolved feed roles so the record segments
+    by data regime (the gate's RV/option inputs + the discovery funnel hang off these).
     """
     with conn:  # commits on success, rolls back on exception
         cur = conn.execute(
-            "INSERT INTO runs (started_at, mode, equity, note, frame_version) "
-            "VALUES (datetime('now'), ?, ?, ?, ?)",
-            (mode, equity, note, frame_version),
+            "INSERT INTO runs (started_at, mode, equity, note, frame_version, data_feed) "
+            "VALUES (datetime('now'), ?, ?, ?, ?, ?)",
+            (mode, equity, note, frame_version, data_feed),
         )
     return int(cur.lastrowid)
 

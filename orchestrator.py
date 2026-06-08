@@ -34,6 +34,7 @@ from broker import AlpacaPaperBroker, PaperBroker
 from clock import Clock, FixedClock, LiveClock
 from config_loader import (
     ConfigError,
+    data_feed_stamp,
     live_allowed,
     load_config,
     require_alpaca_credentials,
@@ -45,6 +46,7 @@ from convexity_data import AlpacaChainProvider, AlpacaQuoteProvider, SyntheticCh
 from council.router import BudgetExceeded, FakeRouter, RouterError, build_router
 from council.wiring import council_to_themes
 from discovery import MarkerParams, scan_baskets
+from feeds import to_equity_feed, to_option_feed
 from monitor import monitor_positions, reconcile_pending
 from paper_loop import kill_rule_status, run_paper_cycle
 from risk import kill_switch_active
@@ -270,6 +272,7 @@ def run_discover(demo: bool = False) -> int:
         all_syms = sorted({s for members in baskets.values() for s in members} | {benchmark})
         params = MarkerParams(**dict(disc.get("markers", {})))
         horizon = int(disc.get("reference_horizon_days", 180))
+        equity_feed = gate_feed = None  # set in the live branch; demo uses Synthetic (feeds unused)
 
         if demo:
             clock: Clock = FixedClock(datetime.now(UTC))
@@ -277,7 +280,8 @@ def run_discover(demo: bool = False) -> int:
             movers = [s for members in baskets.values() for s in members[:2]]  # first two per basket ramp
             market = discovery.synthetic_market(all_syms, as_of, movers=movers)
             run_id = record_run(conn, mode="DISCOVERY-DEMO", equity=None, note="discovery demo",
-                                frame_version=compute_frame_version(config))
+                                frame_version=compute_frame_version(config),
+                                data_feed=data_feed_stamp(config))
             log.info("(demo: ephemeral DB %s — real sentinel store untouched)", demo_db.name)
         else:
             try:
@@ -294,9 +298,15 @@ def run_discover(demo: bool = False) -> int:
             as_of = clock.now()
             fetch_start, _ = default_fetch_window(as_of)
             cache = PointInTimeCache(config.get("cache", {}).get("dir", "data/cache"))
-            market = MarketData(cache, client=client, fetch_start=fetch_start, fetch_end=as_of)
+            # Data-feed roles (the data-feed upgrade): equity_bars (SIP) feeds the discovery markers via
+            # MarketData + the null books' RV; option_gate feeds the null books' chains.
+            equity_feed = to_equity_feed(config["data_feed"]["equity_bars"])
+            gate_feed = to_option_feed(config["data_feed"]["option_gate"])
+            market = MarketData(cache, client=client, fetch_start=fetch_start, fetch_end=as_of,
+                                feed=equity_feed)
             run_id = record_run(conn, mode="DISCOVERY", equity=None, note="weekly scan",
-                                frame_version=compute_frame_version(config))
+                                frame_version=compute_frame_version(config),
+                                data_feed=data_feed_stamp(config))
 
         # Kill-before-spend seam (the council-build discipline). PR1 spends nothing; the framer
         # (PR2) sits behind this same guard.
@@ -350,7 +360,8 @@ def run_discover(demo: bool = False) -> int:
         if config.get("fixed_basket", {}).get("enabled", True):
             try:
                 chain_provider = (SyntheticChainProvider(as_of=as_of.date()) if demo
-                                  else AlpacaChainProvider(client))
+                                  else AlpacaChainProvider(client, equity_feed=equity_feed,
+                                                           option_feed=gate_feed))
                 fbr3b = fixed_basket.run_fixed_basket_3b_cycle(
                     config=config, conn=conn, clock=clock, provider=chain_provider, market=market,
                     benchmark=benchmark, params=params, run_id=run_id,
@@ -369,7 +380,8 @@ def run_discover(demo: bool = False) -> int:
         if config.get("shares_basket", {}).get("enabled", True):
             try:
                 sh_provider = (SyntheticChainProvider(as_of=as_of.date()) if demo
-                               else AlpacaChainProvider(client))
+                               else AlpacaChainProvider(client, equity_feed=equity_feed,
+                                                        option_feed=gate_feed))
                 sbr = shares_basket.run_shares_basket_cycle(
                     config=config, conn=conn, clock=clock, provider=sh_provider, market=market,
                     benchmark=benchmark, params=params, run_id=run_id,
@@ -461,7 +473,8 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             quote_provider = provider  # synthetic chain doubles as a QuoteProvider
             broker = PaperBroker(config.get("convexity_book", {}).get("account_equity", 100000.0))
             run_id = record_run(conn, mode="PAPER-DEMO", equity=broker.account_equity(), note="demo",
-                                frame_version=compute_frame_version(config))
+                                frame_version=compute_frame_version(config),
+                                data_feed=data_feed_stamp(config))
             log.info("(demo: ephemeral DB %s — real book untouched)", demo_db.name)
         else:
             try:
@@ -480,13 +493,20 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                 log.error("Could not reach Alpaca: %s", e)
                 return 1
             clock = LiveClock(client)
-            provider = AlpacaChainProvider(client)
-            quote_provider = AlpacaQuoteProvider(client)
+            # Data-feed roles (the data-feed upgrade): RV/underlying on equity_bars (SIP); the gate
+            # authorizes on option_gate (INDICATIVE in PR1, fail-closed); the L2 monitor marks on
+            # option_monitor (free, degrade-and-continue).
+            equity_feed = to_equity_feed(config["data_feed"]["equity_bars"])
+            gate_feed = to_option_feed(config["data_feed"]["option_gate"])
+            monitor_feed = to_option_feed(config["data_feed"]["option_monitor"])
+            provider = AlpacaChainProvider(client, equity_feed=equity_feed, option_feed=gate_feed)
+            quote_provider = AlpacaQuoteProvider(client, option_feed=monitor_feed)
             # Real paper-order broker; DRY_RUN (default) logs-and-simulates, never transmits.
             broker = AlpacaPaperBroker(api_key, secret_key, dry_run=dry_run, equity=equity)
             chain_cache = PointInTimeCache(config.get("cache", {}).get("dir", "data/cache"))
             run_id = record_run(conn, mode=mode, equity=equity, note="paper cycle",
-                                frame_version=compute_frame_version(config))
+                                frame_version=compute_frame_version(config),
+                                data_feed=data_feed_stamp(config))
             log.info("Execution: %s", "DRY_RUN (orders logged, not sent)" if dry_run else "LIVE PAPER SUBMIT")
 
         # Market state, checked ONCE per cycle, FAIL-CLOSED (PR2 R5). Gates both the monitor's

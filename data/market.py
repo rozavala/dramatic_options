@@ -58,11 +58,13 @@ class MarketData:
         client: Any | None = None,
         fetch_start: datetime,
         fetch_end: datetime,
+        feed: Any | None = None,
     ) -> None:
         self.cache = cache
         self.client = client
         self.fetch_start = fetch_start
         self.fetch_end = fetch_end
+        self.feed = feed  # alpaca DataFeed for equity bars (discovery markers + context); None → client default (IEX)
 
     # ── fetch / read ──────────────────────────────────────────────────────
     def _ensure(self, symbol: str) -> None:
@@ -70,7 +72,8 @@ class MarketData:
             return
         if self.client is None:
             return  # offline: a subsequent read() raises CacheMiss if insufficient
-        barset = self.client.get_stock_bars(symbol, start=self.fetch_start, end=self.fetch_end)
+        kw = {} if self.feed is None else {"feed": self.feed}
+        barset = self.client.get_stock_bars(symbol, start=self.fetch_start, end=self.fetch_end, **kw)
         self.cache.write(
             SOURCE, symbol, _bar_records(barset, symbol),
             coverage_from=self.fetch_start, coverage_through=self.fetch_end,
