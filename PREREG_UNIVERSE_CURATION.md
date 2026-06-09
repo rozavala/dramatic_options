@@ -1,10 +1,12 @@
 # PREREG — Universe curation as a refresh rule (lower-priced, cap-fitting thematic names)
 
-**Status: DRAFT 2026-06-09, pending operator freeze (merging this PR is the freeze act).** Written
-**blind**: no candidate has been screened against these criteria; the criteria are committed before
-any name is looked at (the anti-HARKing firewall, cf. the divergence/FSSD graves and
-`PREREG_COUNCIL_GATE_SEPARATION` — "CGS" below). Three decisions are explicitly **OPERATOR PICKS AT
-FREEZE** (§3 exception variant, §5 target value, §7 sequencing); the merge records them.
+**Status: FROZEN 2026-06-09 (operator-merged — the merge is the freeze act).** Written **blind**: no
+candidate had been screened against these criteria at freeze; the criteria are committed before any
+name is looked at (the anti-HARKing firewall, cf. the divergence/FSSD graves and
+`PREREG_COUNCIL_GATE_SEPARATION` — "CGS" below). The three at-freeze operator picks, recorded:
+**§3 = quarterly windows + tag-only exceptions; §5 target = ~1 viable entry/month; §7 = resolution
+(a)** (the event-provider wiring is the next session; the §5 sizing clock counts only scans on the
+final funnel configuration).
 
 Converged over two relayed advisor red-team rounds (2026-06-09); the multiplicative-funnel framing —
 expected entries ≈ Σ names × P(surface) × P(framer) × P(council ≥MODERATE) × P(gate-cheap) ×
