@@ -144,8 +144,13 @@ class AlpacaPaperBroker:
         except Exception as e:  # noqa: BLE001
             log.warning("order_status(%s) failed: %s", order_id, e)
             return None
+        # alpaca-py returns an ``OrderStatus`` enum whose ``str()`` is "OrderStatus.FILLED",
+        # NOT "filled". The monitor's reconcilers compare against the lowercase VALUE
+        # ("filled" / "canceled" / …), so emit the enum value (a plain string passes through).
+        # Without this, reconcile_pending / _reconcile_closing never match a real order.
+        status = getattr(o, "status", "")
         return {
-            "state": str(getattr(o, "status", "")),
+            "state": getattr(status, "value", str(status)),
             "filled_avg_price": getattr(o, "filled_avg_price", None),
             "filled_qty": getattr(o, "filled_qty", None),
         }

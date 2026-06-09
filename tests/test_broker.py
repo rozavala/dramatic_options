@@ -126,6 +126,24 @@ def test_order_status_and_cancel(monkeypatch):
     assert fake.cancelled == ["o"]
 
 
+def test_order_status_maps_enum_value_not_repr(monkeypatch):
+    """Regression (live-only bug, 2026-06-09): alpaca-py returns an ``OrderStatus`` *enum*
+    whose ``str()`` is "OrderStatus.FILLED", NOT "filled". ``order_status`` must emit the
+    lowercase enum VALUE — monitor.reconcile_pending / _reconcile_closing compare
+    ``state == "filled"`` / ``state in ("canceled", …)``, and "orderstatus.filled" matches
+    none of them, silently stranding every real filled order as 'pending'. The other test
+    feeds a plain "filled" string, so ``str()`` is a no-op and the enum bug stays invisible —
+    this one grounds against the real enum. Caught by the first live fill→close round-trip.
+    """
+    from alpaca.trading.enums import OrderStatus
+
+    b, fake = _broker(monkeypatch, dry_run=False)
+    fake._next = SimpleNamespace(status=OrderStatus.FILLED, filled_avg_price="9.39", filled_qty="1", id="o")
+    assert b.order_status("o")["state"] == "filled"
+    fake._next = SimpleNamespace(status=OrderStatus.CANCELED, filled_avg_price=None, filled_qty="0", id="o2")
+    assert b.order_status("o2")["state"] == "canceled"
+
+
 def test_fill_dataclass_defaults():
     f = Fill(True, 1.0, 1, "n")
     assert f.order_id is None and f.pending is False
