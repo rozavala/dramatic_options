@@ -211,8 +211,16 @@ pinned to a HAND-CHECKED value test (anti-HARK, PREREG_CONVEXITY_CALIBRATION §6
 (`dramatic-options-dashboard.service` + `scripts/dashboard_run.sh`; DEV-armed / PROD-install-but-inert via
 `forward_enabled || ENV_NAME=DEV`; per-box Tailscale-IP:8502 bind — wrapper polls ~60s then fail-closes;
 `DRAMATIC_SKIP_DOTENV=1` keyless via the `config_loader` opt-out + a CI import-graph invariant; fail-soft +
-outside the verify gate; a CI combined-venv job mirrors the box). 421 tests, ruff clean. **BUILD next:** the
-§5b file-structure refactor.
+outside the verify gate; a CI combined-venv job mirrors the box). 421 tests, ruff clean. **2026-06-09:** broker
+fill→close round-trip DONE (PR #44, live-only enum-repr reconcile bug caught + fixed); the council/gate
+cheapness-separation pre-reg FROZEN (PR #43) and its §5 freeze-gate FIRED (5/16 = SELECTIVITY-FLAG, §10 append)
+— the re-arch is gated on a mandate re-tightening, and zero-yield on this universe anyway (GEV $8,125/contract
+vs the $1,000 per-name cap). **The entry-unlock = `PREREG_UNIVERSE_CURATION.md`**: universe curation as a
+quarterly refresh RULE (operator-authored lower-priced cap-fitting baskets; cheapness+motion forbidden as
+curation criteria; `scripts/probe_basket_feasibility.py` + the aggregate-only
+`scripts/probe_basket_gate_baserate.py`; the dormant structural-event leg pre-committed as the NEXT session so
+§5-sizing measures the final funnel). **BUILD next:** PR-B window #1 (the operator-curated basket edit) → the
+event-provider session → the §5b file-structure refactor.
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical
