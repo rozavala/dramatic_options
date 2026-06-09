@@ -127,3 +127,95 @@ theme-expander become the right source rather than a demoted one). Do **not** bu
 - **CEG pipeline gap.** CEG is gate-cheap (IV/RV 1.09) yet has **no council proposal** — a gate-cheap name that
   never reached the council. One-line check: discovery gap (never surfaced) vs timing (surfaced on a scan whose
   L1 we haven't read). A small pipeline hole worth confirming, not a blocker.
+
+## 10. POST-FREEZE RECORD (appended 2026-06-09) — the §5 freeze-gate FIRED: ≥2 → SELECTIVITY FLAG
+
+*Append-only. §§1–9 above are the frozen body (PR #43) and are unchanged. This section records the
+freeze-gate's outcome and its pre-committed consequences; it closes latitude, it adds none.*
+
+### 10.1 Two runs — population reconciliation
+
+- **Run 1 (superseded — NOT §5-compliant).** 2026-06-09, earlier session; ephemeral, live router, ~$0.13.
+  Population = the **11 then-active sentinels** (the 2026-06-03 scan's RKLB/VRT/PWR/KTOS/GEV/ETN/CCJ/SMCI
+  + the 2026-06-07 scan's RTX/NEE/LHX) — a motion-filtered subset, NOT §5's "the 8 harm-quadrant names
+  and the full universe." Result **1 of 11 ≥ MODERATE (GEV, structural)**, read at the time as "1 =
+  CONFIRMS"; per-name verdicts / config text / cost were not fully captured. Superseded for population
+  non-compliance + capture gaps (flagged in red-team review before any doc cited it).
+- **Run 2 — the §5-COMPLIANT RUN OF RECORD.** **2026-06-09 21:52 UTC**, operator-approved, ephemeral
+  (in-memory candidates, NO live-record touch), live router, cost **$0.22**. Population = the **full
+  16-name universe** (⊇ the 8 harm-quadrant names): NVDA, SMCI, VRT, ETN, GEV, CEG, CCJ, FCX, NEE, PWR,
+  RKLB, LMT, NOC, LHX, RTX, KTOS — every name marker-grounded (origin-aware sentinel context), direction
+  = the motion-derived `discovery.direction_of`, forced past the motion floor (§5 scores the full
+  universe), `council.max_candidates` 12→20 so nothing truncates. Models (config-pinned): proposer
+  `gemini/gemini-3.5-flash` (thinking_level=minimal, json_mode), adversary `xai/grok-4.3`, strategist
+  `anthropic/claude-opus-4-8`. Conviction floor: MODERATE. Harness:
+  `scripts/probe_rescore_thesis_only.py` (committed with this append; prints the previewed prompts and
+  all per-name verdicts on every run).
+
+**Result: 5 of 16 reached ≥ MODERATE — NVDA, VRT, CCJ, FCX, KTOS (all MODERATE, structural). GEV = LOW
+/ fad ("already-consensus, heavily-narrated, crowded momentum") — run 1's sole survivor did NOT survive
+the run of record. → the frozen §5 band: ≥2 = SELECTIVITY FLAG.**
+
+### 10.2 The previewed config (and the named capture gap)
+
+The run previewed the exact §4 all-roles edit against `council/agents.py`: (a) `_COMMON` dropped the
+cheapness criterion "ONLY when implied vol has not yet priced the move" (keeping "a deterministic
+IV/cheap-convexity gate DISPOSES and can veto you"); (b) `ADVERSARY_SYSTEM` dropped the priced /
+move-is-behind-it objections, keeping thesis grounds (already-consensus / fad / not-a-real-inflection).
+Proposer/strategist role keys unchanged (already thesis-shaped). **Capture gap, named:** the edited
+prompt strings were applied ephemerally and reverted, and run 2's stdout (which printed them plus all 16
+per-name verdicts) was not tee'd to a file — so the verbatim previewed prompt text and the 11
+non-survivors' individual verdicts are not retained; the count, band, survivors, GEV verdict, cost,
+time, population, and models above are the operator-witnessed record. The committed harness reprints
+prompts + all verdicts on every run, so the next gate run is fully captured by construction.
+
+### 10.3 Reading per the frozen rule
+
+≥2 = the thesis-only council is LESS selective than §2 predicted (~0-1): the survivors include names the
+full §4 mandate (structural AND under-narrated AND at-a-genuine-inflection) should reject — NVDA
+(already-consensus AI), VRT (momentum +1.95 / rel +1.71, extended), CCJ (extended). Diagnosis: the
+previewed prompts enforce "structural" but do NOT enforce "under-narrated" / "at-a-genuine-inflection"
+as hard criteria. **Per the pre-committed rule: investigate + re-tighten the mandate; do NOT bank; do
+NOT proceed** to §6/OPRA or code until re-tightened and re-scored. GEV's run-1→run-2 flip
+(MODERATE→LOW) is population difference + run-to-run LLM variance on a borderline name — itself the
+demonstration that an uncommitted 1-of-11 could not carry a freeze (cite-before-record, vindicated).
+
+### 10.4 Pre-committed next gate (recorded BEFORE that re-score runs)
+
+The re-tightening session edits the thesis-only mandate so under-narrated + at-a-genuine-inflection are
+HARD veto criteria (tighten-only; §7 still forbids loosening floor/gate/criteria/baskets), then re-runs
+this same harness **on this same 16-name population** (pinned here for before/after comparability,
+regardless of any later universe curation), read against the same §5 bands: **0 = scarcity / 1 =
+confirms → unblocks §6; ≥2 again = investigate again — prompts are NOT iterated until the number fits.**
+One re-tightening pass per re-score; every run is appended here.
+
+### 10.5 Stale-premise retirement + companion findings
+
+- §1's "the frozen edge has never once run (`convexity_eval` = 0)" is now historical: at L1 **#111**
+  (2026-06-09 19:45 UTC) the live (old-config) council included RKLB MODERATE → the IV gate RAN and
+  PASSED (iv/rv 1.066, skew 0.08) → the **cluster cap vetoed** the entry (space_defense $2,000 < one
+  RKLB contract $2,866). The same run live-corroborated §1's suppression mechanism: GEV was rated LOW
+  on the cheapness proxy ("momentum already reflected, negative rv_slope").
+- Companion read-only cap check (`scripts/probe_gev_cap_check.py`, 2026-06-09): one GEV 25%-OTM
+  180–365d call ≈ **$8,125/contract** vs the $1,000 per-name cap (and 4× the $2,000 cluster cap) →
+  `convexity_position_size` = 0, un-enterable. Every gate-cheap name whose single contract fits $1,000
+  is a thesis-reject (FCX $772 / NEE $162 / KTOS $990). **Near-term yield of the re-architecture on the
+  current universe = ZERO, independent of this selectivity flag.** The cap-vs-contract-granularity
+  mismatch and the universe/funnel re-target (§8) are known-opens, each its own future pre-registered
+  session; per §7 the caps are NOT raised to force entries.
+- §9's CEG pipeline gap is RESOLVED-BENIGN: CEG is a random CONTROL (deliberately never proposed) and
+  its markers (momentum +0.14 < the 0.15 floor; rv_slope 0.157 < 0.25) would not have surfaced it —
+  another quiet-cheap name the motion floor excludes (reinforces §8), not a pipeline bug.
+- Layer distinction, kept explicit: council-≥MODERATE (this re-score) ≠ gate-cheap (the chain probes,
+  `scripts/probe_opra_dualread.py`). The five survivors are a council-selectivity reading, not a
+  tradeability reading.
+
+### 10.6 Expected-vs-actual identity + §6 status
+
+§2/§6 expected the single flip to be **NEE**; run 1's actual was **GEV** (the §6 boundary re-target
+NEE→GEV, after PR1's IEX→SIP RV change took NEE off the boundary, 1.17 IEX-RV → ~1.09 SIP-RV); run 2
+has **no GEV** and five different survivors. GEV's OPRA reads were gathered en route (gate-cheap on
+both feeds: 1.155 IND / 1.135 OPRA mid-day; 1.138/1.140 at the close) but are now moot for §6. **The §6
+boundary-name discharge is OPEN** — to be re-discharged by name against whatever survives the
+re-tightened mandate. The drafted OPRA-sequencing pre-reg ("ACCELERATE") is **not frozen**; any future
+freeze must cite THIS committed record, not run 1.
