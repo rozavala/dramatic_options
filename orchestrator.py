@@ -493,6 +493,7 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
         _ensure_schema(conn)
         dry_run = bool(config.get("safety", {}).get("dry_run", True))
 
+        shadow_gate_provider = None  # the INDICATIVE dual-read arm — live branch only
         if demo:
             clock = FixedClock(datetime.now(UTC))
             provider = SyntheticChainProvider(as_of=clock.now().date())
@@ -526,6 +527,11 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             gate_feed = to_option_feed(config["data_feed"]["option_gate"])
             monitor_feed = to_option_feed(config["data_feed"]["option_monitor"])
             provider = AlpacaChainProvider(client, equity_feed=equity_feed, option_feed=gate_feed)
+            # The INDICATIVE shadow arm (PREREG_DATA_FEED_OPRA_SEQUENCING §6): additive dual-read
+            # beside the OPRA gate-of-record; it never authorizes (it can only tighten via the
+            # date-gated disagree-veto) and every failure is a recorded coverage-guard row.
+            shadow_gate_provider = AlpacaChainProvider(
+                client, equity_feed=equity_feed, option_feed=to_option_feed("indicative"))
             quote_provider = AlpacaQuoteProvider(client, option_feed=monitor_feed)
             # Real paper-order broker; DRY_RUN (default) logs-and-simulates, never transmits.
             broker = AlpacaPaperBroker(api_key, secret_key, dry_run=dry_run, equity=equity)
@@ -646,12 +652,41 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                     result = run_paper_cycle(
                         config=config, conn=conn, clock=clock, provider=provider, broker=broker,
                         themes=themes, run_id=run_id, chain_cache=chain_cache,
+                        shadow_provider=(None if demo else shadow_gate_provider),
                     )
                     log.info(
                         "Cycle #%d: evaluated=%d opened=%d vetoed=%d skipped=%d errors=%d%s",
                         run_id, result.evaluated, result.opened, result.vetoed, result.skipped,
                         result.errors, " HALTED" if result.halted else "",
                     )
+                    # The §5 tripwire-population sweep (post-entries, fail-soft, live only): both
+                    # feeds over the option-eligible universe → gate_dualread rows. Measurement
+                    # only — it can never block or delay an authorization (entries are done).
+                    if not demo:
+                        try:
+                            import gate_dualread as _dualread
+
+                            uni_baskets, _bench = _scan_universe(config)
+                            uni_syms = sorted({s for m in uni_baskets.values() for s in m})
+                            elig_c = config.get("eligibility", {}).get("live", {})
+
+                            def _sweep_elig(c):
+                                from structure import contract_eligible
+
+                                return contract_eligible(
+                                    c, max_spread_pct=float(elig_c.get("max_bid_ask_pct", 0.25)),
+                                    min_contract_price=0.10, max_contract_price=100.0,
+                                    min_oi=elig_c.get("min_option_open_interest"))
+
+                            counts = _dualread.sweep_universe(
+                                conn, run_id=run_id, as_of_iso=clock.now().isoformat(),
+                                symbols=uni_syms, provider_record=provider,
+                                provider_shadow=shadow_gate_provider,
+                                market_closes=lambda s: provider.closes(s, window=300),
+                                gate=config.get("convexity_gate", {}), eligibility=_sweep_elig)
+                            log.info("Gate dual-read sweep: %s", counts)
+                        except Exception as e:  # noqa: BLE001 — measurement never halts the cycle
+                            log.warning("gate dual-read sweep failed (non-fatal): %s", e)
                     if result.halted:
                         # Kill switch / kill rule halted NEW entries (exit 0) → page in-app (PR2 R-C).
                         notify.send(

@@ -71,6 +71,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "cap_flow": dd.safe(dd.cap_binding_flow, conn),
             "cost": dd.safe(dd.cost_ledger, conn),
             "market_ctx": dd.safe(dd.market_context, conn),
+            "dualread": dd.safe(dd.gate_dualread_report, conn, config),
             "curation": dd.safe(dd.curation_panel, conn, config, market),
             "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir),
         }
@@ -371,6 +372,22 @@ def _render_funnel(snap) -> None:
 
 def _render_scanning(snap) -> None:
     st.caption("What the scanner surfaced, what's in each book (with provenance), and what data has accrued.")
+    if _show(snap.get("dualread"), "gate dual-read"):
+        dr = snap["dualread"]
+        tw = dr["tripwires"]
+        tripped = tw["delta_tripped"] or tw["flip_tripped"] or tw["gap_tripped"]
+        st.markdown("**OPRA gate dual-read** (gate-of-record = OPRA; INDICATIVE = the shadow arm — "
+                    "veto-only, never authorizes)")
+        st.caption(f"tripwires (rolling {tw['window']}): "
+                   f"Δiv/rv breaches={tw['delta_breach_sessions']} · flip sessions={tw['flip_sessions']} · "
+                   f"gap sessions={tw['gap_sessions']} → "
+                   f"{'⚠ TRIPPED — §5 fail-closed response' if tripped else 'clear'} · "
+                   f"disagree-veto until {dr['disagree_veto']['until']} "
+                   f"({'active' if dr['disagree_veto']['active'] else 'lapsed/unset'})")
+        if dr["sessions"]:
+            st.dataframe(dr["sessions"], width="stretch")
+        else:
+            st.caption("no dual-read sessions yet (accruing from the first post-flip L1)")
     if _show(snap["sentinels"], "sentinels"):
         se = snap["sentinels"]
         st.markdown(f"**Active sentinels** — {se['active_n']} active · {se['dormant']} dormant")

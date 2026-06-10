@@ -781,3 +781,72 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N)
                 "T4 is the operator's process decision (IMPLEMENTATION_PLAN.md).",
         "breach_audit": breach,
     }
+
+
+def gate_dualread_report(conn, config: dict | None = None) -> dict:
+    """The §5 named surface (PREREG_DATA_FEED_OPRA_SEQUENCING): per-session dual-read stats,
+    both-arms coverage (a silently-empty shadow arm must not read as agreement), the rolling-5
+    tripwire status against the PINNED thresholds (|Δ iv/rv| median>0.05 OR max>0.10 in ≥3 of 5;
+    coverage-gap or cheap-flip in ≥2 of 5), and the disagree-veto's dated auto-lapse."""
+    import statistics
+
+    rows = _rows(conn, "SELECT run_id, symbol, feed, source, structured, iv_rv, cheap "
+                       "FROM gate_dualread ORDER BY run_id, symbol, feed")
+    sessions: dict[int, dict[str, dict[str, dict]]] = {}
+    for r in rows:
+        sessions.setdefault(r["run_id"], {}).setdefault(r["symbol"], {})[r["feed"]] = r
+    out_sessions: list[dict] = []
+    for rid, by_sym in sorted(sessions.items()):
+        n = len(by_sym)
+        deltas: list[float] = []
+        flips: list[str] = []
+        gaps: list[str] = []
+        opra_ok = ind_ok = 0
+        for sym, arms in sorted(by_sym.items()):
+            o, i = arms.get("opra"), arms.get("indicative")
+            if o and o.get("structured"):
+                opra_ok += 1
+            if i and i.get("structured"):
+                ind_ok += 1
+            if i and i.get("structured") and (not o or not o.get("structured")):
+                gaps.append(sym)  # INDICATIVE structures, OPRA cannot — the §5 coverage gap
+            if o and i and o.get("structured") and i.get("structured"):
+                if o.get("iv_rv") is not None and i.get("iv_rv") is not None:
+                    deltas.append(abs(o["iv_rv"] - i["iv_rv"]))
+                if int(o.get("cheap") or 0) != int(i.get("cheap") or 0):
+                    flips.append(sym)
+        out_sessions.append({
+            "run_id": rid, "names": n,
+            "median_d_ivrv": round(statistics.median(deltas), 4) if deltas else None,
+            "max_d_ivrv": round(max(deltas), 4) if deltas else None,
+            "flips": flips, "coverage_gaps": gaps,
+            "opra_coverage": round(opra_ok / n, 3) if n else None,
+            "indicative_coverage": round(ind_ok / n, 3) if n else None,
+        })
+    last5 = out_sessions[-5:]
+    delta_breaches = sum(1 for s in last5
+                         if (s["median_d_ivrv"] or 0) > 0.05 or (s["max_d_ivrv"] or 0) > 0.10)
+    flip_sessions = sum(1 for s in last5 if s["flips"])
+    gap_sessions = sum(1 for s in last5 if s["coverage_gaps"])
+    until = ((config or {}).get("data_feed", {}) or {}).get("dualread_disagree_veto_until")
+    veto_active = None
+    if until:
+        try:
+            from datetime import date
+
+            veto_active = date.today() <= date.fromisoformat(str(until))
+        except ValueError:
+            veto_active = False
+    return {
+        "sessions": out_sessions[-10:],
+        "n_sessions_total": len(out_sessions),
+        "tripwires": {
+            "window": len(last5),
+            "delta_breach_sessions": delta_breaches, "delta_tripped": delta_breaches >= 3,
+            "flip_sessions": flip_sessions, "flip_tripped": flip_sessions >= 2,
+            "gap_sessions": gap_sessions, "gap_tripped": gap_sessions >= 2,
+        },
+        "disagree_veto": {"until": until, "active": veto_active},
+        "note": "shadow arm = INDICATIVE; it never authorizes (veto-only, date-gated). "
+                "A tripped wire ⇒ the §5 fail-closed response (investigate / revert+page).",
+    }

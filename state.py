@@ -154,6 +154,41 @@ def record_convexity_eval(
     return int(cur.lastrowid)
 
 
+def record_gate_dualread(
+    conn: sqlite3.Connection,
+    *,
+    run_id: int | None,
+    as_of: str,
+    symbol: str,
+    feed: str,
+    source: str,
+    structured: bool | None = None,
+    iv_rv: float | None = None,
+    otm_skew: float | None = None,
+    cheap: bool | None = None,
+    wing: str | None = None,
+    note: str | None = None,
+) -> int:
+    """Append one dual-read arm row (PREREG_DATA_FEED_OPRA_SEQUENCING §6). Append-only.
+
+    ``feed`` = 'opra' (the gate-of-record verdict) | 'indicative' (the additive shadow arm).
+    A failed arm is STILL a row (structured=0 + note) — the both-arms coverage guard."""
+    with conn:
+        cur = conn.execute(
+            "INSERT INTO gate_dualread (run_id, evaluated_at, symbol, feed, source, structured, "
+            "iv_rv, otm_skew, cheap, wing, note, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            (
+                run_id, as_of, symbol, feed, source,
+                None if structured is None else int(structured),
+                iv_rv, otm_skew,
+                None if cheap is None else int(cheap),
+                wing, note,
+            ),
+        )
+    return int(cur.lastrowid)
+
+
 def record_convexity_position(
     conn: sqlite3.Connection,
     *,

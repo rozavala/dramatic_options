@@ -223,8 +223,14 @@ window #1 MERGED (#48: 17 names / 4 baskets / the 5-cluster re-partition; the ma
 window-#1 names, all cap-fittable). **The EVENT LEG wired (`PREREG_EVENT_LEG.md`):** the structural-filing
 door on the submissions path (dated §7(a) deviation), exact-membership forms incl. the MJDS mirror + both
 13D literals, counters + `runs.note` stamp, the pinned falsifiable → `records/gate_baserate_surfaced.csv`;
-§5 clock anchors at its merge (Sun 2026-06-14 L0 = final-funnel scan #1). **BUILD next:** the council
-mandate RE-TIGHTENING (gates the OPRA re-arch + the generation layer) → the §5b file-structure refactor.
+§5 clock anchors at its merge (Sun 2026-06-14 L0 = final-funnel scan #1). **2026-06-10 (later): the mandate
+RE-TIGHTENING is DONE** (CGS §10.7 sha-pinned config + §10.8: **0/16 = SCARCITY**, one pass, parse-health
+discharged → grounding (CGS §9) is the demonstrated binding constraint) **and the OPRA flip is LIVE**
+(`PREREG_DATA_FEED_OPRA_SEQUENCING.md`: `option_gate`→opra, INDICATIVE = the concurrent shadow arm —
+migration 0014 `gate_dualread` (inline + sweep, both-arms coverage guard), the auto-lapsing
+`veto-dualread-disagree`, entitlement-lapse veto+page, pinned rolling-5 tripwires + the dashboard panel).
+**BUILD next:** PR-B (council §10.7 surgery) after the ≥2-L1 OPRA soak → the §9 evidence-grounding session →
+the §5b file-structure refactor.
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical
