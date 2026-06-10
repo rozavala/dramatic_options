@@ -216,11 +216,15 @@ fill→close round-trip DONE (PR #44, live-only enum-repr reconcile bug caught +
 cheapness-separation pre-reg FROZEN (PR #43) and its §5 freeze-gate FIRED (5/16 = SELECTIVITY-FLAG, §10 append)
 — the re-arch is gated on a mandate re-tightening, and zero-yield on this universe anyway (GEV $8,125/contract
 vs the $1,000 per-name cap). **The entry-unlock = `PREREG_UNIVERSE_CURATION.md`**: universe curation as a
-quarterly refresh RULE (operator-authored lower-priced cap-fitting baskets; cheapness+motion forbidden as
-curation criteria; `scripts/probe_basket_feasibility.py` + the aggregate-only
-`scripts/probe_basket_gate_baserate.py`; the dormant structural-event leg pre-committed as the NEXT session so
-§5-sizing measures the final funnel). **BUILD next:** PR-B window #1 (the operator-curated basket edit) → the
-event-provider session → the §5b file-structure refactor.
+quarterly refresh RULE (cheapness+motion forbidden as curation criteria; `scripts/probe_basket_feasibility.py`
++ the aggregate-only `scripts/probe_basket_gate_baserate.py`). **2026-06-10:** the §11 rule-based-admission
+amendment FROZEN (#47: theme register + mechanical admission + veto-only + the generation-layer STUB) and
+window #1 MERGED (#48: 17 names / 4 baskets / the 5-cluster re-partition; the manual L0 surfaced 8/8
+window-#1 names, all cap-fittable). **The EVENT LEG wired (`PREREG_EVENT_LEG.md`):** the structural-filing
+door on the submissions path (dated §7(a) deviation), exact-membership forms incl. the MJDS mirror + both
+13D literals, counters + `runs.note` stamp, the pinned falsifiable → `records/gate_baserate_surfaced.csv`;
+§5 clock anchors at its merge (Sun 2026-06-14 L0 = final-funnel scan #1). **BUILD next:** the council
+mandate RE-TIGHTENING (gates the OPRA re-arch + the generation layer) → the §5b file-structure refactor.
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical

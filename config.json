@@ -117,6 +117,12 @@
       "mom_lookback": 252, "mom_skip": 21, "rv_recent": 21, "rv_base": 252,
       "adv_window": 20, "mom_floor": 0.15, "rv_slope_floor": 0.25,
       "event_bonus": 1.0, "min_price": 3.0, "min_adv_usd": 3000000.0
+    },
+    "events": {
+      "_comment": "The structural-filing surface leg (PREREG_EVENT_LEG, frozen 2026-06-10) — the disjunctive gate's quiet-compatible door, a REACHABILITY trigger with NO alpha claim (the FSSD 424B5 grave). forms = the pinned BASE set, matched by EXACT MEMBERSHIP form ∈ {base, base+'/A'} (never a prefix — S-11/S-1MEF/S-3MEF/S-3D/S-3DPOS and S-3ASR [WKSI routine, deliberately excluded] must not match; the foreign mirror excludes F-3ASR/F-3MEF/F-10EF/F-10POS; 424B1/B2/B3/B4 excluded). Domestic raises = 424B5/S-1/S-3; the Canadian MJDS/FPI mirror (HBM/ERO/TGB/NXE file these — smoke-verified 2026-06-10) = F-1/F-3/F-10/SUPPL; ownership = BOTH 13D literals (the 13D/G modernization renamed the form mid-record: legacy 'SC 13D' + current 'SCHEDULE 13D', both observed in-universe). lookback_days = a CLOSED [as_of-14d, as_of] window (~two weekly scans). Funnel knobs, dated-edit-only; the form-set hash is stamped into runs.note per scan.",
+      "enabled": true,
+      "forms": ["424B5", "S-1", "S-3", "F-1", "F-3", "F-10", "SUPPL", "SC 13D", "SCHEDULE 13D"],
+      "lookback_days": 14
     }
   },
   "fixed_basket": {
