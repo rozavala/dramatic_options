@@ -84,6 +84,7 @@ def run_paper_cycle(
     themes: list[Theme] | None = None,
     run_id: int | None = None,
     chain_cache=None,
+    shadow_provider: ChainProvider | None = None,
 ) -> CycleResult:
     """Run one paper cycle over the active themes. Returns a CycleResult.
 
@@ -144,6 +145,13 @@ def run_paper_cycle(
             min_oi=elig.get("min_option_open_interest"),
         )
 
+    # The OPRA dual-read (PREREG_DATA_FEED_OPRA_SEQUENCING §5): the date-gated disagree-veto is
+    # computed once per cycle; one entitlement page per run (the soft-trip precedent), not per name.
+    import gate_dualread as _dualread
+
+    dualread_veto_active = _dualread.disagree_veto_active(config, as_of)
+    entitlement_paged = False
+
     for theme in themes:
         if not theme.active:
             continue
@@ -163,15 +171,33 @@ def run_paper_cycle(
                 cluster_map=cluster_map, cluster_fraction=cluster_fraction,
                 as_of=as_of, as_of_dt=as_of_dt, as_of_iso=as_of_iso, run_id=run_id,
                 result=result, chain_cache=chain_cache,
+                shadow_provider=shadow_provider, dualread_veto_active=dualread_veto_active,
             )
         except Exception as e:  # noqa: BLE001 — fail-closed: log, never open on error
             result.errors += 1
+            # PREREG_DATA_FEED_OPRA_SEQUENCING §7: an ENTITLEMENT lapse on the premium gate feed is
+            # a distinct, page-worthy veto — never a silent downgrade (the candidate drops either
+            # way; the gate is fail-closed by construction). Transient/other errors keep the
+            # existing 'error' decision.
+            from feeds import classify_feed_error
+
+            kind = classify_feed_error(e)
+            decision = "veto-feed-entitlement" if kind == "entitlement" else "error"
             state.record_convexity_eval(
                 conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
-                direction=theme.direction, decision="error", proposal_id=theme.proposal_id,
-                reasons=[str(e)],
+                direction=theme.direction, decision=decision, proposal_id=theme.proposal_id,
+                reasons=[f"{kind}: {e}"],
             )
-            log.error("Theme %s (%s) errored: %s", theme.name, theme.symbol, e)
+            if kind == "entitlement" and not entitlement_paged:
+                entitlement_paged = True
+                try:
+                    import notify
+
+                    notify.send("OPRA gate entitlement lapse",
+                                f"premium feed fetch refused ({theme.symbol}): {e}")
+                except Exception:  # noqa: BLE001 — paging must never break the cycle
+                    log.warning("entitlement page failed to send")
+            log.error("Theme %s (%s) errored (%s): %s", theme.name, theme.symbol, kind, e)
 
     # Non-fatal mixed-direction warning per cluster (the cap sums premium-at-risk regardless of
     # direction; a coherent cluster is single-direction — PREREG §5 / R2 2d). Per-cluster occupancy %
@@ -194,7 +220,7 @@ def run_paper_cycle(
 def _process_theme(
     theme: Theme, *, config, conn, provider, broker, eligibility, account_equity, gate, book,
     cluster_map, cluster_fraction, as_of, as_of_dt, as_of_iso, run_id, result: CycleResult,
-    chain_cache=None,
+    chain_cache=None, shadow_provider=None, dualread_veto_active=False,
 ) -> None:
     # Correlation-cluster exposure cap (PREREG §5 amendment) — COARSE check FIRST, before the slot
     # reservation: a structurally-full cluster records the structural ``veto-cluster-cap`` (the true
@@ -275,6 +301,34 @@ def _process_theme(
         iv_rv_max=float(gate.get("iv_rv_max", 1.2)),
         otm_skew_max_volpts=float(gate.get("otm_skew_max_volpts", 10.0)),
     )
+    # The OPRA dual-read, INLINE arm (PREREG_DATA_FEED_OPRA_SEQUENCING §5–§6): record the
+    # of-record verdict + the additive INDICATIVE shadow read for every gate-evaluated name.
+    # Fail-SOFT — a shadow failure becomes a structured=0 note row, never a blocked evaluation.
+    shadow_row = None
+    if shadow_provider is not None:
+        import gate_dualread as _dualread
+
+        try:
+            _dualread.record_arm(
+                conn, run_id=run_id, as_of_iso=as_of_iso, symbol=theme.symbol, feed="opra",
+                source="inline",
+                row={"structured": True, "iv_rv": verdict.iv_rv_ratio,
+                     "otm_skew": verdict.otm_skew_volpts, "cheap": bool(verdict.cheap),
+                     "wing": structure.contract.symbol},
+            )
+            try:
+                shadow_row = _dualread.shadow_gate_eval(
+                    shadow_provider, symbol=theme.symbol, direction=theme.direction, rv=rv,
+                    underlying_price=underlying_price, gate=gate, eligibility=eligibility)
+                _dualread.record_arm(conn, run_id=run_id, as_of_iso=as_of_iso,
+                                     symbol=theme.symbol, feed="indicative", source="inline",
+                                     row=shadow_row)
+            except Exception as e:  # noqa: BLE001 — the shadow arm never blocks
+                _dualread.record_arm(conn, run_id=run_id, as_of_iso=as_of_iso,
+                                     symbol=theme.symbol, feed="indicative", source="inline",
+                                     error=str(e))
+        except Exception as e:  # noqa: BLE001 — dual-read persistence itself is fail-soft
+            log.warning("dual-read recording failed for %s: %s", theme.symbol, e)
     if not verdict.cheap:
         result.vetoed += 1
         state.record_convexity_eval(
@@ -282,6 +336,22 @@ def _process_theme(
             direction=theme.direction, eligible=True, gate_cheap=False,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-iv-gate", proposal_id=theme.proposal_id, reasons=list(verdict.reasons),
+        )
+        return
+
+    # The §5 disagree-veto (date-gated, auto-lapsing): the OPRA gate-of-record says CHEAP but the
+    # INDICATIVE shadow arm disagrees (vetoes or can't structure) → no entry pending investigation.
+    # The shadow can only TIGHTEN — it never authorizes — and the rule lapses at the dated
+    # close-out (config.data_feed.dualread_disagree_veto_until) unless renewed by a dated edit.
+    if (dualread_veto_active and shadow_row is not None
+            and not (shadow_row.get("structured") and shadow_row.get("cheap"))):
+        result.vetoed += 1
+        state.record_convexity_eval(
+            conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+            direction=theme.direction, eligible=True, gate_cheap=True,
+            iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
+            decision="veto-dualread-disagree", proposal_id=theme.proposal_id,
+            reasons=[f"OPRA cheap but INDICATIVE shadow disagrees: {shadow_row}"],
         )
         return
 
