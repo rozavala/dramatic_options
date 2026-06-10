@@ -2,8 +2,12 @@
 
 COMMITTED COPY of the /tmp/rescore.py harness that produced the PREREG_COUNCIL_GATE_SEPARATION §10
 run of record (2026-06-09 21:52 UTC, 5/16 ≥MODERATE → SELECTIVITY FLAG). UNIVERSE below is the
-§5-pinned population — the §10.4 re-tightened re-score MUST run on this same list. Differences vs
-the ephemeral original: this docstring + unused-import removal (ruff); logic unchanged.
+§5-pinned population — the §10.4 re-tightened re-score MUST run on this same list.
+EXTENDED 2026-06-10 for the §10.7 re-tightened preview: prints all three prompt sha256/16s (the
+run must hash-match the §10.7 pins), captures the strategist's tri-criteria booleans
+(under_narrated / at_inflection, keyed by the schema's own symbol field), and applies the §10.7
+ENFORCEMENT rule — survivors = include ∧ ≥MODERATE ∧ (structural ∧ under_narrated ∧ at_inflection);
+an include failing the tri-criteria is a recorded CRITERIA-VETO, distinct from parse_error.
 
 Scores the FULL §5 population (the 16-name universe; the 8 harm-quadrant names are a subset) under
 the EXACT previewed all-roles thesis-only config (the edited council/agents.py _COMMON + adversary),
@@ -51,8 +55,28 @@ sym2basket = {s: b for b, members in baskets.items() for s in members}
 params = discovery.MarkerParams(**dict(config["discovery"].get("markers", {})))
 
 print("=== PREVIEWED THESIS-ONLY CONFIG (the exact prompts this run used) ===")
+import hashlib  # noqa: E402
+
+for _name, _s in (("_COMMON", agents._COMMON), ("ADVERSARY_SYSTEM", agents.ADVERSARY_SYSTEM),
+                  ("STRATEGIST_SYSTEM", agents.STRATEGIST_SYSTEM)):
+    print(f"sha256/16 {_name}: {hashlib.sha256(_s.encode()).hexdigest()[:16]}")
 print("_COMMON:\n", agents._COMMON, "\n")
 print("ADVERSARY_SYSTEM:\n", agents.ADVERSARY_SYSTEM, "\n")
+print("STRATEGIST_SYSTEM:\n", agents.STRATEGIST_SYSTEM, "\n")
+
+# Capture the strategist RAW verdicts (the §10.7 tri-criteria booleans live there, keyed by the
+# schema's own 'symbol' field) so the enforcement rule can be applied post-pass.
+_strat_raw: dict[str, dict] = {}
+_orig_parse_strategist = agents.parse_strategist
+
+def _capturing_parse_strategist(text, **kw):
+    d = _orig_parse_strategist(text, **kw)
+    sym = str(d.get("symbol", "")).upper()
+    if sym:
+        _strat_raw[sym] = d
+    return d
+
+agents.parse_strategist = _capturing_parse_strategist
 
 # Build the 16 candidates, FORCED (no motion floor — §5 scores the full universe), marker-grounded.
 candidates, mk_by_sym = [], {}
@@ -72,21 +96,36 @@ print(f"scoring {len(candidates)} names (as_of {as_of.isoformat()}) ...\n")
 proposals = propose(candidates, router=router, config=config, clock=clock, news=None, demo=False)
 survivors = {id(p) for p in select_for_trade(proposals, floor=config["council"].get("conviction_floor", "MODERATE"))}
 
-print(f"{'sym':5} {'dir':5} {'conv':9} {'incl':5} {'s/f':10} mom/rvslope/rel | weakest_point")
-ge_mod = 0
+print(f"{'sym':5} {'dir':5} {'conv':9} {'incl':5} {'s/f':10} {'u_narr':6} {'at_infl':7} "
+      f"{'tri':4} mom/rvslope/rel | weakest_point")
+ge_mod = 0          # the §10.7 ENFORCED survivor count: include ∧ >=MODERATE ∧ tri-criteria-pass
+raw_includes = 0    # the pre-enforcement count, reported for the criteria-veto delta
 for p in proposals:
     mk = mk_by_sym.get(p.symbol, {})
     g = f"{mk.get('momentum')}/{mk.get('rv_slope')}/{mk.get('rel_strength')}"
     incl = id(p) in survivors
+    raw = _strat_raw.get(p.symbol.upper(), {})
+    u_narr = raw.get("under_narrated")
+    at_infl = raw.get("at_inflection")
+    tri = (str(p.structural_vs_fad) == "structural" and u_narr is True and at_infl is True)
     if incl:
+        raw_includes += 1
+    if incl and tri:
         ge_mod += 1
-    wp = (p.weakest_point or "")[:70]
+    elif incl and not tri:
+        print(f"  CRITERIA-VETO {p.symbol}: include=true but tri-criteria fail "
+              f"(s/f={p.structural_vs_fad} u_narr={u_narr} at_infl={at_infl}) -> include coerced false")
+    wp = (p.weakest_point or "")[:60]
     print(f"{p.symbol:5} {p.direction[:5]:5} {str(p.conviction):9} {str(incl):5} "
-          f"{str(p.structural_vs_fad):10} {g} | {wp}")
+          f"{str(p.structural_vs_fad):10} {str(u_narr):6} {str(at_infl):7} "
+          f"{('YES' if tri else 'no'):4} {g} | {wp}")
 
 band = "0=SCARCITY (proceed on principle, no trade)" if ge_mod == 0 else (
     "1=CONFIRMS (proceed)" if ge_mod == 1 else f"{ge_mod}>=2=SELECTIVITY-FLAG (investigate)")
-print(f"\n=== RESULT: {ge_mod} of {len(proposals)} reached >=MODERATE (include) -> {band} ===")
+print(f"\n=== RESULT: {ge_mod} of {len(proposals)} survive the ENFORCED rule "
+      f"(include ∧ >=MODERATE ∧ tri-criteria) -> {band} ===")
+print(f"(raw include∧>=MODERATE before enforcement: {raw_includes}; "
+      f"criteria-vetoes: {raw_includes - ge_mod})")
 print("cost:", router.ledger.summary())
 gev = next((p for p in proposals if p.symbol == "GEV"), None)
 if gev:

@@ -219,3 +219,70 @@ both feeds: 1.155 IND / 1.135 OPRA mid-day; 1.138/1.140 at the close) but are no
 boundary-name discharge is OPEN** — to be re-discharged by name against whatever survives the
 re-tightened mandate. The drafted OPRA-sequencing pre-reg ("ACCELERATE") is **not frozen**; any future
 freeze must cite THIS committed record, not run 1.
+
+### 10.7 The RE-TIGHTENED preview config — frozen BEFORE the next re-score (appended 2026-06-10)
+
+*The §10.4 remedy, committed before the number is seen (cite-before-record). The config below is
+the EXACT all-roles preview the next §5-compliant re-score runs — and the exact config a future
+PR-B ships (post-OPRA, §6 sequencing unchanged). "Hard" means schema + deterministic enforcement,
+not vocabulary (the parse-fix discipline applied to criteria). The prompts contain NO ticker
+names, NO references to the pinned 16, NO numeric thresholds (anti-Goodhart on the gate
+population — the markers carry the numbers; the model judges qualitatively). The legitimacy
+distinction this rests on: the same momentum marker feeds two different judgments — "is vol cheap
+/ is the move priced" (the GATE's question, forbidden) vs "did the inflection already happen" (a
+THESIS-TIMING question, the council's job). Re-tightening makes the council better at ITS
+question; it does not reopen the gate's.*
+
+**The three frozen prompt strings (sha256/16 pinned; the run must hash-match):**
+
+- **`_COMMON`** (all roles) — `d96f18ebc865a384`:
+  "You are part of a disciplined options council that trades long-dated, far-OTM, defined-risk
+  convexity on secular themes. You PROPOSE on THESIS ONLY; a deterministic IV/cheap-convexity
+  gate DISPOSES on cheapness and can veto you — never judge whether vol or optionality is cheap
+  or priced. A theme qualifies ONLY if ALL THREE hold: (1) STRUCTURAL — a real, durable driver,
+  not a fad; (2) UNDER-NARRATED — not already the market's consensus story; a name at the center
+  of a dominant, widely-covered narrative does not qualify however correct the thesis; (3) AT A
+  GENUINE INFLECTION — the change is happening NOW: if the large move has already happened, the
+  inflection is BEHIND the name and it does not qualify unless the evidence shows a NEW, distinct
+  inflection. Reason only from the EVIDENCE provided. If the evidence lacks numeric content,
+  return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH,
+  EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else."
+- **`ADVERSARY_SYSTEM`** = `_COMMON` + — `dc3d21ca8f6444cb`:
+  " ROLE: Devil's Advocate. You argue AGAINST the proposed direction — make the strongest honest
+  case ON THESIS GROUNDS that the proposed trade is wrong: already consensus (the story is widely
+  told), a fad (not structural), or not a genuine inflection (the move already happened / no
+  fresh change). Never argue from option pricing or volatility — cheapness is the deterministic
+  gate's job. JSON keys: counter_case (string, cite evidence), weakest_point (the single biggest
+  hole in the proposal), is_fad (bool), already_consensus (bool), inflection_passed (bool — true
+  if the move is behind the name), confidence (your confidence in the COUNTER case), cited
+  (array)."
+- **`STRATEGIST_SYSTEM`** = `_COMMON` + — `ecbf363c9802289d`:
+  " ROLE: Master Strategist. Weigh the FOR case against the AGAINST case and decide whether to
+  propose this trade to the deterministic gates. Be a conviction dampener at extremes. The three
+  criteria are HARD: you may set include=true ONLY if structural_vs_fad='structural' AND
+  under_narrated=true AND at_inflection=true — each asserted on the evidence, not by default.
+  JSON keys: include (bool), theme, symbol, direction ('bullish'|'bearish'), conviction,
+  structural_vs_fad, under_narrated (bool), at_inflection (bool), weakest_point, summary (one or
+  two sentences; this becomes the trade thesis)."
+- `PROPOSER_SYSTEM`'s role text is unchanged (already thesis-shaped); it inherits the new
+  `_COMMON`.
+
+**The deterministic enforcement (the actual hard veto):** an `include=true` that does not carry
+`structural_vs_fad=='structural' AND under_narrated is True AND at_inflection is True` is coerced
+to `include=false` (a criteria-veto, recorded — distinct from `parse_error`). **Survivor count =
+include ∧ conviction ≥ MODERATE ∧ tri-criteria-pass.** Preview/production equivalence: the
+preview applies this rule in the harness post-pass; PR-B ships the identical rule in
+`parse_strategist`/`select_for_trade` (+ the FakeRouter/key-set lock-step test) — same rule, same
+point in effect.
+
+**Pre-committed predictions (the NEE→GEV identity lesson — recorded before the run):** expected
+**0–1 of 16** survivors; the five prior survivors fail on named legs — NVDA (under_narrated=false:
+the dominant AI narrative), VRT + CCJ (at_inflection=false: extended), KTOS (under_narrated=false:
+consensus defense); **FCX is the single plausible survivor** (unloved copper, structural, not
+extended); GEV stays out. Expected-vs-actual recorded either way.
+
+**Run protocol (one pass, §10.4):** the SAME pinned 16 (`scripts/probe_rescore_thesis_only.py
+UNIVERSE`), live router, ephemeral/no-live-record, output tee'd and committed under `records/`,
+~$0.25. Band actions: **0 = scarcity / 1 = confirms → the OPRA-sequencing pre-reg unblocks (its
+own next session); ≥2 = STOP + investigate — no second prompt pass.** The result is §10.8,
+whatever it is.
