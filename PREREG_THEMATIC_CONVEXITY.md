@@ -121,6 +121,16 @@ INDICATIVE→**OPRA** in a later, separately-noted amendment (PR3) once the PR2 
 across-session agreement. Stamped per-run via `runs.data_feed` (migration 0013). The frozen thresholds
 (`τ_ivrv`, `τ_skew`, …) are **UNCHANGED** — this changes the *data source*, not the gate.
 
+> **SUPERSESSION NOTE (2026-06-10, dated — the original sentence above is left visible per the
+> never-rewrite-frozen-text rule):** the "once the PR2 dual-read confirms across-session agreement"
+> precondition is RELAXED by `PREREG_DATA_FEED_OPRA_SEQUENCING.md` (frozen 2026-06-10): the
+> `option_gate` flips INDICATIVE→OPRA NOW, with the dual-read running CONCURRENT
+> (measure-while-live, pinned tripwires + a fail-closed revert path) instead of gating. This is a
+> named relaxation of a documented evidence standard — the beneficiary is the re-architecture
+> timeline (the HARK gradient, named) — defended on the principle that the frozen cheapness
+> arbiter must read the REAL chain, which survives the legitimacy test at zero extra trades
+> (yield is zero-and-validated: CGS §10.8). The frozen thresholds remain UNCHANGED.
+
 ## 5. Risk frame (frozen) — FIRST-CLASS; the discipline
 
 Operator decisions, set 2026-05-31, in `config.json:convexity_book`:

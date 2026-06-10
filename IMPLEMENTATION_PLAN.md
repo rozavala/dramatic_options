@@ -243,10 +243,14 @@ defaults always won). PR1 wires it criticality-aware (the 3 feed roles are alrea
 change: PREREG §4 dated line + per-run `runs.data_feed` stamp, migration 0013), `option_gate` STAYS
 **INDICATIVE** (L1 entry authorization — fail-closed, no silent fallback), `option_monitor` pinned **free**
 (L2 marks, degrade-and-continue). New `feeds.py` resolver (unknown→fail-closed at load) + a `classify_feed_error`
-scaffold. PR2 = the time-boxed simultaneous OPRA-vs-INDICATIVE **dual-read** (measures across-session agreement,
-with an OPRA-arm coverage guard so a dead shadow arm can't read as "agree"). PR3 = the evidence-gated
-`option_gate`→**OPRA** flip. (Probe 2026-06-08: feeds agree closely at the close, OPRA marginally better IV
-population → low-risk, lower-value than feared.) See `dramatic-options-data-feed-upgrade` memory.
+scaffold. **SUPERSEDED 2026-06-10 (`PREREG_DATA_FEED_OPRA_SEQUENCING.md`): the flip ACCELERATED** — PR2/PR3
+collapse into one PR: `option_gate`→**OPRA** now (the gate-of-record reads the real chain — the principle;
+yield zero-and-validated per CGS §10.8; record hygiene while the new-universe null books are days old), with
+the dual-read CONCURRENT (INDICATIVE = the shadow arm, migration 0014 `gate_dualread`, both-arms coverage
+guard, pinned tripwires + an auto-lapsing `veto-dualread-disagree` + a fail-closed revert path) and the
+entitlement-lapse VETO+page via `classify_feed_error` (a merge-blocker — never a silent downgrade). (Probes:
+2026-06-08 close + 2026-06-09 mid-day dual-read — feeds agree closely; deltas bidirectional.) See
+`dramatic-options-data-feed-upgrade` memory.
 
 **Observability / monitoring dashboard (Streamlit) — PR-A BUILT & green 2026-06-05; a keyless systemd SERVICE 2026-06-06;
 a full LEGIBILITY REFRESH BUILT & green 2026-06-07 (branch `dashboard-legibility`, HELD from merge until after the Mon
