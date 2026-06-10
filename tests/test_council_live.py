@@ -37,7 +37,9 @@ def _live_router():
 
 def test_live_three_role_roundtrip_parses_and_validates():
     _cfg, router = _live_router()
-    cand = Theme("ai_compute", "SMCI", "bullish", "discovery hypothesis: momentum +0.42",
+    # ATKR, not a CGS §5 pinned-16 name: the §10.8 discipline — never re-sample the pinned
+    # population outside its gated runs (ATKR is the precedented out-of-population probe name).
+    cand = Theme("grid_equipment", "ATKR", "bullish", "discovery hypothesis: momentum +0.42",
                  source="sentinel", sentinel_id=1, markers=_MARKERS)
     pack = sentinel_context_pack(cand, as_of=datetime.now(UTC))
     assert pack.grounded

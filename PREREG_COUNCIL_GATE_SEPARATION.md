@@ -335,3 +335,31 @@ config verbatim + the enforcement rule in `parse_strategist`/`select_for_trade` 
 FakeRouter/key-set lock-step; (4) the theme-generation stub's ordering condition is MET on the
 mandate side (0/1 achieved) — its remaining gates are its own pre-reg + the generation-layer
 design constraints.
+
+### 10.9 PR-B classification note — missing-vs-null-vs-false (dated 2026-06-10, rides the PR-B build; non-loosening)
+
+The §10.7 enforcement text ("an `include=true` that does not carry [the tri-pass] is coerced…")
+and the §10.8 preview harness (`.get()` → `None` → tri-fail → veto) leave the classification of
+an ABSENT tri key on an include row ambiguous between criteria-veto and parse-failure. §10.8's
+0/16 (zero raw includes) never exercised the edge. PR-B resolves it, two-round red-teamed:
+
+- **Key ABSENT on an `include=true ∧ non-NEUTRAL` row → `parse_error`** (the #37 discipline:
+  truncation or a provider that stops emitting the §10.7 booleans is non-compliance and must
+  grade as DEGRADED — the inert-apparatus class — at `council_l1_health`, never read as 100%
+  "deliberated" vetoes; the automated parse-fail page remains proposer-scoped, pre-existing).
+  This is deliberately STRICTER than the preview's `.get()` treatment of absence — a named,
+  dated, fail-louder divergence; it can only reduce inclusion.
+- **Key present with `null`/`false`/anything-not-`True` → criteria-veto** (an explicit
+  non-assertion is a deliberated non-qualifying include; truncation never emits selective
+  nulls — matches the preview's semantics for null). The veto coerces `include=false`, preserves
+  conviction (Brier substrate), and is recorded distinct from `parse_error`
+  (`criteria_veto: true` in the strategist raw + rationale).
+- **`structural_vs_fad` is NOT parse-required on the strategist** — it is shape-required at the
+  proposer, and the debate-layer strategist-or-proposer fallback is sanctioned, exactly as the
+  preview computed tri (the preview's fallback-survivor edge case remains a survivor; pinned as
+  a test).
+- **Placement:** `parse_strategist` = shape/presence guard; `debate.run_candidate` = the single
+  coercion point (both raws in scope → the fallback applies); `select_for_trade` = the
+  preview-verbatim survivor expression (include ∧ ≥floor ∧ tri-pass; `None` fails closed;
+  exact string equality + `is True` identity, no normalization). The survivor-count definition
+  is unchanged.
