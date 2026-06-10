@@ -1,0 +1,48 @@
+{
+  "_comment": "THE THEME REGISTER — PREREG_UNIVERSE_CURATION §11 Rule 0. The recorded hypothesis layer: operator-authored falsifiable theses + named deterministic sources + default cluster routing + provenance. NEVER loaded by the trading loop (config.universe.themes stays the loop-facing basket; this file is the auditable rule artifact + per-window admission record). Changes = dated operator amendments. provenance: 'operator' | 'generated' (reserved, PREREG_THEME_GENERATION_STUB.md).",
+  "themes": {
+    "nuclear_fuel": {
+      "provenance": "operator",
+      "added": "2026-06-10 (window #1)",
+      "thesis": "Global reactor life-extensions/restarts + the SMR pipeline outrun the uranium fuel cycle's mine + conversion/enrichment capacity; fuel-chain and reactor-tech names reprice before the buildout is consensus-priced.",
+      "falsifier": "Mine/enrichment capacity additions clear demand without sustained term-price escalation; SMR pipeline stalls (cancellations outpace orders).",
+      "sources": [
+        "URNM constituent file (stockanalysis.com/etf/urnm/holdings, fetched 2026-06-09)",
+        "NLR constituent file (stockanalysis.com/etf/nlr/holdings, fetched 2026-06-10)"
+      ],
+      "cluster_default": "nuclear_fuel"
+    },
+    "grid_equipment": {
+      "provenance": "operator",
+      "added": "2026-06-10 (window #1)",
+      "thesis": "AI-datacenter interconnection demand outruns grid electrical-equipment supply (transformers, conduit, storage, superconductors), pushing multi-year backlogs at second-order suppliers the buildout narrative under-covers.",
+      "falsifier": "Equipment lead times normalize / datacenter capex digestion; backlogs shrink for 2+ consecutive quarters.",
+      "sources": [
+        "GRID constituent file (ftportfolios.com etfholdings GRID, fetched 2026-06-09)"
+      ],
+      "cluster_default": "ai_capex_power"
+    },
+    "copper_supply": {
+      "provenance": "operator",
+      "added": "2026-06-10 (window #1)",
+      "thesis": "Electrification + grid/datacenter buildout copper demand against structurally constrained mine supply (the themes.json FCX hand-seed thesis, extended to the supply-chain basket).",
+      "falsifier": "Mine supply growth or substitution closes the deficit; copper term structure stays flat through the buildout.",
+      "sources": [
+        "COPX constituent file (globalxetfs.com/funds/copx + stockanalysis.com/etf/copx/holdings, fetched 2026-06-09/10)"
+      ],
+      "cluster_default": "copper_supply"
+    },
+    "space_smallcap": {
+      "provenance": "operator",
+      "added": "2026-06-10 (window #1)",
+      "thesis": "Launch-cost deflation expands constellation / in-space-services demand faster than small-cap space revenue is priced; the primes are consensus, the small-cap supply chain is not.",
+      "falsifier": "Launch cadence or constellation capex stalls; small-cap space revenue misses compound for 2+ quarters.",
+      "sources": [
+        "UFO constituent file (stockanalysis.com/etf/ufo/holdings, fetched 2026-06-09)",
+        "ARKX constituent file (stockanalysis.com/etf/arkx/holdings, fetched 2026-06-10)"
+      ],
+      "cluster_default": "space_smallcap"
+    }
+  },
+  "windows": {}
+}

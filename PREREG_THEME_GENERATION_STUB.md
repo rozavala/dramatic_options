@@ -1,0 +1,87 @@
+# STUB — the theme-GENERATION layer (dated 2026-06-10; parameters freeze later, in their own pre-reg)
+
+**Status: a dated pre-commitment of EXISTENCE, ORDERING, and DESIGN CONSTRAINTS — not a frozen
+pre-reg.** This stub exists so the later document's answers look committed rather than improvised
+(its open questions are dated below). **Ordering condition (binding):** the generation layer is
+pre-registered and built ONLY AFTER the council thesis-mandate re-tightening passes its pinned
+16-name re-score at 0/1 (`PREREG_COUNCIL_GATE_SEPARATION §10.4`) — delegating thesis *generation*
+to LLMs before LLM thesis *judgment* holds its gate is building the second floor before the first
+is load-bearing. Frozen before any generated theme is looked at; first mechanical run = a future
+curation window (`PREREG_UNIVERSE_CURATION §11` Rules 1–4 run unchanged beneath it).
+
+**The structural obstacle it must defeat:** LLM free recall samples the narrated corpus — the FIFTH
+anti-quietness instance (after the motion funnel, news-grounding, framer survivor-bias, and §4
+name-recall), and the worst-placed (top of funnel; everything downstream inherits it). So the LLM
+is a **synthesis device over pinned deterministic inputs**, never a memory device.
+
+## Stages (named now, parameterized later)
+
+- **Stage 0 — structural corpus assembly (deterministic, no LLM).** Scheduled pulls of pinned
+  sources (FERC interconnection queues, NRC dockets, 10-K >10%-customer disclosures, SAM.gov/DoD
+  awards, ETF/index constituent files, EIA/BLS series, 424B5/S-1 flows). **No prices, no IV, no
+  momentum, no news sentiment in the corpus** — the §2 prohibitions enforced at the input layer
+  (auditable), not in the prompt (hopeful). Overlaps the event-provider session's EDGAR build
+  (partially — FERC/NRC/SAM.gov are curation sources, not event feeds).
+- **Stage 1 — thesis synthesis (LLM, pinned prompt + pinned model versions, heterogeneous).**
+  "Given these documents, propose falsifiable secular theses": each must cite supporting documents
+  (citations **mechanically verified** against the corpus — the quote-authenticity pattern), name a
+  mechanism, a falsifier, and the deterministic source that would populate its basket. Output
+  conforms to the Rule-0 register schema with `provenance: generated`. Likely output unit =
+  **mechanism-level claims** (open question 1) — fine-grained ("transformer lead times push X-class
+  suppliers into multi-year backlog"), NOT sector labels ("AI power"), because…
+- **Stage 2 — the narration probe (recall bias inverted into the under-narrated sensor).** A fresh
+  model, given NO documents, describes each candidate mechanism claim; the description is scored on
+  **accuracy-of-specifics overlap** against **schema-defined narration-diagnostic fields** — named
+  entities, mechanism direction, headline quantities (things that circulate when a theme is
+  narrated) — NEVER citation-verification-only identifiers (docket/queue/filing IDs: corpus-
+  inaccessible by construction; scoring on them makes everything read quiet and hands the generator
+  a gaming channel — cite obscure IDs, read quiet). High accurate overlap = narrated → reject.
+  Fluency alone is NOT the discriminator (models confabulate fluently about quiet themes — a
+  fluency probe false-rejects its own target class). The probe runs at the MECHANISM level, not the
+  theme label ("AI power demand" fails any narration test; NNE lives inside it — copper-not-rockets
+  is narrated-macro / un-narrated expression).
+- **Stage 3 — adversary red-team, then operator veto-only** (the Rule-3 flip), vetoes dated +
+  tagged. Provenance `operator` vs `generated` is the contrast that eventually answers "do machine
+  themes work" empirically.
+
+## Pinned design constraints (from the 2026-06-09/10 red-team rounds — carried into the freeze)
+
+1. **Calibration by cutoff-straddling, ordered calibrate → freeze threshold → THEN generate**
+   (before candidates exist, not merely before they're scored). Calibration set = themes with a
+   VERIFIABLE narration onset (e.g. uranium ~2023, AI-power ~2024) probed across models whose
+   knowledge cutoffs straddle the onset — the same theme in its empirically quiet and narrated
+   states, idiosyncrasy controlled (hand-picked contemporary "known-quiet" exemplars would resemble
+   our holdings = a HARK vector). The required separation criterion is committed before the
+   calibration set is scored; the cross-model aggregation rule is pinned (**any-model-high-overlap
+   = narrated** — false-quiet has the council's live under-narrated test as backstop; false-
+   narrated is the invisible loss); the threshold is calibrated PERMISSIVE — the probe is a
+   **funnel, not a verdict** (the discovery-prescreen doctrine). Knowledge-cutoff lag is named: a
+   theme narrated after the probe model's cutoff reads quiet; the council backstops.
+2. **The generator/probe PAIR is §10.4-bound jointly:** one re-tightening per re-score; neither
+   component iterated against the other's outputs, nor against admission or gate outcomes.
+3. **Disclosure tiers:** the demote rule is evaluated mechanically over the OPERATOR-tier §6
+   per-basket aggregates (already pinned open); the GENERATOR sees nothing gate-derived — only
+   dormancy flags (one outcome-delayed bit per theme per window leaks; rates never do). Theme-level
+   gate-rate visibility to the generator = CGS §7 reverse-selection one floor up.
+4. **Dormancy = a discovery-scan flag, never a basket edit** (membership ≠ scanning, the §3/§11
+   symmetry): a demoted theme stops being scanned; its names REMAIN in the baskets and the null
+   books keep booking them (outcome-keyed basket edits would make the 3B population adaptive even
+   when pre-registered). Pre-registered companion diagnostic: the `real − 3B` read ALSO computed on
+   the live-scanned subset (computed-not-edited, the with/without-tags pattern) so dormancy-driven
+   drift in the whole-basket headline is auditable as the record matures.
+5. **Freeze-gate bands, CGS-§5-style, pre-committed at ITS freeze:** 0 generated theses = sources/
+   corpus too thin (do NOT loosen the probe); small-n = proceed; large-n = selectivity-flag on the
+   generator (investigate, don't bank). Expected yield pinned blind. Themes get a **graveyard**,
+   like edges.
+
+## Dated open questions (answers belong to the future pre-reg, not to improvisation)
+
+1. **Register unit:** mechanism claim (probed/demoted/provenance unit; cluster hints attach
+   naturally) vs theme (grouping metadata) — leaning mechanism-claim, with the calibration set
+   built at the SAME granularity as the pinned schema (a theme-level threshold doesn't transfer).
+2. **Probe target taxonomy:** the exact narration-diagnostic field set vs citation-only fields, in
+   the register schema with worked examples.
+3. **Demote rule:** N windows, the aggregate keyed on, and the dormancy-flag write path.
+4. **Aggregation/threshold numbers:** pinned only after the cutoff-straddling calibration runs.
+5. **Calibration-set construction:** onset verification method (news-volume series), model/cutoff
+   matrix, and the separation statistic.

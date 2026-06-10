@@ -189,3 +189,58 @@ cap-fitting names in uncorrelated themes are therefore worth more than three in 
 baskets beat 2 deep ones. Each new name still requires a cluster-routing decision at edit time
 (route to ≤1 cluster or documented-unclustered; the trailing-return correlation diagnostic remains
 the report-not-gate backstop). Thesis calls remain the operator's.
+
+## 11. AMENDMENT (2026-06-10, operator-authorized) — rule-based admission: the picks become a RULE
+
+**What this amends, with the original visible.** §2 froze "Thesis = operator-only … Never delegated
+to the apparatus" and §3 froze "operator curates **additions** within the window." This dated
+amendment moves the operator's judgment one level up — from picking names to **authoring the rule
+that picks names** — because operator noticing is itself narrative-correlated (names get noticed
+when they move or make news: the same bias §4 names for LLM recall). Thesis authorship remains
+operator-only at the **theme** level (Rule 0); per-name selection becomes mechanical (Rule 1); the
+operator's per-window act becomes **veto-only** (Rule 3). Converged over two further advisor
+red-team rounds (2026-06-09/10); the four design calls were operator-confirmed 2026-06-10:
+**achieved-OTM band 15–35% · a new `nuclear_fuel` cluster · the operator-named-but-tagged channel
+kept · veto-only review.** Per-name thesis judgment lives where it always did — the framer and the
+council (forward-scored), with the gate and caps disposing.
+
+- **Rule 0 — the THEME REGISTER (`universe_register.json`, committed, never loaded by the loop).**
+  The recorded hypothesis layer. Each theme = key · falsifiable thesis statement · falsifier ·
+  **named deterministic sources** (constituent files, filing queries — fetch-dated) · a **default
+  cluster routing** · a **provenance tag** (`operator` now; `generated` reserved for the future
+  generation layer, `PREREG_THEME_GENERATION_STUB.md`). Register changes are dated operator
+  amendments. The register also carries each window's per-name admission record (the auditable
+  trail).
+- **Rule 1 — mechanical admission, each quarterly window.** Basket(theme) gains every name that is:
+  in the theme's named sources ∩ US-listed optionable (the screen pulls a live chain and selects a
+  structure) ∩ §2 feasibility (one contract ≤ $1,000 + the existing price/ADV/spread/tenor floors)
+  ∩ **achieved OTM within 15–35%**. No human picks. **The band supersedes, for automated admission
+  only, §2's "achieved OTM% … never selection thresholds"** (original visible above): without it a
+  rule admits names whose chains cannot express the strategy — recorded motivation from the
+  window-#1 screen: IE "fit" at $440 with an only-eligible contract 30% **ITM**; LTBR/ITRI achieved
+  ~9% (near-ATM, a different payoff object than the calibrated ~25% cell); DRS 37% overshoot. The
+  band is a structural-integrity check in the same class as "a 180–365d tenor exists" — the
+  cheapness and motion prohibitions remain absolute and the screens still output neither.
+- **Rule 2 — additive only.** A name leaving a source list does NOT leave the basket (ETFs drop
+  names after crashes/acquisitions — mechanical removal would be the outcome-correlated pruning §3
+  forbids). It is tagged `source-departed, retained`. Removals stay manual, dated,
+  frozen-frame-grade (§3 unchanged).
+- **Rule 3 — operator review is veto-only.** The window's mechanical admission DIFF is reviewed;
+  exclusions need a dated reason and are **tagged** so surfaced-vs-control and 3B reads compute
+  with/without them (the §3 exception-tag pattern, applied to vetoes). Operator-NAMED additions
+  remain permitted but tagged (the NNE channel) — the tag is what lets the record answer whether
+  the named channel earns its keep.
+- **Rule 4 — mechanical cluster routing.** New admissions inherit the theme's `cluster_default`
+  (the map stays deterministic and operator-owned — the cap never keys on anything LLM-set);
+  re-routing and cross-cluster migrations are dated operator amendments recorded in the register;
+  the trailing-return correlation diagnostic remains the backstop.
+
+**Disclosure tiers, clarified (binds the future generation layer).** The §6 sweep's per-basket
+aggregates are pinned OPEN at the operator tier (per-basket = per-theme; the frozen §6 already says
+curation may consult them). Any future theme GENERATOR sees **nothing gate-derived at all** — not
+the aggregates, only dormancy flags (see the stub) — else theme-level reverse-selection reopens the
+CGS §7 channel one floor up.
+
+**Window #1 is this rule's first mechanical run** (the §3 honesty note stands: the operator-named
+NNE predates the rule — and was subsequently also verified as an NLR constituent). The admission
+record lives in the register; the screen output is committed under `records/`.
