@@ -286,3 +286,52 @@ UNIVERSE`), live router, ephemeral/no-live-record, output tee'd and committed un
 ~$0.25. Band actions: **0 = scarcity / 1 = confirms → the OPRA-sequencing pre-reg unblocks (its
 own next session); ≥2 = STOP + investigate — no second prompt pass.** The result is §10.8,
 whatever it is.
+
+### 10.8 The re-tightened re-score RESULT — 0/16 = SCARCITY (run 2026-06-10 06:48 UTC; appended same day)
+
+**Result: 0 of 16 survive the §10.7 enforced rule (include ∧ ≥MODERATE ∧ tri-criteria) → the
+frozen band: 0 = SCARCITY → proceed on the principle; expect no near-term council-driven trade
+from the pinned 16; the OPRA-sequencing pre-reg UNBLOCKS (its own session).** Raw
+include∧≥MODERATE before enforcement: 0; criteria-vetoes: 0. One pass, per §10.4 — no prompt was
+re-touched after seeing the number.
+
+**Run record:** the SAME pinned 16; live router (gemini-3.5-flash / grok-4.3 / claude-opus-4-8);
+ephemeral, no live-record touch; cost **$0.0707 / 20 calls** (the tri-criteria now gate at the
+proposer, so most names never reach the adversary/strategist — deliberation got cheaper);
+**sha256/16 MATCH all three §10.7 pins** (d96f18ebc865a384 / dc3d21ca8f6444cb / ecbf363c9802289d,
+printed in the tee); full output committed at `records/2026-06-10_retightened_rescore.txt`.
+
+**The shape, scrutinized before banking (the #37 discipline — a 100%-NEUTRAL cycle must prove it
+isn't a parse bug in costume):** 14 of 16 were PROPOSER abstentions (genuine NEUTRAL, dropped
+before adversary/strategist spend); 2 full round-trips — **NVDA: LOW, structural=true,
+under_narrated=false, at_inflection=false → tri-fail (the designed verdict, exactly the §10.3
+failure case fixed)**; VRT: strategist NEUTRAL citing the extended momentum (+1.95). Parse health
+was discharged with a one-call probe on a NON-16 name (ATKR — never re-sampling the pinned
+population): `parse_error=False`, `finish_reason=STOP`, 784-char well-formed JSON, and a REASONED
+abstention.
+
+**The load-bearing finding inside the 0:** the dominant abstention reason (per the probe's
+verbatim text and the run's pattern) is that **marker-only grounding cannot support the hardened
+tri-criteria assertions** — the model declines to assert under-narrated / at-a-genuine-inflection
+from price/vol markers alone, and the mandate now (correctly) demands evidence rather than vibes.
+This CONFIRMS §9's evidence-grounding leg as the binding constraint on council yield (the
+"yield is partly GROUNDING-limited" observation in the §10 record, now demonstrated under the
+full mandate): the next-frontier work is grounding (fundamental/numeric corpus for sentinels) +
+the funnel — NOT further mandate tuning, and NOT floor/gate loosening (§7).
+
+**Expected-vs-actual (the §10.7 predictions):** predicted 0–1 → actual **0** ✓ (in-band). NVDA
+failed exactly as predicted (under-narrated=false). VRT failed at-inflection via a reasoned
+strategist NEUTRAL ✓-in-substance. CCJ/KTOS/GEV/FCX never reached deliberation (proposer
+abstained) — the predicted FCX single-survivor did NOT materialize: the marker pack shows FCX
+momentum +0.51 (the "not extended" prior was stale) and the proposer declined to assert the
+criteria from markers alone. Identity lesson logged again: band predictions hold; per-name
+identity predictions remain unreliable.
+
+**Consequences:** (1) the §4 re-architecture's council side is now VALIDATED at the mandate level
+(the previewed config is selective to the frozen expectation); (2) the OPRA-sequencing pre-reg
+(the converged "accelerate" plan) is UNBLOCKED and must cite THIS §10.7+§10.8 record; (3) PR-B
+(production prompt surgery) ships only per §6 sequencing (OPRA live first), carrying the §10.7
+config verbatim + the enforcement rule in `parse_strategist`/`select_for_trade` + the
+FakeRouter/key-set lock-step; (4) the theme-generation stub's ordering condition is MET on the
+mandate side (0/1 achieved) — its remaining gates are its own pre-reg + the generation-layer
+design constraints.
