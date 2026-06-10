@@ -65,6 +65,16 @@ def record_run(
     return int(cur.lastrowid)
 
 
+def append_run_note(conn: sqlite3.Connection, run_id: int, suffix: str) -> None:
+    """Append ``suffix`` to an existing run's free-text note (atomic).
+
+    ``record_run`` fires BEFORE the discovery scan, but the event-leg counters exist only AFTER
+    it (PREREG_EVENT_LEG §4) — this is the post-scan write path that makes the scan status
+    DB-durable (journald rotates; the runs row doesn't)."""
+    with conn:
+        conn.execute("UPDATE runs SET note = note || ' · ' || ? WHERE id = ?", (suffix, run_id))
+
+
 def record_signals(
     conn: sqlite3.Connection,
     run_id: int | None,

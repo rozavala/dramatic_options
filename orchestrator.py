@@ -51,7 +51,7 @@ from monitor import monitor_positions, reconcile_pending
 from paper_loop import kill_rule_status, run_paper_cycle
 from risk import kill_switch_active
 from sentinel_scoring import resolve_due_references
-from state import get_db, record_run
+from state import append_run_note, get_db, record_run
 from themes import active_themes, load_themes
 
 log = logging.getLogger("orchestrator")
@@ -273,6 +273,7 @@ def run_discover(demo: bool = False) -> int:
         params = MarkerParams(**dict(disc.get("markers", {})))
         horizon = int(disc.get("reference_horizon_days", 180))
         equity_feed = gate_feed = None  # set in the live branch; demo uses Synthetic (feeds unused)
+        event_provider, ev_reason = None, "demo"  # the structural-event leg — live branch only
 
         if demo:
             clock: Clock = FixedClock(datetime.now(UTC))
@@ -307,6 +308,10 @@ def run_discover(demo: bool = False) -> int:
             run_id = record_run(conn, mode="DISCOVERY", equity=None, note="weekly scan",
                                 frame_version=compute_frame_version(config),
                                 data_feed=data_feed_stamp(config))
+            # The structural-event leg (PREREG_EVENT_LEG): fail-SOFT factory — a missing UA or
+            # construction failure degrades to a motion-only scan, LOUDLY (status + note stamp).
+            from data.structural_events import build_event_provider
+            event_provider, ev_reason = build_event_provider(config, cache, as_of)
 
         # Kill-before-spend seam (the council-build discipline). PR1 spends nothing; the framer
         # (PR2) sits behind this same guard.
@@ -325,7 +330,28 @@ def run_discover(demo: bool = False) -> int:
             baskets, as_of, market=market, benchmark=benchmark, params=params,
             exclude_symbols=exclude, max_scan_names=int(disc.get("max_scan_names", 200)),
             top_k=int(disc.get("scan_top_k", 8)), n_controls=int(disc.get("n_random_controls", 5)),
+            event_provider=event_provider,
         )
+        # Event-leg status — structured, logged AND stamped into runs.note (record_run fires
+        # BEFORE the scan, so the counters need this post-scan write; journald rotates, the runs
+        # row doesn't). 'ON, 0 fresh' must never be indistinguishable from a broken leg.
+        if event_provider is not None:
+            from data.structural_events import form_set_hash
+            ctr = event_provider.counters
+            ev_status = (f"events:ON ev={form_set_hash((disc.get('events', {}) or {}).get('forms', []))} "
+                         f"{ctr.status()}")
+            if ctr.fresh_names:
+                ev_status += " fresh_names=" + ",".join(sorted(ctr.fresh_names))
+            if ctr.systemic_failure():
+                log.warning("Event leg SYSTEMIC failure — %s", ev_status)
+                notify.send("Discovery event leg failing", ev_status)
+        else:
+            ev_status = f"events:OFF reason={ev_reason}"
+            if not demo:
+                log.warning("Event leg OFF (%s) — motion-only scan.", ev_reason)
+        log.info("Discovery %s", ev_status)
+        if not demo:
+            append_run_note(conn, run_id, ev_status)
         # PR2: the bounded LLM framer adjudicates the confounds + grounds on the MARKERS over the
         # top-K. Fail-closed: framer over-budget / unavailable → frame nothing (no new sentinels this
         # scan). The skeptic disposes — only the framed survive (artifacts / NEUTRAL are dropped).
