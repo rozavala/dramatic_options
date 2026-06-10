@@ -27,16 +27,24 @@ def test_frozen_cluster_cap_matches_prereg():
     """Pin the shipped cluster cap + taxonomy (PREREG §5 amendment 2026-06-03; curated 2026-06-04)
     against silent drift.
 
-    cluster_fraction = 0.02 (2 full names; graduate to 0.03 only at >=4 curated clusters) and the two
+    cluster_fraction = 0.02 (2 full names; graduate to 0.03 only at >=4 curated clusters) and the
     driver-documented clusters. A change must be a dated PREREG edit — mirrors the §6a exit pin above.
     2026-06-04: space_defense EXTENDED with the defense primes LMT/NOC/LHX/RTX, surfaced by the
     trailing-return correlation diagnostic as a 0.50-0.68 shared-driver cluster (operator-curated, hard seam).
+    2026-06-10: RE-PARTITIONED to five clusters at window #1 (PREREG_UNIVERSE_CURATION §11 Rule 4,
+    operator-authorized): nuclear_fuel NEW (CCJ migrated — uranium shares one budget); ai_capex_power
+    += the grid names ATKR/AMSC/FLNC; copper_supply NEW (FCX re-clustered + HBM/ERO/TGB); the RKLB
+    split-on-evidence fired → space_smallcap NEW (RKLB migrated + PL/LUNR/RDW/FLY/IRDM); space_defense
+    keeps the budget-driver primes + KTOS. cluster_fraction unchanged.
     """
     config_loader.load_config.cache_clear()
     book = config_loader.load_config()["convexity_book"]
     assert book["cluster_fraction"] == 0.02
-    assert set(book["clusters"]["ai_capex_power"]) == {"VRT", "PWR", "GEV", "ETN", "CCJ", "CEG", "NEE"}
-    assert set(book["clusters"]["space_defense"]) == {"RKLB", "KTOS", "LMT", "NOC", "LHX", "RTX"}
+    assert set(book["clusters"]["ai_capex_power"]) == {"VRT", "PWR", "GEV", "ETN", "CEG", "NEE", "ATKR", "AMSC", "FLNC"}
+    assert set(book["clusters"]["space_defense"]) == {"KTOS", "LMT", "NOC", "LHX", "RTX"}
+    assert set(book["clusters"]["nuclear_fuel"]) == {"CCJ", "UEC", "UUUU", "NXE", "UROY", "SMR", "NNE"}
+    assert set(book["clusters"]["copper_supply"]) == {"FCX", "HBM", "ERO", "TGB"}
+    assert set(book["clusters"]["space_smallcap"]) == {"RKLB", "PL", "LUNR", "RDW", "FLY", "IRDM"}
     config_loader.load_config.cache_clear()
 
 
