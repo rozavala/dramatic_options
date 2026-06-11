@@ -1,0 +1,49 @@
+=== §9 STEP-0 FILL AUDIT — 33 names (pinned 16 ∪ live universe), as_of 2026-06-11T00:07:35.477794+00:00 ===
+concept tag lists: {'revenue': ['RevenueFromContractWithCustomerExcludingAssessedTax', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'Revenues', 'SalesRevenueNet'], 'cost_of_revenue': ['CostOfRevenue', 'CostOfGoodsAndServicesSold', 'CostOfGoodsSold'], 'rpo': ['RevenueRemainingPerformanceObligation'], 'capex': ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets']}
+sym    cik    n  rev_ttm qtr_yoy accel gm_d  capex rpo  
+AMSC   ok     5    Y       Y       Y     Y     Y     .  
+ATKR   ok     5    Y       Y       Y     Y     Y     .  
+CCJ    ok     0    .       .       .     .     .     .  
+CEG    ok     5    Y       Y       Y     .     Y     Y  
+ERO    ok     0    .       .       .     .     .     .  
+ETN    ok     6    Y       Y       Y     Y     Y     Y  
+FCX    ok     5    Y       Y       Y     Y     Y     .  
+FLNC   ok     6    Y       Y       Y     Y     Y     Y  
+FLY    ok     4    .       Y       Y     Y     Y     .  
+GEV    ok     6    Y       Y       Y     Y     Y     Y  
+HBM    ok     0    .       .       .     .     .     .  
+IRDM   ok     5    Y       Y       Y     Y     Y     .  
+KTOS   ok     6    Y       Y       Y     Y     Y     Y  
+LHX    ok     6    Y       Y       Y     Y     Y     Y  
+LMT    ok     6    Y       Y       Y     Y     Y     Y  
+LUNR   ok     5    Y       Y       Y     .     Y     Y  
+NEE    ok     3    Y       Y       Y     .     .     .  
+NNE    ok     0    .       .       .     .     .     .  
+NOC    ok     6    Y       Y       Y     Y     Y     Y  
+NVDA   ok     6    Y       Y       Y     Y     Y     Y  
+NXE    ok     0    .       .       .     .     .     .  
+PL     ok     6    Y       Y       Y     Y     Y     Y  
+PWR    ok     6    Y       Y       Y     Y     Y     Y  
+RDW    ok     6    Y       Y       Y     Y     Y     Y  
+RKLB   ok     6    Y       Y       Y     Y     Y     Y  
+RTX    ok     6    Y       Y       Y     Y     Y     Y  
+SMCI   ok     6    Y       Y       Y     Y     Y     Y  
+SMR    ok     3    Y       Y       .     Y     .     .  
+TGB    ok     0    .       .       .     .     .     .  
+UEC    ok     3    Y       .       .     Y     Y     .  
+UROY   ok     0    .       .       .     .     .     .  
+UUUU   ok     4    Y       Y       Y     Y     .     .  
+VRT    ok     5    Y       Y       Y     Y     Y     .  
+
+=== PER-CONCEPT FILL (share of names with the line rendered, as-of-valid) ===
+  ttm_yoy        25/33  (76%)
+  qtr_yoy        25/33  (76%)
+  qtr_yoy_accel  24/33  (73%)
+  delta_pts      23/33  (70%)
+  capex_qtr_yoy  23/33  (70%)
+  rpo_yoy        16/33  (48%)
+
+no CIK: —
+CIK ok but ZERO lines (likely IFRS/foreign or sparse filer): ['CCJ', 'ERO', 'HBM', 'NNE', 'NXE', 'TGB', 'UROY']
+
+NOTE: availability only — no outcomes, no judgments, no gate reads (leash §6).
