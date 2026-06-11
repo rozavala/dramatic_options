@@ -104,6 +104,95 @@ def test_staleness_flag(convexity_db):
     assert cyc["stale"] is False and cyc["status"] == "ONLINE"
 
 
+# ── account + regime (PR-C: journal-sourced balance + the configuration-of-record readout) ──────
+
+def _ins_run(conn, started_at, mode="PAPER", equity=None, data_feed=None, model_mix=None,
+             council_health=None, frame_version=None):
+    conn.execute("INSERT INTO runs(started_at, mode, equity, data_feed, model_mix, council_health, "
+                 "frame_version) VALUES(?,?,?,?,?,?,?)",
+                 (started_at, mode, equity, data_feed, model_mix, council_health, frame_version))
+    conn.commit()
+
+
+def test_account_panel_hand_checked(convexity_db):
+    from datetime import UTC
+
+    now = datetime(2026, 6, 10, 21, 45, 4, tzinfo=UTC)
+    _ins_run(convexity_db, "2026-06-09 14:00:00", equity=99980.00)
+    _ins_run(convexity_db, "2026-06-09 19:45:00", equity=99975.50)            # later same UTC day wins
+    _ins_run(convexity_db, "2026-06-09T21:30:00-04:00", equity=99970.00)      # = 2026-06-10T01:30Z → UTC day 06-10
+    _ins_run(convexity_db, "2026-06-10 12:00:00", mode="DISCOVERY", equity=None)  # excluded (mode + null)
+    _ins_run(convexity_db, "2026-06-10 19:45:04", equity=99971.79)            # native SQLite format, latest
+    a = dd.account_panel(convexity_db, CONFIG, now=now)
+    # hand-checked: broker = the latest journal equity; delta = 99971.79 − 100000 = −28.21;
+    # age = 19:45:04 → 21:45:04 = 2.0h (naive timestamps parse as UTC)
+    assert a["broker_equity"] == 99971.79 and a["as_of"] == "2026-06-10 19:45:04"
+    assert a["age_hours"] == 2.0 and a["delta_vs_frame"] == -28.21
+    # per-UTC-day LAST equity: day 06-09 → 99975.50 (later row wins); the −04:00 row crosses into
+    # UTC day 06-10 and is then superseded by the higher-id native row → 99971.79
+    assert a["equity_series"] == [{"day": "2026-06-09", "equity": 99975.50},
+                                  {"day": "2026-06-10", "equity": 99971.79}]
+    assert a["frame"] == {"frame_equity": 100000.0, "book_budget": 10000.0, "per_name_cap": 1000.0,
+                          "cluster_cap": 2000.0, "max_open": 15}
+    assert a["headroom"] == 10000.0  # empty book: budget − 0
+
+
+def test_account_panel_empty_db(convexity_db):
+    a = dd.account_panel(convexity_db, CONFIG)
+    assert a["broker_equity"] is None and a["delta_vs_frame"] is None and a["equity_series"] == []
+
+
+def test_regime_panel_split_read_live_shape(convexity_db):
+    # The LIVE shape (the P1 pin): L2 fires every ~30min and never stamps council fields — the
+    # newest row is an L2 row; council regime must come from the OLDER council-stamped row.
+    from datetime import UTC
+
+    now = datetime(2026, 6, 11, 12, 0, tzinfo=UTC)
+    df = ('{"equity_bars": "sip", "option_gate": "opra", "option_monitor": "indicative", '
+          '"dualread_disagree_veto_until": "2026-07-10"}')
+    mm = ('{"proposer": "gemini/g", "adversary": "xai/x", "strategist": "anthropic/o", '
+          '"prompts": "aaa/bbb/ccc"}')
+    _ins_run(convexity_db, "2026-06-10 19:45:04", equity=99971.79, data_feed=df, model_mix=mm,
+             council_health="ok", frame_version="fv1")                         # the L1 council row
+    _ins_run(convexity_db, "2026-06-10 20:30:03", equity=99971.79, data_feed=df,
+             frame_version="fv1")                                              # NEWER L2: council NULL
+    r = dd.regime_panel(convexity_db, CONFIG, now=now)
+    assert r["feeds"]["run_id"] > r["council"]["run_id"]   # two provenance anchors, split-read
+    assert r["feeds"]["option_gate"] == "opra" and r["feeds"]["equity_bars"] == "sip"
+    assert r["feeds"]["option_monitor"] == "indicative" and r["feeds"]["frame_version"] == "fv1"
+    assert r["council"]["council_health"] == "ok"
+    assert r["council"]["models"] == {"proposer": "gemini/g", "adversary": "xai/x",
+                                      "strategist": "anthropic/o"}
+    assert r["council"]["extras"] == {"prompts": "aaa/bbb/ccc"}  # generic non-role pass-through
+    assert r["dualread_veto"] == {"until": "2026-07-10", "active": True, "days_remaining": 29}
+
+
+def test_regime_panel_veto_boundary_and_failsoft(convexity_db):
+    from datetime import UTC
+
+    df = '{"option_gate": "opra", "dualread_disagree_veto_until": "2026-07-10"}'
+    _ins_run(convexity_db, "2026-07-10 14:00:00", equity=1.0, data_feed=df)
+    on_date = dd.regime_panel(convexity_db, CONFIG, now=datetime(2026, 7, 10, 12, 0, tzinfo=UTC))
+    assert on_date["dualread_veto"]["active"] is True            # inclusive end date (canonical rule)
+    assert on_date["dualread_veto"]["days_remaining"] == 0
+    lapsed = dd.regime_panel(convexity_db, CONFIG, now=datetime(2026, 7, 11, 12, 0, tzinfo=UTC))
+    assert lapsed["dualread_veto"]["active"] is False
+    assert lapsed["dualread_veto"]["days_remaining"] is None     # never renders negative
+    # pre-0013 NULL stamp → Nones, fail-soft
+    _ins_run(convexity_db, "2026-07-11 19:45:00", equity=1.0, data_feed=None)
+    r = dd.regime_panel(convexity_db, CONFIG, now=datetime(2026, 7, 12, 12, 0, tzinfo=UTC))
+    assert r["feeds"]["option_gate"] is None and r["feeds"]["run_id"] is not None
+    # health-only stamp (cost_cap with model_mix=None) → honest "health cost_cap · models —"
+    _ins_run(convexity_db, "2026-07-12 19:45:00", equity=1.0, council_health="cost_cap",
+             model_mix=None)
+    # malformed data_feed JSON on the newest row → Nones, never a raise
+    _ins_run(convexity_db, "2026-07-12 20:00:00", equity=1.0, data_feed="{not json")
+    r = dd.regime_panel(convexity_db, CONFIG, now=datetime(2026, 7, 13, 12, 0, tzinfo=UTC))
+    assert r["feeds"]["option_gate"] is None and r["feeds"]["dualread_veto_until"] is None
+    assert r["council"]["council_health"] == "cost_cap"
+    assert r["council"]["models"] == {} and r["council"]["extras"] == {}
+
+
 def test_performance_empty_accruing(convexity_db):
     perf = dd.performance_panel(convexity_db)
     assert perf["tails"]["real"]["n"] == 0
