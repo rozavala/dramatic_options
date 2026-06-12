@@ -46,6 +46,17 @@ def _is_parse_error(raw) -> bool:
         return '"parse_error": true' in str(raw)
 
 
+def _is_criteria_veto(raw) -> bool:
+    """A strategist include coerced false for violating its own asserted §10.7 tri-criteria —
+    a DELIBERATED outcome (valid conviction, no parse_error), recorded distinct from parse_error."""
+    if not raw:
+        return False
+    try:
+        return bool(json.loads(raw).get("criteria_veto")) if isinstance(raw, str) else bool(raw.get("criteria_veto"))
+    except Exception:  # noqa: BLE001
+        return '"criteria_veto": true' in str(raw)
+
+
 def latest_council_run(conn) -> int | None:
     row = conn.execute("SELECT MAX(run_id) AS r FROM council_proposals").fetchone()
     return int(row["r"]) if row and row["r"] is not None else None
@@ -77,7 +88,7 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str = "MODERATE
         if a["role"] in cost_by_role:
             cost_by_role[a["role"]] += float(a["cost_usd"] or 0.0)
 
-    roundtrip, adv_dir_rel, strat_valid, strat_abstained, any_parse_error = [], 0, 0, 0, False
+    roundtrip, adv_dir_rel, strat_valid, strat_abstained, strat_criteria_vetoed, any_parse_error = [], 0, 0, 0, 0, False
     for p in props:
         roles = by_prop.get(p["id"], {})
         if any(_is_parse_error(a["raw"]) for a in roles.values()):
@@ -92,6 +103,8 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str = "MODERATE
                 strat_valid += 1                                    # a real conviction OR a reasoned NEUTRAL abstain
                 if strat_conv == "NEUTRAL":
                     strat_abstained += 1
+            if _is_criteria_veto(strat["raw"]):
+                strat_criteria_vetoed += 1                          # deliberated; valid, never degrades
 
     cost = round(sum(cost_by_role.values()), 6)
     above_floor = sum(1 for p in props if passes_floor(p["conviction"], floor))
@@ -114,6 +127,7 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str = "MODERATE
                      and parse["rate"] >= page_rate, "above_floor_proposals": above_floor},
         "roundtrip": {"n": len(roundtrip), "adversary_direction_relative": adv_dir_rel,
                       "strategist_valid_conviction": strat_valid, "strategist_abstained": strat_abstained,
+                      "strategist_criteria_vetoed": strat_criteria_vetoed,
                       "any_role_parse_error": any_parse_error},
         "cost_usd": cost, "cost_by_role": {r: round(c, 6) for r, c in cost_by_role.items()},
         "notes": [
@@ -121,6 +135,9 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str = "MODERATE
             "ROUNDTRIP_CONFIRMED on one L1 is necessary, not sufficient — the window needs >=2 clean L1s.",
             "PROPOSER_CLEAN_NO_ROUNDTRIP = the proposer parses but judged all NEUTRAL (reasoned); the "
             "adversary/strategist are still live-unconfirmed — needs an above-floor proposal to exercise them.",
+            "strategist_criteria_vetoed > 0 is anomalous-but-non-degrading (deliberated; the §10.7 prompt "
+            "makes the criteria HARD, so the §10.8 expected shape is ~0 — repeated include∧tri-false = model "
+            "prompt-compliance drift the deterministic rule masks from the trade path; monitor-only).",
         ],
     }
 

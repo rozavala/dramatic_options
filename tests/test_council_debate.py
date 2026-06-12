@@ -57,7 +57,36 @@ def test_fakerouter_outputs_satisfy_validation():
     user = "CANDIDATE: FCX bullish copper\n\nmarkers..."
     assert not agents.parse_proposer(fr.call(role="proposer", system="s", user=user).text).get("parse_error")
     assert not agents.parse_adversary(fr.call(role="adversary", system="s", user=user).text).get("parse_error")
-    assert not agents.parse_strategist(fr.call(role="strategist", system="s", user=user).text).get("parse_error")
+    s = agents.parse_strategist(fr.call(role="strategist", system="s", user=user).text)
+    assert not s.get("parse_error")
+    # §10.7 lock-step extension: the fake strategist's include must also PASS the tri-criteria
+    # (booleans present AND True), else every demo include silently dies at select_for_trade.
+    assert s["include"] is True
+    assert s.get("under_narrated") is True and s.get("at_inflection") is True
+
+
+def test_parse_strategist_tri_key_classification():
+    # CGS §10.9: ABSENT tri key on include∧non-NEUTRAL → parse_error (truncation/non-compliance,
+    # the #37 discipline — must grade DEGRADED, never read as a deliberated veto).
+    base = {"include": True, "conviction": "HIGH", "structural_vs_fad": "structural",
+            "summary": "s", "at_inflection": True}
+    absent = agents.parse_strategist(json.dumps(base))  # under_narrated ABSENT
+    assert absent["parse_error"] is True and absent["include"] is False
+    assert "under_narrated" in absent["validation_error"]
+    # Key PRESENT with null → parses CLEAN (an explicit non-assertion is deliberated; the
+    # criteria-veto downstream handles it — truncation never emits selective nulls).
+    null_val = agents.parse_strategist(json.dumps({**base, "under_narrated": None}))
+    assert not null_val.get("parse_error") and null_val["include"] is True
+    # Key present with false → also clean at parse (veto downstream).
+    false_val = agents.parse_strategist(json.dumps({**base, "under_narrated": False}))
+    assert not false_val.get("parse_error")
+    # A genuine minimal NEUTRAL abstention needs NO new keys (never convert abstentions to failures).
+    neutral = agents.parse_strategist(json.dumps({"include": False, "conviction": "NEUTRAL"}))
+    assert not neutral.get("parse_error")
+    # An include row missing summary is still parse_error (shape-first, deterministic).
+    no_summary = agents.parse_strategist(json.dumps({"include": True, "conviction": "HIGH",
+                                                     "under_narrated": False, "at_inflection": False}))
+    assert no_summary["parse_error"] is True
 
 
 def test_adversary_prompt_is_direction_relative():
@@ -124,9 +153,67 @@ def test_debate_proposer_abstention_drops_before_adversary():
     def responder(role, system, user):
         if role == "proposer":
             return json.dumps({"confidence": "NEUTRAL", "inflection_thesis": "insufficient"})
-        return json.dumps({"include": True, "conviction": "HIGH"})
+        # Never invoked here (the proposer abstains first) — kept FULL-shape anyway so any future
+        # reuse passes the strategist parse (summary + the §10.7 booleans; no sweep exemption).
+        return json.dumps({"include": True, "conviction": "HIGH", "summary": "s",
+                           "structural_vs_fad": "structural",
+                           "under_narrated": True, "at_inflection": True})
 
     fr = FakeRouter(responder=responder)
     prop = run_candidate(BULL, synthetic_context_pack(BULL), fr, rng=random.Random(0))
     assert prop.include is False and prop.conviction == "NEUTRAL"
     assert fr.ledger.calls == 1  # only the proposer was called
+
+
+def _three_role_responder(strategist_json: dict):
+    """Proposer+adversary full-shape; strategist = the given dict (per-test §10.7 scenarios)."""
+    def responder(role, system, user):
+        if role == "proposer":
+            return json.dumps({"theme": "t", "symbol": "FCX", "direction": "bullish",
+                               "structural_vs_fad": "structural", "inflection_thesis": "real",
+                               "confidence": "HIGH", "cited": []})
+        if role == "adversary":
+            return json.dumps({"counter_case": "c", "weakest_point": "w", "is_fad": False,
+                               "already_consensus": False, "inflection_passed": False,
+                               "confidence": "MODERATE", "cited": []})
+        return json.dumps(strategist_json)
+    return responder
+
+
+def test_debate_criteria_veto_coerces_include_and_preserves_conviction():
+    # §10.7 enforcement at the coercion point: include=true violating its own asserted criteria →
+    # include coerced false + criteria_veto recorded (DISTINCT from parse_error), conviction kept
+    # (Brier substrate). Explicit false/null booleans are the deliberated-non-assertion path.
+    fr = FakeRouter(responder=_three_role_responder(
+        {"include": True, "conviction": "MODERATE", "structural_vs_fad": "structural",
+         "under_narrated": False, "at_inflection": True, "summary": "s"}))
+    prop = run_candidate(BULL, synthetic_context_pack(BULL), fr, rng=random.Random(0))
+    assert prop.include is False and prop.criteria_veto is True
+    assert prop.conviction == "MODERATE"  # preserved, never zeroed
+    strat_raw = next(a for a in prop.agent_outputs if a.role == "strategist").raw
+    assert strat_raw.get("criteria_veto") is True and not strat_raw.get("parse_error")
+    assert prop.rationale["strategist"]["criteria_veto"] is True
+
+
+def test_debate_sf_fallback_include_survives():
+    # The §10.8 preview's survivor edge, pinned: strategist include with booleans True but NO
+    # structural_vs_fad of its own + proposer 'structural' → the sanctioned fallback applies,
+    # tri passes, include SURVIVES (production must not be stricter than the validated preview here).
+    fr = FakeRouter(responder=_three_role_responder(
+        {"include": True, "conviction": "HIGH",
+         "under_narrated": True, "at_inflection": True, "summary": "s"}))
+    prop = run_candidate(BULL, synthetic_context_pack(BULL), fr, rng=random.Random(0))
+    assert prop.include is True and prop.criteria_veto is False
+    assert prop.structural_vs_fad == "structural"  # the proposer fallback
+    from council.proposal import select_for_trade
+    assert select_for_trade([prop], floor="MODERATE") == [prop]
+
+
+def test_debate_string_true_fails_tri_closed():
+    # Comparison semantics verbatim from the preview: `is True` identity — a JSON-mode model
+    # emitting the STRING "true" fails the tri by design (fail-closed, preview-identical).
+    fr = FakeRouter(responder=_three_role_responder(
+        {"include": True, "conviction": "HIGH", "structural_vs_fad": "structural",
+         "under_narrated": "true", "at_inflection": True, "summary": "s"}))
+    prop = run_candidate(BULL, synthetic_context_pack(BULL), fr, rng=random.Random(0))
+    assert prop.include is False and prop.criteria_veto is True

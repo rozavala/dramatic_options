@@ -9,11 +9,13 @@ from council.proposal import (
 )
 
 
-def _prop(symbol="FCX", direction="bullish", conviction="HIGH", include=True):
+def _prop(symbol="FCX", direction="bullish", conviction="HIGH", include=True,
+          structural_vs_fad="structural", under_narrated=True, at_inflection=True):
     return CouncilProposal(
         theme="copper", symbol=symbol, direction=direction, conviction=conviction,
-        structural_vs_fad="structural", weakest_point="priced?", strategist_summary="buy cheap calls",
+        structural_vs_fad=structural_vs_fad, weakest_point="priced?", strategist_summary="buy cheap calls",
         rationale={"k": "v"}, include=include,
+        under_narrated=under_narrated, at_inflection=at_inflection,
     )
 
 
@@ -51,6 +53,33 @@ def test_select_for_trade_only_reduces():
     ]
     kept = select_for_trade(props, floor="MODERATE")
     assert [p.symbol for p in kept] == ["FCX"]
+
+
+def test_select_for_trade_enforces_tri_criteria():
+    # CGS §10.7: survivor = include ∧ ≥floor ∧ tri-pass. None (never asserted) FAILS CLOSED;
+    # comparison is `is True` identity + exact string equality (preview-verbatim) — this layer is
+    # the belt-and-suspenders twin of the debate-level coercion, and it only ever REDUCES.
+    props = [
+        _prop(symbol="OK"),                                          # tri-true → keep
+        _prop(symbol="UN_F", under_narrated=False),                  # asserted false → drop
+        _prop(symbol="AI_N", at_inflection=None),                    # never asserted → drop (fail-closed)
+        _prop(symbol="FAD", structural_vs_fad="fad"),                # not structural → drop
+        _prop(symbol="STR", under_narrated="true"),                  # string "true" ≠ True → drop
+    ]
+    kept = select_for_trade(props, floor="MODERATE")
+    assert [p.symbol for p in kept] == ["OK"]
+
+
+def test_criteria_veto_default_false_and_carried():
+    assert _prop().criteria_veto is False
+    vetoed = CouncilProposal(
+        theme="t", symbol="V", direction="bullish", conviction="MODERATE",
+        structural_vs_fad="structural", weakest_point=None, strategist_summary="s",
+        rationale={}, include=False, under_narrated=False, at_inflection=True, criteria_veto=True,
+    )
+    # conviction preserved on a vetoed row (recorded-never-traded Brier substrate)
+    assert vetoed.conviction == "MODERATE" and vetoed.include is False
+    assert select_for_trade([vetoed], floor="MODERATE") == []
 
 
 def test_agent_output_dataclass_fields():

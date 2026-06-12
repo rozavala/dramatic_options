@@ -61,7 +61,9 @@ def _conviction_responder(by_symbol: dict):
                                "already_consensus": False, "confidence": "MODERATE", "cited": []})
         return json.dumps({"include": True, "theme": c["theme"], "symbol": c["symbol"],
                            "direction": c["direction"], "conviction": conv,
-                           "structural_vs_fad": "structural", "weakest_point": "w", "summary": "s"})
+                           "structural_vs_fad": "structural",
+                           "under_narrated": True, "at_inflection": True,
+                           "weakest_point": "w", "summary": "s"})
 
     return responder
 

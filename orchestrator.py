@@ -134,6 +134,14 @@ def _stamp_council_health(conn, run_id: int, config: dict, router) -> None:
     try:
         health = state.council_parse_health(conn, run_id)
         mix = {role: "/".join(router.provider_model(role)) for role in ("proposer", "adversary", "strategist")}
+        # Record-segmentation for PROMPT changes (the model_mix discipline applied to prompts):
+        # hash the LIVE council strings at runtime — self-describing, catches future drift.
+        import hashlib
+
+        from council import agents as _agents
+        mix["prompts"] = "/".join(
+            hashlib.sha256(s.encode()).hexdigest()[:16]
+            for s in (_agents._COMMON, _agents.ADVERSARY_SYSTEM, _agents.STRATEGIST_SYSTEM))
         if health["called"]:
             log.info("Council proposer parse-health: %d/%d failed (%.0f%%)",
                      health["parse_failed"], health["called"], health["rate"] * 100)
