@@ -101,6 +101,25 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     sraw = _parsed("strategist", sresp, agents.parse_strategist, candidate.symbol)
     sconf, sfr = apply_filter([str(sraw.get("summary", "")), str(sraw.get("weakest_point", ""))],
                               pack, confidence=sraw.get("conviction"))
+
+    # CGS §10.7 deterministic enforcement — the single coercion point (the only layer with BOTH
+    # raws in scope, so the sanctioned strategist-or-proposer structural_vs_fad fallback applies,
+    # exactly as the §10.8 preview computed tri). Comparison semantics verbatim: exact string
+    # equality + `is True` identity (an explicit null/false is a deliberated NON-assertion → veto;
+    # an ABSENT key on an include row was already a parse_error upstream). Conviction is preserved
+    # (Brier substrate); the veto is recorded DISTINCT from parse_error, before AgentOutput
+    # captures sraw so it persists to council_agent_outputs.raw.
+    sf_resolved = sraw.get("structural_vs_fad") or praw.get("structural_vs_fad")
+    tri_pass = (str(sf_resolved) == "structural"
+                and sraw.get("under_narrated") is True and sraw.get("at_inflection") is True)
+    if bool(sraw.get("include", False)) and not tri_pass:
+        sraw["include"] = False
+        sraw["criteria_veto"] = True
+        sraw["criteria_veto_reason"] = (
+            f"include=true but tri-criteria fail (s/f={sf_resolved} "
+            f"u_narr={sraw.get('under_narrated')} at_infl={sraw.get('at_inflection')})")
+        log.info("council criteria-veto %s: %s", candidate.symbol, sraw["criteria_veto_reason"])
+
     strategist_ao = AgentOutput(
         "strategist", sresp.provider, sresp.model, sconf, str(sraw.get("direction", candidate.direction)),
         str(sraw.get("weakest_point", "")) or None, sraw, flagged_unsupported=sfr.flagged,
@@ -126,12 +145,18 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
                          "structural_vs_fad": praw.get("structural_vs_fad")},
             "adversary": {"counter_case": araw.get("counter_case"), "weakest_point": araw.get("weakest_point"),
                           "already_consensus": araw.get("already_consensus"), "is_fad": araw.get("is_fad"),
-                          "confidence": aconf},
-            "strategist": {"summary": sraw.get("summary"), "conviction": sconf, "include": sraw.get("include")},
+                          "inflection_passed": araw.get("inflection_passed"), "confidence": aconf},
+            "strategist": {"summary": sraw.get("summary"), "conviction": sconf, "include": sraw.get("include"),
+                           "under_narrated": sraw.get("under_narrated"),
+                           "at_inflection": sraw.get("at_inflection"),
+                           "criteria_veto": bool(sraw.get("criteria_veto", False))},
         },
         agent_outputs=[proposer_ao, adversary_ao, strategist_ao],
         cost_usd=total_cost,
         model_mix=mix,
         include=bool(sraw.get("include", False)),
         sentinel_id=candidate.sentinel_id,
+        under_narrated=sraw.get("under_narrated") if isinstance(sraw.get("under_narrated"), bool) else None,
+        at_inflection=sraw.get("at_inflection") if isinstance(sraw.get("at_inflection"), bool) else None,
+        criteria_veto=bool(sraw.get("criteria_veto", False)),
     )

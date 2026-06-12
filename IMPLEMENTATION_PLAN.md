@@ -229,8 +229,15 @@ discharged → grounding (CGS §9) is the demonstrated binding constraint) **and
 (`PREREG_DATA_FEED_OPRA_SEQUENCING.md`: `option_gate`→opra, INDICATIVE = the concurrent shadow arm —
 migration 0014 `gate_dualread` (inline + sweep, both-arms coverage guard), the auto-lapsing
 `veto-dualread-disagree`, entitlement-lapse veto+page, pinned rolling-5 tripwires + the dashboard panel).
-**BUILD next:** PR-B (council §10.7 surgery) after the ≥2-L1 OPRA soak → the §9 evidence-grounding session →
-the §5b file-structure refactor.
+OPRA-soak L1 #1 (run #130) graded clean. **PR-B (the council §10.7 surgery) BUILT & green 2026-06-10
+(branch `council-prb-s107`, 499 tests) and HELD per CGS §6 for the soak's 2nd clean L1 (Thu 06-11):**
+sha-pinned §10.7 prompts byte-exact (pins enforced by `tests/test_council_prompts.py`), tri-criteria
+enforcement (parse presence-guard / debate single-coercion-point with the sanctioned s/f fallback /
+`select_for_trade` preview-verbatim; criteria-veto recorded distinct from parse_error, conviction
+preserved; CGS §10.9 dates the missing-vs-null-vs-false classification), FakeRouter lock-step, grader
+`strategist_criteria_vetoed`, runtime prompt-shas in `runs.model_mix`, live test SMCI→ATKR; no schema
+change. Merge after OPRA L1 #2 → Fri 06-12 L1 = the thesis-only council's first live cycle.
+**BUILD next:** the §9 evidence-grounding session → the §5b file-structure refactor.
 
 **T4 — Graduate to tiny real money.** On a pre-committed rule (N paper trades logged, payoff
 distribution sane, risk frame held with no breaches) → tiny real capital under the identical

@@ -19,10 +19,11 @@ It is observation only: it never edits clusters/themes/config, never proposes/si
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -336,6 +337,111 @@ def risk_panel(conn, config: dict) -> dict:
                  "open_premium": round(state.convexity_book_open_premium(conn), 2),
                  "budget": round(book_budget, 2)},
         "clusters": cluster_rows,
+    }
+
+
+def account_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
+    """Journal-sourced account/balance visibility (PR-C). KEYLESS by design: the broker number is
+    ``runs.equity`` (the live loop records ``client.get_equity()`` every L1/L2 cycle) — never a
+    broker/client call from the dashboard. The risk frame is OPERATOR-FROZEN (PREREG §5):
+    ``delta_vs_frame`` is informational (render with delta_color='off') and the broker number
+    never resizes the frame. ``equity_series`` = per-UTC-day LAST equity (value at MAX(id) among
+    that day's non-null-equity PAPER/LIVE rows), date-bounded to the trailing 120 UTC days."""
+    now = now or datetime.now(UTC)
+    book = config.get("convexity_book", {})
+    frame_equity = float(book.get("account_equity", 0.0))
+    book_budget = frame_equity * float(book.get("book_fraction", 0.0))
+    latest = _rows(conn, "SELECT id, started_at, equity FROM runs WHERE mode IN ('PAPER','LIVE') "
+                         "AND equity IS NOT NULL ORDER BY id DESC LIMIT 1")
+    broker = latest[0] if latest else None
+    series = _rows(conn,
+                   "SELECT date(started_at) AS day, equity FROM runs r "
+                   "WHERE mode IN ('PAPER','LIVE') AND equity IS NOT NULL "
+                   "AND date(started_at) >= date(?, '-120 days') "
+                   "AND id = (SELECT MAX(id) FROM runs r2 WHERE r2.mode IN ('PAPER','LIVE') "
+                   "          AND r2.equity IS NOT NULL AND date(r2.started_at) = date(r.started_at)) "
+                   "ORDER BY day", (now.date().isoformat(),))
+    open_premium = state.convexity_book_open_premium(conn)
+    age = _age_hours(broker["started_at"], now=now) if broker else None
+    return {
+        "broker_equity": None if broker is None else round(float(broker["equity"]), 2),
+        "as_of": None if broker is None else broker["started_at"],
+        "run_id": None if broker is None else broker["id"],
+        "age_hours": None if age is None else round(age, 1),
+        "delta_vs_frame": None if broker is None else round(float(broker["equity"]) - frame_equity, 2),
+        "equity_series": [{"day": r["day"], "equity": round(float(r["equity"]), 2)} for r in series],
+        "frame": {"frame_equity": round(frame_equity, 2), "book_budget": round(book_budget, 2),
+                  "per_name_cap": round(frame_equity * float(book.get("per_name_fraction", 0.0)), 2),
+                  "cluster_cap": round(frame_equity * float(book.get("cluster_fraction", 0.0) or 0.0), 2),
+                  "max_open": int(book.get("max_open_positions", 15))},
+        "headroom": round(book_budget - open_premium, 2),
+    }
+
+
+_MIX_ROLES = ("proposer", "adversary", "strategist")
+
+
+def regime_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
+    """The configuration-of-record readout (the record-segmentation keys), TWO provenance anchors
+    SPLIT-READ: ``feeds`` (data_feed/frame_version — stamped on EVERY run) from the latest
+    PAPER/LIVE row; ``council`` (council_health/model_mix — stamped only by L1 council cycles)
+    from the latest ``council_health IS NOT NULL`` row (L2 fires ~every 30min with NULL council
+    fields, so a single-row read would render empty nearly all day). model_mix non-role keys pass
+    through GENERICALLY (this panel owns no other PR's stamp schema). The disagree-veto boolean is
+    single-sourced through the canonical ``gate_dualread.disagree_veto_active`` applied to the
+    STAMPED date (inclusive end; malformed → inert); days_remaining is display-only and never
+    negative. No verdicts — a readout."""
+    from gate_dualread import disagree_veto_active
+
+    now = now or datetime.now(UTC)
+    feed_row = (_rows(conn, "SELECT id, started_at, frame_version, data_feed FROM runs "
+                            "WHERE mode IN ('PAPER','LIVE') ORDER BY id DESC LIMIT 1") or [None])[0]
+    council_row = (_rows(conn, "SELECT id, started_at, council_health, model_mix FROM runs "
+                               "WHERE council_health IS NOT NULL ORDER BY id DESC LIMIT 1") or [None])[0]
+
+    feeds = {"run_id": None, "as_of": None, "frame_version": None, "equity_bars": None,
+             "option_gate": None, "option_monitor": None, "dualread_veto_until": None}
+    if feed_row is not None:
+        feeds["run_id"], feeds["as_of"] = feed_row["id"], feed_row["started_at"]
+        feeds["frame_version"] = feed_row["frame_version"]
+        try:
+            df = json.loads(feed_row["data_feed"]) if feed_row["data_feed"] else {}
+        except (TypeError, ValueError):
+            df = {}
+        if isinstance(df, dict):
+            feeds["equity_bars"] = df.get("equity_bars")
+            feeds["option_gate"] = df.get("option_gate")
+            feeds["option_monitor"] = df.get("option_monitor")
+            feeds["dualread_veto_until"] = df.get("dualread_disagree_veto_until")
+
+    until = feeds["dualread_veto_until"]
+    active = disagree_veto_active({"data_feed": {"dualread_disagree_veto_until": until}}, now.date())
+    days = None
+    if active and until:
+        try:
+            days = (date.fromisoformat(str(until)) - now.date()).days
+        except ValueError:
+            days = None
+
+    council = {"run_id": None, "as_of": None, "council_health": None, "models": {}, "extras": {}}
+    if council_row is not None:
+        council["run_id"], council["as_of"] = council_row["id"], council_row["started_at"]
+        council["council_health"] = council_row["council_health"]
+        try:
+            mix = json.loads(council_row["model_mix"]) if council_row["model_mix"] else {}
+        except (TypeError, ValueError):
+            mix = {}
+        if isinstance(mix, dict):
+            # str(v) tolerates a future nested per-role shape (ugly-but-rendered, never a panel error)
+            council["models"] = {r: str(mix[r]) for r in _MIX_ROLES if r in mix}
+            council["extras"] = {k: str(v) for k, v in mix.items() if k not in _MIX_ROLES}
+
+    return {
+        "feeds": feeds,
+        "dualread_veto": {"until": until, "active": active, "days_remaining": days},
+        "council": council,
+        "config": {"conviction_floor": config.get("council", {}).get("conviction_floor", "MODERATE"),
+                   "max_candidates": config.get("council", {}).get("max_candidates")},
     }
 
 
@@ -783,11 +889,16 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N)
     }
 
 
+GATE_FLIP_MATERIALITY_FLOOR = 0.02  # §5 amendment 2026-06-12: a flip trips only at |Δ iv/rv| ≥ this
+
+
 def gate_dualread_report(conn, config: dict | None = None) -> dict:
     """The §5 named surface (PREREG_DATA_FEED_OPRA_SEQUENCING): per-session dual-read stats,
     both-arms coverage (a silently-empty shadow arm must not read as agreement), the rolling-5
     tripwire status against the PINNED thresholds (|Δ iv/rv| median>0.05 OR max>0.10 in ≥3 of 5;
-    coverage-gap or cheap-flip in ≥2 of 5), and the disagree-veto's dated auto-lapse."""
+    coverage-gap or cheap-flip in ≥2 of 5 — per the dated 2026-06-12 §5 amendment a flip COUNTS
+    only when the flipped name's |Δ iv/rv| ≥ GATE_FLIP_MATERIALITY_FLOOR; sub-floor flips stay
+    reported, an uncomputable delta counts fail-closed), and the disagree-veto's dated auto-lapse."""
     import statistics
 
     rows = _rows(conn, "SELECT run_id, symbol, feed, source, structured, iv_rv, cheap "
@@ -800,6 +911,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
         n = len(by_sym)
         deltas: list[float] = []
         flips: list[str] = []
+        material_flips: list[str] = []
         gaps: list[str] = []
         opra_ok = ind_ok = 0
         for sym, arms in sorted(by_sym.items()):
@@ -811,22 +923,27 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
             if i and i.get("structured") and (not o or not o.get("structured")):
                 gaps.append(sym)  # INDICATIVE structures, OPRA cannot — the §5 coverage gap
             if o and i and o.get("structured") and i.get("structured"):
+                d = None
                 if o.get("iv_rv") is not None and i.get("iv_rv") is not None:
-                    deltas.append(abs(o["iv_rv"] - i["iv_rv"]))
+                    d = abs(o["iv_rv"] - i["iv_rv"])
+                    deltas.append(d)
                 if int(o.get("cheap") or 0) != int(i.get("cheap") or 0):
                     flips.append(sym)
+                    # only a MEASURED-small disagreement is exempt from the wire
+                    if d is None or d >= GATE_FLIP_MATERIALITY_FLOOR:
+                        material_flips.append(sym)
         out_sessions.append({
             "run_id": rid, "names": n,
             "median_d_ivrv": round(statistics.median(deltas), 4) if deltas else None,
             "max_d_ivrv": round(max(deltas), 4) if deltas else None,
-            "flips": flips, "coverage_gaps": gaps,
+            "flips": flips, "material_flips": material_flips, "coverage_gaps": gaps,
             "opra_coverage": round(opra_ok / n, 3) if n else None,
             "indicative_coverage": round(ind_ok / n, 3) if n else None,
         })
     last5 = out_sessions[-5:]
     delta_breaches = sum(1 for s in last5
                          if (s["median_d_ivrv"] or 0) > 0.05 or (s["max_d_ivrv"] or 0) > 0.10)
-    flip_sessions = sum(1 for s in last5 if s["flips"])
+    flip_sessions = sum(1 for s in last5 if s["material_flips"])
     gap_sessions = sum(1 for s in last5 if s["coverage_gaps"])
     until = ((config or {}).get("data_feed", {}) or {}).get("dualread_disagree_veto_until")
     veto_active = None
@@ -844,6 +961,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
             "window": len(last5),
             "delta_breach_sessions": delta_breaches, "delta_tripped": delta_breaches >= 3,
             "flip_sessions": flip_sessions, "flip_tripped": flip_sessions >= 2,
+            "flip_floor": GATE_FLIP_MATERIALITY_FLOOR,
             "gap_sessions": gap_sessions, "gap_tripped": gap_sessions >= 2,
         },
         "disagree_veto": {"until": until, "active": veto_active},

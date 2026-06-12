@@ -59,6 +59,8 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "header": dd.safe(dd.header_status, conn),
             "t4": dd.safe(dd.t4_scoreboard, conn, config),
             "risk": dd.safe(dd.risk_panel, conn, config),
+            "account": dd.safe(dd.account_panel, conn, config),
+            "regime": dd.safe(dd.regime_panel, conn, config),
             "sentinels": dd.safe(dd.sentinels_panel, conn),
             "positions": dd.safe(dd.positions_panel, conn),
             "council": dd.safe(dd.council_panel, conn, config),
@@ -146,6 +148,29 @@ _LEGEND = (
 
 def _render_health_risk(snap) -> None:
     st.caption("Is the book within its risk limits, and is the LLM council deliberating cleanly?")
+    acct = snap.get("account")
+    if _show(acct, "account"):
+        be, dv = acct["broker_equity"], acct["delta_vs_frame"]
+        a = st.columns(3)
+        a[0].metric("Paper account equity", "—" if be is None else f"${be:,.2f}",
+                    delta=None if dv is None else f"{dv:+,.2f} vs frame", delta_color="off",
+                    help="Journal-sourced (runs.equity — the live loop records client.get_equity() "
+                         "every cycle). The dashboard is keyless and never calls the broker.")
+        a[1].metric("Headroom", f"${acct['headroom']:,.0f}",
+                    delta=f"of ${acct['frame']['book_budget']:,.0f} budget", delta_color="off",
+                    help="Book budget minus premium-at-risk currently deployed.")
+        a[2].metric("Frame equity", f"${acct['frame']['frame_equity']:,.0f}",
+                    help="The OPERATOR-FROZEN risk frame (PREREG §5) that sizes every cap. "
+                         "It never floats with the broker number.")
+        st.caption(f"as of {acct['as_of'] or '—'} (run #{acct['run_id'] or '—'}"
+                   + (f", {acct['age_hours']}h ago" if acct["age_hours"] is not None else "")
+                   + ") · journal-sourced, keyless · the risk frame is operator-FROZEN (PREREG §5) — "
+                     "the broker number is informational and never resizes the frame.")
+        if acct["equity_series"]:
+            with st.expander("equity history (UTC days)"):
+                import pandas as pd
+                st.line_chart(pd.DataFrame({"equity": [r["equity"] for r in acct["equity_series"]]},
+                                           index=[r["day"] for r in acct["equity_series"]]))
     risk = snap["risk"]
     if _show(risk, "risk"):
         kr, bk, cc = risk["kill_rule"], risk["book"], risk["cost_cap"]
@@ -379,7 +404,8 @@ def _render_scanning(snap) -> None:
         st.markdown("**OPRA gate dual-read** (gate-of-record = OPRA; INDICATIVE = the shadow arm — "
                     "veto-only, never authorizes)")
         st.caption(f"tripwires (rolling {tw['window']}): "
-                   f"Δiv/rv breaches={tw['delta_breach_sessions']} · flip sessions={tw['flip_sessions']} · "
+                   f"Δiv/rv breaches={tw['delta_breach_sessions']} · "
+                   f"material-flip sessions={tw['flip_sessions']} (Δ≥{tw.get('flip_floor')}) · "
                    f"gap sessions={tw['gap_sessions']} → "
                    f"{'⚠ TRIPPED — §5 fail-closed response' if tripped else 'clear'} · "
                    f"disagree-veto until {dr['disagree_veto']['until']} "
@@ -476,6 +502,23 @@ def main() -> None:
             col.metric(f"last {key}", "—" if age is None else f"{age:.0f}h ago",
                        delta=(beat["status"] if beat["status"] != "ONLINE" else None), delta_color="inverse",
                        help=helptext)
+
+    # ── the regime strip (configuration of record — the record-segmentation keys; a readout, no verdicts)
+    regime = snap.get("regime")
+    if _show(regime, "regime"):
+        f, c, v = regime["feeds"], regime["council"], regime["dualread_veto"]
+        veto_txt = ""
+        if v["until"]:
+            veto_txt = (f" · disagree-veto lapses {v['until']} ({v['days_remaining']}d)" if v["active"]
+                        else f" · disagree-veto lapsed {v['until']}")
+        st.caption(f"regime — feeds (run #{f['run_id'] or '—'}, {f['as_of'] or '—'}): "
+                   f"gate {f['option_gate'] or '—'} · bars {f['equity_bars'] or '—'} · "
+                   f"monitor {f['option_monitor'] or '—'}{veto_txt} · frame {f['frame_version'] or '—'}")
+        models = " · ".join(f"{r} {m}" for r, m in c["models"].items()) or "—"
+        extras = " · ".join(f"{k} {val}" for k, val in c["extras"].items())
+        st.caption(f"council (run #{c['run_id'] or '—'}, {c['as_of'] or '—'}): "
+                   f"health {c['council_health'] or '—'} · {models}"
+                   + (f" · {extras}" if extras else ""))
 
     st.subheader("T4-readiness scoreboard")
     st.caption("**Automatable checks only — NOT a go signal.** Conditions 2 & 4 need ~6 months of resolved "
