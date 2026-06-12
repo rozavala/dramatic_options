@@ -20,13 +20,22 @@ from council.proposal import normalize_conviction
 
 OPPOSITE = {"bullish": "bearish", "bearish": "bullish"}
 
+# The three council strings below are the CGS §10.7 FROZEN config (sha256/16-pinned; see
+# tests/test_council_prompts.py — the run-of-record is records/2026-06-10_retightened_rescore.txt).
+# Thesis-only: cheapness judgment belongs SOLELY to the deterministic IV gate. Do not edit these
+# without a new pre-registered freeze.
 _COMMON = (
     "You are part of a disciplined options council that trades long-dated, far-OTM, defined-risk "
-    "convexity on secular themes ONLY when implied vol has not yet priced the move. You PROPOSE; a "
-    "deterministic IV/cheap-convexity gate DISPOSES and can veto you. Reason only from the EVIDENCE "
-    "provided. If the evidence lacks numeric content, return NEUTRAL rather than inventing facts. "
-    "Use confidence strictly from {LOW, MODERATE, HIGH, EXTREME, NEUTRAL}. Reply with ONE JSON "
-    "object and nothing else."
+    "convexity on secular themes. You PROPOSE on THESIS ONLY; a deterministic IV/cheap-convexity "
+    "gate DISPOSES on cheapness and can veto you — never judge whether vol or optionality is cheap "
+    "or priced. A theme qualifies ONLY if ALL THREE hold: (1) STRUCTURAL — a real, durable driver, "
+    "not a fad; (2) UNDER-NARRATED — not already the market's consensus story; a name at the center "
+    "of a dominant, widely-covered narrative does not qualify however correct the thesis; (3) AT A "
+    "GENUINE INFLECTION — the change is happening NOW: if the large move has already happened, the "
+    "inflection is BEHIND the name and it does not qualify unless the evidence shows a NEW, distinct "
+    "inflection. Reason only from the EVIDENCE provided. If the evidence lacks numeric content, "
+    "return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH, "
+    "EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else."
 )
 
 PROPOSER_SYSTEM = (
@@ -38,18 +47,26 @@ PROPOSER_SYSTEM = (
 )
 
 ADVERSARY_SYSTEM = (
-    _COMMON + " ROLE: Devil's Advocate. You argue AGAINST the proposed direction — make the strongest "
-    "honest case that the proposed trade is wrong (already consensus/priced, a fad, or the move is "
-    "behind it). JSON keys: counter_case (string, cite evidence), weakest_point (the single biggest "
-    "hole in the proposal), is_fad (bool), already_consensus (bool), confidence (your confidence in "
-    "the COUNTER case), cited (array)."
+    _COMMON +
+    " ROLE: Devil's Advocate. You argue AGAINST the proposed direction — make the strongest honest "
+    "case ON THESIS GROUNDS that the proposed trade is wrong: already consensus (the story is widely "
+    "told), a fad (not structural), or not a genuine inflection (the move already happened / no "
+    "fresh change). Never argue from option pricing or volatility — cheapness is the deterministic "
+    "gate's job. JSON keys: counter_case (string, cite evidence), weakest_point (the single biggest "
+    "hole in the proposal), is_fad (bool), already_consensus (bool), inflection_passed (bool — true "
+    "if the move is behind the name), confidence (your confidence in the COUNTER case), cited "
+    "(array)."
 )
 
 STRATEGIST_SYSTEM = (
-    _COMMON + " ROLE: Master Strategist. Weigh the FOR case against the AGAINST case and decide whether "
-    "to propose this trade to the deterministic gates. Be a conviction dampener at extremes. JSON keys: "
-    "include (bool), theme, symbol, direction ('bullish'|'bearish'), conviction, structural_vs_fad, "
-    "weakest_point, summary (one or two sentences; this becomes the trade thesis)."
+    _COMMON +
+    " ROLE: Master Strategist. Weigh the FOR case against the AGAINST case and decide whether to "
+    "propose this trade to the deterministic gates. Be a conviction dampener at extremes. The three "
+    "criteria are HARD: you may set include=true ONLY if structural_vs_fad='structural' AND "
+    "under_narrated=true AND at_inflection=true — each asserted on the evidence, not by default. "
+    "JSON keys: include (bool), theme, symbol, direction ('bullish'|'bearish'), conviction, "
+    "structural_vs_fad, under_narrated (bool), at_inflection (bool), weakest_point, summary (one or "
+    "two sentences; this becomes the trade thesis)."
 )
 
 
@@ -137,7 +154,19 @@ def strategist_prompt(pack, proposer_raw: dict, adversary_raw: dict, *, for_firs
 
 RAW_TEXT_MAX = 2000  # how much of a failed model response to persist for forensics
 _PROPOSER_CLAIM_KEYS = ("structural_vs_fad", "inflection_thesis")
+# SANCTIONED exception to the derive-from-prompt rule: the §10.7 adversary prompt adds
+# `inflection_passed`, but it is recording-only — NOT claim-required (a bool has no
+# missing-content failure mode like counter_case, and no enforcement rule consumes it).
+# Do not "fix" it into this tuple; that would add a parse surface with no consumer.
 _ADVERSARY_CLAIM_KEYS = ("counter_case",)
+# CGS §10.7/§10.9: the strategist's tri-criteria ASSERTIONS. On an include=true ∧ non-NEUTRAL
+# row these KEYS must be PRESENT (absent → parse_error: truncation/non-compliance, the #37
+# discipline — a provider that stops emitting them must grade DEGRADED, never read as
+# "deliberated" vetoes). An explicit null/false value is a deliberated NON-assertion and is
+# handled as a criteria-veto downstream (debate.run_candidate / select_for_trade), NOT here.
+# structural_vs_fad is deliberately NOT in this tuple: it is shape-required at the PROPOSER
+# (_PROPOSER_CLAIM_KEYS) and the strategist-or-proposer fallback in debate.py is sanctioned.
+_STRATEGIST_INCLUDE_BOOL_KEYS = ("under_narrated", "at_inflection")
 
 
 def parse_error_fallback(text: str, *, reason: str, finish_reason=None, thoughts_tokens=None, **extra) -> dict:
@@ -195,7 +224,16 @@ def parse_strategist(text: str, *, finish_reason=None, thoughts_tokens=None) -> 
                                     finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
     d["conviction"] = normalize_conviction(d.get("conviction"))
     d["include"] = bool(d.get("include", False))
-    if d["include"] and d["conviction"] != "NEUTRAL" and not d.get("summary"):
-        return parse_error_fallback(text, reason="strategist include without summary", include=False,
-                                    conviction="NEUTRAL", finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+    # Shape checks evaluate the model's RAW include claim, shape-first (a tri-fail row that also
+    # lacks summary is a parse_error, deterministically) — coercion/criteria evaluation happens
+    # downstream where the proposer fallback is in scope (debate.run_candidate).
+    if d["include"] and d["conviction"] != "NEUTRAL":
+        if not d.get("summary"):
+            return parse_error_fallback(text, reason="strategist include without summary", include=False,
+                                        conviction="NEUTRAL", finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
+        missing = [k for k in _STRATEGIST_INCLUDE_BOOL_KEYS if k not in d]
+        if missing:
+            return parse_error_fallback(text, reason=f"strategist include missing tri keys {missing}",
+                                        include=False, conviction="NEUTRAL",
+                                        finish_reason=finish_reason, thoughts_tokens=thoughts_tokens)
     return d

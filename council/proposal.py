@@ -57,6 +57,16 @@ class CouncilProposal:
     model_mix: dict = field(default_factory=dict)
     include: bool = True            # the strategist's own keep/drop call (separate from the floor)
     sentinel_id: int | None = None  # T3: set when the judged candidate came from discovery (provenance)
+    # CGS §10.7 tri-criteria, as ASSERTED by the strategist (None = not asserted → fails closed
+    # in select_for_trade). structural_vs_fad above carries the sanctioned strategist-or-proposer
+    # fallback (debate.py) — the preview's survivor edge case is preserved.
+    under_narrated: bool | None = None
+    at_inflection: bool | None = None
+    # True when the strategist claimed include=true but violated its own asserted criteria → the
+    # include was coerced false (a recorded criteria-veto, DISTINCT from parse_error). Conviction
+    # is preserved: criteria-veto rows are recorded-never-traded forward-scoring substrate (Brier),
+    # the same class as floor-dropped includes.
+    criteria_veto: bool = False
 
     def to_theme(self, proposal_id: int) -> Theme:
         """Project to a deterministic-loop Theme. ``thesis`` carries the strategist's summary.
@@ -73,8 +83,20 @@ class CouncilProposal:
         )
 
 
+def _tri_criteria_pass(p: CouncilProposal) -> bool:
+    """The CGS §10.7 tri-criteria, comparison semantics VERBATIM from the §10.8 preview harness
+    (scripts/probe_rescore_thesis_only.py): exact string equality + ``is True`` identity, NO
+    normalization — a JSON-mode model emitting the string ``"true"`` fails by design (fail-closed,
+    preview-identical). ``None`` (never asserted) fails closed."""
+    return str(p.structural_vs_fad) == "structural" and p.under_narrated is True and p.at_inflection is True
+
+
 def select_for_trade(proposals: list[CouncilProposal], *, floor: str) -> list[CouncilProposal]:
     """The proposals that survive to the deterministic gates: strategist said include AND
-    conviction ≥ floor. This can only *reduce* the set — it never expands trading or overrides
-    a gate (PREREG §2). Dropped proposals are still recorded (forward-scoring substrate)."""
-    return [p for p in proposals if p.include and passes_floor(p.conviction, floor)]
+    conviction ≥ floor AND the §10.7 tri-criteria hold (survivor = include ∧ ≥floor ∧ tri-pass).
+    This can only *reduce* the set — it never expands trading or overrides a gate (PREREG §2).
+    Dropped proposals are still recorded (forward-scoring substrate). The tri check here is the
+    belt-and-suspenders second layer of the rule debate.run_candidate already coerced — §10.7
+    names both functions; the rule is in effect at the selection point either way."""
+    return [p for p in proposals
+            if p.include and passes_floor(p.conviction, floor) and _tri_criteria_pass(p)]

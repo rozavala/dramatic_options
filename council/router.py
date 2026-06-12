@@ -413,12 +413,16 @@ def _default_fake_responder(role: str, system: str, user: str) -> str:
         return json.dumps({
             "counter_case": f"(demo) the {c['direction']} case on {c['symbol']} may already be consensus.",
             "weakest_point": "narrative may already be priced; IV gate will arbitrate.",
-            "is_fad": False, "already_consensus": False, "confidence": "MODERATE", "cited": [],
+            "is_fad": False, "already_consensus": False, "inflection_passed": False,
+            "confidence": "MODERATE", "cited": [],
         })
-    # strategist
+    # strategist — carries the §10.7 tri-criteria assertions (lock-step with
+    # agents._STRATEGIST_INCLUDE_BOOL_KEYS + select_for_trade's tri rule, so demo includes
+    # still reach the gates).
     return json.dumps({
         "include": True, "theme": c["theme"], "symbol": c["symbol"], "direction": c["direction"],
         "conviction": "HIGH", "structural_vs_fad": "structural",
+        "under_narrated": True, "at_inflection": True,
         "weakest_point": "narrative may already be priced; deterministic IV gate arbitrates.",
         "summary": f"(demo) propose {c['direction']} {c['symbol']} on {c['theme']}; gate decides cheapness.",
     })

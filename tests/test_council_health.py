@@ -90,8 +90,35 @@ def test_l1_health_roundtrip_confirmed(convexity_db):
     rep = council_l1_health(convexity_db, run_id=rid)
     assert rep["verdict"] == "ROUNDTRIP_CONFIRMED"
     assert rep["roundtrip"] == {"n": 1, "adversary_direction_relative": 1, "strategist_valid_conviction": 1,
-                                "strategist_abstained": 0, "any_role_parse_error": False}
+                                "strategist_abstained": 0, "strategist_criteria_vetoed": 0,
+                                "any_role_parse_error": False}
     assert rep["cost_usd"] > 0 and rep["cost_by_role"]["strategist"] > 0 and rep["council_health"] == "ok"
+
+
+def test_l1_health_confirmed_with_criteria_veto_surfaced(convexity_db):
+    # A §10.7 criteria-veto is a DELIBERATED outcome (valid conviction, no parse_error): the
+    # round-trip stays CONFIRMED and the veto is SURFACED (anomalous-but-non-degrading — the
+    # §10.8 expected shape is ~0; repeated include∧tri-false = prompt-compliance drift to watch).
+    rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
+    state.update_run_council_health(convexity_db, rid, council_health="ok")
+    pid = state.record_council_proposal(convexity_db, run_id=rid, as_of="t", theme="x", symbol="VRT",
+                                        direction="bullish", conviction="MODERATE", status="dropped")
+    state.record_agent_output(convexity_db, proposal_id=pid, role="proposer", provider="gemini", model="m",
+                              confidence="MODERATE", stance="bullish",
+                              raw={"confidence": "MODERATE", "inflection_thesis": "real"}, cost_usd=0.003)
+    state.record_agent_output(convexity_db, proposal_id=pid, role="adversary", provider="xai", model="m",
+                              confidence="MODERATE", stance="bearish",
+                              raw={"confidence": "MODERATE", "counter_case": "c"}, cost_usd=0.003)
+    state.record_agent_output(convexity_db, proposal_id=pid, role="strategist", provider="anthropic", model="m",
+                              confidence="MODERATE", stance="bullish",
+                              raw={"conviction": "MODERATE", "summary": "s", "include": False,
+                                   "under_narrated": False, "at_inflection": True,
+                                   "criteria_veto": True}, cost_usd=0.003)
+    rep = council_l1_health(convexity_db, run_id=rid)
+    assert rep["verdict"] == "ROUNDTRIP_CONFIRMED"
+    assert rep["roundtrip"]["strategist_valid_conviction"] == 1
+    assert rep["roundtrip"]["strategist_criteria_vetoed"] == 1
+    assert rep["roundtrip"]["any_role_parse_error"] is False
 
 
 def test_l1_health_parse_fail(convexity_db):

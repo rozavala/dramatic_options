@@ -63,6 +63,7 @@ def council_to_themes(
         else:
             n_dropped += 1
 
-    log.info("Council: %d proposal(s) → %d to gates, %d dropped (floor=%s)",
-             len(proposals), len(themes), n_dropped, floor)
+    n_criteria_vetoed = sum(1 for p in proposals if p.criteria_veto)
+    log.info("Council: %d proposal(s) → %d to gates, %d dropped (floor=%s, criteria-vetoed=%d)",
+             len(proposals), len(themes), n_dropped, floor, n_criteria_vetoed)
     return themes

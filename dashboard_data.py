@@ -889,11 +889,16 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N)
     }
 
 
+GATE_FLIP_MATERIALITY_FLOOR = 0.02  # §5 amendment 2026-06-12: a flip trips only at |Δ iv/rv| ≥ this
+
+
 def gate_dualread_report(conn, config: dict | None = None) -> dict:
     """The §5 named surface (PREREG_DATA_FEED_OPRA_SEQUENCING): per-session dual-read stats,
     both-arms coverage (a silently-empty shadow arm must not read as agreement), the rolling-5
     tripwire status against the PINNED thresholds (|Δ iv/rv| median>0.05 OR max>0.10 in ≥3 of 5;
-    coverage-gap or cheap-flip in ≥2 of 5), and the disagree-veto's dated auto-lapse."""
+    coverage-gap or cheap-flip in ≥2 of 5 — per the dated 2026-06-12 §5 amendment a flip COUNTS
+    only when the flipped name's |Δ iv/rv| ≥ GATE_FLIP_MATERIALITY_FLOOR; sub-floor flips stay
+    reported, an uncomputable delta counts fail-closed), and the disagree-veto's dated auto-lapse."""
     import statistics
 
     rows = _rows(conn, "SELECT run_id, symbol, feed, source, structured, iv_rv, cheap "
@@ -906,6 +911,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
         n = len(by_sym)
         deltas: list[float] = []
         flips: list[str] = []
+        material_flips: list[str] = []
         gaps: list[str] = []
         opra_ok = ind_ok = 0
         for sym, arms in sorted(by_sym.items()):
@@ -917,22 +923,27 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
             if i and i.get("structured") and (not o or not o.get("structured")):
                 gaps.append(sym)  # INDICATIVE structures, OPRA cannot — the §5 coverage gap
             if o and i and o.get("structured") and i.get("structured"):
+                d = None
                 if o.get("iv_rv") is not None and i.get("iv_rv") is not None:
-                    deltas.append(abs(o["iv_rv"] - i["iv_rv"]))
+                    d = abs(o["iv_rv"] - i["iv_rv"])
+                    deltas.append(d)
                 if int(o.get("cheap") or 0) != int(i.get("cheap") or 0):
                     flips.append(sym)
+                    # only a MEASURED-small disagreement is exempt from the wire
+                    if d is None or d >= GATE_FLIP_MATERIALITY_FLOOR:
+                        material_flips.append(sym)
         out_sessions.append({
             "run_id": rid, "names": n,
             "median_d_ivrv": round(statistics.median(deltas), 4) if deltas else None,
             "max_d_ivrv": round(max(deltas), 4) if deltas else None,
-            "flips": flips, "coverage_gaps": gaps,
+            "flips": flips, "material_flips": material_flips, "coverage_gaps": gaps,
             "opra_coverage": round(opra_ok / n, 3) if n else None,
             "indicative_coverage": round(ind_ok / n, 3) if n else None,
         })
     last5 = out_sessions[-5:]
     delta_breaches = sum(1 for s in last5
                          if (s["median_d_ivrv"] or 0) > 0.05 or (s["max_d_ivrv"] or 0) > 0.10)
-    flip_sessions = sum(1 for s in last5 if s["flips"])
+    flip_sessions = sum(1 for s in last5 if s["material_flips"])
     gap_sessions = sum(1 for s in last5 if s["coverage_gaps"])
     until = ((config or {}).get("data_feed", {}) or {}).get("dualread_disagree_veto_until")
     veto_active = None
@@ -950,6 +961,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
             "window": len(last5),
             "delta_breach_sessions": delta_breaches, "delta_tripped": delta_breaches >= 3,
             "flip_sessions": flip_sessions, "flip_tripped": flip_sessions >= 2,
+            "flip_floor": GATE_FLIP_MATERIALITY_FLOOR,
             "gap_sessions": gap_sessions, "gap_tripped": gap_sessions >= 2,
         },
         "disagree_veto": {"until": until, "active": veto_active},
