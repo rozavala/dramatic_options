@@ -379,7 +379,8 @@ def _render_scanning(snap) -> None:
         st.markdown("**OPRA gate dual-read** (gate-of-record = OPRA; INDICATIVE = the shadow arm — "
                     "veto-only, never authorizes)")
         st.caption(f"tripwires (rolling {tw['window']}): "
-                   f"Δiv/rv breaches={tw['delta_breach_sessions']} · flip sessions={tw['flip_sessions']} · "
+                   f"Δiv/rv breaches={tw['delta_breach_sessions']} · "
+                   f"material-flip sessions={tw['flip_sessions']} (Δ≥{tw.get('flip_floor')}) · "
                    f"gap sessions={tw['gap_sessions']} → "
                    f"{'⚠ TRIPPED — §5 fail-closed response' if tripped else 'clear'} · "
                    f"disagree-veto until {dr['disagree_veto']['until']} "

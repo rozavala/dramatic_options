@@ -69,6 +69,28 @@ Per L1 session, over the option-eligible universe (the swept population) + the e
 
 - **Thresholds:** |Δ iv/rv| median > 0.05 OR max > 0.10, sustained in ≥3 of a rolling 5 sessions;
   an OPRA coverage gap or a cheap-flip recurring on ≥2 distinct sessions in the rolling 5.
+- **Amendment 2026-06-12 (operator-authorized — merging this edit is the authorization act): a
+  cheap-flip COUNTS toward the tripwire only when the flipped name's same-session |Δ iv/rv| ≥ 0.02**
+  (the flip-materiality floor). Sub-floor flips are still REPORTED per session (`flips` vs
+  `material_flips` in `gate_dualread_report` — the close-out review sees every flip; they just
+  don't trip the wire); a flip whose delta is UNCOMPUTABLE (either arm's iv_rv missing) counts
+  fail-closed. *Rationale (instrument correctness, never throughput):* the counter as originally
+  pinned thresholded a continuous agreement — a name PARKED at the 1.20 line flips arms on noise
+  indefinitely (NOC across soak sessions #130/#147: all four reads within 1.1915–1.2021,
+  |Δ| ≤ 0.0091, flip direction REVERSED between sessions — a biased feed flips one way; IRDM left
+  the boundary and stopped flipping), so the wire measured "the universe contains a boundary-parked
+  name," not feed divergence — and once tripped it SATURATES (under coin-flip recurrence, 2-of-5
+  stays tripped indefinitely), carrying zero further information for the close-out review it
+  feeds. The 0.02 floor restores the wire to its purpose: it fires only when the feeds MATERIALLY
+  disagree on the flipped name (0.02 = the GEV-scale genuine read gap from the 2026-06-09 probe;
+  well under the 0.05/0.10 distribution thresholds, which are UNCHANGED — as are the coverage-gap
+  wire, `veto-feed-entitlement`, and the inline `veto-dualread-disagree`, so entry-time protection
+  on ANY arm-disagreeing evaluated name is untouched and capital never rides this noise).
+  **DISCLOSURE:** this floor was set AFTER the flip wire fired (two sessions of data) and
+  RECLASSIFIES soak sessions #130/#147 to clean (observed flips NOC×2 / IRDM×1, all |Δ| ≤ 0.0132 —
+  all sub-floor), un-blocking the PR-B sequencing (CGS §6) — the named beneficiary. The defense
+  rests on the instrument-correctness rationale above. Future changes to this floor are again
+  dated operator edits.
 - **Fail-closed responses (pre-committed):**
   1. An arm-disagreeing EVALUATED name (the two feeds disagree on `cheap` at decision time) →
      **`veto-dualread-disagree`** — no entry on that name pending investigation. This rule

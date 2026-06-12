@@ -192,8 +192,37 @@ def test_gate_dualread_report_hand_checked(convexity_db):
     assert s["names"] == 3
     assert s["median_d_ivrv"] == 0.045 and s["max_d_ivrv"] == 0.08  # median(.08,.01), max
     assert s["flips"] == ["AAA"] and s["coverage_gaps"] == ["CCC"]
+    assert s["material_flips"] == ["AAA"]  # Δ .08 ≥ the 0.02 floor → counts
     assert s["opra_coverage"] == round(2 / 3, 3) and s["indicative_coverage"] == 1.0
     tw = rep["tripwires"]
     assert tw["flip_sessions"] == 1 and tw["gap_sessions"] == 1
     assert tw["delta_breach_sessions"] == 0 and not tw["delta_tripped"]  # .08 max ≤ .10, med .045 ≤ .05
     assert rep["disagree_veto"]["active"] is True
+
+
+def test_gate_dualread_flip_materiality_floor(convexity_db):
+    """§5 amendment 2026-06-12: a boundary-parked sub-floor flip is REPORTED but does not
+    count toward the wire; an uncomputable delta counts fail-closed."""
+    # Session 1: DDD flips with Δ .004 (the NOC shape — both arms straddle 1.20, agreeing
+    # continuous reads) → reported, NOT material, session does not count.
+    r1 = state.record_run(convexity_db, mode="TEST", equity=None, note="t1")
+    for r in [dict(symbol="DDD", feed="opra", structured=True, iv_rv=1.202, cheap=False),
+              dict(symbol="DDD", feed="indicative", structured=True, iv_rv=1.198, cheap=True)]:
+        state.record_gate_dualread(convexity_db, run_id=r1, as_of=AS_OF.isoformat(),
+                                   source="sweep", **r)
+    # Session 2: EEE flips with the OPRA iv_rv MISSING → delta uncomputable → counts (fail-closed).
+    r2 = state.record_run(convexity_db, mode="TEST", equity=None, note="t2")
+    for r in [dict(symbol="EEE", feed="opra", structured=True, iv_rv=None, cheap=False),
+              dict(symbol="EEE", feed="indicative", structured=True, iv_rv=1.10, cheap=True)]:
+        state.record_gate_dualread(convexity_db, run_id=r2, as_of=AS_OF.isoformat(),
+                                   source="sweep", **r)
+    rep = gate_dualread_report(convexity_db)
+    s1, s2 = rep["sessions"][-2], rep["sessions"][-1]
+    assert s1["flips"] == ["DDD"] and s1["material_flips"] == []
+    assert s1["median_d_ivrv"] == 0.004  # hand-checked: |1.202 - 1.198|
+    assert s2["flips"] == ["EEE"] and s2["material_flips"] == ["EEE"]
+    assert s2["median_d_ivrv"] is None  # no computable pair
+    tw = rep["tripwires"]
+    assert tw["flip_floor"] == 0.02
+    assert tw["flip_sessions"] == 1  # only the fail-closed EEE session counts
+    assert not tw["flip_tripped"]
