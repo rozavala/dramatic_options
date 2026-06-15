@@ -135,3 +135,29 @@ gev = next((p for p in proposals if p.symbol == "GEV"), None)
 if gev:
     print(f"\nGEV: conviction={gev.conviction} include={id(gev) in survivors} s/f={gev.structural_vs_fad}")
     print("  strategist_summary:", (gev.strategist_summary or "")[:300])
+
+# ── §9 OR-LEG DIAGNOSTIC (the band runs SENTINELS, so it can't see the hand-seed-only OR-leg) ──
+# Score FCX/NVDA as HAND-SEEDS through the corpus path: does FCX DELIBERATE via the OR-leg (vs the
+# pre-§9 $0-ungrounded-drop), and is there SPURIOUS dampening (the §0 filter fix — a real fundamentals
+# citation must not flag)? FCX is the OR-leg test (thin news); NVDA news-grounds regardless.
+print("\n=== §9 OR-LEG DIAGNOSTIC (hand-seeds FCX/NVDA — invisible to the 16-sentinel band) ===")
+if _fund is None:
+    print("  SKIPPED — no §9 corpus (no EDGAR_USER_AGENT)")
+else:
+    from datetime import timedelta  # noqa: E402
+
+    from data.news import NewsData  # noqa: E402
+    from themes import load_themes  # noqa: E402
+    _news_dep = NewsData(cache, client=client, fetch_start=as_of - timedelta(days=90), fetch_end=as_of)
+    _seeds = [t for t in load_themes(config.get("themes_path", "themes.json"))
+              if t.symbol in ("FCX", "NVDA")]
+    _hs = propose(_seeds, router=router, config=config, clock=clock, news=_news_dep,
+                  fundamentals=_fund, demo=False)
+    for p in _hs:
+        dropped = p.rationale.get("dropped")
+        deliberated = dropped is None or "strategist" in p.rationale
+        fund = p.rationale.get("fundamentals", {})
+        flagged = sum(int(ao.flagged_unsupported or 0) for ao in p.agent_outputs)
+        print(f"  {p.symbol}: conviction={p.conviction} DELIBERATED={deliberated} dropped={dropped} "
+              f"flagged_unsupported={flagged} fundamentals={fund}")
+    print("cost (incl. OR-leg diagnostic):", router.ledger.summary())
