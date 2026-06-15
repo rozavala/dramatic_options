@@ -26,6 +26,7 @@ def council_to_themes(
     config: dict,
     clock,
     news=None,
+    fundamentals=None,
     demo: bool = False,
     run_id: int | None = None,
     rng=None,
@@ -36,7 +37,7 @@ def council_to_themes(
     (the caller reports it).
     """
     proposals = propose(candidates, router=router, config=config, clock=clock,
-                        news=news, demo=demo, rng=rng)
+                        news=news, fundamentals=fundamentals, demo=demo, rng=rng)
     floor = config.get("council", {}).get("conviction_floor", "MODERATE")
     tradeable_ids = {id(p) for p in select_for_trade(proposals, floor=floor)}
     as_of_iso = clock.now().isoformat()
