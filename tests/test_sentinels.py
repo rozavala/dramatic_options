@@ -152,6 +152,48 @@ def test_union_truncation_drops_weakest_sentinel_not_handseed():
     assert syms == ["FCX", "RKLB", "AAA"]   # both hand-seed kept; weakest sentinel (BBB) dropped
 
 
+def test_union_dedup_same_bet_handseed_wins():
+    # SAME (symbol, direction) in both lists = a true duplicate → one entry, the HAND-SEED kept.
+    hand = [Theme("copper", "FCX", "bullish", "operator conviction")]
+    sents = [Theme("s_fcx", "FCX", "bullish", "", source="sentinel", sentinel_id=9)]
+    union = sentinels.union_candidates(hand, sents)
+    assert [t.symbol for t in union] == ["FCX"]
+    assert union[0].source == "hand-seed" and union[0].thesis == "operator conviction"
+
+
+def test_union_dedup_opposite_direction_both_kept():
+    # OPPOSITE directions of one name are DISTINCT bets (lineage identity = (symbol, direction)) → BOTH
+    # kept; hand-seed first. (symbol-only dedup would have wrongly dropped the bear.)
+    hand = [Theme("copper", "FCX", "bullish", "operator conviction")]
+    sents = [Theme("s_fcx", "FCX", "bearish", "", source="sentinel", sentinel_id=9)]
+    union = sentinels.union_candidates(hand, sents)
+    assert [(t.symbol, t.direction) for t in union] == [("FCX", "bullish"), ("FCX", "bearish")]
+
+
+def test_union_dedup_intra_list_two_directions_both_kept():
+    # No hand-seed; a symbol surfaced as a sentinel in two live directions → both kept (a symbol-only
+    # key would silently drop one directional bet with no hand-seed involved).
+    sents = [Theme("s_hi", "AAA", "bullish", "", source="sentinel", sentinel_id=1),
+             Theme("s_lo", "AAA", "bearish", "", source="sentinel", sentinel_id=2)]
+    union = sentinels.union_candidates([], sents)
+    assert [(t.symbol, t.direction) for t in union] == [("AAA", "bullish"), ("AAA", "bearish")]
+
+
+def test_union_dedup_case_insensitive():
+    hand = [Theme("copper", "fcx", "Bullish", "operator")]
+    sents = [Theme("s", "FCX", "bullish", "", source="sentinel", sentinel_id=3)]
+    assert len(sentinels.union_candidates(hand, sents)) == 1   # 'fcx'/'Bullish' == 'FCX'/'bullish'
+
+
+def test_union_no_overlap_is_byte_identical_concat():
+    # The common case (no collision) → identical to the old bare concatenation, order preserved.
+    hand = [Theme("copper", "FCX", "bullish", "op"), Theme("space", "RKLB", "bullish", "op")]
+    sents = [Theme("s", "AAA", "bullish", "", source="sentinel", sentinel_id=1),
+             Theme("s", "BBB", "bearish", "", source="sentinel", sentinel_id=2)]
+    union = sentinels.union_candidates(hand, sents)
+    assert union == hand + sents   # same objects, same order — no behavior change absent a collision
+
+
 def test_revalidate_dormants_dead_motion_keeps_event_origin(convexity_db, tmp_path):
     conn = convexity_db
     # a motion-origin sentinel that has since gone flat, and an event-origin one
