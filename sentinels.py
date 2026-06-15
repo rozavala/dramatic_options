@@ -79,9 +79,26 @@ def active_sentinel_candidates(conn) -> list[Theme]:
 
 
 def union_candidates(hand_seed: list[Theme], sentinel_themes: list[Theme]) -> list[Theme]:
-    """hand-seed FIRST (protected), then ranked sentinels. Truncation downstream
-    (``council.propose``'s ``[:max_candidates]``) then drops the weakest sentinel, not the newest."""
-    return list(hand_seed) + list(sentinel_themes)
+    """hand-seed FIRST (protected), then ranked sentinels, **DEDUPED on the lineage identity
+    ``(symbol, direction)``** (migration 0007 keys a sentinel lineage on `<SYMBOL>|<direction>`) —
+    first occurrence wins, so a hand-seed beats a sentinel of the SAME bet (FCX-bullish ⊕ FCX-bullish
+    → one, the hand-seed), while OPPOSITE-direction bets (FCX-bullish ⊕ FCX-bearish) are DISTINCT and
+    BOTH kept. Removes only a true duplicate (same symbol AND direction = same forward prediction); the
+    sentinel lineage stays in ``sentinel_candidates`` (still surfaced + reference-swept). Truncation
+    downstream (``council.propose``'s ``[:max_candidates]``) then drops the weakest sentinel, not the newest.
+
+    Single point of dedup for ALL THREE consumers (council, the brain-off shadow null, the no-gate 3A
+    null) — they stay aligned on the same deduped union. The per-name TRADE cap stays symbol-only by
+    design; whether the system should hold a bull AND a bear on one name is a separate, pre-registered
+    concentration question, deliberately not decided here."""
+    out: list[Theme] = []
+    seen: set[tuple[str, str]] = set()
+    for t in list(hand_seed) + list(sentinel_themes):
+        key = (t.symbol.upper(), str(t.direction).lower())
+        if key not in seen:
+            seen.add(key)
+            out.append(t)
+    return out
 
 
 def persist_discovery(
