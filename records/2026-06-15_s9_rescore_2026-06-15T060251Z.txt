@@ -1,0 +1,46 @@
+=== PREVIEWED THESIS-ONLY CONFIG (the exact prompts this run used) ===
+sha256/16 _COMMON: d96f18ebc865a384
+sha256/16 ADVERSARY_SYSTEM: dc3d21ca8f6444cb
+sha256/16 STRATEGIST_SYSTEM: ecbf363c9802289d
+_COMMON:
+ You are part of a disciplined options council that trades long-dated, far-OTM, defined-risk convexity on secular themes. You PROPOSE on THESIS ONLY; a deterministic IV/cheap-convexity gate DISPOSES on cheapness and can veto you — never judge whether vol or optionality is cheap or priced. A theme qualifies ONLY if ALL THREE hold: (1) STRUCTURAL — a real, durable driver, not a fad; (2) UNDER-NARRATED — not already the market's consensus story; a name at the center of a dominant, widely-covered narrative does not qualify however correct the thesis; (3) AT A GENUINE INFLECTION — the change is happening NOW: if the large move has already happened, the inflection is BEHIND the name and it does not qualify unless the evidence shows a NEW, distinct inflection. Reason only from the EVIDENCE provided. If the evidence lacks numeric content, return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH, EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else. 
+
+ADVERSARY_SYSTEM:
+ You are part of a disciplined options council that trades long-dated, far-OTM, defined-risk convexity on secular themes. You PROPOSE on THESIS ONLY; a deterministic IV/cheap-convexity gate DISPOSES on cheapness and can veto you — never judge whether vol or optionality is cheap or priced. A theme qualifies ONLY if ALL THREE hold: (1) STRUCTURAL — a real, durable driver, not a fad; (2) UNDER-NARRATED — not already the market's consensus story; a name at the center of a dominant, widely-covered narrative does not qualify however correct the thesis; (3) AT A GENUINE INFLECTION — the change is happening NOW: if the large move has already happened, the inflection is BEHIND the name and it does not qualify unless the evidence shows a NEW, distinct inflection. Reason only from the EVIDENCE provided. If the evidence lacks numeric content, return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH, EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else. ROLE: Devil's Advocate. You argue AGAINST the proposed direction — make the strongest honest case ON THESIS GROUNDS that the proposed trade is wrong: already consensus (the story is widely told), a fad (not structural), or not a genuine inflection (the move already happened / no fresh change). Never argue from option pricing or volatility — cheapness is the deterministic gate's job. JSON keys: counter_case (string, cite evidence), weakest_point (the single biggest hole in the proposal), is_fad (bool), already_consensus (bool), inflection_passed (bool — true if the move is behind the name), confidence (your confidence in the COUNTER case), cited (array). 
+
+STRATEGIST_SYSTEM:
+ You are part of a disciplined options council that trades long-dated, far-OTM, defined-risk convexity on secular themes. You PROPOSE on THESIS ONLY; a deterministic IV/cheap-convexity gate DISPOSES on cheapness and can veto you — never judge whether vol or optionality is cheap or priced. A theme qualifies ONLY if ALL THREE hold: (1) STRUCTURAL — a real, durable driver, not a fad; (2) UNDER-NARRATED — not already the market's consensus story; a name at the center of a dominant, widely-covered narrative does not qualify however correct the thesis; (3) AT A GENUINE INFLECTION — the change is happening NOW: if the large move has already happened, the inflection is BEHIND the name and it does not qualify unless the evidence shows a NEW, distinct inflection. Reason only from the EVIDENCE provided. If the evidence lacks numeric content, return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH, EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else. ROLE: Master Strategist. Weigh the FOR case against the AGAINST case and decide whether to propose this trade to the deterministic gates. Be a conviction dampener at extremes. The three criteria are HARD: you may set include=true ONLY if structural_vs_fad='structural' AND under_narrated=true AND at_inflection=true — each asserted on the evidence, not by default. JSON keys: include (bool), theme, symbol, direction ('bullish'|'bearish'), conviction, structural_vs_fad, under_narrated (bool), at_inflection (bool), weakest_point, summary (one or two sentences; this becomes the trade thesis). 
+
+models: {'proposer': 'gemini/gemini-3.5-flash', 'adversary': 'xai/grok-4.3', 'strategist': 'anthropic/claude-opus-4-8'}
+§9 corpus: fundamentals_v1 (wired)
+scoring 16 names (as_of 2026-06-15T06:02:52.542532+00:00) ...
+
+sym   dir   conv      incl  s/f        u_narr at_infl tri  mom/rvslope/rel | weakest_point
+NVDA  bulli NEUTRAL   False None       None   None    no   0.5813937184520472/0.31429355147203314/0.3328066229800699 | proposer abstained (NEUTRAL)
+SMCI  beari NEUTRAL   False structural False  False   no   -0.25943068734089336/0.7190962199380257/-0.5080177828128707 | Fundamentals are accelerating (revenue qtr_yoy +122.7%, acce
+VRT   bulli NEUTRAL   False None       None   None    no   2.3497238069365207/-0.023737542018771658/2.1011367114645436 | proposer abstained (NEUTRAL)
+ETN   bulli NEUTRAL   False structural False  False   no   0.2601882819274124/0.39960111994528724/0.011601186455435064 | RPO growth evidence is stale (2024-03-31) while all other fu
+GEV   bulli LOW       False structural False  False   no   1.2026284695590883/-0.05643952331424466/0.954041374087111 | GEV's RPO already +32.3% YoY at $163B, capex +113.4%, moment
+CEG   beari NEUTRAL   False None       None   None    no   -0.05573522328493785/0.12780574129660055/-0.3043223187569152 | proposer abstained (NEUTRAL)
+CCJ   bulli NEUTRAL   False None       None   None    no   0.7425249169435217/0.14311873892869414/0.4939378214715444 | proposer abstained (NEUTRAL)
+FCX   bulli NEUTRAL   False structural False  False   no   0.6595008648381517/0.2518935251947717/0.4109137693661744 | Strong momentum (+0.660) and rel_strength (+0.411) indicate 
+NEE   bulli LOW       False structural False  False   no   0.3271317829457363/0.24188966278823565/0.07854468747375898 | No evidence of a new, distinct power-demand inflection now; 
+PWR   bulli LOW       False structural False  False   no   1.1767949583614676/0.2328554828489563/0.9282078628894903 | PWR's grid/power-for-AI role is now a mainstream picks-and-s
+RKLB  bulli NEUTRAL   False structural False  False   no   3.5376461988304095/0.1952499323022144/3.289059103358432 | Extreme momentum (+3.538), relative strength (+3.289), and >
+LMT   bulli NEUTRAL   False structural False  False   no   0.16182721936078792/-0.09724634808104698/-0.0867598761111894 | RPO +7.8% and capex +12.6% are incremental and consistent wi
+NOC   bulli NEUTRAL   False structural False  False   no   0.1423521583631373/-0.031511742899851036/-0.10623493710884002 | Revenue acceleration figures are from 2018 filings; current 
+LHX   bulli NEUTRAL   False structural False  False   no   0.25118444362048375/0.031538498606609434/0.0025973481485064287 | Revenue evidence is stale 2018 data mixed with a single 2026
+RTX   bulli NEUTRAL   False structural False  False   no   0.2706497600114621/0.25024855895610243/0.0220626645394848 | RTX is explicitly central to the dominant, widely-covered de
+KTOS  bulli NEUTRAL   False structural True   False   no   0.2992574257425744/0.12899514717173644/0.050670330270597086 | RPO +33.4% and steady +22% revenue growth reflect execution 
+
+=== RESULT: 0 of 16 survive the ENFORCED rule (include ∧ >=MODERATE ∧ tri-criteria) -> 0=SCARCITY (proceed on principle, no trade) ===
+(raw include∧>=MODERATE before enforcement: 0; criteria-vetoes: 0)
+cost: Council cost ledger: 40 calls, $0.2665 (cap $5.00) — anthropic/claude-opus-4-8 $0.1750, gemini/gemini-3.5-flash $0.0688, xai/grok-4.3 $0.0227
+
+GEV: conviction=LOW include=False s/f=structural
+  strategist_summary: GE Vernova's AI-power infrastructure thesis is structurally real but already the market's consensus narrative, with the large move (backlog, capex, momentum) behind the name rather than at a fresh inflection — fails under_narrated and at_inflection.
+
+=== §9 OR-LEG DIAGNOSTIC (hand-seeds FCX/NVDA — invisible to the 16-sentinel band) ===
+  FCX: conviction=NEUTRAL DELIBERATED=True dropped=None flagged_unsupported=2 fundamentals={'n_lines': 5, 'status': 'ok', 'origin': 'hand-seed'}
+  NVDA: conviction=NEUTRAL DELIBERATED=False dropped=proposer abstained (NEUTRAL) flagged_unsupported=0 fundamentals={'n_lines': 6, 'status': 'ok', 'origin': 'hand-seed'}
+cost (incl. OR-leg diagnostic): Council cost ledger: 44 calls, $0.2910 (cap $5.00) — anthropic/claude-opus-4-8 $0.1895, gemini/gemini-3.5-flash $0.0770, xai/grok-4.3 $0.0245
