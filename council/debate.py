@@ -43,11 +43,22 @@ def _model_mix(router) -> dict:
     return mix
 
 
-def _neutral_proposal(candidate: Theme, *, reason: str, agent_outputs, model_mix, cost_usd) -> CouncilProposal:
+def _fundamentals_telemetry(pack) -> dict:
+    """§9 §5d fill telemetry that rides the proposal rationale on EVERY path (incl. early-exit, so
+    an empty-corpus OR-leg MISS is visible to the grader). origin lets the grader split OR-leg
+    health (hand-seed) from sentinel enrichment coverage."""
+    return {"n_lines": len(getattr(pack, "fundamentals", []) or []),
+            "status": getattr(pack, "fundamentals_status", None) or "empty",
+            "origin": getattr(pack, "origin", "hand-seed")}
+
+
+def _neutral_proposal(candidate: Theme, pack, *, reason: str, agent_outputs, model_mix, cost_usd
+                      ) -> CouncilProposal:
     return CouncilProposal(
         theme=candidate.name, symbol=candidate.symbol, direction=candidate.direction,
         conviction="NEUTRAL", structural_vs_fad=None, weakest_point=reason,
-        strategist_summary=f"dropped: {reason}", rationale={"dropped": reason},
+        strategist_summary=f"dropped: {reason}",
+        rationale={"dropped": reason, "fundamentals": _fundamentals_telemetry(pack)},
         agent_outputs=agent_outputs, cost_usd=cost_usd, model_mix=model_mix, include=False,
         sentinel_id=candidate.sentinel_id,
     )
@@ -64,7 +75,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
 
     # Early exit (no LLM spend): ungrounded evidence → NEUTRAL drop (SPEC §5).
     if not pack.grounded:
-        return _neutral_proposal(candidate, reason="ungrounded (no numeric evidence)",
+        return _neutral_proposal(candidate, pack, reason="ungrounded (no numeric evidence)",
                                  agent_outputs=[], model_mix=mix, cost_usd=0.0)
 
     # 1. Proposer — argues FOR the candidate's direction.
@@ -78,7 +89,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
         None, praw, flagged_unsupported=pfr.flagged, cost_usd=presp.cost_usd,
     )
     if pconf == "NEUTRAL":  # proposer abstained → drop without spending on adversary/strategist
-        return _neutral_proposal(candidate, reason="proposer abstained (NEUTRAL)",
+        return _neutral_proposal(candidate, pack, reason="proposer abstained (NEUTRAL)",
                                  agent_outputs=[proposer_ao], model_mix=mix, cost_usd=presp.cost_usd)
 
     # 2. Adversary — argues AGAINST the proposed direction (direction-relative).
@@ -150,6 +161,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
                            "under_narrated": sraw.get("under_narrated"),
                            "at_inflection": sraw.get("at_inflection"),
                            "criteria_veto": bool(sraw.get("criteria_veto", False))},
+            "fundamentals": _fundamentals_telemetry(pack),
         },
         agent_outputs=[proposer_ao, adversary_ao, strategist_ao],
         cost_usd=total_cost,

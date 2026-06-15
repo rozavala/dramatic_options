@@ -24,6 +24,7 @@ To grade the LIVE box from a worktree, pass a read-only connection to the live D
 from __future__ import annotations
 
 import json
+import statistics
 
 import state
 from council.proposal import CONVICTION_LEVELS, normalize_conviction, passes_floor
@@ -44,6 +45,40 @@ def _is_parse_error(raw) -> bool:
         return bool(json.loads(raw).get("parse_error")) if isinstance(raw, str) else bool(raw.get("parse_error"))
     except Exception:  # noqa: BLE001 — non-JSON raw can't be a structured parse_error
         return '"parse_error": true' in str(raw)
+
+
+def _fundamentals_telemetry(rationale) -> dict | None:
+    """Pull the §9 fill telemetry ({n_lines, status, origin}) that rides every proposal's rationale."""
+    if not rationale:
+        return None
+    try:
+        d = json.loads(rationale) if isinstance(rationale, str) else rationale
+        f = d.get("fundamentals")
+        return f if isinstance(f, dict) else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _fundamentals_summary(props) -> dict:
+    """§9 §5d: per-run fill health SPLIT BY ORIGIN — a hand-seed median near 0 = a SEC outage
+    starving the OR-leg (real); a sentinel median near 0 = thin sentinel corpus (cosmetic — they're
+    markers-grounded regardless). Pooled, those are indistinguishable; split, the OR-leg-band miss
+    is interpretable."""
+    buckets: dict[str, dict] = {}
+    for p in props:
+        f = _fundamentals_telemetry(p["rationale"])
+        if not f:
+            continue
+        b = buckets.setdefault(str(f.get("origin", "hand-seed")),
+                               {"lines": [], "ok": 0, "partial": 0, "empty": 0})
+        b["lines"].append(int(f.get("n_lines", 0) or 0))
+        st = str(f.get("status") or "empty")
+        if st in ("ok", "partial", "empty"):
+            b[st] += 1
+    return {o: {"n": len(b["lines"]),
+                "median_lines": statistics.median(b["lines"]) if b["lines"] else None,
+                "ok": b["ok"], "partial": b["partial"], "empty": b["empty"]}
+            for o, b in buckets.items()}
 
 
 def _is_criteria_veto(raw) -> bool:
@@ -73,7 +108,8 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str = "MODERATE
     parse = state.council_parse_health(conn, run_id)
 
     props = conn.execute(
-        "SELECT id, symbol, direction, conviction FROM council_proposals WHERE run_id = ?", (run_id,)
+        "SELECT id, symbol, direction, conviction, rationale FROM council_proposals WHERE run_id = ?",
+        (run_id,)
     ).fetchall()
     aos = conn.execute(
         "SELECT ao.proposal_id, ao.role, ao.confidence, ao.stance, ao.cost_usd, ao.raw "
@@ -130,6 +166,7 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str = "MODERATE
                       "strategist_criteria_vetoed": strat_criteria_vetoed,
                       "any_role_parse_error": any_parse_error},
         "cost_usd": cost, "cost_by_role": {r: round(c, 6) for r, c in cost_by_role.items()},
+        "fundamentals": _fundamentals_summary(props),
         "notes": [
             "NO-ENTRY is HEALTHY — this grades parseable DELIBERATION, not a booked position.",
             "ROUNDTRIP_CONFIRMED on one L1 is necessary, not sufficient — the window needs >=2 clean L1s.",

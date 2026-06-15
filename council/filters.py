@@ -61,8 +61,13 @@ def dampen(confidence: str, levels: int = 1) -> str:
 
 
 def evidence_text(pack) -> str:
-    """The grounding corpus an agent's claims are checked against."""
-    return " ".join([pack.operator_thesis or "", *pack.headlines])
+    """The grounding corpus an agent's claims are checked against: the operator thesis + headlines
+    + the §9 corpus numeric tokens (the formatted values + $M/margin figures + the trailing news
+    counts — NOT the dates). Without the §9 tokens, every figure an agent quotes from the
+    FUNDAMENTALS block — exactly the citations the corpus exists to enable — would flag as
+    unsupported and dampen conviction (worst on the thin-news hand-seeds §9 targets)."""
+    from council.context import fundamental_evidence_tokens
+    return " ".join([pack.operator_thesis or "", *pack.headlines, *fundamental_evidence_tokens(pack)])
 
 
 def apply_filter(texts: list[str], pack, *, confidence: str) -> tuple[str, FilterResult]:
