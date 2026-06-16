@@ -97,11 +97,26 @@ def latest_council_run(conn) -> int | None:
     return int(row["r"]) if row and row["r"] is not None else None
 
 
-def council_l1_health(conn, *, run_id: int | None = None, floor: str = "MODERATE", page_rate: float = 0.5) -> dict:
-    """Grade one council run against the checklist. ``run_id`` defaults to the latest council run."""
+def _config_floor() -> str:
+    """The live conviction floor (config-driven; mirrors the gate + dashboard funnel). Fail-soft to MODERATE."""
+    try:
+        from config_loader import load_config
+        return (load_config().get("council", {}) or {}).get("conviction_floor", "MODERATE")
+    except Exception:  # noqa: BLE001 — a config-read hiccup must never crash the read-only grader
+        return "MODERATE"
+
+
+def council_l1_health(conn, *, run_id: int | None = None, floor: str | None = None, page_rate: float = 0.5) -> dict:
+    """Grade one council run against the checklist. ``run_id`` defaults to the latest council run.
+
+    ``floor`` defaults to config ``council.conviction_floor`` (NOT a hardcoded MODERATE) so the grade can
+    never silently diverge from the gate/dashboard funnel if the mandate floor is ever retightened (#37 class).
+    """
     run_id = run_id if run_id is not None else latest_council_run(conn)
     if run_id is None:
         return {"run_id": None, "verdict": "NO_COUNCIL", "notes": ["no council run recorded"]}
+    if floor is None:
+        floor = _config_floor()
 
     hr = conn.execute("SELECT council_health FROM runs WHERE id = ?", (run_id,)).fetchone()
     council_health = hr["council_health"] if hr else None
