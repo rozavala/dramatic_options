@@ -69,6 +69,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "nulls": dd.safe(dd.null_hierarchy, conn),
             "attribution": dd.safe(dd.attribution_panel, conn, config),
             "funnel": dd.safe(dd.funnel_panel, conn),
+            "council_stage": dd.safe(dd.council_stage_funnel, conn, config),
             "gate_reasons": dd.safe(dd.gate_reasons, conn),
             "cap_flow": dd.safe(dd.cap_binding_flow, conn),
             "cost": dd.safe(dd.cost_ledger, conn),
@@ -362,6 +363,32 @@ def _render_funnel(snap) -> None:
             st.caption("by veto stage: " + " · ".join(f"{k}={v}" for k, v in d["by_decision"].items()))
         st.caption(f"L0 discovery (run #{fn['l0_discovery'].get('run_id')}): "
                    f"surfaced {fn['l0_discovery'].get('surfaced')} · controls {fn['l0_discovery'].get('controls')}")
+
+    cs = snap.get("council_stage")
+    if _show(cs, "council stage") and not cs.get("empty"):
+        s, legs, br = cs["stages"], cs["legs"], cs["bridge"]
+        st.markdown(f"**Council stage — where the debate stops** (run #{cs.get('run_id')}, floor {cs.get('floor')})")
+        st.caption(
+            f"proposed {s['proposed']} → asserted {s['asserted']} "
+            f"(ungrounded {s['ungrounded']} · abstained {s['proposer_abstained']} · other {s['other']}) → "
+            f"include-raw {s['strategist_include_raw']} → (criteria-veto {s['criteria_vetoed']}) → "
+            f"(below-floor {s['below_floor']}) → **to-gate {s['to_gate']}**  ·  evaluated ≤ to-gate "
+            f"(the gap = survivors a post-council close / kill-halt didn't reach)")
+        n = legs["n_deliberated"]
+        if n:
+            cc = st.columns(3)
+            cc[0].metric("structural", f"{legs['structural']}/{n}")
+            cc[1].metric("under-narrated", f"{legs['under_narrated']}/{n}")
+            cc[2].metric("at-inflection", f"{legs['at_inflection']}/{n}",
+                         help="The tri-criteria each name must assert to be included. The lowest pass-rate is "
+                              "the binding leg — but legs are independent, so it's an upper bound on the joint "
+                              "pass-rate, not 'fix this one and trades unlock'.")
+        st.caption("`abstained` includes proposer parse-failures — see the council-health panel.")
+        if not br["ok"]:
+            st.warning(f"reconstruction self-check FAILED: to_gate {br['to_gate']} ≠ survivors-by-status "
+                       f"{br['survivors_by_status']} (a council_stage_funnel bug — inspect the rationale shape)")
+    elif isinstance(cs, dict) and cs.get("empty"):
+        st.caption("Council-stage breakout: no council run yet.")
 
     delib = snap["deliberation"]
     if isinstance(delib, dict) and delib.get("error"):
