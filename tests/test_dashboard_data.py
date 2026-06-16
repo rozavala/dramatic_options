@@ -288,6 +288,82 @@ def test_funnel_exact(convexity_db):
     assert f["wasted_llm_spend"] == 2  # the iv-gate + eligibility vetoes that had a proposal
 
 
+def _seed_council_stage_run(conn):
+    """8 proposals covering every stage + BOTH status arms of the bridge (the SOLE proof — #182 has these
+    stages at 0). Returns the run_id."""
+    rid = state.record_run(conn, mode="PAPER", equity=None)
+    a = "2026-06-16T00:00:00+00:00"
+
+    def prop(sym, conv, sf, rat, status):
+        state.record_council_proposal(conn, run_id=rid, as_of=a, theme="t", symbol=sym, direction="bullish",
+                                      conviction=conv, structural_vs_fad=sf, rationale=rat, status=status)
+
+    def strat(include, un, at, veto):
+        return {"strategist": {"include": include, "under_narrated": un, "at_inflection": at,
+                               "criteria_veto": veto}}
+    prop("UNGR", "NEUTRAL", None, {"dropped": "ungrounded (no numeric evidence)"}, "dropped")
+    prop("ABST", "NEUTRAL", None, {"dropped": "proposer abstained (NEUTRAL)"}, "dropped")
+    prop("DLOW", "LOW", "structural", strat(False, True, False, False), "dropped")     # under_narrated T
+    prop("DFAD", "LOW", "fad", strat(False, False, False, False), "dropped")           # structural=fad
+    prop("TRAD", "MODERATE", "structural", strat(True, True, True, False), "traded")   # bridge: traded arm
+    prop("PROP", "MODERATE", "structural", strat(True, True, True, False), "proposed") # bridge: proposed arm (gate-vetoed)
+    prop("VETO", "HIGH", "structural", strat(False, True, False, True), "dropped")     # criteria-veto (production shape)
+    prop("BFLR", "LOW", "structural", strat(True, True, True, False), "dropped")       # include∧LOW → below-floor
+    return rid
+
+
+def test_council_stage_funnel_exact(convexity_db):
+    _seed_council_stage_run(convexity_db)
+    r = dd.council_stage_funnel(convexity_db, {"council": {"conviction_floor": "MODERATE"}})
+    assert r["empty"] is False and r["floor"] == "MODERATE"
+    assert r["stages"] == {"proposed": 8, "asserted": 6, "ungrounded": 1, "proposer_abstained": 1,
+                           "other": 0, "strategist_include_raw": 4, "criteria_vetoed": 1,
+                           "post_veto_include": 3, "below_floor": 1, "to_gate": 2}
+    assert r["bridge"] == {"to_gate": 2, "survivors_by_status": 2, "ok": True}  # BOTH arms (traded+proposed)
+    assert r["legs"] == {"n_deliberated": 6, "structural": 5, "under_narrated": 5, "at_inflection": 3}
+
+
+def test_council_stage_funnel_tracks_config_floor(convexity_db):
+    _seed_council_stage_run(convexity_db)
+    r = dd.council_stage_funnel(convexity_db, {"council": {"conviction_floor": "HIGH"}})
+    # all three post-veto includes (2×MODERATE + 1×LOW) are now below the HIGH floor → 0 to gate.
+    assert r["stages"]["below_floor"] == 3 and r["stages"]["to_gate"] == 0
+
+
+def test_council_stage_funnel_empty(convexity_db):
+    assert dd.council_stage_funnel(convexity_db, {"council": {}}) == {"run_id": None, "empty": True}
+
+
+def test_council_stage_funnel_malformed_rationale_is_failsoft(convexity_db):
+    rid = state.record_run(convexity_db, mode="PAPER", equity=None)
+    state.record_council_proposal(convexity_db, run_id=rid, as_of="t", theme="t", symbol="X",
+                                  direction="bullish", conviction="LOW", rationale="not json{", status="dropped")
+    r = dd.council_stage_funnel(convexity_db, {"council": {}})  # must NOT raise
+    assert r["stages"]["proposed"] == 1 and r["stages"]["other"] == 1  # malformed → counted as 'other'
+
+
+def test_council_drop_string_contract_via_run_candidate():
+    # The two drop literals the breakout keys on ORIGINATE in run_candidate (not _neutral_proposal) —
+    # drive both early-exit paths so a reword can't silently re-bucket drops to 'other'.
+    import json as _json
+    import random
+
+    from council.context import ContextPack, synthetic_context_pack
+    from council.debate import run_candidate
+    from council.router import FakeRouter
+    from themes import Theme
+    cand = Theme("t", "X", "bullish", "thesis")
+    ungrounded = ContextPack("X", "t", "bullish", "thesis")  # coverage 0, has_numeric False → not grounded
+    p1 = run_candidate(cand, ungrounded, FakeRouter(), rng=random.Random(0))
+    assert p1.rationale["dropped"] == "ungrounded (no numeric evidence)"
+
+    def _neutral_proposer(role, system, user):
+        return _json.dumps({"confidence": "NEUTRAL", "inflection_thesis": "x"})
+    p2 = run_candidate(cand, synthetic_context_pack(cand), FakeRouter(responder=_neutral_proposer),
+                       rng=random.Random(0))
+    assert p2.rationale["dropped"] == "proposer abstained (NEUTRAL)"
+
+
 def test_gate_reasons_failclosed_vs_real(convexity_db):
     _common = dict(run_id=None, as_of="2026-06-01T00:00:00+00:00", theme="ai_compute", direction="bullish")
     state.record_convexity_eval(convexity_db, symbol="VRT", decision="veto-iv-gate", iv_rv=None, **_common)  # fail-closed

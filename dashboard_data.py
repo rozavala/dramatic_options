@@ -36,8 +36,9 @@ import clusters
 import fixed_basket
 import shadow_book
 import state
+from council.proposal import passes_floor
 from council.scoring import agent_contribution
-from council_health_report import council_l1_health
+from council_health_report import council_l1_health, latest_council_run
 
 SCHEMA_EXPECTED = 12
 # Staleness thresholds (hours) — documented, generous enough to not false-alarm over a normal weekend/holiday.
@@ -630,6 +631,87 @@ def funnel_panel(conn, *, run_id: int | None = None) -> dict:
                         "by_decision": decisions, "opened": opened, "wasted_llm_spend": wasted_llm,
                         "veto_order": list(_VETO_ORDER)},
         "l0_discovery": discovery,
+    }
+
+
+def _rationale(raw) -> dict:
+    """Parse a council_proposals.rationale JSON cell → dict, fail-soft ({} on any error — never raises)."""
+    if not raw:
+        return {}
+    try:
+        d = json.loads(raw) if isinstance(raw, str) else raw
+        return d if isinstance(d, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def council_stage_funnel(conn, config: dict, *, run_id: int | None = None) -> dict:
+    """The COUNCIL-STAGE breakout — where INSIDE the 3-role debate names die (upstream of
+    ``funnel_panel``'s deterministic-gate funnel; the binding constraint on a first entry). Reconstructs
+    the PRE-coercion include: ``debate.run_candidate`` mutates the strategist dict in place so a
+    criteria-veto persists as ``include=False ∧ criteria_veto=True`` — so the veto + floor are real,
+    visible stages. Anchored on the latest COUNCIL run (NOT ``convexity_eval`` — an L2 run has no
+    proposals). Read-only; never raises.
+
+    The tri-criteria LEGS are mixed-source by design: the structural leg reads the RESOLVED
+    ``structural_vs_fad`` COLUMN (matches the §10.7 enforcement's strategist-or-proposer fallback);
+    ``under_narrated``/``at_inflection`` read the rationale JSON (no columns exist). Legs are counted
+    OVER the deliberated set only (the booleans are meaningless on a pre-strategist drop)."""
+    if run_id is None:
+        run_id = latest_council_run(conn)
+    if run_id is None:
+        return {"run_id": None, "empty": True}
+    floor = (config.get("council", {}) or {}).get("conviction_floor", "MODERATE")
+    rows = _rows(conn, "SELECT conviction, structural_vs_fad, status, rationale "
+                       "FROM council_proposals WHERE run_id=?", (run_id,))
+    proposed = len(rows)
+    ungrounded = abstained = asserted = 0
+    include_raw = criteria_vetoed = post_veto_include = below_floor = to_gate = 0
+    structural = under_narrated = at_inflection = 0
+    for r in rows:
+        rat = _rationale(r["rationale"])
+        strat = rat.get("strategist")
+        if isinstance(strat, dict):                     # reached the strategist (deliberated)
+            asserted += 1
+            inc = strat.get("include") is True
+            veto = strat.get("criteria_veto") is True
+            if inc or veto:
+                include_raw += 1                        # the PRE-coercion include
+            if veto:
+                criteria_vetoed += 1
+            if inc:
+                post_veto_include += 1
+                if passes_floor(r["conviction"], floor):
+                    to_gate += 1
+                else:
+                    below_floor += 1
+            if str(r["structural_vs_fad"]) == "structural":
+                structural += 1
+            if strat.get("under_narrated") is True:
+                under_narrated += 1
+            if strat.get("at_inflection") is True:
+                at_inflection += 1
+        elif rat.get("dropped") == "ungrounded (no numeric evidence)":
+            ungrounded += 1
+        elif rat.get("dropped") == "proposer abstained (NEUTRAL)":
+            abstained += 1
+    other = proposed - asserted - ungrounded - abstained
+    # The TRUE consistency bridge (a self-check on the reconstruction): the reconstructed survivors must
+    # equal the status-recorded survivors (both from the SAME select_for_trade call in wiring.py),
+    # independent of whether the cycle ran. NOT to_gate==evaluated (that breaks on a post-council close).
+    survivors_by_status = int(_scalar(
+        conn, "SELECT COUNT(*) FROM council_proposals WHERE run_id=? AND status IN ('proposed','traded')",
+        (run_id,)) or 0)
+    return {
+        "run_id": run_id, "empty": False, "floor": floor,
+        "stages": {"proposed": proposed, "asserted": asserted, "ungrounded": ungrounded,
+                   "proposer_abstained": abstained, "other": other,
+                   "strategist_include_raw": include_raw, "criteria_vetoed": criteria_vetoed,
+                   "post_veto_include": post_veto_include, "below_floor": below_floor, "to_gate": to_gate},
+        "bridge": {"to_gate": to_gate, "survivors_by_status": survivors_by_status,
+                   "ok": to_gate == survivors_by_status},
+        "legs": {"n_deliberated": asserted, "structural": structural,
+                 "under_narrated": under_narrated, "at_inflection": at_inflection},
     }
 
 
