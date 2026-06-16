@@ -95,6 +95,23 @@ def test_l1_health_roundtrip_confirmed(convexity_db):
     assert rep["cost_usd"] > 0 and rep["cost_by_role"]["strategist"] > 0 and rep["council_health"] == "ok"
 
 
+def test_l1_health_floor_is_config_driven(convexity_db, monkeypatch):
+    # The grade's conviction floor must track config.council.conviction_floor (NOT a hardcoded MODERATE), so a
+    # future mandate retighten can't silently desync the L1 grade from the gate/dashboard funnel (#37 class).
+    import config_loader
+    rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
+    state.update_run_council_health(convexity_db, rid, council_health="ok")
+    _roundtrip(convexity_db, rid, "SMCI", "bearish", adv_stance="bullish", strat_conv="MODERATE")
+
+    monkeypatch.setattr(config_loader, "load_config", lambda: {"council": {"conviction_floor": "MODERATE"}})
+    assert council_l1_health(convexity_db, run_id=rid)["proposer"]["above_floor_proposals"] == 1
+    # retighten the floor to HIGH → the same MODERATE proposal falls below it, with NO caller change
+    monkeypatch.setattr(config_loader, "load_config", lambda: {"council": {"conviction_floor": "HIGH"}})
+    assert council_l1_health(convexity_db, run_id=rid)["proposer"]["above_floor_proposals"] == 0
+    # an explicit floor arg still wins over config
+    assert council_l1_health(convexity_db, run_id=rid, floor="LOW")["proposer"]["above_floor_proposals"] == 1
+
+
 def test_l1_health_confirmed_with_criteria_veto_surfaced(convexity_db):
     # A §10.7 criteria-veto is a DELIBERATED outcome (valid conviction, no parse_error): the
     # round-trip stays CONFIRMED and the veto is SURFACED (anomalous-but-non-degrading — the
