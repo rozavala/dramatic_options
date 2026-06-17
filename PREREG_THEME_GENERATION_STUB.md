@@ -76,6 +76,12 @@ is a **synthesis device over pinned deterministic inputs**, never a memory devic
 
 ## Dated open questions (answers belong to the future pre-reg, not to improvisation)
 
+> **Update 2026-06-17:** Q1 (register unit), Q2 (field set), and Q5 (calibration-set construction +
+> onset procedure) — plus the separation criterion and freeze-gate bands — are PINNED in
+> `PREREG_NARRATION_PROBE.md` Part A (the cold calibration freeze; DRAFT for operator review). Q4's
+> threshold number is deferred to that doc's Part B (a dated blind run on known cutoff-straddling
+> themes); Q3 (demote rule / dormancy write-path) remains deferred.
+
 1. **Register unit:** mechanism claim (probed/demoted/provenance unit; cluster hints attach
    naturally) vs theme (grouping metadata) — leaning mechanism-claim, with the calibration set
    built at the SAME granularity as the pinned schema (a theme-level threshold doesn't transfer).
