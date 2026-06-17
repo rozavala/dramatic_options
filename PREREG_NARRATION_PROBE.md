@@ -1,11 +1,10 @@
 # PREREG — the narration probe (Stage-2 of the theme-generation layer)
 
-**Status: DRAFT for operator review (rev 6, 2026-06-17). FREEZE-READY — FREEZES ON MERGE** (rev-6
-authored the two §6 smoke-test exemplars as concrete claim objects — the one §10 item that was real
-work, not a rubber-stamp — and de-placeholdered §7; folded two forward notes [the §4 classifier-bar
-pin-blind discipline, the §3 schema-contract scope]. **The only genuinely-open items are the operator's
-two blind confirms: the §5 `high-overlap` cutoff (0.80 proposed) and the §7 rejection band + N-floor
-(~15–35% / ≥20 proposed).**) rev-5 landed the two P2 pins + P3 folds + the row-level PR-B verification.
+**Status: FROZEN by the merge of this PR (2026-06-17).** The operator set the two blind values to the
+proposed: **§5 `high-overlap` cutoff = 0.80**; **§7 expected rejection ~15–35% with a ≥20-generated-claim
+N-floor on "0% = inert".** rev-6 authored the two §6 smoke-test exemplars as concrete claim objects +
+de-placeholdered §7 + folded two forward notes (the §4 classifier-bar pin-blind discipline, the §3
+schema-contract scope); rev-5 landed the two P2 pins + P3 folds + the row-level PR-B verification.
 rev-4 was the
 **feasibility-check pivot**: the mandated pre-merge feasibility check (live model-availability + a
 GDELT onset enumeration) found the cutoff-straddle calibration is **not constructible for the deploy
@@ -281,16 +280,16 @@ nothing is orphaned); the per-model cutoff table; the separation criterion + val
 
 ---
 
-## 10. Must-land-before-merge (the SHRUNK confirm-set; all pinned BLIND)
+## 10. Confirm-set — ALL FROZEN at merge (was: must-land-before-merge)
 
-- [ ] **§4** field weights (0.40/0.30/0.30) + quantity buckets.
-- [ ] **§5** the fiat threshold: the RULE (all-three-high ∧ ≥2-concur) + the `high-overlap` cutoff
-  value (**0.80** proposed — **operator's blind call**) + the empty/absent-field ⇒ no-reject unit test.
+- [x] **§4** field weights **0.40/0.30/0.30** + quantity buckets — FROZEN.
+- [x] **§5** the fiat threshold: the RULE (all-three-high ∧ ≥2-concur) + the `high-overlap` cutoff
+  value **0.80** + the empty/absent-field ⇒ no-reject unit test — FROZEN (operator set 0.80).
 - [x] **§6** the smoke-test exemplars — AUTHORED as concrete claim objects (`smoke_narrated_nvda` +
   the fictional `smoke_obscure_invented`); the required CI unit test asserts A→high / B→low.
-- [ ] **§7** the rejection-rate band (**~15–35% expected; 0% = inert only past the ≥20-claim N-floor**
-  — proposed, **operator's blind call**).
-- [ ] **§5** deploy roster = the live council via the `model_mix` stamp (exact-version).
+- [x] **§7** the rejection-rate band — **~15–35% expected; 0% = inert only past the ≥20-claim N-floor**
+  — FROZEN (operator set the proposed).
+- [x] **§5** deploy roster = the live council via the `model_mix` stamp (exact-version).
 - [x] **§4** elicitation fork — FROZEN B.
 
 **Dropped (→ §8 escalation):** GDELT K/M/baseline + queries, per-model cutoff table, separation-criterion
@@ -311,6 +310,6 @@ floor, p<.05 (these were Part-B / straddle pins; moot once Part B collapses).
   parse itself is confirmed clean. So the freeze is sequencing-unblocked.
 - **Build order inside the pipeline:** generator-first (Stage-1, July-gated), **probe-second** (it acts
   on generator output). The probe is additive (§1).
-- **Open (operator's blind calls at merge):** the §5 `high-overlap` cutoff value + the §7 rejection-rate
-  band.
-- stub **Q3** (demote rule / dormancy write-path) — still deferred.
+- **SET at freeze (the two blind calls):** §5 `high-overlap` cutoff = **0.80**; §7 expected rejection
+  **~15–35%** with a **≥20-generated-claim N-floor** on "0% = inert".
+- stub **Q3** (demote rule / dormancy write-path) — still deferred (a Stage-3/ops concern, §8).
