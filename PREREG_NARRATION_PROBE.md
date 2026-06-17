@@ -1,13 +1,15 @@
 # PREREG — the narration probe (Stage-2 of the theme-generation layer)
 
-**Status: DRAFT for operator review (rev 4, 2026-06-17). FREEZES ON MERGE.** rev-4 is the
+**Status: DRAFT for operator review (rev 5, 2026-06-17). FREEZE-READY — FREEZES ON MERGE** (rev-5 landed
+the final two P2 pins + the P3 folds + the row-level PR-B verification; the only open items are the
+operator's two blind calls — the §5 cutoff value and the §7 rejection band). rev-4 was the
 **feasibility-check pivot**: the mandated pre-merge feasibility check (live model-availability + a
 GDELT onset enumeration) found the cutoff-straddle calibration is **not constructible for the deploy
 theme class**, so the probe ships **fiat-permissive** — the threshold is a deterministic RULE pinned
 blind, its single cutoff value by fiat, with a falsifiable behavior band + a non-perishable scorer
 smoke test. **Part B (the blind calibration run) collapses; the straddle / GDELT / cutoff-table
 machinery moves to the §8 high-bar escalation spec.** This is the **correct design here (§2), not a
-weak fallback.** Companion to `PREREG_THEME_GENERATION_STUB`. Converged over four red-team rounds
+weak fallback.** Companion to `PREREG_THEME_GENERATION_STUB`. Converged over five red-team rounds
 (log §9). Cites only the committed record.
 
 ---
@@ -118,8 +120,25 @@ The threshold is a **deterministic rule**; only its single cutoff value is by fi
   THREE fields simultaneously AND ≥2 deploy-roster models concur.** Permissive *by construction* —
   requiring all-three-fields AND ≥2-model concurrence to reject biases strongly toward keep /
   funnel-forward, exactly as the §2 loss asymmetry demands.
-- **The only fiat number (pinned BLIND, §10):** `high-overlap` = per-field overlap ≥ **0.80**;
-  `concur` = **≥2** of the deploy roster each clear the all-three bar.
+- **Why the conjunction (the design point, not just "permissive"):** it makes `headline_quantities`
+  the load-bearing protector of under-narrated *specifics* — the stub's "narrated-macro /
+  un-narrated-expression" case. A claim on a well-known entity inside a narrated macro theme (GEV's
+  transformer backlog inside the everywhere-narrated AI-power story) reads entity-high and
+  direction-high; the ONLY thing stopping a wrong reject is the *quantity* leg — if the specific figure
+  (lead times ~50→~120 weeks) isn't in free recall, quantity-overlap is low, the conjunction fails,
+  the claim passes to the council. The rule is permissive **in the direction the stub cares about**.
+- **The only fiat number (pinned BLIND, §10):** `high-overlap` = per-LIST-field overlap ≥ **0.80**
+  (`named_entities`, `headline_quantities`). `mechanism_direction` is a single `(vocab, sign)` with
+  EXACT match, so "high-overlap" on it = exact match (the 0.80 fraction does not apply to a
+  single-valued field). `concur` = **≥2** of the deploy roster each clear the all-three bar.
+- **Empty/absent field ⇒ NOT high-overlap ⇒ no rejection (permissive-correct; REQUIRED unit test).**
+  `headline_quantities` may legitimately be `[]` (a structural NRC-docket / FERC-queue mechanism with
+  no clean headline number). An absent/empty field CANNOT be high-overlap, so the all-three conjunction
+  is unsatisfiable and the claim passes to the council. Matches the codebase's sparse-tolerant
+  precedent (an unfiled value is omitted, never fabricated, never zeroed — `PREREG_EVIDENCE_GROUNDING`).
+  This is the **load-bearing** case: the alternative ("evaluate present fields only, reject on two")
+  would silently reject exactly the quantity-less structural claims the quantity leg exists to protect
+  — a failure in the invisible false-narrated direction.
 - **Deploy roster:** the live council models, **exact-version-pinned via the `runs.model_mix` stamp**
   (PR-B) — not drift-prone aliases (current: gemini / xai / anthropic proposer/adversary/strategist).
 
@@ -133,7 +152,9 @@ cutoff *value* is asserted rather than calibrated.
 Verifies the **scorer functions** — the one thing the straddle would have incidentally confirmed —
 with no perishable machinery:
 - a **blatantly-narrated** exemplar ("NVDA — AI-accelerator dominance") MUST score high-overlap on all
-  three fields;
+  three fields — and its `headline_quantities` must be a **genuinely-circulated** figure (e.g. the
+  data-center revenue run-rate), or the all-three-high test fails on the quantity leg for a reason
+  unrelated to the scorer being broken;
 - a **deliberately-obscure invented** mechanism MUST score low-overlap.
 
 Pinned exemplars; a CI unit test, re-runnable forever (no model-vintage dependence beyond the deploy
@@ -150,6 +171,12 @@ behavior must look like + flag degeneracy):
   it as doing work;
 - **very-high %** (mis-set tight) → investigate.
 
+**Read over a CUMULATIVE window with an N-floor (≥[N] generated claims) before "0% = inert" is
+actionable.** At the stub's low per-run yield (~1–5 claims), 0% on a tiny sample is uninformative —
+equally consistent with "appropriately permissive on a small sample" and "inert." This is the same
+N-sensitivity that retired the straddle's `p<.05`: it did not vanish when calibration was dropped, it
+migrated to the surviving band.
+
 ---
 
 ## 8. Escalation — the high-bar future (#2 AND #3 together, never either alone)
@@ -157,6 +184,14 @@ behavior must look like + flag degeneracy):
 **Trigger (the one observable signal):** the live council backstop **repeatedly catching obvious-
 narrated claims the probe passed** ⇒ too permissive ⇒ escalate. (The costly direction, false-narrated,
 stays unobservable — so escalation is keyed on the *observable* failure.)
+
+**Sensitivity caveat (named, not oversold):** the deploy roster IS the council (§5), so the probe is
+partly a cheaper early pass of the council's own `under_narrated` criterion — probe and council errors
+are **positively correlated** (the same models that pass a claim through the probe are likelier to wave
+it through the council). So this trigger is **less sensitive** than independence would give. It is
+bounded (council judgment is holistic; the probe's is specifics-overlap, so some independence
+survives), and the roster is unchanged on purpose — narration-maximal describers are the right scorer
+choice. Named here so the trigger's reach isn't overstated.
 
 **Escalation = #2 + #3 TOGETHER** (neither alone reaches the representativeness mismatch):
 - **#2 self-hosted open old-cutoff model** (Llama-2-class ~2022 + a 2nd distinct open model) — restores
@@ -193,6 +228,15 @@ nothing is orphaned); the per-model cutoff table; the separation criterion + val
   from "do-if-N-thin" to escalation-only-paired-with-#3; the broad-query re-run **skipped** (it resolves
   the wrong uncertainty — the floor is model-availability and the gradual-ramp failure is
   detector×theme-shape, both query-independent). Part B + the straddle machinery → §8.
+- **Rev 5 — freeze-prep pins (post-convergence; one-liners).** P2: (i) §5 the empty/absent-field rule
+  (`headline_quantities=[]` ⇒ not-high ⇒ no reject — the load-bearing protector of quantity-less
+  structural claims, a required unit test); (ii) §7 a cumulative N-floor on "0% = inert" (the straddle's
+  p<.05 N-sensitivity migrated to the surviving band). P3: §5 the conjunction-protects-specifics
+  rationale + `mechanism_direction` is exact-match-not-a-fraction; §6 the narrated exemplar must carry a
+  circulated headline quantity; §8 the probe↔council positive-error-correlation caveat (the deploy
+  roster IS the council → the trigger is less sensitive than independence). + §11 PR-B verified at the
+  ROW level (booleans parsed typed on real data #182/#199; the §10.9 include-edge stays unexercised at
+  0 includes).
 
 ---
 
@@ -200,8 +244,8 @@ nothing is orphaned); the per-model cutoff table; the separation criterion + val
 
 - [ ] **§4** field weights (0.40/0.30/0.30) + quantity buckets.
 - [ ] **§5** the fiat threshold: the RULE (all-three-high ∧ ≥2-concur) + the `high-overlap` cutoff
-  value (**0.80** proposed — **operator's blind call**).
-- [ ] **§6** the smoke-test exemplars (the narrated + the obscure-invented).
+  value (**0.80** proposed — **operator's blind call**) + the empty/absent-field ⇒ no-reject unit test.
+- [ ] **§6** the smoke-test exemplars (the narrated — with a circulated quantity — + the obscure-invented).
 - [ ] **§7** the rejection-rate band (**expected ~[X%]; 0% = inert** — **operator's blind call**).
 - [ ] **§5** deploy roster = the live council via the `model_mix` stamp (exact-version).
 - [x] **§4** elicitation fork — FROZEN B.
@@ -214,8 +258,14 @@ floor, p<.05 (these were Part-B / straddle pins; moot once Part B collapses).
 ## 11. Sequencing + open
 
 - **Ordering MET** (§10.8, 0/16). The freeze sits behind PR-B window #1 verifying clean + the grounding
-  leg landing (`PREREG_EVIDENCE_GROUNDING` §7) — **both DONE** (PR #58, 2026-06-15; L1 #182/#199 both
-  grounded `ROUNDTRIP_CONFIRMED`). So the freeze is sequencing-unblocked.
+  leg landing (`PREREG_EVIDENCE_GROUNDING` §7) — **both DONE** (grounding: PR #58, 2026-06-15).
+  PR-B verified at the ROW level (not just the `ROUNDTRIP_CONFIRMED` grade): the §10.7 strategist
+  tri-criteria booleans **parsed as typed bools on real data** — L1 #182 (8 names: NVDA/RKLB/PL/VRT/
+  RTX/FLNC/UUUU/PWR carry `{under_narrated, at_inflection, include}`) and #199 (7 names, incl. VRT
+  `at_inflection=True`), per `council_proposals.rationale.strategist`. **Nuance:** both runs had 0
+  includes, so the §10.9 *include-edge* classification (absent booleans **on an include** = parse_error)
+  remains live-unexercised — a fail-closed guard awaiting its first include, not a gap; the boolean
+  parse itself is confirmed clean. So the freeze is sequencing-unblocked.
 - **Build order inside the pipeline:** generator-first (Stage-1, July-gated), **probe-second** (it acts
   on generator output). The probe is additive (§1).
 - **Open (operator's blind calls at merge):** the §5 `high-overlap` cutoff value + the §7 rejection-rate
