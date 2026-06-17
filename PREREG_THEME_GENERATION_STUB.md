@@ -76,6 +76,17 @@ is a **synthesis device over pinned deterministic inputs**, never a memory devic
 
 ## Dated open questions (answers belong to the future pre-reg, not to improvisation)
 
+> **Update 2026-06-17 (rev-4 pivot):** `PREREG_NARRATION_PROBE.md` answers Q1 (register unit =
+> mechanism-claim) + Q2 (field set + deterministic scorer). Its mandated feasibility check found the
+> cutoff-straddle calibration is NOT constructible for the slow-secular deploy class (a
+> representativeness mismatch, plus the rented-model cutoff floor ≈ Oct-2023), so the probe ships
+> **fiat-permissive**: a deterministic threshold RULE with its single cutoff value pinned blind + a
+> falsifiable rejection-rate band + a non-perishable scorer smoke test. **Q5 (calibration-set
+> construction / onset detection) and Q4 (a calibrated threshold value) are therefore DROPPED from v1
+> and moved to that doc's §8 high-bar escalation** (open-model anchor + a level-shift onset detector).
+> The probe is ADDITIVE (coverage-count grounding stays the working under-narration sensor). Q3
+> (demote rule / dormancy) remains deferred.
+
 1. **Register unit:** mechanism claim (probed/demoted/provenance unit; cluster hints attach
    naturally) vs theme (grouping metadata) — leaning mechanism-claim, with the calibration set
    built at the SAME granularity as the pinned schema (a theme-level threshold doesn't transfer).
