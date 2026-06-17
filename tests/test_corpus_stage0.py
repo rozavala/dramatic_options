@@ -8,6 +8,7 @@ import os
 import pathlib
 from datetime import UTC, datetime, timedelta
 
+from corpus.assemble import assemble_corpus
 from corpus.bls_series import BLSSeries, _period_end, parse_bls_series
 from corpus.capital_raises import enumerate_capital_raises
 from corpus.eia_series import EIASeries, _eia_period_end, parse_eia_series
@@ -286,3 +287,32 @@ def test_eia_no_key_fail_soft(tmp_path):
                     cache_dir=tmp_path, rate_limit_per_sec=0)
     assert eia.series_asof("electricity/retail-sales", value_field="price",
                            as_of=datetime(2026, 7, 1, tzinfo=UTC)) == []
+
+
+# ── corpus/assemble.py (the pinned as-of union) + the capital_raises namespace fix ───────────
+
+def test_assemble_corpus_unions_as_of(tmp_path):
+    cache = PointInTimeCache(tmp_path)
+    cov = dict(coverage_from=datetime(2026, 1, 1, tzinfo=UTC),
+               coverage_through=datetime(2026, 12, 31, tzinfo=UTC))
+    cache.write("corpus_a", "k1", [{"ts": "2026-01-10T00:00:00+00:00", "v": 1},
+                                   {"ts": "2026-03-10T00:00:00+00:00", "v": 2}], **cov)
+    cache.write("corpus_b", "k2", [{"ts": "2026-02-10T00:00:00+00:00", "v": 3}], **cov)
+    out = assemble_corpus(cache, datetime(2026, 2, 15, tzinfo=UTC),
+                          [("corpus_a", "k1"), ("corpus_b", "k2"), ("corpus_missing", "kx")])
+    # as-of 2026-02-15: corpus_a's Jan rec only (Mar is future); corpus_b's Feb rec; missing → []
+    assert [r["v"] for r in out["corpus_a"]] == [1]
+    assert [r["v"] for r in out["corpus_b"]] == [3]
+    assert out["corpus_missing"] == []  # requested-but-empty is distinguishable from not-requested
+
+
+def test_capital_raises_uses_corpus_namespace(tmp_path):
+    # Corpus filings persist under their OWN PIT-cache source — decoupled from the FSSD harness's
+    # shared ``fssd_events`` namespace (the storage-pin cleanup, 2026-06-17).
+    cache = PointInTimeCache(tmp_path)
+    enumerate_capital_raises(
+        datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 3, 31, tzinfo=UTC),
+        edgar=_FakeEdgar({(2026, 1): _Q1}), cache=cache, cache_dir=tmp_path,
+    )
+    assert (tmp_path / "corpus_capital_raises").is_dir()
+    assert not (tmp_path / "fssd_events").exists()

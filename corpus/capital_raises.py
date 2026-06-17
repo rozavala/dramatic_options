@@ -42,7 +42,7 @@ def enumerate_capital_raises(
     """
     out: list[dict[str, Any]] = []
     for form in FORMS:
-        idx = EdgarIndex(cache, edgar=edgar, cache_dir=cache_dir, form=form)
+        idx = EdgarIndex(cache, edgar=edgar, cache_dir=cache_dir, form=form, source=SOURCE)
         out.extend(idx.enumerate_events(start, end))
     out.sort(key=lambda r: (r["date_filed"], r["form"], r["accession"]))
     return out
