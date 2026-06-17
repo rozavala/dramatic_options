@@ -1,0 +1,34 @@
+{
+  "_comment": "Stage-0 corpus CONTENT config (PREREG_THEME_GENERATION_STUB Stage 0; overlaps PREREG_UNIVERSE_CURATION §4). The per-theme map from a theme to the corpus PULLS that feed it — the inputs corpus/assemble.assemble_corpus reads. Theme keys mirror config.universe.themes (the loop-facing baskets); ETF sources mirror universe_register.json (the curation Rule-0 register's named sources). The §2 prohibition (no prices/IV/momentum/sentiment) is the ADAPTERS' job, enforced by the package import guard; this layer only ROUTES which structural pull feeds which theme. Read by corpus/content.py only; NOT loaded by the trading loop. INERT until the Stage-1 assembler/generator wires it (July-gated). Additive — extend per-theme pulls freely (config over code). All pinned identifiers verified live 2026-06-17 (USASpending naics filter, EIA routes, BLS series, stockanalysis ETFs, NRC list).",
+
+  "universe": {
+    "capital_raises": {"forms": ["424B5", "S-1"]},
+    "customer_concentration": {"symbols": "@all_basket_symbols"},
+    "federal_awards": {"agency": "Department of Defense", "award_type_codes": ["A", "B", "C", "D"]}
+  },
+
+  "themes": {
+    "nuclear_fuel": {
+      "etfs": ["URNM", "NLR"],
+      "nrc": true,
+      "eia": [{"route": "electricity/electric-power-operational-data", "value_field": "generation",
+               "params": {"frequency": "monthly", "facets[fueltypeid][0]": "NUC", "facets[location][0]": "US"}}]
+    },
+    "grid_equipment": {
+      "etfs": ["GRID"],
+      "bls": ["CUUR0000SEHF01"],
+      "eia": [{"route": "electricity/retail-sales", "value_field": "price",
+               "params": {"frequency": "monthly", "facets[sectorid][0]": "IND"}}]
+    },
+    "copper_supply": {"etfs": ["COPX"]},
+    "ai_compute": {
+      "bls": ["CUUR0000SEHF01"],
+      "eia": [{"route": "electricity/retail-sales", "value_field": "price",
+               "params": {"frequency": "monthly", "facets[sectorid][0]": "COM"}}]
+    },
+    "space_defense": {"federal_awards_naics": ["336414", "336411"]},
+    "space_smallcap": {"etfs": ["UFO", "ARKX"], "federal_awards_naics": ["336414"]},
+
+    "_extension_slots": "Per-theme pulls are additive. Future verified adds, e.g.: copper_supply.bls (metals PPI), nuclear_fuel.bls (utilities/extraction employment), per-theme eia facets. Add only verified identifiers."
+  }
+}

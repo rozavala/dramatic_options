@@ -44,12 +44,15 @@ DEFAULT_AWARD_TYPE_CODES: tuple[str, ...] = ("A", "B", "C", "D")
 _FIELDS = ["Award ID", "Recipient Name", "Award Amount", "NAICS", "recipient_id", "Awarding Agency"]
 
 
-def _query_key(
+def cache_key(
     agencies: list[dict[str, str]],
     award_type_codes: tuple[str, ...] | list[str],
     naics_codes: list[str] | None,
 ) -> str:
-    """Stable cache key for a query shape (agency set × award types × NAICS filter)."""
+    """Stable point-in-time-cache key for a query shape (agency set × award types × NAICS filter).
+
+    Public so the corpus content layer (``corpus/content.py``) can derive the read coord for a pull
+    spec without re-running the fetch."""
     ident = json.dumps(
         [agencies, sorted(award_type_codes), sorted(naics_codes or [])],
         sort_keys=True, default=str,
@@ -150,7 +153,7 @@ def enumerate_federal_awards(
     offline+uncached read, or an HTTP error on the first page, yields ``[]`` — never raises.
     """
     agencies = agencies or DEFAULT_AGENCIES
-    key = _query_key(agencies, award_type_codes, naics_codes)
+    key = cache_key(agencies, award_type_codes, naics_codes)
     # Network-free reuse if a prior (≥ this-window) pull is already cached point-in-time.
     if cache.covers(SOURCE, key, start, end):
         ct = cache.coverage_through(SOURCE, key)
