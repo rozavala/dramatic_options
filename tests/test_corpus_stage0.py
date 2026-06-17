@@ -11,6 +11,11 @@ from datetime import UTC, datetime, timedelta
 from corpus.assemble import assemble_corpus
 from corpus.bls_series import BLSSeries, _period_end, parse_bls_series
 from corpus.capital_raises import enumerate_capital_raises
+from corpus.customer_concentration import (
+    CustomerConcentration,
+    extract_concentration,
+    strip_html,
+)
 from corpus.eia_series import EIASeries, _eia_period_end, parse_eia_series
 from corpus.federal_awards import enumerate_federal_awards, parse_federal_awards
 from data.cache import PointInTimeCache
@@ -316,3 +321,100 @@ def test_capital_raises_uses_corpus_namespace(tmp_path):
     )
     assert (tmp_path / "corpus_capital_raises").is_dir()
     assert not (tmp_path / "fssd_events").exists()
+
+
+# ── corpus/customer_concentration.py (10-K text extraction) ──────────────────────────────────
+
+def test_strip_html_drops_script_style_and_unescapes():
+    raw = ("<html><head><style>.a{color:red}</style></head><body><p>Foo&nbsp;&amp; bar</p>"
+           "<script>evil()</script>   baz</body></html>")
+    t = strip_html(raw)
+    assert "Foo" in t and "& bar" in t and "baz" in t
+    assert "color:red" not in t and "evil()" not in t  # style/script content dropped
+
+
+def test_extract_concentration_positive_revenue_and_ar():
+    text = ("As of October 3, 2025, three customers represented 82% of our aggregate gross accounts "
+            "receivable. One customer accounted for approximately 60.5% of our net revenue in 2025.")
+    by = {r["benchmark"]: r for r in extract_concentration(text)}
+    assert by["accounts_receivable"]["percentage"] == 82.0
+    assert by["accounts_receivable"]["n_customers"] == 3
+    assert by["revenue"]["percentage"] == 60.5
+    assert by["revenue"]["n_customers"] == 1
+    assert set(by["revenue"]) == {"percentage", "benchmark", "n_customers", "snippet"}
+
+
+def test_extract_concentration_skips_negative_disclosure():
+    # The standard "no single customer …" disclosure is the OPPOSITE of concentration → not recorded.
+    assert extract_concentration(
+        "No single customer accounted for more than 10% of our net revenue.") == []
+
+
+def test_extract_concentration_requires_revenue_or_ar_benchmark():
+    # A customer + a percentage but no revenue/sales/receivable benchmark → too noisy → dropped.
+    assert extract_concentration(
+        "One customer is critical to us, representing 40% of unit shipments.") == []
+
+
+class _FakeEdgar10K:
+    def __init__(self, cik, filings, docs):
+        self._cik, self._filings, self._docs = cik, filings, docs
+
+    def ticker_to_cik(self, ticker, overrides=None):
+        return self._cik
+
+    def fetch_filings(self, cik):
+        return self._filings
+
+    def fetch_document(self, cik, accession, primary_document):
+        return self._docs[accession]
+
+
+def test_concentration_asof_full_path_and_pit(tmp_path):
+    cik = "0000004127"
+    filings = [
+        {"ts": "2024-02-01T20:00:00+00:00", "form": "8-K", "items": [],
+         "accession": "x-8k", "primary_document": "d.htm", "cik": cik},
+        {"ts": "2025-11-07T20:00:00+00:00", "form": "10-K", "items": [],
+         "accession": "0000004127-25-000085", "primary_document": "swks.htm", "cik": cik},
+    ]
+    doc = ("<html><body><p>As of October 3, 2025, three customers represented 82% of our aggregate "
+           "gross accounts receivable. Our largest customer accounted for 66% of net revenue.</p>"
+           "<script>x()</script></body></html>")
+    edgar = _FakeEdgar10K(cik, filings, {"0000004127-25-000085": doc})
+    cache = PointInTimeCache(tmp_path)
+    cc = CustomerConcentration(cache, edgar=edgar, fetch_end=datetime(2026, 1, 1, tzinfo=UTC),
+                               cache_dir=tmp_path)
+    recs = cc.concentration_asof("SWKS", datetime(2026, 1, 1, tzinfo=UTC))
+    # both narrative disclosures from the LATEST 10-K (not the 8-K), stamped at its filing ts
+    assert sorted(r["percentage"] for r in recs) == [66.0, 82.0]
+    assert {r["benchmark"] for r in recs} == {"revenue", "accounts_receivable"}
+    assert all(r["ts"] == "2025-11-07T20:00:00+00:00" and r["form"] == "10-K" for r in recs)
+    assert [r["n_customers"] for r in recs if r["benchmark"] == "accounts_receivable"] == [3]
+    # PIT: nothing visible before the 10-K was filed
+    assert cc.concentration_asof("SWKS", datetime(2025, 1, 1, tzinfo=UTC)) == []
+
+
+def test_concentration_prefers_base_10k_over_partial_amendment(tmp_path):
+    # Regression (caught live on SWKS): a newer 10-K/A is often partial (Part III, no financials);
+    # it must not shadow the complete base 10-K that carries the concentration note.
+    cik = "0000004127"
+    filings = [
+        {"ts": "2025-11-07T20:00:00+00:00", "form": "10-K", "items": [],
+         "accession": "base", "primary_document": "full.htm", "cik": cik},
+        {"ts": "2026-01-30T20:00:00+00:00", "form": "10-K/A", "items": [],
+         "accession": "amend", "primary_document": "partiii.htm", "cik": cik},
+    ]
+    docs = {"base": "<html><body><p>One customer accounted for 66% of net revenue.</p></body></html>",
+            "amend": "<html><body><p>Part III - director compensation tables.</p></body></html>"}
+    cc = CustomerConcentration(PointInTimeCache(tmp_path), edgar=_FakeEdgar10K(cik, filings, docs),
+                               fetch_end=datetime(2026, 6, 1, tzinfo=UTC), cache_dir=tmp_path)
+    recs = cc.concentration_asof("SWKS", datetime(2026, 6, 1, tzinfo=UTC))
+    assert len(recs) == 1 and recs[0]["percentage"] == 66.0
+    assert recs[0]["accession"] == "base" and recs[0]["ts"] == "2025-11-07T20:00:00+00:00"
+
+
+def test_concentration_asof_fail_soft(tmp_path):
+    cc = CustomerConcentration(PointInTimeCache(tmp_path, offline=True), edgar=None,
+                               fetch_end=datetime(2026, 1, 1, tzinfo=UTC), cache_dir=tmp_path)
+    assert cc.concentration_asof("SWKS", datetime(2026, 1, 1, tzinfo=UTC)) == []
