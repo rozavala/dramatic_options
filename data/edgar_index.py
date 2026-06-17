@@ -93,10 +93,15 @@ class EdgarIndex:
         edgar: Any | None,
         cache_dir: str | Path = "data/cache",
         form: str = "424B5",
+        source: str = SOURCE,
     ) -> None:
         self.cache = cache
         self.edgar = edgar
         self.form = form
+        # The PIT-cache namespace. Defaults to the FSSD ``fssd_events`` (back-compat for the
+        # parked Stage-1 harness); the Stage-0 corpus passes its own (``corpus_capital_raises``)
+        # so corpus filings never share/collide with the FSSD enumeration.
+        self.source = source
         self.raw_dir = Path(cache_dir) / "full_index_raw"
 
     def _quarter_text(self, year: int, quarter: int) -> str | None:
@@ -123,9 +128,9 @@ class EdgarIndex:
         # on date_filed with the SAME inclusive string bounds as the fresh path below, so the
         # two code paths return byte-identical event sets (determinism is the cache's whole
         # point — a boundary-day post-close event must not appear/vanish by which path ran).
-        if self.cache.covers(SOURCE, key, start, end):
-            ct = self.cache.coverage_through(SOURCE, key)
-            recs = self.cache.read_between(SOURCE, key, None, ct) if ct else []
+        if self.cache.covers(self.source, key, start, end):
+            ct = self.cache.coverage_through(self.source, key)
+            recs = self.cache.read_between(self.source, key, None, ct) if ct else []
             return [r for r in recs if lo <= r["date_filed"] <= hi]
 
         seen: set[str] = set()
@@ -144,7 +149,7 @@ class EdgarIndex:
         events.sort(key=lambda r: r["ts"])
         if not self.cache.offline and events:
             self.cache.write(
-                SOURCE, key, events,
+                self.source, key, events,
                 coverage_from=start, coverage_through=end,
             )
         return events

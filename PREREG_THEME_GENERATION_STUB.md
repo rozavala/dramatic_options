@@ -85,3 +85,40 @@ is a **synthesis device over pinned deterministic inputs**, never a memory devic
 4. **Aggregation/threshold numbers:** pinned only after the cutoff-straddling calibration runs.
 5. **Calibration-set construction:** onset verification method (news-volume series), model/cutoff
    matrix, and the separation statistic.
+
+## Stage-0 build log + storage pin (accruing operational notes, NOT pre-committed design)
+
+The Stage-0 corpus is deterministic plumbing (no fitted params, nothing to freeze), built directly
+in a `corpus/` package. The §2 prohibition (no prices/IV/momentum/sentiment) is enforced at the
+INPUT layer by a package-level static import audit
+(`tests/test_corpus_stage0.py::test_corpus_forbids_price_imports`, AST-based — auto-covers every
+new source module). Modules mirror `data/finra_si` + `data/fundamentals`: pure parse fns split from
+fetch, raw disk cache + point-in-time cache, transient-vs-genuine-empty split, fail-soft
+(offline / no-key → `[]`, never raises into the scheduled assembly).
+
+**Built (additive + INERT — nothing imports `corpus/` into the live loop yet):**
+
+| Module | Source / endpoint | Auth | PIT timestamp |
+|---|---|---|---|
+| `corpus/capital_raises.py` | EDGAR quarterly full-index 424B5 + exact S-1 (reuses `data.edgar_index.EdgarIndex`, own `corpus_capital_raises` namespace) | `EDGAR_USER_AGENT` | filing date post-close 20:00 UTC |
+| `corpus/federal_awards.py` | USAspending `spending_by_award` (DoD toptier 097; top awards by obligated $) | keyless | window end (per-award action date is null in this endpoint; the `time_period` filter makes window-end conservative/never-early) |
+| `corpus/bls_series.py` | BLS publicAPI v1 `timeseries/data/{id}` (generic series puller) | keyless | reference-period-end + a conservative publication lag (default 30d) |
+| `corpus/eia_series.py` | EIA Open Data v2 `{route}/data/` (generic route×metric×facets puller) | `EIA_API_KEY` (never logged / never in a cache filename / never in a record) | period-end + a conservative publication lag (default 75d) |
+
+**Remaining Stage-0 sources:** the EDGAR 10-K >10%-customer-concentration EXTRACTION (the
+new/harder one — reuse the `data.fundamentals` XBRL pattern), then the 3 SCRAPE sources (ETF/index
+constituents · FERC interconnection queues · NRC dockets — per-source endpoint discovery, no clean
+public API).
+
+**STORAGE PIN (decided 2026-06-17, measure-first):** the assembled corpus is the **in-memory
+point-in-time UNION of the per-source caches** (`corpus/assemble.py`), **NOT a DB table.** Measured
+volume is **~1.8k records / ~0.5 MB parsed per scan-date** across the four built sources
+(capital_raises ~1,075/quarter the largest), fetched in ~7s — trivially small, so file-backed PIT
+reads suffice; a SQLite table + migration would only re-encode the cache's own as-of semantics in
+SQL and couple corpus research data to the trading journal. `assemble_corpus` is content-agnostic
+(the caller passes the `(source, key)` coords; which series/agencies/forms to track is a content
+decision, config-pinned later) and does NO ranking/summarization (that is Stage-1).
+**Graduate to a DB table ONLY when** one of: indexed cross-source SQL is genuinely needed
+(dashboard/curation analytics, e.g. "recipients in DoD awards that also filed a 424B5"); the union
+grows to tens of thousands of records; or scored Stage-1 artifacts need relational links to the raw
+inputs.
