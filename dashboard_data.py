@@ -942,6 +942,12 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N)
     c1_detail = " · ".join(
         f"#{w['run_id']} {w['verdict']}" + (" (pre-fix, censored)" if w["council_health"] == "parse_fail" else "")
         for w in window) or "no council runs yet"
+    # Legibility: cond-1 reads NOT_OK at 3-of-4 confirmed because the rule is WHOLE-window-confirmed, NOT "≥2
+    # confirmed exist" — so name what blocks it (a non-censored run that isn't a round-trip, else too-few-clean).
+    c1_blockers = [f"#{w['run_id']} {w['verdict']}" for w in non_bug if w["verdict"] != "ROUNDTRIP_CONFIRMED"]
+    c1_why = ("" if c1_ok
+              else f"; blocked by {', '.join(c1_blockers)}" if c1_blockers
+              else f"; only {len(non_bug)} clean run(s) so far (need ≥2)")
 
     breach = breach_audit.audit_cluster_breaches(conn, config)
 
@@ -954,7 +960,8 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N)
         "conditions": [
             {"id": 1, "name": "council healthy (live, ≥2 round-trips confirmed)", "checkable": True,
              "verdict": "MET" if c1_ok else "NOT_OK",
-             "detail": f"censor parse_fail, need ≥2 all-CONFIRMED — {c1_detail}"},
+             "detail": (f"need the last {recent_council} council runs ALL ROUNDTRIP_CONFIRMED "
+                        f"(≥2, parse_fail censored){c1_why} — {c1_detail}")},
             {"id": 2, "name": "null reads live-plumbed (resolved counts + CIs)", "checkable": False,
              "verdict": None, "detail": f"resolved — real={real_n}, shadow={shadow_n}, 3A={fb3a_n} "
                                         "(accruing; verdict deferred to the null layer)"},

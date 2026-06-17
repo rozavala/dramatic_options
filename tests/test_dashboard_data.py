@@ -551,6 +551,18 @@ def test_cond1_not_met_on_single_confirmed(convexity_db):
     assert _cond1(convexity_db)["verdict"] == "NOT_OK"
 
 
+def test_cond1_detail_names_the_blocker(convexity_db):
+    # Legibility: a NOT_OK must say WHICH run breaks all-CONFIRMED (the "3-of-4 confirmed but NOT_OK" confusion)
+    # and state the rule as whole-window-confirmed, not "≥2 confirmed exist".
+    conn = convexity_db
+    _confirmed_run(conn, "AAA")
+    bid = _degraded_run(conn, "BBB")        # ok-but-DEGRADED → a blocker, not a censored bug
+    c1 = _cond1(conn)
+    assert c1["verdict"] == "NOT_OK"
+    assert "ALL ROUNDTRIP_CONFIRMED" in c1["detail"]     # the clarified rule (not "≥2 exist")
+    assert f"blocked by #{bid}" in c1["detail"]          # names the specific breaker
+
+
 def test_latest_run_deliberation_shape(convexity_db):
     rid = _confirmed_run(convexity_db, "SMCI")
     delib = dd.latest_run_deliberation(convexity_db)
