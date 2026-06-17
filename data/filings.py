@@ -123,12 +123,16 @@ class EdgarClient:
                     SUBMISSIONS_FILE_URL.format(name=name)), cik))
         return records
 
-    def fetch_form4_doc(self, cik: str, accession: str, primary_document: str) -> str:
-        """Fetch the primary document (XML) for a Form 4 filing (upgrade hook)."""
+    def fetch_document(self, cik: str, accession: str, primary_document: str) -> str:
+        """Fetch a filing's primary document (HTML/XML/text) from the EDGAR archives (UA + throttle)."""
         acc = accession.replace("-", "")
         return self._get_text(
             ARCHIVES_URL.format(cik=str(int(cik)), acc=acc, doc=primary_document)
         )
+
+    def fetch_form4_doc(self, cik: str, accession: str, primary_document: str) -> str:
+        """Fetch the primary document (XML) for a Form 4 filing (upgrade hook)."""
+        return self.fetch_document(cik, accession, primary_document)
 
     # ── full-index (FSSD event enumeration, plan §8a) ────────────────────────
     def fetch_form_index(self, year: int, quarter: int) -> str:
