@@ -1,15 +1,19 @@
 # PREREG — the narration probe (Stage-2 of the theme-generation layer)
 
-**Status: DRAFT for operator review (rev 5, 2026-06-17). FREEZE-READY — FREEZES ON MERGE** (rev-5 landed
-the final two P2 pins + the P3 folds + the row-level PR-B verification; the only open items are the
-operator's two blind calls — the §5 cutoff value and the §7 rejection band). rev-4 was the
+**Status: DRAFT for operator review (rev 6, 2026-06-17). FREEZE-READY — FREEZES ON MERGE** (rev-6
+authored the two §6 smoke-test exemplars as concrete claim objects — the one §10 item that was real
+work, not a rubber-stamp — and de-placeholdered §7; folded two forward notes [the §4 classifier-bar
+pin-blind discipline, the §3 schema-contract scope]. **The only genuinely-open items are the operator's
+two blind confirms: the §5 `high-overlap` cutoff (0.80 proposed) and the §7 rejection band + N-floor
+(~15–35% / ≥20 proposed).**) rev-5 landed the two P2 pins + P3 folds + the row-level PR-B verification.
+rev-4 was the
 **feasibility-check pivot**: the mandated pre-merge feasibility check (live model-availability + a
 GDELT onset enumeration) found the cutoff-straddle calibration is **not constructible for the deploy
 theme class**, so the probe ships **fiat-permissive** — the threshold is a deterministic RULE pinned
 blind, its single cutoff value by fiat, with a falsifiable behavior band + a non-perishable scorer
 smoke test. **Part B (the blind calibration run) collapses; the straddle / GDELT / cutoff-table
 machinery moves to the §8 high-bar escalation spec.** This is the **correct design here (§2), not a
-weak fallback.** Companion to `PREREG_THEME_GENERATION_STUB`. Converged over five red-team rounds
+weak fallback.** Companion to `PREREG_THEME_GENERATION_STUB`. Converged over six red-team rounds
 (log §9). Cites only the committed record.
 
 ---
@@ -82,6 +86,13 @@ and forward-binding on the Stage-1 generator** (it MUST emit these fields):
 (The rev-2/3 calibration-only fields `onset_theme` / `in_live_book` are **removed from v1** — they
 served the cutoff-straddle set construction, which now lives in §8 escalation.)
 
+**Scope note (what the freeze commits):** freezing this pre-reg locks the **generator↔probe schema
+contract** — the §3 generator-core fields, the `mechanism_direction` vocab, and the `headline_quantities`
+buckets — not just the probe's threshold; the July Stage-1 generator inherits it as a hard output
+contract. The schema has been stable since rev-2, so this is intended (the probe defines the interface
+it consumes) — but settle any doubt the generator can cleanly emit the quantity buckets / direction
+vocab BEFORE freezing. The threshold itself is genuinely probe-only and lower-risk.
+
 ---
 
 ## 4. Field set + deterministic scorer (stub Q2) — survives the freeze
@@ -104,7 +115,9 @@ fully deterministic. Field weights **0.40 / 0.30 / 0.30** (favoring the determin
 overlaps are reported independently. `mechanism_direction` is the softest leg → a **two-scorer
 agreement check** on its labels (rev-3). **Classifier validation is a pre-deploy precondition**: a
 small hand-labeled set must validate sign + responsiveness (incl. adjacent-vocab cases) to a pinned
-agreement bar before the probe is wired live.
+agreement bar before the probe is wired live. **That agreement bar must itself be pinned BLIND in the
+July probe-build spec — before the hand-labeled validation runs, not after seeing the classifier's
+agreement number** (same HARK discipline; flagged here so it isn't a post-hoc build-time pick).
 
 Worked examples (mandatory, in the frozen schema) — `ai_power`, `nuclear_fuel`, and a non-energy
 `glp1_obesity` claim — are retained from rev-3 as the schema demonstration + the adversarial-paraphrase
@@ -150,15 +163,32 @@ cutoff *value* is asserted rather than calibrated.
 ## 6. Non-perishable scorer smoke test (a unit test, NOT a calibration)
 
 Verifies the **scorer functions** — the one thing the straddle would have incidentally confirmed —
-with no perishable machinery:
-- a **blatantly-narrated** exemplar ("NVDA — AI-accelerator dominance") MUST score high-overlap on all
-  three fields — and its `headline_quantities` must be a **genuinely-circulated** figure (e.g. the
-  data-center revenue run-rate), or the all-three-high test fails on the quantity leg for a reason
-  unrelated to the scorer being broken;
-- a **deliberately-obscure invented** mechanism MUST score low-overlap.
+with no perishable machinery. **Two exemplars, pinned here as concrete claim objects** (a CI unit test,
+re-runnable forever; no model-vintage dependence beyond the deploy roster). If it fails, the scorer —
+not a theme — is broken.
 
-Pinned exemplars; a CI unit test, re-runnable forever (no model-vintage dependence beyond the deploy
-roster). If it fails, the scorer — not a theme — is broken.
+**(A) Blatantly-narrated → MUST score high-overlap on all three fields.** Its `headline_quantities` is a
+genuinely-circulated figure, so an all-three-high pass is the scorer working, not a quantity-leg
+artifact:
+```jsonc
+{ "claim_id": "smoke_narrated_nvda",
+  "statement": "Hyperscaler AI-training capex -> NVIDIA data-center GPU dominance -> sustained accelerator demand + pricing power.",
+  "named_entities": [{"canonical": "NVIDIA", "ticker": "NVDA", "aliases": ["Nvidia"]}],
+  "mechanism_direction": {"vocab": "demand_surge", "sign": "+"},
+  "headline_quantities": [{"metric": "data-center segment quarterly revenue", "value": "~$30B", "bucket": "usd_tens_of_billions"}],
+  "provenance": "generated" }
+```
+
+**(B) Deliberately-obscure INVENTED → MUST score low-overlap** (FICTIONAL — `ALDP` is not a real
+issuer; no deploy model can surface fabricated entities/figures, so all three legs read low):
+```jsonc
+{ "claim_id": "smoke_obscure_invented",
+  "statement": "Aldermarsh Photonics' sub-threshold GaN lattice-anneal step collapses LED-driver-IC defect rates, forcing multi-quarter backlogs at boutique driver foundries.",
+  "named_entities": [{"canonical": "Aldermarsh Photonics", "ticker": "ALDP", "aliases": ["Aldermarsh"]}],
+  "mechanism_direction": {"vocab": "backlog_growth", "sign": "+"},
+  "headline_quantities": [{"metric": "driver-IC defect-rate reduction", "value": "~40%", "bucket": "pct_25_50"}],
+  "provenance": "generated" }
+```
 
 ---
 
@@ -166,15 +196,18 @@ roster). If it fails, the scorer — not a theme — is broken.
 
 Pinned **BLIND** before the generator runs (you can't calibrate the value, but you pre-commit what its
 behavior must look like + flag degeneracy):
-- **expected ~[X%]** of generated claims rejected by the probe;
+- **expected ~[15–35%]** of generated claims rejected by the probe (proposed — **operator's blind
+  call**; the structural corpus skews under-narrated, but recall bias means a meaningful minority reads
+  narrated, so the rate is low-to-moderate, not near-zero);
 - **0% rejected = the probe is INERT** (threshold too permissive / a no-op) → investigate, do NOT bank
   it as doing work;
 - **very-high %** (mis-set tight) → investigate.
 
-**Read over a CUMULATIVE window with an N-floor (≥[N] generated claims) before "0% = inert" is
-actionable.** At the stub's low per-run yield (~1–5 claims), 0% on a tiny sample is uninformative —
-equally consistent with "appropriately permissive on a small sample" and "inert." This is the same
-N-sensitivity that retired the straddle's `p<.05`: it did not vanish when calibration was dropped, it
+**Read over a CUMULATIVE window with an N-floor before "0% = inert" is actionable** — proposed
+**≥20 generated claims** (**operator's blind call**; the value that *matters* in §7, per the review).
+At the stub's low per-run yield (~1–5 claims) that is a few weeks of running, not months: high enough
+that 0% isn't noise, low enough that the inert-flag can fire in usable time. This is the same
+N-sensitivity that retired the straddle's `p<.05` — it did not vanish when calibration was dropped, it
 migrated to the surviving band.
 
 ---
@@ -237,6 +270,14 @@ nothing is orphaned); the per-model cutoff table; the separation criterion + val
   roster IS the council → the trigger is less sensitive than independence). + §11 PR-B verified at the
   ROW level (booleans parsed typed on real data #182/#199; the §10.9 include-edge stays unexercised at
   0 includes).
+- **Rev 6 — freeze-prep authoring (from the §10-precision review).** The "only two open items" preamble
+  undersold the confirm-set: the §6 exemplars were unauthored (a category, not a value; the obscure one
+  absent) and a CI fixture can't ship as a placeholder → **authored both as concrete claim objects**
+  (`smoke_narrated_nvda` with a circulated quantity; the fictional `smoke_obscure_invented`).
+  De-placeholdered §7 (~15–35% + a ≥20-claim N-floor, the value that matters). Folded two
+  forward-discipline notes: the §4 classifier-agreement bar must be pinned BLIND in the July
+  probe-build spec (not a post-hoc pick); §3 the freeze locks the generator↔probe schema CONTRACT (vocab
+  + buckets), not just the threshold. No design change — closing the confirm-set.
 
 ---
 
@@ -245,8 +286,10 @@ nothing is orphaned); the per-model cutoff table; the separation criterion + val
 - [ ] **§4** field weights (0.40/0.30/0.30) + quantity buckets.
 - [ ] **§5** the fiat threshold: the RULE (all-three-high ∧ ≥2-concur) + the `high-overlap` cutoff
   value (**0.80** proposed — **operator's blind call**) + the empty/absent-field ⇒ no-reject unit test.
-- [ ] **§6** the smoke-test exemplars (the narrated — with a circulated quantity — + the obscure-invented).
-- [ ] **§7** the rejection-rate band (**expected ~[X%]; 0% = inert** — **operator's blind call**).
+- [x] **§6** the smoke-test exemplars — AUTHORED as concrete claim objects (`smoke_narrated_nvda` +
+  the fictional `smoke_obscure_invented`); the required CI unit test asserts A→high / B→low.
+- [ ] **§7** the rejection-rate band (**~15–35% expected; 0% = inert only past the ≥20-claim N-floor**
+  — proposed, **operator's blind call**).
 - [ ] **§5** deploy roster = the live council via the `model_mix` stamp (exact-version).
 - [x] **§4** elicitation fork — FROZEN B.
 
