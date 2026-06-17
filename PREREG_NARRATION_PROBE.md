@@ -1,423 +1,223 @@
-# PREREG — the narration probe (Stage-2 of the theme-generation layer): the calibration freeze
+# PREREG — the narration probe (Stage-2 of the theme-generation layer)
 
-**Status: DRAFT for operator review (rev 3, 2026-06-17). Part A (the protocol) FREEZES ON MERGE —
-nothing below is committed until then. Part B (the operating threshold NUMBER + the model roster) is a
-SEPARATE dated blind run AFTER merge.** Companion to `PREREG_THEME_GENERATION_STUB`; the cold-critical
-core of the generation layer's own pre-reg. Converged over three red-team rounds (rev 1 three MECE
-passes; rev 2 a 12-item adoption-audit; rev 3 three structural seams the rev-2 choices created + polish
-— log §10). **Operator's rev-3 bottom line: merge Part A once the rev-3 additions are in, then execute
-freeze→run→record (Part B) — the next move is NOT a rev-4.** Cites only the committed record.
-
----
-
-## 1. Cleared precondition + why this is the next pinned item (lead, per §10.8)
-
-**The ordering condition is MET.** `PREREG_COUNCIL_GATE_SEPARATION` §10.8 (2026-06-10): **0/16 =
-SCARCITY**, in-band for the 0/1 rule — verbatim, *"the theme-generation stub's ordering condition is
-MET on the mandate side (0/1 achieved) — its remaining gates are its own pre-reg + the
-generation-layer design constraints."* This is that pre-reg's cold core.
-
-**Why the narration probe (§10.8's load-bearing finding):** the dominant abstention inside the 0/16
-was that *marker-only grounding cannot support the hardened tri-criteria* — the council declines to
-assert **under-narrated** from price/vol markers. §9 (`PREREG_EVIDENCE_GROUNDING`, FROZEN 2026-06-11)
-added the **grounding** half (structural/at-inflection legs). The **under-narrated** leg has no
-deterministic sensor yet; the narration probe IS it — measuring narration so a genuinely-quiet theme
-clears the bar **without loosening the bar** (the HARK leash: measure the criterion, never relax it).
-
-**Why COLD:** the operating threshold is a fitted parameter; set after seeing what the generator emits
-or what the gate/council admit, it is HARKed. Stub constraint #2 binds the generator/probe **pair** to
-one §10.4-style re-tightening, neither iterated against the other's outputs nor against admission/gate
-outcomes. So the probe is calibrated on themes whose narration state is known **independently** of our
-pipeline (cutoff-straddling, §5) and frozen before generation runs. Now is that window.
+**Status: DRAFT for operator review (rev 4, 2026-06-17). FREEZES ON MERGE.** rev-4 is the
+**feasibility-check pivot**: the mandated pre-merge feasibility check (live model-availability + a
+GDELT onset enumeration) found the cutoff-straddle calibration is **not constructible for the deploy
+theme class**, so the probe ships **fiat-permissive** — the threshold is a deterministic RULE pinned
+blind, its single cutoff value by fiat, with a falsifiable behavior band + a non-perishable scorer
+smoke test. **Part B (the blind calibration run) collapses; the straddle / GDELT / cutoff-table
+machinery moves to the §8 high-bar escalation spec.** This is the **correct design here (§2), not a
+weak fallback.** Companion to `PREREG_THEME_GENERATION_STUB`. Converged over four red-team rounds
+(log §9). Cites only the committed record.
 
 ---
 
-## 2. Two-part structure (mirrors §10.4 / §10.8: freeze-bands → run → record)
+## 1. Cleared precondition + what the probe is (and is not)
 
-- **Part A — THIS freeze (spend-free, no LLM; FREEZES ON MERGE):** the register unit AND the concrete
-  mechanism-claim **schema** (§3), the narration-diagnostic field set + the elicitation/scoring choice
-  + the **mandatory** worked examples (§4), calibration-set construction + the reproducible onset
-  procedure (§5), the overlap metric + **the validity-gate floor (blind numbers) + the
-  operating-threshold rule** (§6), the carried postures + generator-yield bands (§7), and the
-  must-land-before-merge numeric checklist (§9). Every decision rule is committed **with its
-  pass/fail bar but without the calibration's output number in front of it.**
-- **Part B — a SEPARATE dated run AFTER merge:**
-  - (i) the **deterministic set-construction run** (GDELT only, no LLM) computes onset dates and
-    assembles the cutoff-straddling set per §5;
-  - (ii) the **LLM probe run** scores the set per §6, **records pass/fail against the §6 validity-gate
-    floor**, and pins the **operating threshold** (stub Q4) per the §6 rule;
-  - one pass; recorded as a dated appendix; **no §3–§7 text is re-touched after the number is seen**
-    (§10.4). Part B probes the KNOWN calibration themes, never a generated candidate.
+**Ordering MET.** `PREREG_COUNCIL_GATE_SEPARATION` §10.8 (2026-06-10): **0/16 = SCARCITY** — verbatim,
+*"the theme-generation stub's ordering condition is MET on the mandate side."* This is the
+generation-layer's own pre-reg.
 
-**The number split (rev-2 #1, the HARK fix):** the **validity-gate floor** (probe-is-fit pass/fail) is
-frozen BLIND in Part A (§6); only the **operating threshold** (the permissive keep/reject cutoff) is a
-Part-B output. A fitness bar set after the scores are visible is exactly the post-hoc move this
-document exists to prevent.
+The probe is the deterministic **under-narration funnel** on Stage-1 generator output — it measures
+narration so a genuinely-quiet mechanism clears the council's `under_narrated` bar **without loosening
+the bar** (the HARK leash: measure the criterion, never relax it).
+
+**It is ADDITIVE, not a supersession (rev-4).** A fiat-permissive *uncalibrated* probe is too weak to
+*replace* the working under-narration sensor — the evidence-grounding **coverage counts** (Alpaca 7d/
+90d, `PREREG_EVIDENCE_GROUNDING` §2c), which STAY the live sensor. The probe rides **on top** as an
+extra permissive funnel on generator output; supersession is deferred to the §8 escalation. So
+shipping it is **not a regression** (no working sensor is swapped for an uncalibrated one), and it
+keeps grounding-first correct.
 
 ---
 
-## 3. Register unit (stub Q1) — mechanism-claim granularity + the FROZEN schema (PINNED, prescriptive)
+## 2. Why fiat-permissive is the CORRECT design (the finding + two independent reasons)
 
-The probed/scored/(eventually)demoted unit is a **mechanism claim**, NOT a theme label (*"a
-theme-level threshold doesn't transfer"*). A mechanism claim names a **driver → effect** step, the
-**entities** it runs through, and its **direction/sign**.
+**The feasibility finding (this revision, verified live):** the oldest model any provider still serves
+has a cutoff ≈ **Oct-2023** (OpenAI `o1`; everything else 2024+), so straddle onsets must be ≥Apr-2024
+(≥1 model) / ≥~Feb-2025 (≥2-vendor). More decisively, the 3×-spike onset rule cleanly separates only
+**sharp fads** (genuine pre-onset silence → loud after); the deploy class is **slow secular ramps**
+(uranium, copper, AI-power), which have **no clean quiet state** — the narrative thickens gradually,
+so even a 2022-cutoff model carries partial narration of what we care about (the uranium squeeze was
+2021, the copper-deficit thesis older). So the straddle won't separate the deploy class under **any**
+model bracket; the open-model anchor (§8) fixes only the model *floor*, the lesser problem. The
+straddle calibration is therefore not constructible for this theme class.
 
-**The schema is FROZEN HERE as a concrete artifact, FORWARD-BINDING on the Stage-1 generator (rev-2 #2;
-field-scoped rev-3 #5):** the future generator **MUST emit the generator-CORE fields** — `statement`,
-`named_entities`, `mechanism_direction`, `headline_quantities`, `provenance` (prescriptive, not the
-descriptive "emits claims in this unit"). The **calibration-only** fields (`onset_theme`, `in_live_book`,
-`provenance:calibration`) are NOT generator output — a generated candidate has no GDELT onset (rev-3 #5
-fixed the imprecise "MUST emit this exact schema"). This closes the one-way-door trap — §8 forbids
-re-touching §3 after Part B, the generator is July-gated, and if its emitted core fields diverged the
-threshold would silently fail to transfer with no recourse. The schema is the transfer anchor; the
-worked examples (§4.3) ARE the schema and are therefore **mandatory in-band**, not optional.
+**That does not weaken the probe — fiat-permissive is correct on two independent grounds:**
+
+- **(a) The loss asymmetry mandates a permissive bias regardless of calibration.** `false-narrated`
+  (rejecting a genuinely under-narrated claim) is **invisible** by construction — rejected claims
+  never reach the council, so you never learn the probe killed a good one. `false-quiet` is **caught**
+  by the live council's under-narrated test. The only observable failure is the council catching
+  narrated claims the probe *passed*; the costly direction is unobservable → you bias permissive. A
+  perishable, fad-biased calibration would only have produced a threshold the loss structure says not
+  to trust to reject much anyway.
+- **(b) Dropping the straddle does NOT weaken anti-HARK.** Pre-registration requires the **threshold
+  pinned before data**, not **calibration before data**. A fiat threshold pinned blind in frozen text,
+  with a pre-committed expected-behavior band (§7), satisfies that. The HARK failure mode is shipping
+  with *no* threshold, seeing generator output, then picking one that "looks right" —
+  fiat-permissive-pinned-blind is the opposite of that.
+
+---
+
+## 3. Register unit (stub Q1) — mechanism-claim + the FROZEN generator schema
+
+The scored unit is a **mechanism claim**, NOT a theme label. The schema is **frozen here, prescriptive
+and forward-binding on the Stage-1 generator** (it MUST emit these fields):
 
 ```jsonc
-{                                  // one mechanism claim
+{
   "claim_id":   "str",
   "statement":  "one sentence: <driver> → <effect> → <entity class>",   // GENERATOR-CORE
-  "named_entities": [              // §4 scoring leg 1 (deterministic, leans on EDGAR company_tickers)
-    {"canonical": "GE Vernova", "ticker": "GEV", "aliases": ["GE Vernova", "Vernova"]}
-  ],
+  "named_entities": [{"canonical": "GE Vernova", "ticker": "GEV", "aliases": ["Vernova"]}],  // §4 leg 1
   "mechanism_direction": {"vocab": "shortage|surplus|backlog_growth|capex_up|supply_cut|demand_surge|capacity_constraint|...",
-                          "sign": "+|-"},     // §4 scoring leg 2 (controlled vocab; see the §4 fork)
-  "headline_quantities": [         // §4 scoring leg 3 (deterministic numeric tolerance); NARRATION
-    {"metric": "transformer lead time", "value": "~50→~120 weeks", "bucket": "weeks_x2plus"}
-  ],                               // fingerprints (what circulates when narrated) — prefer STRUCTURAL
-                                   // magnitudes (GW, Mlbs, capex %, lead-times), not prices (§2 optics)
-  "provenance":  "calibration|generated",   // GENERATOR-CORE (value "generated")
-  "onset_theme": "str",           // CALIBRATION-ONLY — a generated candidate has no GDELT onset (§5.3)
-  "in_live_book": true            // CALIBRATION-ONLY — reflexivity flag (§5.1 / rev-2 #7)
+                          "sign": "+|-"},                                // §4 leg 2
+  "headline_quantities": [{"metric": "transformer lead time", "value": "~50->~120 weeks", "bucket": "weeks_x2plus"}],  // §4 leg 3
+  "provenance": "generated"
 }
 ```
 
+(The rev-2/3 calibration-only fields `onset_theme` / `in_live_book` are **removed from v1** — they
+served the cutoff-straddle set construction, which now lives in §8 escalation.)
+
 ---
 
-## 4. The narration-diagnostic field set (stub Q2) + the elicitation/scoring choice (PINNED)
+## 4. Field set + deterministic scorer (stub Q2) — survives the freeze
 
-A model is asked about each mechanism (elicitation, see the fork) and its answer scored on
-**accuracy-of-specifics overlap** against the three schema fields — the things that **circulate when a
-theme is narrated**. **FORBIDDEN scoring targets (carried):** citation-verification-only identifiers
-(docket / queue / filing IDs) — corpus-inaccessible, and scoring on them makes everything read quiet +
-hands the generator a gaming channel. **Fluency is NOT a field** (models confabulate fluently about
-quiet themes — a fluency probe false-rejects its own target class).
+A model describes each mechanism (free-text); the description is scored on **accuracy-of-specifics
+overlap** against three fields — the things that circulate when a theme is narrated. **Citation-only
+IDs are forbidden as scoring targets** (corpus-inaccessible + a gaming channel); **fluency is not a
+field** (models confabulate fluently about quiet themes).
 
-### 4.1 DECISION — elicitation × scoring relaxation (rev-2 #3; **FROZEN: B** — rev-3 #4)
-
-The triad **{free-text elicitation, fully-deterministic scoring, no LLM judge}** is over-determined —
-`mechanism_direction` sign-extraction can't survive deterministically ("lead times are blowing out" =
-backlog_growth with no "backlog" token → a lexicon under-credits paraphrase → margins become noise),
-and the §5.4 responsiveness gate ("on-topic + fluent") needs that same judgment. At most two of the
-three hold. The fork (pick one; it freezes at merge):
-
-| | what relaxes | upside | downside |
-|---|---|---|---|
-| **A** structured elicitation | free-text → the model fills the fields | scoring stays fully deterministic | cueing the schema inflates overlap (cued vs free recall) — contaminates the very thing measured |
-| **B (rec.)** ring-fenced narrow LLM | "no LLM judge" → a bounded classifier | free-text recall preserved; entity+quantity scoring stays deterministic (leans on EDGAR `company_tickers`, 10.4k names); LLM only labels sign ∈ controlled-vocab + responsiveness ∈ {engaged-nonspecific / empty / off-topic}, NEVER the overlap/verdict | one bounded LLM in the loop (mitigated: decorrelated ≥2-vendor majority, pinned model+prompt-sha, controlled-vocab output, auditable) |
-| **C** deterministic lexicon | nothing | purest | the paraphrase noise above; must *prove* lexicon adequacy vs adversarial paraphrase in the worked examples |
-
-**B is FROZEN (rev-3 #4 — committed, not left open as a fork)**, because free-text elicitation is the
-*right* task (natural recall is what narration measurement requires; structured elicitation in A cues
-the answer — a worse contamination than a bounded classifier), and entity+quantity scoring is solidly
-deterministic on existing infra (EDGAR ticker↔name; numeric tolerance). The relaxation is narrow: **the overlap SCORE is deterministic
-given (entity-match, sign-label, quantity-match); only the sign-label and responsiveness come from a
-ring-fenced, pinned, decorrelated classifier that emits a controlled-vocab token and never decides
-narrated/under-narrated.** §4.2/§5.4 are written for the frozen B. (An open fork would be a soft spot
-in an otherwise clean freeze — A would need a cueing-contamination treatment the worked examples don't
-carry, and C would make the §4.3 adversarial-paraphrase proof load-bearing beyond what they gesture at;
-both reasons to commit B now, rev-3 #4, rather than defer the choice to merge.)
-
-### 4.2 Scoring legs (written for B)
 | field | match rule | determinism |
 |---|---|---|
-| `named_entities` | case-insensitive alias/ticker match (claim aliases ∪ EDGAR `company_tickers` title/ticker); score = fraction of the claim's entities correctly named | **fully deterministic** |
-| `mechanism_direction` | the ring-fenced classifier maps the model's prose → a controlled-vocab (vocab, sign); match = exact (vocab, sign) | classifier-labeled, deterministic given the label |
-| `headline_quantities` | numeric parse of the model's prose vs the claim's value within the pinned bucket tolerance (order-of-magnitude / ±1 bucket) | **fully deterministic** |
+| `named_entities` | alias/ticker match (claim aliases ∪ EDGAR `company_tickers`, 10.4k names) | **fully deterministic** |
+| `mechanism_direction` | a ring-fenced, pinned, decorrelated classifier maps prose → (vocab, sign); match = exact | classifier-labeled |
+| `headline_quantities` | numeric parse vs the claim value within the bucket tolerance (±1 bucket / same-OOM) | **fully deterministic** |
 
-Per-field margins are reported and gated **independently** (rev-2 #6) — the combined scalar can pass
-on a third-garbage construct if (say) sign is noise but entity-match separates; the gate (§6) sees
-each leg so the brittle one is watched, not averaged away.
+**Elicitation × scoring = FROZEN B** (rev-3 #4): free-text elicitation + a ring-fenced narrow
+classifier for `mechanism_direction` sign + responsiveness triage **only** (controlled-vocab output,
+decorrelated ≥2-vendor, pinned model+prompt-sha, never the verdict); entity + quantity scoring stay
+fully deterministic. Field weights **0.40 / 0.30 / 0.30** (favoring the deterministic legs). Per-field
+overlaps are reported independently. `mechanism_direction` is the softest leg → a **two-scorer
+agreement check** on its labels (rev-3). **Classifier validation is a pre-deploy precondition**: a
+small hand-labeled set must validate sign + responsiveness (incl. adjacent-vocab cases) to a pinned
+agreement bar before the probe is wired live.
 
-**Classifier validation — a Part-B PRECONDITION (rev-3 #2).** Option B puts the ring-fenced classifier
-on the load-bearing call: the engaged-nonspecific-vs-off-topic boundary (§5.4) lands precisely on the
-quiet readings, and the controlled vocab is granular enough to admit adjacent-correct misses ("demand
-outstripping supply" vs `supply_cut`). A classifier biased toward "off-topic" silently drops
-under-narrated evidence and compresses the margin; §4 freezes at merge, so this would corrupt the
-margin with no recourse. **Before the Part-B probe run, a small HAND-LABELED set must validate the
-classifier to a pinned agreement bar on BOTH (a) sign-classification incl. adjacent-vocab pairs and (b)
-responsiveness triage incl. engaged-vague-vs-off-topic boundary cases — else it is not deployed.** Infra
-is the council's pinned-sha decorrelated router (cheap); the net-new work is the validation set, not the
-classifier (§9).
-
-### 4.3 Worked examples — MANDATORY in-band (the schema + the scorer-adequacy demonstration)
-Two book-theme claims + **one non-book claim** (rev-2 #7, reflexivity hygiene + matcher
-generalization beyond energy vocabulary):
-
-1. **`ai_power` (in_live_book=true).** statement: *"AI-datacenter buildout → transformer & MV-switchgear
-   shortage → multi-year order backlog at grid-equipment OEMs."* entities: GE Vernova/GEV, Eaton/ETN,
-   Vertiv/VRT. direction: `backlog_growth +`. quantities: transformer lead time `~50→~120 weeks`
-   (`weeks_x2plus`). *Adversarial paraphrase a lexicon (C) would miss:* "OEM delivery windows have
-   ballooned to over two years" — no "backlog" token; B's classifier maps it to `backlog_growth +`.
-2. **`nuclear_fuel` (in_live_book=true).** statement: *"reactor restarts + SMR demand vs post-Fukushima
-   underinvestment → structural uranium supply deficit."* entities: Cameco/CCJ, Kazatomprom, NexGen/NXE.
-   direction: `supply_cut +` (deficit). quantities: annual deficit `~30–50 Mlbs` (`Mlbs_tens`) —
-   structural magnitude, **not** spot price (§2 optics).
-3. **`glp1_obesity` (in_live_book=FALSE — non-energy 2023 onset).** statement: *"GLP-1 efficacy readouts
-   → obesity-drug demand surge → injectable fill-finish / CDMO capacity constraint."* entities: Eli
-   Lilly/LLY, Novo Nordisk/NVO. direction: `capacity_constraint +`. quantities: trial weight-loss
-   `~15–20%` (`pct_15_25`). Proves the entity/sign/quantity matcher generalizes past grid/uranium.
+Worked examples (mandatory, in the frozen schema) — `ai_power`, `nuclear_fuel`, and a non-energy
+`glp1_obesity` claim — are retained from rev-3 as the schema demonstration + the adversarial-paraphrase
+case a deterministic-only lexicon would miss.
 
 ---
 
-## 5. Calibration-set construction (stub Q5) — the load-bearing surface
+## 5. The fiat-permissive threshold — a deterministic RULE, value by fiat (replaces the calibration)
 
-### 5.1 Cutoff-straddling; the theme as its own control; ≥1 non-book theme
-Each calibration mechanism comes from a theme with a **verifiable onset**, probed across models whose
-cutoffs **bracket** it: a **pre-onset** reading = the quiet state (expected LOW overlap), a
-**post-onset** reading = narrated (expected HIGH overlap). The same mechanism supplies both → **cross-
-theme idiosyncrasy controlled by construction** (the stub's HARK-vector warning; **no hand-picked
-current-quiet themes enter the set**). Seeds have verifiable onsets: uranium/nuclear (~2023),
-AI-power/grid (~2024). **At least one seed must be OUTSIDE the live book** (rev-2 #7 — uranium/AI-power
-ARE `nuclear_fuel`/`ai_capex_power`/`grid_equipment` in `universe_register.json`; calibrating the
-under-narration sensor only on the book's own winning themes is a reflexivity surface and may tune the
-scorer to energy vocabulary). The GLP-1/obesity onset (~2023, non-energy) is the seed non-book theme;
-the final list is whatever §5.3 admits.
+The threshold is a **deterministic rule**; only its single cutoff value is by fiat.
 
-### 5.2 The core assumption, stated so it can be attacked
-Validity rests on: *a current model's specific-overlap on a current under-narrated mechanism ≈ a
-pre-onset model's overlap on a pre-onset mechanism.* An assumption, not a theorem — guarded by the §6
-**ceiling AND basement** checks.
+- **RULE (deterministic, unit-tested):** a claim is **NARRATED → rejected** iff **high-overlap on ALL
+  THREE fields simultaneously AND ≥2 deploy-roster models concur.** Permissive *by construction* —
+  requiring all-three-fields AND ≥2-model concurrence to reject biases strongly toward keep /
+  funnel-forward, exactly as the §2 loss asymmetry demands.
+- **The only fiat number (pinned BLIND, §10):** `high-overlap` = per-field overlap ≥ **0.80**;
+  `concur` = **≥2** of the deploy roster each clear the all-three bar.
+- **Deploy roster:** the live council models, **exact-version-pinned via the `runs.model_mix` stamp**
+  (PR-B) — not drift-prone aliases (current: gemini / xai / anthropic proposer/adversary/strategist).
 
-### 5.3 Onset verification — REPRODUCIBLE, GDELT (net-new, one-shot)
-- **Source:** GDELT DOC 2.0 article-volume timeline (free, keyless, historical, deterministic
-  query→series) for a **pinned per-theme query** (frozen in Part A). **GDELT is net-new** (verified:
-  zero repo usage; `data/news.py` is per-symbol Alpaca/Benzinga and cannot supply theme-keyword
-  historical volume — so it's justified). It is **one-shot** (Part B-(i) only), so the FERC-style
-  scheduled-robustness bar does NOT apply (rev-2 #9).
-- **Normalization (pinned, rev-2 #9):** volume as **% of total GDELT articles** (not raw counts), so a
-  growing corpus doesn't masquerade as rising salience. **Source-composition discontinuities** (a
-  sustained source-set change reads as a sustained onset) are a known GDELT artifact a crossing rule
-  won't absorb → **each computed series is eyeballed for regime artifacts** before its onset is banked.
-- **Onset rule (pinned form):** the first month where normalized volume exceeds **K×** the
-  trailing-baseline median **and stays above ≥ M consecutive months** (sustained, not a spike). K, M,
-  baseline window pinned in Part A (§9 checklist); onset *dates* computed by Part B-(i), never chosen.
-- **Two proxy-hops, stated (rev-2 #10):** GDELT dates **media-narration** onset (hop 1), which precedes
-  **training-corpus incorporation** (hop 2). The ≥6-month cutoff bracket (§5.5) is partly absorbing
-  this lag — that is explicitly part of the bracket's job.
-
-### 5.4 The #37 discipline — responsiveness gate (written for B)
-§10.8: *"a 100%-NEUTRAL cycle must prove it isn't a parse bug in costume."* A quiet-state LOW overlap
-is meaningless if the output was empty/refused/off-topic. The ring-fenced classifier (§4.1-B) triages
-each reading → {engaged-nonspecific / empty / off-topic}; **only `engaged-nonspecific` counts as
-under-narrated evidence.** empty/off-topic readings are dropped from the set (logged), never scored as
-quiet. (Under fork A/C this triage is whatever that fork's relaxation allows.)
-
-### 5.5 Model/cutoff matrix — feasibility-checked, asymmetric, exhaustive
-- **Post-onset (narrated):** ≥2 **distinct-vendor** models, cutoff ≥6 months AFTER onset (decorrelation
-  earns its keep here — confirming the narrated specifics are broadly in circulation, not one model's
-  quirk).
-- **Pre-onset (quiet):** ≥2 models, cutoff ≥6 months BEFORE onset; **distinct-vendor PREFERRED, NOT
-  required (rev-2 #4)** — the pre-onset need is "didn't know it yet," not vendor diversity, and the
-  roster is genuinely thin for a 2023 onset (e.g. xAI/Grok's earliest model post-dates the uranium
-  onset entirely; old-cutoff models cluster at OpenAI/Meta/early-Anthropic/early-Gemini, several near
-  the ≥6mo boundary). Same-vendor different-cutoff pre-onset readings are admissible.
-- **Pre-merge FEASIBILITY CHECK (rev-2 #4):** before merge, a rough-onset check confirms a qualifying
-  pre-onset roster can be assembled for the **oldest seed**; if not, the documented fallback is to drop
-  distinct-vendor pre-onset (above) and, failing that, widen the seed set / relax the bracket — recorded.
-- **Roster rule = EXHAUSTIVE over qualifying models (rev-2 #11):** Part B-(ii) uses **every** model
-  meeting the bracket criteria, not a chosen subset — so the roster is not a post-onset tuning knob.
-  The concrete roster (versions drift) is recorded in Part B, selected by this deterministic rule.
-- **Per-model cutoff source-of-truth (rev-3 #6):** "exhaustive over QUALIFYING models" is deterministic
-  only if "qualifying" is — and old models cluster at the ≥6mo boundary, where a fuzzy/revisable vendor
-  cutoff makes the call a knob. Part A freezes a **per-model cutoff table (vendor-published, as-of a
-  pinned date)**; boundary calls are read off the table, never re-judged (§9 checklist).
-- **Onset-vs-feasibility recourse (rev-3 #3 — the one rev-3 item that touches the merge; it hides in
-  the B-(i)/B-(ii) seam):** the feasibility check above uses a ROUGH onset, but B-(i) computes the REAL
-  one AFTER §5 is frozen. If the real onset lands EARLIER, fewer models clear ≥6mo-before and the
-  exhaustive roster can fall below 2 pre-onset — with §5 one-pass-frozen. Closed two ways: (a) the
-  pre-merge feasibility check uses a **conservative (early) onset estimate**, so the actual is unlikely
-  to undercut it; AND (b) a B-(i) feasibility break (roster < 2 pre-onset for any seed) is an **ABORT →
-  re-pre-register the seed set in a NEW dated doc**, NEVER a silent §5 loosening (the same one-way-door
-  discipline as the rev-2 merge blockers).
-- **Deploy roster + capability-drift control (rev-3 #1 — the gap the existing machinery can't
-  self-catch):** the quiet state is read by pre-onset = OLD models, but at DEPLOY the probe scores
-  current candidates with CURRENT models (old models read everything quiet and can't be used). Current
-  models reconstruct mechanism specifics from REASONING far better than old ones — asked about a
-  genuinely under-narrated mechanism, a capable model often produces plausible entities/magnitudes it
-  never read, which the deterministic entity/quantity scorer credits as "knows it" → **false-narrated
-  at deploy** (the one invisible loss). The old-model basement check can't see this. So: (i) the
-  **deploy roster is the council's current pinned models** (named in Part A); (ii) capability drift is
-  a deploy-time false-narrated source **symmetric to §5.6**, backstopped by the council's live
-  under-narrated test; (iii) **CONTROL:** the quiet side ADDS ≥1 **current-generation** model reading a
-  set of **genuinely-still-quiet** mechanisms — selected by the reproducible §5.3 GDELT rule (no onset
-  as of now) and drawn from **outside the live book** (the §5.1/#7 non-HARK discipline, so these aren't
-  holdings-adjacent hand-picks). The §6 basement check MUST hold against THIS current-model quiet
-  overlap (not only old-model). A high current-model quiet baseline IS the drift signal → the probe is
-  unfit unless the operating threshold clears it (the permissive false-narrated-bounding rule already
-  does this — now it's *measurable*). This makes capability drift **self-diagnosing** via the basement
-  check.
-
-### 5.6 Carried caveat
-**Knowledge-cutoff lag:** a theme narrated after a probe model's cutoff reads quiet to it — a real
-deploy-time false-quiet source, backstopped by the council's live under-narrated test (funnel-not-
-verdict, §7). Pinned, not "fixed."
+This keeps the scorer discipline (which the straddle was never the source of) fully intact; only the
+cutoff *value* is asserted rather than calibrated.
 
 ---
 
-## 6. Overlap metric, validity gate (blind floor), and operating-threshold rule
+## 6. Non-perishable scorer smoke test (a unit test, NOT a calibration)
 
-- **Overlap metric:** the §4.2 per-field scorer → per-field overlaps + a combined overlap ∈ [0,1] per
-  (mechanism, model) reading (field weighting pinned in Part A, §9).
-- **Separation statistic:** per-mechanism **margin** = narrated-overlap − quiet-overlap; aggregated as
-  the median margin + the fraction of mechanisms with positive margin, **and per field** (rev-2 #6).
-- **Validity gate — FROZEN BLIND in Part A (rev-2 #1), a pass/fail, distinct from the threshold.** The
-  probe is **fit to deploy only if ALL hold** (numbers pinned blind at merge, §9 — conservative
-  defaults shown):
-  - **ceiling check:** narrated-state aggregate overlap ≥ **0.60** — the metric *can* capture a
-    narrated mechanism's specifics (else the metric, not the theme, is broken);
-  - **basement check (rev-2 #5; current-model arm rev-3 #1):** old-model quiet-state aggregate overlap
-    ≤ **0.30** (the set is not contaminated by pre-onset leakage) **AND the §5.5 current-generation
-    quiet reading on the still-quiet out-of-book mechanisms is also ≤ 0.30** — the gate must certify the
-    DEPLOY capability level, not just old models, or capability drift false-narrates at deploy unseen;
-  - **separation:** narrated > quiet on ≥ **75%** of mechanisms AND median margin ≥ **0.25** AND a sign
-    test p < 0.05;
-  - **per-field floor:** the `named_entities` leg (the most reliable, fully-deterministic leg) clears
-    margin ≥ **0.25 on its own** — a pass cannot rest on the paraphrase-noisy sign leg alone.
-- **Diagnosis (rev-2 #5 + the rev-3 #1 drift arm — failure modes are distinguishable, not collapsed
-  into one fail):** ceiling-OK & old-model-basement-FAIL (old quiet too high) → **set contamination** →
-  re-pick the bracket / drop the offending theme (NOT a probe failure); basement-OK & ceiling-FAIL
-  (narrated too low) → **metric broken** → probe unfit (do not loosen); **current-model quiet HIGH while
-  old-model quiet LOW → capability drift** (NOT set contamination) → the operating threshold must clear
-  the current-model quiet baseline (the permissive rule), else unfit; both mid → **genuine
-  non-separation** → unfit.
-- **Operating-threshold RULE (committed now; the NUMBER is Part B):** given a passing gate, the
-  keep/reject overlap threshold is set at the **permissive funnel point** — the value bounding the
-  **false-narrated** rate (the invisible loss: rejecting a genuinely under-narrated mechanism) at a
-  pinned-low level, accepting more **false-quiet** (which the council's live under-narrated test
-  backstops). Controls false-narrated; not balanced. RULE frozen; number recorded in Part B.
-- **Aggregation across models per state (carried + reconciled, rev-2 #3 / rev-1 pass-3):
-  any-model-high-overlap = narrated → reject**, reconciled with "calibrate permissive" via the **bar
-  for "high"**: a model counts as knowing the mechanism only on **strong** specific overlap (the
-  permissive/high per-model bar), so a vaguely-fluent answer never triggers a reject; but if **any**
-  qualifying model *demonstrably* knows the specifics, the mechanism is in circulation → narrated. Net:
-  reject only when ≥1 model genuinely knows it — minimizing the false-narrated invisible loss.
+Verifies the **scorer functions** — the one thing the straddle would have incidentally confirmed —
+with no perishable machinery:
+- a **blatantly-narrated** exemplar ("NVDA — AI-accelerator dominance") MUST score high-overlap on all
+  three fields;
+- a **deliberately-obscure invented** mechanism MUST score low-overlap.
+
+Pinned exemplars; a CI unit test, re-runnable forever (no model-vintage dependence beyond the deploy
+roster). If it fails, the scorer — not a theme — is broken.
 
 ---
 
-## 7. Generator-yield freeze-gate bands (stub constraint #5, pinned cold) + carried postures
+## 7. Falsifiable rejection-rate band (the §-yield pattern, one floor down — keeps "uncalibrated" honest)
 
-**The GENERATOR-yield gate** (fires on the generator's first run, Stage-1, July-gated; pinned blind
-HERE per "pre-committed at ITS freeze" — earlier = more blind; **DISTINCT** from the §6 calibration
-validity gate):
-- **0 generated theses** → corpus too thin → **do NOT loosen the probe** (investigate the corpus);
-- **small-n** → proceed;
-- **large-n** (above the pinned expectation) → **selectivity-flag on the generator** → investigate,
-  do not bank, do not proceed until understood.
-Expected yield pinned **blind** at this freeze (§9 checklist); themes get a **graveyard**, like edges.
-
-**Cross-reference (rev-2 #12):** this band lives here for maximal blindness, but the generator's own
-pre-reg MUST cite it so stub constraint #2 ("one re-tightening per re-score") is not muddied by a band
-spanning two documents — the band is pinned once, here, and referenced there.
-
-**Carried postures (pinned, not re-decided):** the probe is a **funnel, not a verdict** (permissive;
-the discovery-prescreen doctrine); the LLM is a **synthesis device over pinned inputs, never a memory
-device** (free recall samples the narrated corpus — the worst-placed anti-quietness instance, which
-this probe inverts into the sensor).
+Pinned **BLIND** before the generator runs (you can't calibrate the value, but you pre-commit what its
+behavior must look like + flag degeneracy):
+- **expected ~[X%]** of generated claims rejected by the probe;
+- **0% rejected = the probe is INERT** (threshold too permissive / a no-op) → investigate, do NOT bank
+  it as doing work;
+- **very-high %** (mis-set tight) → investigate.
 
 ---
 
-## 8. Out of scope / forbidden (the HARK leash) + deferred (named)
+## 8. Escalation — the high-bar future (#2 AND #3 together, never either alone)
 
-**Forbidden:** stating the operating-threshold number this week; iterating the probe / field set /
-scorer / threshold against generated candidates or admission/gate/council outcomes (constraint #2);
-re-touching §3–§7 after Part B's number (§10.4 one-pass); loosening any floor/criterion/threshold to
-manufacture separation or yield.
+**Trigger (the one observable signal):** the live council backstop **repeatedly catching obvious-
+narrated claims the probe passed** ⇒ too permissive ⇒ escalate. (The costly direction, false-narrated,
+stays unobservable — so escalation is keyed on the *observable* failure.)
 
-**Deferred (named):** stub **Q3** (demote rule / N windows / dormancy write-path) — a Stage-3/ops
-concern, its own later section; stub **Q4's number** → Part B; the **Stage-1 generator mechanics** +
-**Stage-3 adversary/operator-veto** → their own pre-reg sections, July-gated.
+**Escalation = #2 + #3 TOGETHER** (neither alone reaches the representativeness mismatch):
+- **#2 self-hosted open old-cutoff model** (Llama-2-class ~2022 + a 2nd distinct open model) — restores
+  the model floor + ≥2-vendor on the quiet side; a one-time GPU-day run pointed at a local endpoint;
+  the within-model cutoff-vs-capability contrast (same model articulates pre-cutoff specifics, fails
+  post-cutoff) isolates cutoff-effect from capability-effect more cleanly than the cross-model
+  straddle. **Unvalidated; capability confound remains.**
+- **#3 a level-shift / trend-change onset detector** (the 3×-spike rule CANNOT label slow secular
+  onsets) **+ mechanism-level secular onset labels matched to the generator's emitted granularity**
+  (which does not exist until Stage-1 is built).
 
----
+**Why both:** #2 fixes only the floor (the lesser problem); the binding problem is the representativeness
+mismatch (secular ramps have no clean quiet state), which needs #3's detector + generator-matched
+labels. High bar **by design** — fiat-permissive is very likely sufficient.
 
-## 9. Must-land-before-merge numeric checklist (rev-2 #8 — makes the freeze auditable)
-
-These are asserted "pinned at this freeze" and MUST carry concrete values in the merged text (all
-committed blind — no calibration scores exist yet):
-- [x] **§4.1 fork** — FROZEN **B** (rev-3 #4); §4.2/§5.4 are B.
-- [ ] **§4.2 field weighting** + **§4.3 quantity buckets** (the controlled bucket set).
-- [ ] **§5.3 GDELT**: per-theme query templates; K, M, baseline window; normalization (= %-of-total).
-- [ ] **§5.5 feasibility check** run on the oldest seed with a **conservative (early) onset estimate**
-  (rev-3 #3); roster rule = exhaustive-over-qualifying.
-- [ ] **§5.5 per-model cutoff table** (vendor-published, as-of a pinned date) (rev-3 #6).
-- [ ] **§5.5 deploy roster** named (current pinned council models) + the **current-model quiet-control**
-  mechanism set (still-quiet, out-of-book, GDELT-selected) (rev-3 #1).
-- [ ] **§6 validity-gate floor**: ceiling, basement (old-model AND current-model arms), separation %,
-  median-margin, sign-test, per-field floor (defaults 0.60 / 0.30 / 75% / 0.25 / p<0.05 / 0.25 —
-  confirm or adjust BLIND).
-- [ ] **§7 generator-yield**: the expected-yield number + the small/large-n band edges.
-- [ ] **§4.3 worked examples** present in-band (mandatory), consistent with B.
-
-**Part-B preconditions (gate the run, not the merge):** the **classifier hand-labeled validation** to a
-pinned agreement bar (rev-3 #2); the **B-(i) feasibility re-check** against the real GDELT onset, with a
-break → ABORT + re-pre-reg (rev-3 #3).
+**Dropped from v1 into this spec:** the cutoff-straddle; the **GDELT onset pull** (it was scoped to
+calibration-set construction ONLY — the live under-narration input is coverage-counts, not GDELT, so
+nothing is orphaned); the per-model cutoff table; the separation criterion + validity gate + Part B.
 
 ---
 
-## 10. Red-team log
+## 9. Red-team log
 
-**Rev 1 — three MECE passes (catches folded into §3–§6):** construct validity (generated-vs-calibration
-format transfer → §3 schema; pre-onset≈under-narrated assumption → §5.2 + ceiling check); measurement
-artifact/gaming (responsiveness gate §5.4; forbidden citation-IDs §4; cutoff-fuzz bracket §5.5); HARK/
-ordering (any-model-high reconciled via per-model high bar §6; reproducible GDELT onsets §5.3).
-
-**Rev 2 — adoption audit + 12 new seams (all folded; the design got specific enough that the next
-layer of seams became visible):**
-- **#1 (blocker)** §6/§10 contradiction put the validity-gate floor in Part B = a HARKed gate → SPLIT:
-  gate floor blind in Part A (§6), only the operating threshold in Part B (§2).
-- **#2 (blocker)** the transfer-anchor schema was unfrozen + optional behind a one-way door before a
-  July-gated generator → §3 freezes it as a concrete, **prescriptive forward-binding** artifact;
-  worked examples **mandatory** (§4.3).
-- **#3** the {free-text, deterministic, no-LLM-judge} triad is over-determined → §4.1 fork, **rec. B**
-  (ring-fenced narrow classifier for sign+responsiveness only; entity+quantity stay deterministic on
-  EDGAR `company_tickers`).
-- **#4** §5.5 matrix may be infeasible (no pre-2023 Grok; old models cluster) → relax distinct-vendor
-  **pre-onset**, add a pre-merge feasibility check.
-- **#5** quiet-side contamination had no detector → §6 **basement check** + the three-way diagnosis.
-- **#6** scalar-only gate hides a garbage field → §4.2/§6 per-field margins gated independently.
-- **#7** seeds ARE the book's themes → §5.1 requires ≥1 non-book seed (GLP-1) + a non-book worked
-  example.
-- **#8** scattered "pinned" assertions → §9 checklist.
-- **#9** GDELT net-new (verified) + data-quality → §5.3 (justified, one-shot, %-of-total, regime eyeball).
-- **#10** GDELT dates media-narration, 2 proxy-hops → §5.3 (the bracket absorbs the lag).
-- **#11** roster chosen post-onset = a knob → §5.5 exhaustive-over-qualifying rule.
-- **#12** band in two docs muddies constraint #2 → §7 cross-reference.
-
-**Rev 3 — three structural seams the rev-2 choices created (+ polish; the operator's "and then stop"):**
-- **#1 (the one gap the machinery can't self-catch)** calibration quiet = OLD models, deploy = CURRENT
-  models that reconstruct quiet specifics from reasoning → false-narrated, invisible to the old-model
-  basement → §5.5 deploy roster + capability-drift naming + a current-generation quiet control; §6
-  basement holds against it ⇒ drift becomes **self-diagnosing**.
-- **#2 (Part-B precondition)** Option B's classifier was unvalidated on its hardest (quiet) calls →
-  §4.2 hand-labeled sign+responsiveness validation, a Part-B precondition.
-- **#3 (the only merge-gating rev-3 item)** the feasibility check used a rough onset; B-(i) computes the
-  real one post-freeze → §5.5 conservative-onset estimate + a B-(i) ABORT→re-pre-reg recourse (the
-  one-way door hiding in the B-(i)/B-(ii) seam).
-- **#4** committed the §4.1 fork to **B** (no open fork in a freeze). **#5** field-scoped the schema's
-  forward-binding to the generator-core fields (`onset_theme`/`in_live_book` are calibration-only).
-  **#6** froze a per-model cutoff source-of-truth table.
-- **STOP after rev-3 (operator):** with #1's current-model control in, capability drift / classifier
-  error / set contamination are now empirically disambiguated by the basement check + the diagnosis;
-  further red-team only delays the freeze→run→record loop. **Next move = merge Part A + run Part B, not
-  rev-4.**
+- **Rev 1** — three MECE passes (construct validity / measurement-artifact / HARK-ordering).
+- **Rev 2** — a 12-item adoption-audit + new-seams pass (gate-floor split, prescriptive schema, the
+  elicitation fork, basement check, per-field gating, non-book seed, GDELT data-quality, …).
+- **Rev 3** — three structural seams the rev-2 choices created: capability drift (current-model quiet
+  control), classifier validation as a precondition, the B-(i) onset-vs-feasibility recourse; + polish
+  (fork→B, schema field-scoping, cutoff table).
+- **Rev 4 — the mandated feasibility check ran and pivoted the design.** Live model-availability
+  (oldest cutoff ≈ Oct-2023 / o1) + a GDELT onset enumeration showed the cutoff-straddle separates only
+  sharp fads, not the slow secular **deploy class** (representativeness mismatch — **not** thin-N). →
+  pivot to **fiat-permissive** (correct per the §2 loss asymmetry + anti-HARK-intact); **#2 pulled back**
+  from "do-if-N-thin" to escalation-only-paired-with-#3; the broad-query re-run **skipped** (it resolves
+  the wrong uncertainty — the floor is model-availability and the gradual-ramp failure is
+  detector×theme-shape, both query-independent). Part B + the straddle machinery → §8.
 
 ---
 
-## 11. Open questions remaining (dated — answers belong to Part B or a later section, not improvisation)
+## 10. Must-land-before-merge (the SHRUNK confirm-set; all pinned BLIND)
 
-1. The operating-threshold **number** — **Part B** (blind run on the known set).
-2. The §9 numeric pins land in the merged text, blind (GDELT K/M/baseline + queries, field weights,
-   gate-floor confirmations incl. both basement arms, generator-yield expectation, the per-model cutoff
-   table). *(The §4.1 fork is no longer open — FROZEN B, rev-3 #4.)*
-3. Part-B PRECONDITIONS (gate the run, not numbers): the classifier hand-labeled validation (rev-3 #2)
-   and the current-model quiet-control mechanism set (rev-3 #1).
-4. stub **Q3** (demote rule / dormancy write-path) — deferred (§8).
+- [ ] **§4** field weights (0.40/0.30/0.30) + quantity buckets.
+- [ ] **§5** the fiat threshold: the RULE (all-three-high ∧ ≥2-concur) + the `high-overlap` cutoff
+  value (**0.80** proposed — **operator's blind call**).
+- [ ] **§6** the smoke-test exemplars (the narrated + the obscure-invented).
+- [ ] **§7** the rejection-rate band (**expected ~[X%]; 0% = inert** — **operator's blind call**).
+- [ ] **§5** deploy roster = the live council via the `model_mix` stamp (exact-version).
+- [x] **§4** elicitation fork — FROZEN B.
+
+**Dropped (→ §8 escalation):** GDELT K/M/baseline + queries, per-model cutoff table, separation-criterion
+floor, p<.05 (these were Part-B / straddle pins; moot once Part B collapses).
+
+---
+
+## 11. Sequencing + open
+
+- **Ordering MET** (§10.8, 0/16). The freeze sits behind PR-B window #1 verifying clean + the grounding
+  leg landing (`PREREG_EVIDENCE_GROUNDING` §7) — **both DONE** (PR #58, 2026-06-15; L1 #182/#199 both
+  grounded `ROUNDTRIP_CONFIRMED`). So the freeze is sequencing-unblocked.
+- **Build order inside the pipeline:** generator-first (Stage-1, July-gated), **probe-second** (it acts
+  on generator output). The probe is additive (§1).
+- **Open (operator's blind calls at merge):** the §5 `high-overlap` cutoff value + the §7 rejection-rate
+  band.
+- stub **Q3** (demote rule / dormancy write-path) — still deferred.
