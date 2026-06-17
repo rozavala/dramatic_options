@@ -40,7 +40,8 @@ from council.proposal import passes_floor
 from council.scoring import agent_contribution
 from council_health_report import council_l1_health, latest_council_run
 
-SCHEMA_EXPECTED = 12
+SCHEMA_EXPECTED = 14  # manual tripwire — bump when a migration lands whose data a panel renders (else system_status warns).
+# Rendered through 14: 0013 runs.data_feed (regime_panel) + 0014 gate_dualread (gate_dualread_report).
 # Staleness thresholds (hours) — documented, generous enough to not false-alarm over a normal weekend/holiday.
 STALE_HOURS = {"cycle": 26.0, "council": 96.0, "discovery": 8.0 * 24.0}
 MIN_CI_N = 8  # below this, a percentile bootstrap is degenerate → suppress the CI (operator R2: n=3 reads tight)
