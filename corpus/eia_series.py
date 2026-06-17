@@ -95,6 +95,15 @@ def parse_eia_series(
     return out
 
 
+def cache_key(route: str, value_field: str, params: dict | None) -> str:
+    """Stable point-in-time-cache key for a query (route × metric × facets). The api_key is
+    deliberately EXCLUDED — the secret never enters the cache identity. Public so the corpus content
+    layer (``corpus/content.py``) can derive a pull's read coord without re-running the fetch."""
+    ident = json.dumps([route.strip("/"), value_field, sorted((params or {}).items())],
+                       sort_keys=True, default=str)
+    return "eia_" + hashlib.sha1(ident.encode()).hexdigest()[:12]
+
+
 class EIASeries:
     """As-of EIA series values, backed by the point-in-time cache (per route×metric×facets query).
 
@@ -126,12 +135,7 @@ class EIASeries:
         self._last = 0.0
 
     def _key(self, route: str, value_field: str, params: dict | None) -> str:
-        """Query identity (route × metric × facets) — the api_key is deliberately excluded."""
-        ident = json.dumps(
-            [route.strip("/"), value_field, sorted((params or {}).items())],
-            sort_keys=True, default=str,
-        )
-        return "eia_" + hashlib.sha1(ident.encode()).hexdigest()[:12]
+        return cache_key(route, value_field, params)
 
     def _throttle(self) -> None:
         if self.min_interval:

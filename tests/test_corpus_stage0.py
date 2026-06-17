@@ -11,14 +11,21 @@ from datetime import UTC, datetime, timedelta
 from corpus.assemble import assemble_corpus
 from corpus.bls_series import BLSSeries, _period_end, parse_bls_series
 from corpus.capital_raises import enumerate_capital_raises
+from corpus.content import all_basket_symbols, corpus_pulls, load_content, read_coords
 from corpus.customer_concentration import (
     CustomerConcentration,
     extract_concentration,
     strip_html,
 )
 from corpus.eia_series import EIASeries, _eia_period_end, parse_eia_series
+from corpus.eia_series import cache_key as eia_cache_key
 from corpus.etf_constituents import ETFConstituents, parse_holdings
-from corpus.federal_awards import enumerate_federal_awards, parse_federal_awards
+from corpus.federal_awards import (
+    DEFAULT_AWARD_TYPE_CODES,
+    enumerate_federal_awards,
+    parse_federal_awards,
+)
+from corpus.federal_awards import cache_key as fa_cache_key
 from corpus.nrc_dockets import NRCReactors, parse_reactor_list
 from data.cache import PointInTimeCache
 
@@ -490,3 +497,45 @@ def test_nrc_reactors_asof_and_fail_soft(tmp_path):
     off = NRCReactors(PointInTimeCache(tmp_path / "x", offline=True),
                       fetch_end=datetime(2026, 6, 16, tzinfo=UTC))
     assert off.reactors_asof(datetime(2026, 6, 16, tzinfo=UTC)) == []
+
+
+# ── corpus/content.py (the per-theme corpus-pull map) ────────────────────────────────────────
+
+_CONTENT_PATH = pathlib.Path(__file__).resolve().parents[1] / "corpus_content.json"
+
+
+def test_all_basket_symbols_union_upper_sorted():
+    config = {"universe": {"themes": {"a": ["nvda", "ccj"], "b": ["CCJ", "FCX"], "_c": "x"}}}
+    assert all_basket_symbols(config) == ["CCJ", "FCX", "NVDA"]
+
+
+def test_content_pulls_route_every_source():
+    # the SHIPPED corpus_content.json must parse and route all six adapters + a per-theme nrc/etf.
+    content = load_content(_CONTENT_PATH)
+    config = {"universe": {"themes": {"nuclear_fuel": ["UEC", "NXE"], "space_defense": ["RTX"], "_c": "x"}}}
+    pulls = corpus_pulls(content, config)
+    assert {p["source"] for p in pulls} == {
+        "corpus_capital_raises", "corpus_customer_concentration", "corpus_federal_awards",
+        "corpus_etf_constituents", "corpus_bls", "corpus_eia", "corpus_nrc_dockets",
+    }
+    assert {p["key"] for p in pulls if p["source"] == "corpus_capital_raises"} == {"424B5", "S-1"}
+    # customer-concentration spans the deduped, upper-cased basket symbols (the @all_basket_symbols sentinel)
+    assert {p["key"] for p in pulls if p["source"] == "corpus_customer_concentration"} == {"UEC", "NXE", "RTX"}
+    # nuclear_fuel routes its register ETFs + the NRC list
+    assert {p["key"] for p in pulls if p["source"] == "corpus_etf_constituents" and p["theme"] == "nuclear_fuel"} \
+        == {"URNM", "NLR"}
+    assert any(p["source"] == "corpus_nrc_dockets" and p["theme"] == "nuclear_fuel" for p in pulls)
+
+
+def test_read_coords_keys_match_adapter_cache_keys_and_dedup():
+    content = load_content(_CONTENT_PATH)
+    coords = read_coords(content, {"universe": {"themes": {"nuclear_fuel": ["UEC"]}}})
+    # the EIA coord key is exactly what EIASeries would write (no drift)
+    e = content["themes"]["nuclear_fuel"]["eia"][0]
+    assert ("corpus_eia", eia_cache_key(e["route"], e["value_field"], e["params"])) in coords
+    # the NAICS-filtered federal-awards coord key matches federal_awards.cache_key
+    agencies = [{"type": "awarding", "tier": "toptier", "name": "Department of Defense"}]
+    exp = fa_cache_key(agencies, list(DEFAULT_AWARD_TYPE_CODES), ["336414", "336411"])
+    assert ("corpus_federal_awards", exp) in coords
+    # coords are de-duplicated
+    assert len(coords) == len(set(coords))
