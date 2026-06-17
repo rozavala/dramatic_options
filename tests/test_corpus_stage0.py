@@ -17,31 +17,35 @@ from corpus.customer_concentration import (
     strip_html,
 )
 from corpus.eia_series import EIASeries, _eia_period_end, parse_eia_series
+from corpus.etf_constituents import ETFConstituents, parse_holdings
 from corpus.federal_awards import enumerate_federal_awards, parse_federal_awards
+from corpus.nrc_dockets import NRCReactors, parse_reactor_list
 from data.cache import PointInTimeCache
 
 
 class _FakeResp:
-    def __init__(self, payload, status=200):
+    def __init__(self, payload=None, status=200, text=""):
         self._payload = payload
         self.status_code = status
+        self.text = text
 
     def json(self):
         return self._payload
 
 
 class _FakeSession:
-    """Minimal requests.Session stand-in: records calls, replays canned JSON (offline tests)."""
+    """Minimal requests.Session stand-in: records calls, replays canned JSON/text (offline tests)."""
 
-    def __init__(self, *, get=None, posts=None):
+    def __init__(self, *, get=None, posts=None, get_text=""):
         self._get_payload = get
+        self._get_text = get_text
         self._posts = list(posts or [])
         self.get_urls: list[str] = []
         self.post_bodies: list[dict] = []
 
     def get(self, url, **kw):
         self.get_urls.append(url)
-        return _FakeResp(self._get_payload)
+        return _FakeResp(self._get_payload, text=self._get_text)
 
     def post(self, url, json=None, **kw):
         self.post_bodies.append(json)
@@ -418,3 +422,71 @@ def test_concentration_asof_fail_soft(tmp_path):
     cc = CustomerConcentration(PointInTimeCache(tmp_path, offline=True), edgar=None,
                                fetch_end=datetime(2026, 1, 1, tzinfo=UTC), cache_dir=tmp_path)
     assert cc.concentration_asof("SWKS", datetime(2026, 1, 1, tzinfo=UTC)) == []
+
+
+# ── corpus/etf_constituents.py (stockanalysis.com holdings API) ──────────────────────────────
+
+# Shape mirrors the live-probed stockanalysis API: "$CCJ" US, "!tsx/NXE" foreign, name-only (no "s").
+_ETF_PAYLOAD = {"status": 200, "data": {"holdings": [
+    {"no": 1, "n": "Cameco Corporation", "s": "$CCJ", "as": "21.74%", "sh": "4,261,703"},
+    {"no": 2, "n": "Sprott Physical Uranium Trust", "as": "14.45%", "sh": "15,068,344"},
+    {"no": 3, "n": "NexGen Energy Ltd.", "s": "!tsx/NXE", "as": "12.26%", "sh": "24,395,757"},
+]}}
+
+
+def test_parse_holdings_us_foreign_and_name_only():
+    recs = parse_holdings(_ETF_PAYLOAD, "URNM", as_of_ts="2026-06-16T00:00:00+00:00")
+    assert [r["symbol"] for r in recs] == ["CCJ", None, "NXE"]
+    assert [r["us_listed"] for r in recs] == [True, False, False]
+    assert recs[2]["exchange"] == "tsx"
+    assert recs[0]["weight_pct"] == 21.74 and recs[0]["shares"] == 4_261_703
+    assert recs[0]["etf"] == "URNM" and all(r["ts"] == "2026-06-16T00:00:00+00:00" for r in recs)
+    assert set(recs[0]) == {"ts", "etf", "rank", "name", "symbol", "exchange",
+                            "us_listed", "weight_pct", "shares"}
+
+
+def test_etf_constituents_asof_and_fail_soft(tmp_path):
+    etf = ETFConstituents(PointInTimeCache(tmp_path), fetch_end=datetime(2026, 6, 16, tzinfo=UTC),
+                          session=_FakeSession(get=_ETF_PAYLOAD), cache_dir=tmp_path,
+                          rate_limit_per_sec=0)
+    recs = etf.constituents_asof("URNM", datetime(2026, 6, 16, tzinfo=UTC))
+    assert len(recs) == 3 and recs[0]["symbol"] == "CCJ"
+    # offline + uncached → [] (no network, never raises)
+    off = ETFConstituents(PointInTimeCache(tmp_path / "x", offline=True),
+                          fetch_end=datetime(2026, 6, 16, tzinfo=UTC))
+    assert off.constituents_asof("URNM", datetime(2026, 6, 16, tzinfo=UTC)) == []
+
+
+# ── corpus/nrc_dockets.py (NRC reactor-list scrape) ──────────────────────────────────────────
+
+_NRC_HTML = (
+    "<html><body><table>"
+    "<tr><th>Plant Name Docket Number</th><th>License Number</th><th>Reactor Type</th>"
+    "<th>Location</th><th>Owner/Operator</th><th>NRC Region</th></tr>"
+    "<tr><td>Arkansas Nuclear 1 05000313</td><td>DPR-51</td><td>PWR</td>"
+    "<td>6 miles WNW of Russellville, AR</td><td>Entergy Nuclear Operations, Inc.</td><td>4</td></tr>"
+    "<tr><td>Beaver Valley 1 05000334</td><td>NPF-66</td><td>PWR</td>"
+    "<td>17 miles W of McCandless, PA</td><td>Vistra Corporation</td><td>1</td></tr>"
+    "</table></body></html>"
+)
+
+
+def test_parse_reactor_list_splits_name_docket_and_skips_header():
+    recs = parse_reactor_list(_NRC_HTML, as_of_ts="2026-06-16T00:00:00+00:00")
+    assert len(recs) == 2  # header row (no trailing docket digits) skipped
+    assert recs[0]["name"] == "Arkansas Nuclear 1" and recs[0]["docket"] == "05000313"
+    assert recs[0]["license"] == "DPR-51" and recs[0]["reactor_type"] == "PWR"
+    assert recs[0]["operator"] == "Entergy Nuclear Operations, Inc." and recs[0]["region"] == "4"
+    assert set(recs[0]) == {"ts", "name", "docket", "license", "reactor_type",
+                            "location", "operator", "region"}
+
+
+def test_nrc_reactors_asof_and_fail_soft(tmp_path):
+    nrc = NRCReactors(PointInTimeCache(tmp_path), fetch_end=datetime(2026, 6, 16, tzinfo=UTC),
+                      session=_FakeSession(get_text=_NRC_HTML), cache_dir=tmp_path,
+                      rate_limit_per_sec=0)
+    recs = nrc.reactors_asof(datetime(2026, 6, 16, tzinfo=UTC))
+    assert [r["name"] for r in recs] == ["Arkansas Nuclear 1", "Beaver Valley 1"]
+    off = NRCReactors(PointInTimeCache(tmp_path / "x", offline=True),
+                      fetch_end=datetime(2026, 6, 16, tzinfo=UTC))
+    assert off.reactors_asof(datetime(2026, 6, 16, tzinfo=UTC)) == []

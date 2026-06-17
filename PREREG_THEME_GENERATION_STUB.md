@@ -104,11 +104,17 @@ fetch, raw disk cache + point-in-time cache, transient-vs-genuine-empty split, f
 | `corpus/federal_awards.py` | USAspending `spending_by_award` (DoD toptier 097; top awards by obligated $) | keyless | window end (per-award action date is null in this endpoint; the `time_period` filter makes window-end conservative/never-early) |
 | `corpus/bls_series.py` | BLS publicAPI v1 `timeseries/data/{id}` (generic series puller) | keyless | reference-period-end + a conservative publication lag (default 30d) |
 | `corpus/eia_series.py` | EIA Open Data v2 `{route}/data/` (generic route×metric×facets puller) | `EIA_API_KEY` (never logged / never in a cache filename / never in a record) | period-end + a conservative publication lag (default 75d) |
+| `corpus/customer_concentration.py` | 10-K NARRATIVE text extraction (the XBRL path is a dead end — `ConcentrationRiskPercentage1` is dimensionally-qualified and companyfacts/frames drop it; verified live). Reuses `FilingsData` (latest BASE 10-K) + `EdgarClient.fetch_document` | `EDGAR_USER_AGENT` | the 10-K's filing ts |
+| `corpus/etf_constituents.py` | `stockanalysis.com/api/symbol/e/{ETF}/holdings` (the project's established constituent source; issuer sites are JS-rendered / redirect-loop / Cloudflare-blocked) | keyless (browser UA) | the pull's `fetch_end` (snapshot) |
+| `corpus/nrc_dockets.py` | NRC "List of Power Reactor Units" HTML table scrape | keyless (browser UA) | the pull's `fetch_end` (snapshot) |
 
-**Remaining Stage-0 sources:** the EDGAR 10-K >10%-customer-concentration EXTRACTION (the
-new/harder one — reuse the `data.fundamentals` XBRL pattern), then the 3 SCRAPE sources (ETF/index
-constituents · FERC interconnection queues · NRC dockets — per-source endpoint discovery, no clean
-public API).
+**Remaining / deferred Stage-0 sources:**
+- **FERC interconnection queues — DEFERRED (blocked), 2026-06-17.** No clean keyless scripted pull
+  exists: LBNL "Queued Up" 403s the bot UA, CAISO `PublicQueueReport.xlsx` 403s, and the MISO GI-queue
+  JSON API sits behind a Cloudflare "Just a moment" challenge (403). Building this needs browser
+  automation, a PJM Data Miner API key, or a manual periodic download — none a robust scheduled
+  keyless pull. Revisit if a clean source appears (or accept a manual quarterly drop, like the early
+  `universe_register` constituent files). Capacity/fuel-type/queue-status would be the structural fields.
 
 **STORAGE PIN (decided 2026-06-17, measure-first):** the assembled corpus is the **in-memory
 point-in-time UNION of the per-source caches** (`corpus/assemble.py`), **NOT a DB table.** Measured
