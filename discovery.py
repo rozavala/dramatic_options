@@ -233,9 +233,10 @@ def scan_baskets(
     """Scan curated baskets → ranked top-K novel candidates + a random control cohort.
 
     ``exclude_symbols`` (themes.json names + open positions + active sentinels) are skipped for
-    novelty. ``max_scan_names`` bounds the deterministic pass at the basket level (the cold-cache
-    cost guard, C1) — whole baskets are processed until the budget is reached. Within-basket z
-    ranks only the names that already cleared the absolute gate.
+    novelty **and excluded from the control cohort** (an already-tracked name is not a
+    "didn't-surface" counterfactual). ``max_scan_names`` bounds the deterministic pass at the
+    basket level (the cold-cache cost guard, C1) — whole baskets are processed until the budget is
+    reached. Within-basket z ranks only the names that already cleared the absolute gate.
     """
     rng = rng or random.Random()
     exclude = {s.upper() for s in (exclude_symbols or set())}
@@ -277,8 +278,13 @@ def scan_baskets(
     result.surfaced = scored[:top_k]
     surfaced_syms = {s.markers.symbol for s in result.surfaced}
 
-    # controls: random eligible names that were NOT surfaced (the forward null cohort)
-    pool = [m for m in eligible_unsurfaced if m.symbol not in surfaced_syms]
+    # controls: random eligible names that were NOT surfaced AND are not already tracked — the
+    # clean forward-null cohort. Mirror the surfacing exclusion (``not in exclude``, above): an
+    # open position or an active sentinel that re-clears the gate is dropped from surfacing, but
+    # without this filter it falls into ``eligible_unsurfaced`` and can be drawn as a control —
+    # i.e. the null arm gets contaminated by the very lineage it is the counterfactual for (#71).
+    pool = [m for m in eligible_unsurfaced
+            if m.symbol not in surfaced_syms and m.symbol not in exclude]
     rng.shuffle(pool)
     result.controls = pool[:n_controls]
     return result

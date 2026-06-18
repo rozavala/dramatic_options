@@ -155,6 +155,31 @@ def test_controls_drawn_from_eligible_unsurfaced(tmp_path):
     assert control_syms <= {"FLATA", "FLATB"}                   # eligible but not surfaced
 
 
+def test_controls_exclude_already_tracked_names(tmp_path):
+    """A name in ``exclude_symbols`` (an open position or active sentinel) must NEVER be drawn as a
+    control, even when eligible-but-unsurfaced — else the forward-null cohort is contaminated by the
+    very lineage it is the counterfactual for (#71). Covers both shapes: an active sentinel that
+    still CLEARS the gate (dropped from surfacing → leaks via eligible_unsurfaced), and a held name
+    gone QUIET (eligible, doesn't clear → already in the pool)."""
+    import random
+    md = _md(tmp_path, {
+        "FLATA": _flat(), "FLATB": _flat(),
+        "HELD": _flat(),          # an open position gone quiet: eligible, doesn't clear → pool
+        "SENT": _ramp(10, 20),    # an active sentinel still moving: clears the gate but is excluded
+        "MOVER": _ramp(10, 20),   # a fresh, un-tracked mover → surfaces
+        "SPY": _ramp(100, 110),
+    })
+    res = scan_baskets({"b": ["FLATA", "FLATB", "HELD", "SENT", "MOVER"]}, AS_OF, market=md,
+                       benchmark="SPY", params=MarkerParams(), exclude_symbols={"SENT", "HELD"},
+                       top_k=8, n_controls=10, rng=random.Random(0))
+    surfaced = {s.markers.symbol for s in res.surfaced}
+    control_syms = {c.symbol for c in res.controls}
+    assert "MOVER" in surfaced and "SENT" not in surfaced       # excluded names never surface
+    # n_controls=10 takes the whole purified pool, pinning the cohort exactly:
+    assert control_syms == {"FLATA", "FLATB"}                   # only un-tracked eligible-unsurfaced
+    assert {"SENT", "HELD"}.isdisjoint(control_syms)            # the #71 contamination is gone
+
+
 def test_max_scan_names_bounds_the_pass(tmp_path):
     md = _md(tmp_path, {f"S{i}": _ramp(10, 20) for i in range(6)} | {"SPY": _ramp(100, 110)})
     baskets = {"a": ["S0", "S1", "S2"], "b": ["S3", "S4", "S5"]}
