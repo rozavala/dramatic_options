@@ -801,7 +801,7 @@ def positions_panel(conn, *, stale_pending_cycles: int = 6) -> dict:
     """All 5 books — open + recent closed. Surfaces pending/closing distinctly + STALE-PENDING (a resting limit
     unfilled across many cycles = the v2 analog of a missed order; a dedicated queue is unbuilt in v2)."""
     real_open = _book_table(conn, "SELECT p.id, p.symbol, p.direction, p.contract_symbol, p.status, p.dte, "
-                                  "p.contracts, p.total_premium, p.mark, p.marked_at, p.opened_at, "
+                                  "p.contracts, p.total_premium, p.mark, p.marked_at, p.opened_at, p.theme, "
                                   "cp.run_id AS origin_run, cp.conviction AS origin_conviction "
                                   "FROM convexity_positions p LEFT JOIN council_proposals cp "
                                   "ON p.proposal_id = cp.id WHERE p.status IN ('open','closing','pending') "

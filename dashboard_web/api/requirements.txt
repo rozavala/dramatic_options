@@ -1,0 +1,6 @@
+# Observability API extras. The server imports `dashboard_data`, which pulls in the FULL trading stack
+# (numpy, alpaca, …), so it must run from a venv that ALSO has the trading deps. In dev that's the
+# worktree venv (trading + streamlit); install these two on top of it. For a prod service, the venv =
+# the trading requirements.txt + this file. These never enter the LIVE trading venv (which stays minimal).
+fastapi>=0.110
+uvicorn[standard]>=0.29
