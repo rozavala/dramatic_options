@@ -22,13 +22,16 @@ cd ui && npm install && npm run dev    # add --host <tailnet-ip> to view over Ta
 ```
 `npm run typecheck` · `npm run build` · `npm test` (vitest, the adapter contract).
 
-## Prod (one process, one port)
+## Prod (one process, one port) — managed systemd service
+On DEV this is **automatic**: `deploy.sh` builds the SPA (`npm ci && npm run build`) and arms
+`dramatic-options-web.service` (`scripts/systemd/`, rendered+installed by `install_units`; ExecStart =
+`scripts/dashboard_web_run.sh`). It mirrors the Streamlit unit — tailnet IP **:8503**, keyless, fail-closed,
+fail-soft + **outside** the verify/rollback gate (a dashboard hiccup never touches trading). PROD
+installs-but-stops it until T4. Manual run:
 ```bash
 cd ui && npm ci && npm run build       # produces ui/dist
-dashboard_web/deploy/run.sh            # FastAPI serves dist + /api on the tailnet IP:8503, keyless, fail-closed
+scripts/dashboard_web_run.sh           # from the repo root: FastAPI serves dist + /api on the tailnet IP:8503
 ```
-Or install `deploy/dramatic-options-web.service` (mirrors the Streamlit unit; on-failure restart). NOTE: this
-is **not yet wired into the live `deploy.sh`** — installing/arming it on the box is a deliberate operator step.
 
 ## Safety invariants
 Read-only DB (`?mode=ro`, a write raises) · NO-FETCH (`MarketData(client=None)`) · keyless

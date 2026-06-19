@@ -7,3 +7,9 @@
 # the project's read modules, so `pytest`/CI need NONE of this — the tests import dashboard_data, not
 # streamlit. PIN EXACT (build principle): re-verify on bump (the st.* API moves between minors).
 streamlit==1.58.0
+
+# The §5b WEB dashboard (dashboard_web/) — FastAPI serving the React SPA + read-only /api on one port (a
+# long-running service, unlike the Streamlit one). The live venv runs dramatic-options-web.service from
+# these; CI's test-dashboard job installs them too (a dep conflict fails CI, not just the box). Pin exact.
+fastapi==0.137.2
+uvicorn[standard]==0.49.0

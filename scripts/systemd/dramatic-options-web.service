@@ -1,0 +1,31 @@
+# Dramatic Options — WEB observability dashboard (read-only FastAPI + React SPA, one port :8503).
+# TEMPLATE: deploy.sh renders __REPO_ROOT__ / __USER__ / __GROUP__ at install time (DEV=rodrigo / PROD=console).
+#
+# Mirrors dramatic-options-dashboard.service (the Streamlit one, :8502). Long-running (Type=simple);
+# deploy.sh enables+starts it where `forward_enabled || ENV_NAME=DEV` (DEV always armed; PROD auto-arms at
+# T4), else installs-but-stops it. Fail-soft + OUTSIDE the verify/rollback gate (a dashboard hiccup never
+# touches trading).
+#
+# READ-ONLY + KEYLESS: deliberately NO EnvironmentFile, plus DRAMATIC_SKIP_DOTENV=1 → config_loader loads
+# config.json tunables but never reads .env, so the process holds no broker/LLM/Pushover keys. The wrapper
+# resolves the per-box Tailscale IP and fail-closes if absent.
+[Unit]
+Description=Dramatic Options web observability dashboard (read-only FastAPI + React SPA)
+Wants=network-online.target
+After=network-online.target tailscaled.service
+StartLimitIntervalSec=900
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__REPO_ROOT__
+Environment=PYTHONUNBUFFERED=1
+Environment=DRAMATIC_SKIP_DOTENV=1
+ExecStart=__REPO_ROOT__/scripts/dashboard_web_run.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
