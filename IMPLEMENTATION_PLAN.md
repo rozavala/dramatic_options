@@ -209,7 +209,7 @@ pinned to a HAND-CHECKED value test (anti-HARK, PREREG_CONVEXITY_CALIBRATION §6
 (data-as-of + L0/L1/L2 heartbeat). `requirements-dashboard.txt` keeps streamlit OUT of the trading runtime
 (CI green without it; the AppTest smoke is `importorskip`-gated). **Now a keyless systemd SERVICE 2026-06-06**
 (`dramatic-options-dashboard.service` + `scripts/dashboard_run.sh`; DEV-armed / PROD-install-but-inert via
-`forward_enabled || ENV_NAME=DEV`; per-box Tailscale-IP:8502 bind — wrapper polls ~60s then fail-closes;
+`forward_enabled || ENV_NAME=DEV`; per-box Tailscale-IP:8601 bind — wrapper polls ~60s then fail-closes;
 `DRAMATIC_SKIP_DOTENV=1` keyless via the `config_loader` opt-out + a CI import-graph invariant; fail-soft +
 outside the verify gate; a CI combined-venv job mirrors the box). 421 tests, ruff clean. **2026-06-09:** broker
 fill→close round-trip DONE (PR #44, live-only enum-repr reconcile bug caught + fixed); the council/gate

@@ -45,7 +45,7 @@ DASHBOARD_SERVICE="${SERVICE_PREFIX}-dashboard.service"
 WEB_SERVICE="${SERVICE_PREFIX}-web.service"        # the React/FastAPI dashboard (dashboard_web/); armed like DASHBOARD_SERVICE, fail-soft
 ENV_FILE="$REPO_ROOT/.env"                         # the file systemd EnvironmentFile reads
 HEALTH_URL="${HEALTH_URL:-}"                       # EMPTY: the trading loop has no HTTP endpoint. (The §5b
-                                                   # dashboard IS an HTTP server on 8502, deliberately kept OUT
+                                                   # dashboard IS an HTTP server on 8601, deliberately kept OUT
                                                    # of the verify gate — its failure is fail-soft.)
 
 # Prevent overlapping deploys
@@ -148,7 +148,7 @@ apply_dashboard() {
     fi
 }
 
-# Arm the LONG-RUNNING web dashboard (dashboard_web/: FastAPI + React SPA on :8503). Mirrors apply_dashboard
+# Arm the LONG-RUNNING web dashboard (dashboard_web/: FastAPI + React SPA on :8602). Mirrors apply_dashboard
 # — armed where this env OBSERVES (DEV always / forward_enabled at T4), else installed-but-stopped — equally
 # FAIL-SOFT and OUTSIDE the verify gate. Builds the SPA here (fail-soft): a build failure leaves the prior
 # dist or serves API-only (server.py mounts dist only if present), never blocking trading. Every command is
@@ -182,9 +182,10 @@ apply_web_dashboard() {
 stop_units() {
     sudo systemctl stop "${TIMERS[@]}" "${SERVICES[@]}" "$DASHBOARD_SERVICE" "$WEB_SERVICE" 2>/dev/null || true
     # Belt-and-suspenders: reap a hand-started dashboard (the pre-service manual instance / an orphan).
-    # PORT-qualified — real_options' dashboard is ALSO `streamlit run dashboard.py` on this host (port 8501).
-    pkill -f "streamlit.*server.port 8502" 2>/dev/null || true
-    pkill -f "uvicorn.*dashboard_web/api" 2>/dev/null || true   # the web dashboard (its own service / a manual run)
+    # PORT-qualified — real_options' dashboard is ALSO `streamlit run dashboard.py` on this host (port 8501),
+    # so match ONLY our port (8601) to never SIGTERM theirs.
+    pkill -f "streamlit.*server.port 8601" 2>/dev/null || true
+    pkill -f "uvicorn.*dashboard_web/api" 2>/dev/null || true   # the web dashboard (its own service / a manual run; pattern-qualified, distinct from real_options' uvicorn dashboard_api.app)
 }
 
 # Verify the TIMERS are active where the env trades. We assert the timers (a oneshot .service is

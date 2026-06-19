@@ -88,7 +88,7 @@ export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsolePr
             {fatal && <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#f2a99e", padding: 20, color: "#d12d1c" }}>{fatal}</div>}
             {error && !fatal && (
               <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#f2a99e", padding: 20, color: "#d12d1c" }}>
-                Couldn’t load the snapshot: {error}. Is the API running on :8503?
+                Couldn’t load the snapshot: {error}. Is the API running on :8602?
               </div>
             )}
             {vm && section === "overview" && <Overview vm={vm} onNavigate={setSection} />}

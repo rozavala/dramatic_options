@@ -12,7 +12,7 @@ localhost or a trusted tunnel — never a public port.
     pip install -r requirements.txt
     DRAMATIC_DB=~/dramatic_options/data/dramatic_options.db \
     DRAMATIC_CACHE_DIR=~/dramatic_options/data/cache \
-    uvicorn server:app --host 127.0.0.1 --port 8503
+    uvicorn server:app --host 127.0.0.1 --port 8602
 """
 
 from __future__ import annotations

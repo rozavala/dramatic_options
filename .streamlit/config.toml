@@ -1,11 +1,12 @@
 # Dashboard server defaults (§5b observability dashboard).
-# PINS PORT 8502 so the dramatic_options dashboard does NOT collide with the real_options dashboard,
-# which runs on the Streamlit default 8501 (its deploy.sh: `--server.port 8501`) — both can share a host.
+# PINS PORT 8601 so the dramatic_options dashboards do NOT collide with the real_options dashboards. We hold an
+# 86xx block (8601 Streamlit / 8602 web); real_options holds 85xx (8501 Streamlit / 8502 console) — both share
+# a host, so the blocks are kept disjoint (real_options binds 0.0.0.0, claiming a port on every interface).
 # Localhost-only by default: the dashboard renders the whole book + the cluster map (operator-confidential),
 # so it must not be exposed on a public port — override --server.address for the tailnet, or tunnel via SSH.
 # Streamlit reads ./.streamlit/config.toml relative to CWD (run from the live checkout, where deploy syncs it).
 [server]
-port = 8502
+port = 8601
 address = "127.0.0.1"
 headless = true
 

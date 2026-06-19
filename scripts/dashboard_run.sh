@@ -24,4 +24,4 @@ done
 [ -n "$ADDR" ] || { echo "dashboard_run: no Tailscale IPv4 after ~60s — refusing to bind (no wildcard fallback)" >&2; exit 1; }
 
 exec venv/bin/streamlit run dashboard.py \
-    --server.address "$ADDR" --server.port 8502 --server.headless true
+    --server.address "$ADDR" --server.port 8601 --server.headless true

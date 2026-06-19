@@ -123,11 +123,11 @@ def test_dashboard_service_is_a_keyless_longrunning_render_template():
     assert "OnFailure" not in cp["Unit"], "dashboard must NOT page (fail-soft)"
 
 
-def test_dashboard_wrapper_is_tailnet_failclosed_on_8502():
+def test_dashboard_wrapper_is_tailnet_failclosed_on_8601():
     assert WRAPPER.is_file(), "missing scripts/dashboard_run.sh"
     assert os.access(WRAPPER, os.X_OK), "dashboard_run.sh must be committed executable"
     w = WRAPPER.read_text()
-    assert "--server.port 8502" in w  # the distinct port (real_options' dashboard is 8501)
+    assert "--server.port 8601" in w  # our 86xx block (real_options holds 85xx: 8501 Streamlit / 8502 console)
     assert "tailscale" in w and "ip -4" in w  # resolves the per-box tailnet IP at start
     assert "0.0.0.0" not in w  # fail-closed: never a public-interface fallback
     assert "exit 1" in w  # fail-closed when no tailnet IP

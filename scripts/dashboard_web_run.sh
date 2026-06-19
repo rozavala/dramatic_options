@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Dramatic Options — WEB dashboard launch wrapper. The dramatic-options-web.service ExecStart.
-# FastAPI serves the built React SPA + the read-only /api on ONE port (8503), bound to the per-box
+# FastAPI serves the built React SPA + the read-only /api on ONE port (8602), bound to the per-box
 # Tailscale IP. Mirrors scripts/dashboard_run.sh (the Streamlit wrapper):
 #
 #   • resolve the per-box Tailscale IP AT START, POLLING ~60s (After=tailscaled guarantees STARTED, not
@@ -27,4 +27,4 @@ done
 # Serves dashboard_web/ui/dist (if built) + /api on the tailnet. server.py mounts the SPA only if dist
 # exists, so a missing/failed build degrades to API-only rather than crashing.
 exec venv/bin/uvicorn --app-dir dashboard_web/api server:app \
-    --host "$ADDR" --port 8503 --log-level warning
+    --host "$ADDR" --port 8602 --log-level warning
