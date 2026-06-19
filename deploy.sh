@@ -42,6 +42,7 @@ SERVICES=("${SERVICE_PREFIX}-l0.service" "${SERVICE_PREFIX}-l1.service" "${SERVI
 # (apply_dashboard) and fail-soft: its failure never rolls back trading. install_units globs *.service so the
 # unit lands on both boxes automatically; only the arming differs by env.
 DASHBOARD_SERVICE="${SERVICE_PREFIX}-dashboard.service"
+WEB_SERVICE="${SERVICE_PREFIX}-web.service"        # the React/FastAPI dashboard (dashboard_web/); armed like DASHBOARD_SERVICE, fail-soft
 ENV_FILE="$REPO_ROOT/.env"                         # the file systemd EnvironmentFile reads
 HEALTH_URL="${HEALTH_URL:-}"                       # EMPTY: the trading loop has no HTTP endpoint. (The §5b
                                                    # dashboard IS an HTTP server on 8502, deliberately kept OUT
@@ -147,12 +148,43 @@ apply_dashboard() {
     fi
 }
 
+# Arm the LONG-RUNNING web dashboard (dashboard_web/: FastAPI + React SPA on :8503). Mirrors apply_dashboard
+# — armed where this env OBSERVES (DEV always / forward_enabled at T4), else installed-but-stopped — equally
+# FAIL-SOFT and OUTSIDE the verify gate. Builds the SPA here (fail-soft): a build failure leaves the prior
+# dist or serves API-only (server.py mounts dist only if present), never blocking trading. Every command is
+# guarded so `set -e` can't trip on it. Guards on the wrapper's PRESENCE (a rollback across the introducing
+# commit has no wrapper → don't enable a unit whose ExecStart is gone).
+apply_web_dashboard() {
+    if [ ! -f scripts/dashboard_web_run.sh ]; then
+        echo "  Web dashboard: no scripts/dashboard_web_run.sh in this tree — leaving it stopped."
+        sudo systemctl disable --now "$WEB_SERVICE" 2>/dev/null || true
+        return 0
+    fi
+    chmod +x scripts/dashboard_web_run.sh 2>/dev/null || true   # repair an exec bit stripped on the box
+    if [ -d dashboard_web/ui ] && command -v npm >/dev/null 2>&1; then
+        echo "  Web dashboard: building the SPA (npm ci && build)..."
+        ( cd dashboard_web/ui && npm ci --no-audit --no-fund && npm run build ) \
+            || echo "  WARNING: web SPA build failed (fail-soft — API serves without the SPA; trading unaffected)"
+    else
+        echo "  Web dashboard: npm or dashboard_web/ui missing — skipping build (API-only if started)."
+    fi
+    if [ "$(forward_enabled)" = "true" ] || [ "$ENV_NAME" = "DEV" ]; then
+        echo "  Web dashboard: enabling + starting ($WEB_SERVICE)."
+        sudo systemctl enable --now "$WEB_SERVICE" \
+            || echo "  WARNING: web dashboard enable --now failed (fail-soft — trading is unaffected)"
+    else
+        echo "  Web dashboard: installed but stopped on $ENV_NAME (start when needed: systemctl start $WEB_SERVICE)."
+        sudo systemctl disable --now "$WEB_SERVICE" 2>/dev/null || true
+    fi
+}
+
 # Stop scheduling AND any in-flight oneshot so a `git reset` never lands under a live cycle (R4).
 stop_units() {
-    sudo systemctl stop "${TIMERS[@]}" "${SERVICES[@]}" "$DASHBOARD_SERVICE" 2>/dev/null || true
+    sudo systemctl stop "${TIMERS[@]}" "${SERVICES[@]}" "$DASHBOARD_SERVICE" "$WEB_SERVICE" 2>/dev/null || true
     # Belt-and-suspenders: reap a hand-started dashboard (the pre-service manual instance / an orphan).
     # PORT-qualified — real_options' dashboard is ALSO `streamlit run dashboard.py` on this host (port 8501).
     pkill -f "streamlit.*server.port 8502" 2>/dev/null || true
+    pkill -f "uvicorn.*dashboard_web/api" 2>/dev/null || true   # the web dashboard (its own service / a manual run)
 }
 
 # Verify the TIMERS are active where the env trades. We assert the timers (a oneshot .service is
@@ -190,6 +222,7 @@ rollback_and_restart() {
         install_units      # re-render the rolled-back tree's units (R4)
         apply_timers       # re-arm per the rolled-back .env
         apply_dashboard    # re-arm the dashboard per the rolled-back tree (fail-soft, guarded)
+        apply_web_dashboard # re-arm the web dashboard per the rolled-back tree (fail-soft, guarded)
         echo "--- Rollback complete. Units re-synced to $PREV_COMMIT. ---"
         echo "--- MANUAL INVESTIGATION REQUIRED ---"
     else
@@ -271,7 +304,8 @@ fi
 echo "--- 7. Installing systemd units + arming timers... ---"
 install_units
 apply_timers
-apply_dashboard   # fail-soft, never rolls back trading
+apply_dashboard       # fail-soft, never rolls back trading
+apply_web_dashboard   # fail-soft, never rolls back trading (builds the SPA + arms the web service)
 
 # =========================================================================
 # STEP 8: Verify the timers are active (where this env trades)
