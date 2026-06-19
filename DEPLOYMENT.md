@@ -85,16 +85,17 @@ ENV_NAME=DEV` (DEV always — observe even a paused book; PROD auto-arms at T4 g
 it (start when needed: `sudo systemctl start dramatic-options-dashboard`).
 
 - **Bind:** `scripts/dashboard_run.sh` resolves the per-box **Tailscale IP** at start (polls ~60s; **fail-closed**
-  — never a wildcard/public bind) and runs `streamlit run dashboard.py --server.port 8502` (port 8502 so it never
-  collides with real_options' dashboard on 8501). Reach it at `all-options-<env>.tail57521e.ts.net:8502`.
+  — never a wildcard/public bind) and runs `streamlit run dashboard.py --server.port 8601` (we hold the **86xx
+  block** — 8601 Streamlit / 8602 web — kept clear of real_options' **85xx** dashboards on 8501/8502, which bind
+  `0.0.0.0` and so claim a port on every interface). Reach it at `all-options-<env>.tail57521e.ts.net:8601`.
 - **Keyless:** the unit omits `EnvironmentFile` **and** sets `DRAMATIC_SKIP_DOTENV=1`, so
   `config_loader.load_config` loads `config.json` tunables but **never reads `.env`** — the read-only process
   holds no broker/LLM/Pushover keys. Confirm on the box:
-  `tr '\0' '\n' </proc/$(pgrep -f 'server.port 8502')/environ | grep -cE 'ALPACA|GEMINI|XAI|ANTHROPIC|PUSHOVER'` ⇒ 0.
+  `tr '\0' '\n' </proc/$(pgrep -f 'server.port 8601')/environ | grep -cE 'ALPACA|GEMINI|XAI|ANTHROPIC|PUSHOVER'` ⇒ 0.
 - **Fail-soft:** arming swallows errors and is **outside** the verify/rollback gate — a dashboard problem never
   fails or rolls back the trading deploy. `streamlit` installs from `requirements-dashboard.txt` (deploy STEP 3),
   kept out of `requirements.txt`; a CI `test-dashboard` job installs the combined venv so a dep conflict fails CI.
-- Stricter exposure (if the tailnet trust set changes): keep a localhost bind + SSH tunnel, or a Tailscale ACL on 8502.
+- Stricter exposure (if the tailnet trust set changes): keep a localhost bind + SSH tunnel, or a Tailscale ACL on 8601/8602.
 
 ## Files
 
@@ -104,7 +105,7 @@ it (start when needed: `sudo systemctl start dramatic-options-dashboard`).
 | `deploy.sh` | lifecycle: verify-gated install + timer arming, with rollback that re-syncs units |
 | `scripts/verify_deploy.sh` | health gate (disk, imports, critical files, **live-checkout `.env`**) |
 | `scripts/systemd/*.{service,timer}` | unit templates (L0, L1, L2, notify@, dashboard) rendered at install |
-| `scripts/dashboard_run.sh` | dashboard launch wrapper — resolves the tailnet IP (fail-closed), binds 8502 |
+| `scripts/dashboard_run.sh` | dashboard launch wrapper — resolves the tailnet IP (fail-closed), binds 8601 |
 | `requirements-dashboard.txt` | dashboard-only deps (streamlit); installed by deploy STEP 3, not in CI's base job |
 | `notify.py` | Pushover sender (in-app + `--systemd-failure` for `OnFailure`) |
 | `scripts/sync_worktree.sh` | keeps the `…-claude` worktree in sync |

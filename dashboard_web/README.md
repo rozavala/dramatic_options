@@ -2,7 +2,8 @@
 
 A read-only, NO-FETCH, fail-soft command center over the live journal + PIT cache. It **never** trades,
 writes, calls the broker, or edits config — same safety contract as the Streamlit dashboard (`dashboard.py`),
-which stays the source of truth on `:8502` and is untouched by this.
+which stays the source of truth on `:8601` and is untouched by this. (We hold the 86xx block — `:8601`
+Streamlit / `:8602` web — clear of real_options' 85xx dashboards.)
 
 - `api/` — a tiny FastAPI service. `snapshot.build_snapshot()` mirrors `dashboard.load_all()` panel-for-panel
   (streamlit-free) + injects `system_status` + JSON-sanitizes; `server.py` serves `GET /api/snapshot` and,
@@ -16,8 +17,8 @@ which stays the source of truth on `:8502` and is untouched by this.
 # 1) API (from the repo ROOT so themes.json/config.json resolve):
 DRAMATIC_SKIP_DOTENV=1 DRAMATIC_DB=~/dramatic_options/data/dramatic_options.db \
   DRAMATIC_CACHE_DIR=~/dramatic_options/data/cache \
-  ../venv/bin/uvicorn --app-dir dashboard_web/api server:app --port 8503   # run from repo root
-# 2) UI (proxies /api → :8503):
+  ../venv/bin/uvicorn --app-dir dashboard_web/api server:app --port 8602   # run from repo root
+# 2) UI (proxies /api → :8602):
 cd ui && npm install && npm run dev    # add --host <tailnet-ip> to view over Tailscale
 ```
 `npm run typecheck` · `npm run build` · `npm test` (vitest, the adapter contract).
@@ -25,12 +26,12 @@ cd ui && npm install && npm run dev    # add --host <tailnet-ip> to view over Ta
 ## Prod (one process, one port) — managed systemd service
 On DEV this is **automatic**: `deploy.sh` builds the SPA (`npm ci && npm run build`) and arms
 `dramatic-options-web.service` (`scripts/systemd/`, rendered+installed by `install_units`; ExecStart =
-`scripts/dashboard_web_run.sh`). It mirrors the Streamlit unit — tailnet IP **:8503**, keyless, fail-closed,
+`scripts/dashboard_web_run.sh`). It mirrors the Streamlit unit — tailnet IP **:8602**, keyless, fail-closed,
 fail-soft + **outside** the verify/rollback gate (a dashboard hiccup never touches trading). PROD
 installs-but-stops it until T4. Manual run:
 ```bash
 cd ui && npm ci && npm run build       # produces ui/dist
-scripts/dashboard_web_run.sh           # from the repo root: FastAPI serves dist + /api on the tailnet IP:8503
+scripts/dashboard_web_run.sh           # from the repo root: FastAPI serves dist + /api on the tailnet IP:8602
 ```
 
 ## Safety invariants

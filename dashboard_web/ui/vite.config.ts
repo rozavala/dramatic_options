@@ -10,7 +10,7 @@ export default defineConfig({
     // rebind guard blocks unknown domains by default — IP literals are allowed already).
     allowedHosts: [".tail57521e.ts.net"],
     proxy: {
-      "/api": { target: process.env.DRAMATIC_API ?? "http://127.0.0.1:8503", changeOrigin: true },
+      "/api": { target: process.env.DRAMATIC_API ?? "http://127.0.0.1:8602", changeOrigin: true },
     },
   },
 });

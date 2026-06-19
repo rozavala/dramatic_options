@@ -1,7 +1,7 @@
-# Dramatic Options — WEB observability dashboard (read-only FastAPI + React SPA, one port :8503).
+# Dramatic Options — WEB observability dashboard (read-only FastAPI + React SPA, one port :8602).
 # TEMPLATE: deploy.sh renders __REPO_ROOT__ / __USER__ / __GROUP__ at install time (DEV=rodrigo / PROD=console).
 #
-# Mirrors dramatic-options-dashboard.service (the Streamlit one, :8502). Long-running (Type=simple);
+# Mirrors dramatic-options-dashboard.service (the Streamlit one, :8601). Long-running (Type=simple);
 # deploy.sh enables+starts it where `forward_enabled || ENV_NAME=DEV` (DEV always armed; PROD auto-arms at
 # T4), else installs-but-stops it. Fail-soft + OUTSIDE the verify/rollback gate (a dashboard hiccup never
 # touches trading).
