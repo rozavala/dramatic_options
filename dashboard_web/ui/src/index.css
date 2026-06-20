@@ -41,3 +41,30 @@ body {
     margin-left: 100%;
   }
 }
+@keyframes skeleton {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* a11y (G1): a visible keyboard focus ring on interactive chrome (UA default was being relied on). */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #1558d6;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* respect reduced-motion: kill the decorative loops (skeleton/pulse/spin/count-up) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

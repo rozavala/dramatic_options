@@ -34,6 +34,21 @@ cd ui && npm ci && npm run build       # produces ui/dist
 scripts/dashboard_web_run.sh           # from the repo root: FastAPI serves dist + /api on the tailnet IP:8602
 ```
 
+## Config knobs
+- `DRAMATIC_DB` / `DRAMATIC_CACHE_DIR` — resolve the live DB + PIT cache (env wins, the worktree-vs-live guard).
+- `VITE_POLL_MS` (UI build/env) — auto-refresh interval in ms (default 60000; `0` disables). Polls only while
+  the tab is visible; the manual ↻ always bypasses the server cache.
+- `DASHBOARD_TOKEN` (server env) — **optional** shared-token gate. **Off by default** (the tailnet ACL +
+  localhost/tailnet bind are the primary control, so the live deploy is unchanged). When set, `/api/snapshot`
+  requires `Authorization: Bearer <token>`. NOTE: the browser SPA does not send a token, so enabling this
+  gates the **raw data API** (for an API-only / programmatic consumer), not the same-origin SPA — front the
+  SPA with a tunnel that injects auth if you need both.
+- `DASHBOARD_CORS_ORIGINS` (server env) — dev-only CORS allowlist (prod serves the SPA same-origin, no CORS).
+
+The API caches each snapshot ~60s in-process (mirrors the Streamlit `@st.cache_data(ttl=60)`); `?nocache=1`
+busts it. Fonts (Roboto / Roboto Mono) are **self-hosted** (bundled via `@fontsource`) — no Google Fonts CDN,
+so the UI renders identically on a no-egress host.
+
 ## Safety invariants
 Read-only DB (`?mode=ro`, a write raises) · NO-FETCH (`MarketData(client=None)`) · keyless
 (`DRAMATIC_SKIP_DOTENV=1`; the venv holds no `.env`) · fail-soft (every panel; one failure never blanks the

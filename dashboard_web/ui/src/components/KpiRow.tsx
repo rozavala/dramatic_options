@@ -64,7 +64,7 @@ function buildKpis(vm: ViewModel): Kpi[] {
 /** The four north-star KPI cards (desktop 4-col). */
 export function KpiRow({ vm }: { vm: ViewModel }) {
   return (
-    <div className="grid grid-cols-4 gap-3.5">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
       {buildKpis(vm).map((k) => (
         <div key={k.label} className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "16px 17px" }}>
           <div className="flex items-center justify-between gap-2">

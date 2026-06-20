@@ -8,11 +8,11 @@ const INTRO =
 export function Pipeline({ vm }: { vm: ViewModel }) {
   const f = vm.funnel;
   const fmax = Math.max(f.proposed, f.evaluated, f.opened, 1);
-  const steps: { label: string; value: string | number; sub: string; level: Level; num: boolean }[] = [
-    { label: "Proposed", value: f.proposed, sub: "by the AI council", level: "acc", num: true },
-    { label: "Evaluated", value: f.evaluated, sub: "reached the gate", level: "acc", num: true },
-    { label: "Opened", value: f.opened, sub: "cleared everything", level: f.opened > 0 ? "ok" : "mute", num: true },
-    { label: "Wasted calls", value: f.wasted, sub: "LLM-deliberated then gate-vetoed", level: "mute", num: false },
+  // F3: proposed→evaluated→opened is a FLOW; "wasted calls" is a side-metric shown below, not a 4th stage.
+  const steps: { label: string; value: number; sub: string; level: Level }[] = [
+    { label: "Proposed", value: f.proposed, sub: "by the AI council", level: "acc" },
+    { label: "Evaluated", value: f.evaluated, sub: "reached the gate", level: "acc" },
+    { label: "Opened", value: f.opened, sub: "cleared everything", level: f.opened > 0 ? "ok" : "mute" },
   ];
 
   const cmax = f.council.asserted + f.council.ungrounded + f.council.abstained || 1;
@@ -45,7 +45,7 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
         <div className="flex" style={{ alignItems: "stretch", gap: 8 }}>
           {steps.map((s) => {
             const lv = signal[s.level];
-            const h = s.num ? Math.max(34, ((s.value as number) / fmax) * 120) : 60;
+            const h = Math.max(34, (s.value / fmax) * 120);
             return (
               <div key={s.label} className="flex-1" style={{ textAlign: "center" }}>
                 <div className="flex items-center justify-center" style={{ height: h, borderRadius: 9, background: lv.bg, border: `1px solid ${lv.border}` }}>
@@ -57,9 +57,14 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
             );
           })}
         </div>
+        {/* F3: side-metrics, visually separated from the flow above */}
+        <div className="flex flex-wrap" style={{ gap: 20, marginTop: 16, paddingTop: 13, borderTop: "1px solid #edf0f4", fontSize: 11.5, color: "#414956" }}>
+          <span>Wasted LLM calls <span style={{ color: "#6a7280" }}>(deliberated, then gate-vetoed)</span> · <span className="font-mono" style={{ fontWeight: 500 }}>{f.wasted}</span></span>
+          <span>Cluster-cap rejected otherwise-passing · <span className="font-mono" style={{ fontWeight: 500, color: vm.capFlow.rejected ? signal.warn.text : color.ink2 }}>{vm.capFlow.rejected}</span></span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* inside the debate */}
         <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px" }}>
           <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>Inside the AI debate</div>
@@ -94,6 +99,24 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
           ))}
         </div>
       </div>
+
+      {/* latest run's per-name deliberation — the "why" */}
+      {vm.deliberation.rows.length > 0 && (
+        <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px", marginTop: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>Latest decisions <span style={{ color: "#6a7280", fontWeight: 400 }}>· run #{vm.deliberation.runId} · proposer → adversary → strategist</span></div>
+          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, padding: "12px 4px 8px", borderBottom: "1px solid #cbd0da", fontSize: 10.5, color: "#6a7280", textTransform: "uppercase", letterSpacing: ".6px", fontWeight: 500, marginTop: 6 }}>
+            <span>Name</span><span>Proposer</span><span>Adversary</span><span>Strategist</span>
+          </div>
+          {vm.deliberation.rows.map((d, i) => (
+            <div key={i} className="grid items-center font-mono" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, padding: "9px 4px", borderBottom: "1px solid #f6f8fa", fontSize: 12.5 }}>
+              <span style={{ fontWeight: 500, color: "#141b28" }}>{d.symbol}</span>
+              <span style={{ color: "#414956" }}>{d.dir ?? "—"}</span>
+              <span style={{ color: "#414956" }}>{d.adversary ?? "—"}</span>
+              <span style={{ color: "#2c3645", fontWeight: 500 }}>{d.conviction ?? "—"}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }

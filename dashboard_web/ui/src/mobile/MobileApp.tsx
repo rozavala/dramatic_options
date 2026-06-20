@@ -1,8 +1,8 @@
 import { useState } from "react";
 
 import { Sparkline } from "../components/Sparkline";
-import { Chip } from "../components/primitives";
-import { STATE_PRESENT, clusterLevel, markLevel } from "../data/status";
+import { Banner, Chip, Skeleton } from "../components/primitives";
+import { STATE_PRESENT, clusterLevel, directionLabel, isAccruingState, markLevel, relativeAge } from "../data/status";
 import type { ConsoleProps, ViewModel } from "../data/types";
 import { TITLES, type SectionId } from "../nav";
 import { color, signal, type Level } from "../theme/tokens";
@@ -16,7 +16,7 @@ const TAB_ICON: Record<SectionId, string> = {
   pipeline: "M4 5h16l-6 8v5l-4 2v-7z",
   book: "M5 6h14M5 12h14M5 18h9",
 };
-const dirLabel = (d: string) => (d === "bullish" ? "CALL" : d === "bearish" ? "PUT" : d.toUpperCase());
+const dirLabel = directionLabel; // A6 — single source in status.ts
 
 // ── Overview ──────────────────────────────────────────────────────────────────────────────────
 function MOverview({ vm }: { vm: ViewModel }) {
@@ -54,7 +54,7 @@ function MOverview({ vm }: { vm: ViewModel }) {
         <div className="flex items-center" style={{ gap: 13, paddingBottom: 12, borderBottom: "1px solid #edf0f4" }}>
           <div className="flex flex-col items-center justify-center" style={{ width: 56, height: 56, borderRadius: "50%", border: `3px solid ${ringColor}`, flex: "none" }}>
             <span className="font-mono" style={{ fontSize: 18, fontWeight: 700, color: ringColor, lineHeight: 1 }}>{r.pass}/{r.checkable}</span>
-            <span style={{ fontSize: 7.5, color: "#8b919b", textTransform: "uppercase", letterSpacing: ".4px", marginTop: 1 }}>gates</span>
+            <span style={{ fontSize: 7.5, color: "#5f6675", textTransform: "uppercase", letterSpacing: ".4px", marginTop: 1 }}>gates</span>
           </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#141b28" }}>Road to go-live</div>
@@ -66,7 +66,7 @@ function MOverview({ vm }: { vm: ViewModel }) {
           const s = signal[lvl];
           return (
             <div key={c.id} className="flex items-center" style={{ gap: 10, padding: "9px 0", borderBottom: "1px solid #f3f5f8" }}>
-              <span className="flex items-center justify-center" style={{ width: 23, height: 23, borderRadius: 7, flex: "none", fontSize: 11, fontWeight: 700, color: s.text, background: s.bg, border: `1px solid ${s.border}`, animation: c.state === "accruing" ? "accruePulse 2.4s ease-in-out infinite" : undefined }}>{icon}</span>
+              <span className="flex items-center justify-center" style={{ width: 23, height: 23, borderRadius: 7, flex: "none", fontSize: 11, fontWeight: 700, color: s.text, background: s.bg, border: `1px solid ${s.border}`, animation: isAccruingState(c.state) ? "accruePulse 2.4s ease-in-out infinite" : undefined }}>{icon}</span>
               <span style={{ flex: 1, fontSize: 11.5, fontWeight: 500, color: "#2c3645", lineHeight: 1.3 }}>{c.name}</span>
               <Chip level={lvl} style={{ fontSize: 9, padding: "2px 7px" }}>{tag}</Chip>
             </div>
@@ -93,6 +93,12 @@ function MSafety({ vm }: { vm: ViewModel }) {
     { label: "Run streak", value: c.streak },
     { label: "Cost", value: c.cost },
   ];
+  const dr = vm.dualread;
+  const dualTw = [
+    { label: "Δ iv/rv wire", tripped: dr.deltaTripped },
+    { label: "material flips", tripped: dr.flipTripped },
+    { label: "coverage gaps", tripped: dr.gapTripped },
+  ];
   return (
     <>
       <div className="grid grid-cols-2" style={{ gap: 10 }}>
@@ -100,7 +106,7 @@ function MSafety({ vm }: { vm: ViewModel }) {
           <div key={t.label} className={CARD} style={{ ...cardStyle, padding: "12px 13px" }}>
             <div style={{ fontSize: 10.5, color: "#5f6675" }}>{t.label}</div>
             <div className="font-mono" style={{ fontSize: 19, fontWeight: 700, color: t.color, marginTop: 6, letterSpacing: "-.3px" }}>{t.value}</div>
-            <div style={{ fontSize: 9.5, color: "#8b919b", marginTop: 2, lineHeight: 1.3 }}>{t.sub}</div>
+            <div style={{ fontSize: 9.5, color: "#5f6675", marginTop: 2, lineHeight: 1.3 }}>{t.sub}</div>
             {t.series && <Sparkline series={t.series} height={24} />}
           </div>
         ))}
@@ -140,6 +146,16 @@ function MSafety({ vm }: { vm: ViewModel }) {
           </div>
         ))}
       </div>
+      <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>OPRA dual-read <span style={{ fontWeight: 400, color: "#5f6675" }}>· §5 soak</span></div>
+        {dualTw.map((t) => (
+          <div key={t.label} className="flex justify-between items-center" style={{ gap: 10, padding: "7px 0", borderTop: "1px solid #edf0f4", marginTop: 2 }}>
+            <span style={{ fontSize: 11.5, color: "#33373f" }}>{t.label}</span>
+            <Chip level={t.tripped ? "bad" : "ok"} style={{ fontSize: 9, padding: "2px 7px" }}>{t.tripped ? "⚠ TRIPPED" : "clear"}</Chip>
+          </div>
+        ))}
+        <div style={{ fontSize: 10, color: "#5f6675", marginTop: 9 }}>cumulative LLM cost {vm.cost.cumulative}</div>
+      </div>
     </>
   );
 }
@@ -173,7 +189,7 @@ function MEdge({ vm }: { vm: ViewModel }) {
             <div key={b.name} className="flex items-center" style={{ gap: 10, padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
               <div style={{ width: 96, flex: "none" }}>
                 <div style={{ fontSize: 11.5, fontWeight: 600, color: "#26292f" }}>{b.name}</div>
-                <div style={{ fontSize: 9, color: "#8b919b" }}>{b.tag}</div>
+                <div style={{ fontSize: 9, color: "#5f6675" }}>{b.tag}</div>
               </div>
               <div style={{ flex: 1, height: 20, background: "#edf0f4", borderRadius: 6, position: "relative", overflow: "hidden" }}>
                 {has ? (
@@ -186,7 +202,7 @@ function MEdge({ vm }: { vm: ViewModel }) {
             </div>
           );
         })}
-        <div style={{ fontSize: 10, color: "#8b919b", marginTop: 11, lineHeight: 1.4, fontStyle: "italic" }}>
+        <div style={{ fontSize: 10, color: "#5f6675", marginTop: 11, lineHeight: 1.4, fontStyle: "italic" }}>
           {anyResolved ? "Early — pointing the right way as bets resolve." : "All accruing — no bets resolved yet (~6mo). Expected, not a failure."}
         </div>
       </div>
@@ -196,14 +212,14 @@ function MEdge({ vm }: { vm: ViewModel }) {
           <div key={o.label} className="flex justify-between items-center" style={{ padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
             <div>
               <div style={{ fontSize: 12, color: "#33373f" }}>{o.label}</div>
-              <div style={{ fontSize: 10, color: "#8b919b" }}>{o.sub}</div>
+              <div style={{ fontSize: 10, color: "#5f6675" }}>{o.sub}</div>
             </div>
             <span className="font-mono" style={{ fontSize: 15, fontWeight: 700, color: o.color }}>{o.value}</span>
           </div>
         ))}
       </div>
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Conviction calibration <span style={{ fontWeight: 400, color: "#8b919b" }}>· Brier, lower is better</span></div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Conviction calibration <span style={{ fontWeight: 400, color: "#5f6675" }}>· Brier, lower is better</span></div>
         {brierRows.map((r) => (
           <div key={r.label} className="flex justify-between items-center" style={{ padding: "8px 0", borderTop: "1px solid #edf0f4", marginTop: 2 }}>
             <span style={{ fontSize: 12, color: "#33373f" }}>{r.label}</span>
@@ -211,6 +227,22 @@ function MEdge({ vm }: { vm: ViewModel }) {
           </div>
         ))}
       </div>
+      {vm.nulls.length > 0 && (
+        <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Null hierarchy <span style={{ fontWeight: 400, color: "#5f6675" }}>· clean vs bundled</span></div>
+          {vm.nulls.map((step) => (
+            <div key={step.name} style={{ padding: "8px 0", borderTop: "1px solid #edf0f4", marginTop: 2 }}>
+              <div className="flex items-center justify-between" style={{ gap: 8 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: "#33373f" }}>{step.name}</span>
+                <Chip level={step.clean ? "acc" : "mute"} style={{ fontSize: 9, padding: "2px 7px" }}>{step.clean ? "clean" : "bundled"}</Chip>
+              </div>
+              <div className="font-mono" style={{ fontSize: 10.5, color: "#5f6675", marginTop: 3 }}>
+                {step.arms.map((a) => `${a.label} ${a.ci.p95 != null ? `${a.ci.p95.toFixed(2)}×` : "—"}`).join("  ·  ")}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -222,7 +254,6 @@ function MPipeline({ vm }: { vm: ViewModel }) {
     { label: "Proposed", value: f.proposed, sub: "by the AI council", level: "acc" },
     { label: "Evaluated", value: f.evaluated, sub: "reached the gate", level: "acc" },
     { label: "Opened", value: f.opened, sub: "cleared everything", level: f.opened > 0 ? "ok" : "mute" },
-    { label: "Wasted calls", value: f.wasted, sub: "deliberated then gate-vetoed", level: "mute" },
   ];
   const cmax = f.council.asserted + f.council.ungrounded + f.council.abstained || 1;
   const debate: { label: string; value: number; level: Level }[] = [
@@ -240,17 +271,20 @@ function MPipeline({ vm }: { vm: ViewModel }) {
   return (
     <>
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest cycle <span style={{ fontWeight: 400, color: "#8b919b" }}>· run #{f.runId ?? "—"}</span></div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest cycle <span style={{ fontWeight: 400, color: "#5f6675" }}>· run #{f.runId ?? "—"}</span></div>
         <div style={{ fontSize: 11, color: "#5f6675", margin: "3px 0 13px", lineHeight: 1.4 }}>Where candidate ideas stop. Zero opened is healthy if nothing was cheap.</div>
         {steps.map((s) => (
           <div key={s.label} className="flex items-center" style={{ gap: 12, padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
             <span className="font-mono" style={{ fontSize: 18, fontWeight: 700, color: signal[s.level].text, width: 34, flex: "none" }}>{s.value}</span>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12, fontWeight: 500, color: "#33373f" }}>{s.label}</div>
-              <div style={{ fontSize: 10, color: "#8b919b" }}>{s.sub}</div>
+              <div style={{ fontSize: 10, color: "#5f6675" }}>{s.sub}</div>
             </div>
           </div>
         ))}
+        <div style={{ marginTop: 9, paddingTop: 9, borderTop: "1px solid #edf0f4", fontSize: 10.5, color: "#5f6675", lineHeight: 1.6 }}>
+          Wasted LLM calls <span className="font-mono" style={{ fontWeight: 600 }}>{f.wasted}</span> · cluster-cap rejected <span className="font-mono" style={{ fontWeight: 600 }}>{vm.capFlow.rejected}</span>
+        </div>
       </div>
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28", marginBottom: 9 }}>Inside the AI debate</div>
@@ -270,12 +304,23 @@ function MPipeline({ vm }: { vm: ViewModel }) {
           <div key={r.label} className="flex justify-between items-center" style={{ padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
             <div>
               <div style={{ fontSize: 12, color: "#33373f" }}>{r.label}</div>
-              <div style={{ fontSize: 10, color: "#8b919b" }}>{r.sub}</div>
+              <div style={{ fontSize: 10, color: "#5f6675" }}>{r.sub}</div>
             </div>
             <span className="font-mono" style={{ fontSize: 14, fontWeight: 700, color: r.color }}>{r.value}</span>
           </div>
         ))}
       </div>
+      {vm.deliberation.rows.length > 0 && (
+        <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest decisions <span style={{ fontWeight: 400, color: "#5f6675" }}>· #{vm.deliberation.runId}</span></div>
+          {vm.deliberation.rows.map((d, i) => (
+            <div key={i} className="flex justify-between items-center" style={{ gap: 10, padding: "7px 0", borderTop: "1px solid #edf0f4", marginTop: 2 }}>
+              <span className="font-mono" style={{ fontSize: 12, fontWeight: 600, color: "#141b28" }}>{d.symbol} <span style={{ fontWeight: 400, color: "#5f6675" }}>{d.dir ?? ""}</span></span>
+              <span style={{ fontSize: 11, color: "#5f6675" }}>{d.adversary ?? "—"} → <span style={{ fontWeight: 600, color: "#33373f" }}>{d.conviction ?? "—"}</span></span>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -297,11 +342,11 @@ function MBook({ vm }: { vm: ViewModel }) {
               <div key={i} className="flex items-center" style={{ gap: 10, padding: "10px 0", borderTop: "1px solid #edf0f4" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="font-mono" style={{ fontSize: 13, fontWeight: 700, color: "#141b28" }}>{p.symbol} <span style={{ fontSize: 9, fontFamily: "Roboto", color: p.dir === "bearish" ? signal.bad.text : signal.ok.text }}>{dirLabel(p.dir)}</span></div>
-                  <div style={{ fontSize: 10, color: "#8b919b" }}>{[p.theme, p.conviction, p.dte != null ? `${p.dte}d` : null].filter(Boolean).join(" · ")}</div>
+                  <div style={{ fontSize: 10, color: "#5f6675" }}>{[p.theme, p.conviction, p.dte != null ? `${p.dte}d` : null].filter(Boolean).join(" · ")}</div>
                 </div>
                 <div className="text-right font-mono">
                   <div style={{ fontSize: 13, fontWeight: 700, color: lv.text }}>{p.mark != null ? `${p.mark.toFixed(1)}×` : "—"}</div>
-                  <div style={{ fontSize: 10, color: "#8b919b" }}>{p.premium}</div>
+                  <div style={{ fontSize: 10, color: "#5f6675" }}>{p.premium}</div>
                 </div>
               </div>
             );
@@ -317,10 +362,10 @@ function MBook({ vm }: { vm: ViewModel }) {
         )}
       </div>
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Active sentinels <span style={{ fontWeight: 400, color: "#8b919b" }}>· {vm.sentinelSub}</span></div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Active sentinels <span style={{ fontWeight: 400, color: "#5f6675" }}>· {vm.sentinelSub}</span></div>
         {vm.sentinels.map((s, i) => (
           <div key={i} className="flex justify-between items-center" style={{ padding: "8px 0", borderTop: "1px solid #edf0f4", marginTop: 2 }}>
-            <span className="font-mono" style={{ fontSize: 12, color: "#33373f" }}>{s.symbol} <span style={{ fontSize: 10, color: "#8b919b" }}>{s.basket ?? ""}</span></span>
+            <span className="font-mono" style={{ fontSize: 12, color: "#33373f" }}>{s.symbol} <span style={{ fontSize: 10, color: "#5f6675" }}>{s.basket ?? ""}</span></span>
             <span style={{ fontSize: 10.5, color: "#5f6675" }}>{s.note}</span>
           </div>
         ))}
@@ -344,6 +389,7 @@ const TAB_LABEL: Record<SectionId, string> = { overview: "Overview", safety: "Sa
 export function MobileApp({ vm, loading, error, fatal, refresh }: ConsoleProps) {
   const [tab, setTab] = useState<SectionId>("overview");
   const [title, subtitle] = TITLES[tab];
+  const age = relativeAge(vm?.asOf); // E2
 
   return (
     <div className="flex flex-col" style={{ height: "100dvh", background: "#f4f6f8", overflow: "hidden" }}>
@@ -357,31 +403,51 @@ export function MobileApp({ vm, loading, error, fatal, refresh }: ConsoleProps) 
               <div className="font-mono" style={{ color: "#8a98b0", fontSize: 10 }}>{subtitle}</div>
             </div>
           </div>
-          <button onClick={() => refresh()} aria-label="Refresh" className="flex items-center justify-center" style={{ flex: "none", width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,.08)", border: "1px solid #2a3c5e", color: "#aeb8cc", fontSize: 14, cursor: "pointer", animation: loading ? "spin .7s linear infinite" : undefined }}>↻</button>
+          <div className="flex items-center" style={{ gap: 9, flex: "none" }}>
+            {age.label && (
+              <span className="font-mono" style={{ fontSize: 9.5, color: signal[age.level].text === "#0b8a3e" ? "#8a98b0" : signal[age.level].text }}>{age.label}</span>
+            )}
+            <button onClick={() => refresh()} disabled={loading} aria-label="Refresh snapshot" className="flex items-center justify-center" style={{ flex: "none", width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,.08)", border: "1px solid #2a3c5e", color: "#aeb8cc", fontSize: 14, cursor: loading ? "default" : "pointer", opacity: loading ? 0.55 : 1, animation: loading ? "spin .7s linear infinite" : undefined }}>↻</button>
+          </div>
         </div>
       </div>
       {loading && <div style={{ height: 3, flex: "none", background: "#dbe7ff", overflow: "hidden" }}><div style={{ height: "100%", width: "35%", background: color.accent, animation: "indet 1.1s ease-in-out infinite" }} /></div>}
 
       {/* content */}
       <div className="flex-1 overflow-y-auto" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 11 }}>
-        {fatal && <div className={CARD} style={{ ...cardStyle, padding: 16, color: "#d12d1c" }}>{fatal}</div>}
+        {fatal && (
+          <div className={CARD} style={{ ...cardStyle, padding: 22, textAlign: "center" }}>
+            <div style={{ fontSize: 26, marginBottom: 6 }}>⚠</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#d12d1c", marginBottom: 6 }}>Snapshot unavailable</div>
+            <div className="font-mono" style={{ fontSize: 11, color: "#5f6675", lineHeight: 1.6, wordBreak: "break-word" }}>{fatal}</div>
+          </div>
+        )}
         {error && !fatal && <div className={CARD} style={{ ...cardStyle, padding: 16, color: "#d12d1c" }}>Couldn’t load the snapshot: {error}.</div>}
+        {vm?.schemaWarning && <Banner level="warn">⚠ {vm.schemaWarning}</Banner>}
+        {vm && vm.degraded.length > 0 && (
+          <Banner level="bad">{vm.degraded.length} panel{vm.degraded.length > 1 ? "s" : ""} unavailable (fail-soft): {vm.degraded.join(", ")}. Blank/zero here = a crash, not “accruing”.</Banner>
+        )}
         {vm && tab === "overview" && <MOverview vm={vm} />}
         {vm && tab === "safety" && <MSafety vm={vm} />}
         {vm && tab === "edge" && <MEdge vm={vm} />}
         {vm && tab === "pipeline" && <MPipeline vm={vm} />}
         {vm && tab === "book" && <MBook vm={vm} />}
+        {!vm && !error && !fatal && loading && (
+          <>
+            <Skeleton height={84} /><Skeleton height={150} /><Skeleton height={150} />
+          </>
+        )}
         <div style={{ height: 6, flex: "none" }} />
       </div>
 
       {/* bottom tab bar */}
-      <div className="flex" style={{ flex: "none", background: color.navy900, borderTop: `1px solid ${color.navy700}`, padding: "9px 6px calc(env(safe-area-inset-bottom, 0px) + 14px)" }}>
+      <div role="tablist" aria-label="Sections" className="flex" style={{ flex: "none", background: color.navy900, borderTop: `1px solid ${color.navy700}`, padding: "9px 6px calc(env(safe-area-inset-bottom, 0px) + 14px)" }}>
         {NAV_IDS.map((id) => {
           const active = id === tab;
           const c = active ? color.accent : "#7d8aa3";
           return (
-            <button key={id} onClick={() => setTab(id)} className="flex flex-col items-center" style={{ flex: 1, background: "none", border: "none", cursor: "pointer", gap: 4, padding: "3px 0" }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={TAB_ICON[id]} /></svg>
+            <button key={id} role="tab" aria-selected={active} aria-label={TAB_LABEL[id]} onClick={() => setTab(id)} className="flex flex-col items-center" style={{ flex: 1, background: "none", border: "none", cursor: "pointer", gap: 4, padding: "3px 0" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={TAB_ICON[id]} /></svg>
               <span style={{ fontSize: 9, fontWeight: 500, color: c, letterSpacing: ".1px" }}>{TAB_LABEL[id]}</span>
             </button>
           );

@@ -1,4 +1,4 @@
-import { markLevel } from "../data/status";
+import { directionLabel, markLevel } from "../data/status";
 import type { ViewModel } from "../data/types";
 import { signal } from "../theme/tokens";
 
@@ -7,7 +7,7 @@ const INTRO =
   "Below: what's open, what the scanner is watching, and the data accruing.";
 
 const GRID = "0.8fr 0.9fr 0.7fr 0.7fr 0.9fr 1fr";
-const dirLabel = (d: string) => (d === "bullish" ? "CALL" : d === "bearish" ? "PUT" : d.toUpperCase());
+const dirLabel = directionLabel; // A6 — single source in status.ts
 
 export function Book({ vm }: { vm: ViewModel }) {
   const has = vm.positions.length > 0;
@@ -60,12 +60,12 @@ export function Book({ vm }: { vm: ViewModel }) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* sentinels */}
         <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px" }}>
           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, color: "#141b28" }}>Active sentinels</div>
           <div style={{ fontSize: 12, color: "#414956", lineHeight: 1.5, marginBottom: 14 }}>Names the weekly scanner is watching for an inflection. {vm.sentinelSub}</div>
-          {vm.sentinels.length === 0 && <div style={{ fontSize: 12, color: "#8b919b" }}>None active.</div>}
+          {vm.sentinels.length === 0 && <div style={{ fontSize: 12, color: "#5f6675" }}>None active.</div>}
           {vm.sentinels.map((s, i) => (
             <div key={i} className="flex justify-between items-center" style={{ padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
               <span className="font-mono" style={{ fontSize: 12.5, fontWeight: 500, color: "#2c3645" }}>

@@ -2,6 +2,7 @@ import { clusterLevel } from "../data/status";
 import type { ViewModel } from "../data/types";
 import { color, signal } from "../theme/tokens";
 import { Sparkline } from "./Sparkline";
+import { Chip } from "./primitives";
 
 const INTRO =
   "The frozen risk frame caps the whole book at 10% of a $100k paper account, any one name at 1%, and any " +
@@ -30,6 +31,12 @@ export function Safety({ vm }: { vm: ViewModel }) {
     { label: "Council cost", value: c.cost, color: color.ink2 },
     { label: "Models", value: c.models, color: color.ink3 },
   ];
+  const dr = vm.dualread;
+  const tripwires = [
+    { label: "Δ iv/rv (median / max)", val: dr.medianD != null ? `${dr.medianD} / ${dr.maxD}` : "—", tripped: dr.deltaTripped },
+    { label: `material flips (≥${dr.flipFloor}, rolling-5)`, val: `${dr.flipSessions}/${dr.window}`, tripped: dr.flipTripped },
+    { label: "coverage gaps (rolling-5)", val: `${dr.gapSessions}/${dr.window}`, tripped: dr.gapTripped },
+  ];
 
   return (
     <>
@@ -37,7 +44,7 @@ export function Safety({ vm }: { vm: ViewModel }) {
         <div style={{ fontSize: 13, color: "#2c3645", lineHeight: 1.6 }}>{INTRO}</div>
       </div>
 
-      <div className="grid grid-cols-4 gap-3.5" style={{ marginBottom: 16 }}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5" style={{ marginBottom: 16 }}>
         <Tile label="Paper equity" value={vm.equity} valColor={color.ink} sub={`${vm.deltaFrame} (informational)`} series={vm.equitySeries} />
         <Tile label="Book drawdown" value={vm.bookDD} valColor={signal[vm.bookDDlevel].text} sub="halts new entries at 20%" />
         <Tile label="Open positions" value={`${vm.openN}/${vm.maxN}`} valColor={color.ink} sub={`${vm.openPrem} premium at risk`} />
@@ -87,6 +94,55 @@ export function Safety({ vm }: { vm: ViewModel }) {
             <div key={r.label} className="flex justify-between items-baseline" style={{ gap: 14, padding: "7px 0", borderTop: "1px solid #edf0f4" }}>
               <span style={{ fontSize: 12, color: "#414956", flex: "none" }}>{r.label}</span>
               <span className="font-mono text-right" style={{ fontSize: 12, fontWeight: 500, color: r.color }}>{r.value}</span>
+            </div>
+          ))}
+          {c.byProvider.length > 0 && (
+            <div style={{ marginTop: 9, paddingTop: 9, borderTop: "1px solid #edf0f4" }}>
+              <div style={{ fontSize: 11, color: "#6a7280", marginBottom: 5 }}>Per-provider parse health · latest run</div>
+              {c.byProvider.map((p) => (
+                <div key={p.provider} className="flex justify-between items-baseline" style={{ gap: 14, padding: "3px 0" }}>
+                  <span className="font-mono" style={{ fontSize: 11.5, color: "#414956" }}>{p.provider}</span>
+                  <span className="font-mono" style={{ fontSize: 11.5, fontWeight: 500, color: p.parseError ? signal.warn.text : signal.ok.text }}>{p.parseError}/{p.calls} fail</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* OPRA dual-read soak (§5 safety) + LLM cost ledger */}
+      <div className="grid gap-4" style={{ gridTemplateColumns: "1.3fr 1fr", marginTop: 16 }}>
+        <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px" }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>OPRA gate dual-read <span style={{ color: "#6a7280", fontWeight: 400 }}>· §5 soak</span></div>
+          <div style={{ fontSize: 12, color: "#414956", marginTop: 3, marginBottom: 14, lineHeight: 1.5 }}>
+            The entry gate reads the real OPRA chain; INDICATIVE shadows it (veto-only). A tripped wire fires the §5 fail-closed response (investigate / revert + page).
+          </div>
+          {tripwires.map((t) => (
+            <div key={t.label} className="flex justify-between items-center" style={{ gap: 14, padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
+              <span style={{ fontSize: 12.5, color: "#2c3645" }}>{t.label}</span>
+              <span className="flex items-center" style={{ gap: 9 }}>
+                <span className="font-mono" style={{ fontSize: 12, color: "#414956" }}>{t.val}</span>
+                <Chip level={t.tripped ? "bad" : "ok"}>{t.tripped ? "⚠ TRIPPED" : "clear"}</Chip>
+              </span>
+            </div>
+          ))}
+          <div style={{ fontSize: 11, color: "#6a7280", marginTop: 12, lineHeight: 1.5 }}>
+            {dr.lastRun != null ? `latest #${dr.lastRun}` : "no sessions yet"} · {dr.sessions} sessions · OPRA coverage {dr.opraCov != null ? `${Math.round(dr.opraCov * 100)}%` : "—"}
+            {dr.vetoUntil && <> · disagree-veto until {dr.vetoUntil} ({dr.vetoActive ? "active" : "lapsed"})</>}
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px" }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>LLM cost ledger</div>
+          <div style={{ fontSize: 12, color: "#414956", marginTop: 3, marginBottom: 12, lineHeight: 1.5 }}>Cumulative spend — cost-as-argument (SPEC §4).</div>
+          {[
+            { label: "L0 framer (discovery)", value: vm.cost.framer },
+            { label: "L1 council", value: vm.cost.council },
+            { label: "Cumulative", value: vm.cost.cumulative },
+          ].map((r, i) => (
+            <div key={r.label} className="flex justify-between items-baseline" style={{ gap: 14, padding: "9px 0", borderTop: i ? "1px solid #edf0f4" : "none" }}>
+              <span style={{ fontSize: 12.5, color: "#2c3645" }}>{r.label}</span>
+              <span className="font-mono" style={{ fontSize: 14, fontWeight: 500, color: i === 2 ? "#141b28" : "#414956" }}>{r.value}</span>
             </div>
           ))}
         </div>

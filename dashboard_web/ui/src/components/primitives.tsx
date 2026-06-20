@@ -33,3 +33,23 @@ export function Card({ children, className = "", style }: { children: ReactNode;
     </div>
   );
 }
+
+/** Tonal banner strip (4px left edge) — schema warnings + the fail-soft degraded notice (B1/B2). */
+export function Banner({ level, children, style }: { level: Level; children: ReactNode; style?: CSSProperties }) {
+  const s = signal[level];
+  return (
+    <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderLeft: `4px solid ${s.text}`, borderRadius: 12, padding: "11px 15px", color: s.text, fontSize: 12.5, lineHeight: 1.5, ...style }}>
+      {children}
+    </div>
+  );
+}
+
+/** A skeleton placeholder card while the first snapshot loads (F1) — keeps layout stable, signals "loading". */
+export function Skeleton({ height = 96, style }: { height?: number; style?: CSSProperties }) {
+  return (
+    <div
+      className="bg-white border rounded-card shadow-card"
+      style={{ borderColor: "#e3e6ec", height, background: "linear-gradient(90deg,#f2f4f7 25%,#e9edf2 37%,#f2f4f7 63%)", backgroundSize: "400% 100%", animation: "skeleton 1.4s ease-in-out infinite", ...style }}
+    />
+  );
+}
