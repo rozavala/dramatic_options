@@ -1,18 +1,21 @@
 import { useState } from "react";
 
+import { relativeAge } from "../data/status";
 import type { ConsoleProps } from "../data/types";
 import { NAV, TITLES, type SectionId } from "../nav";
-import { color } from "../theme/tokens";
+import { color, signal } from "../theme/tokens";
 import { Book } from "./Book";
 import { Edge } from "./Edge";
 import { Overview } from "./Overview";
 import { Pipeline } from "./Pipeline";
 import { Safety } from "./Safety";
+import { Banner, Skeleton } from "./primitives";
 
 /** The 252px-rail desktop console (≥ the mobile breakpoint). Data comes from <App>; section state is local. */
 export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsoleProps) {
   const [section, setSection] = useState<SectionId>("overview");
   const asOf = vm?.asOf ? vm.asOf.slice(0, 16).replace("T", " ") : "—";
+  const age = relativeAge(vm?.asOf); // E2: "Nh ago" + a staleness tint
   const [title, subtitle] = TITLES[section];
 
   return (
@@ -36,6 +39,7 @@ export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsolePr
               <button
                 key={n.id}
                 onClick={() => setSection(n.id)}
+                aria-current={active ? "page" : undefined}
                 className="w-full flex items-center text-left"
                 style={{ gap: 11, padding: "10px 12px", marginBottom: 3, borderRadius: 24, border: "none", cursor: "pointer", background: active ? "rgba(120,162,255,.18)" : "transparent" }}
               >
@@ -65,16 +69,18 @@ export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsolePr
           </div>
           <button
             onClick={() => refresh()}
+            disabled={loading}
             title="Refresh snapshot"
+            aria-label="Refresh snapshot"
             className="flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,.07)", border: `1px solid ${color.navy600}`, color: "#aeb8cc", width: 36, height: 36, borderRadius: 9, cursor: "pointer", fontSize: 15, animation: loading ? "spin .7s linear infinite" : undefined }}
+            style={{ background: "rgba(255,255,255,.07)", border: `1px solid ${color.navy600}`, color: "#aeb8cc", width: 36, height: 36, borderRadius: 9, cursor: loading ? "default" : "pointer", opacity: loading ? 0.55 : 1, fontSize: 15, animation: loading ? "spin .7s linear infinite" : undefined }}
           >
             ↻
           </button>
           <div className="font-mono text-right" style={{ fontSize: 11, color: "#8a98b0", lineHeight: 1.5 }}>
-            as of
+            as of {asOf}
             <br />
-            {asOf}
+            <span style={{ color: age.label ? signal[age.level].text : "#8a98b0" }}>{age.label || "—"}</span>
           </div>
         </header>
         {loading && (
@@ -85,10 +91,27 @@ export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsolePr
 
         <div className="overflow-y-auto" style={{ flex: 1, padding: "26px 30px 60px" }}>
           <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-            {fatal && <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#f2a99e", padding: 20, color: "#d12d1c" }}>{fatal}</div>}
+            {fatal && (
+              <div className="flex items-center justify-center" style={{ minHeight: "55vh" }}>
+                <div className="bg-white border rounded-card shadow-card text-center" style={{ borderColor: "#f2a99e", padding: "36px 40px", maxWidth: 560 }}>
+                  <div style={{ fontSize: 30, marginBottom: 10 }}>⚠</div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: "#d12d1c", marginBottom: 8 }}>Snapshot unavailable</div>
+                  <div className="font-mono" style={{ fontSize: 12.5, color: "#5f6675", lineHeight: 1.6, wordBreak: "break-word" }}>{fatal}</div>
+                </div>
+              </div>
+            )}
             {error && !fatal && (
               <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#f2a99e", padding: 20, color: "#d12d1c" }}>
                 Couldn’t load the snapshot: {error}. Is the API running on :8602?
+              </div>
+            )}
+            {vm?.schemaWarning && <div style={{ marginBottom: 14 }}><Banner level="warn">⚠ {vm.schemaWarning}</Banner></div>}
+            {vm && vm.degraded.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <Banner level="bad">
+                  {vm.degraded.length} panel{vm.degraded.length > 1 ? "s" : ""} unavailable (fail-soft): {vm.degraded.join(", ")}.
+                  These render blank/zero — that is a crash, not “accruing”.
+                </Banner>
               </div>
             )}
             {vm && section === "overview" && <Overview vm={vm} onNavigate={setSection} />}
@@ -96,6 +119,13 @@ export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsolePr
             {vm && section === "edge" && <Edge vm={vm} />}
             {vm && section === "pipeline" && <Pipeline vm={vm} />}
             {vm && section === "book" && <Book vm={vm} />}
+            {!vm && !error && !fatal && loading && (
+              <div className="flex flex-col" style={{ gap: 16 }}>
+                <Skeleton height={92} />
+                <div className="grid grid-cols-4 gap-3.5">{[0, 1, 2, 3].map((i) => <Skeleton key={i} height={120} />)}</div>
+                <Skeleton height={220} />
+              </div>
+            )}
             {!vm && !error && !fatal && !loading && <div style={{ color: "#5f6675" }}>No snapshot.</div>}
           </div>
         </div>

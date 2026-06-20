@@ -13,3 +13,4 @@ streamlit==1.58.0
 # these; CI's test-dashboard job installs them too (a dep conflict fails CI, not just the box). Pin exact.
 fastapi==0.137.2
 uvicorn[standard]==0.49.0
+httpx==0.28.1  # fastapi.testclient.TestClient (the dashboard_web/api tests); already a transitive dep, pinned

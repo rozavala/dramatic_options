@@ -36,7 +36,7 @@ export function TwoQuestions({ vm }: { vm: ViewModel }) {
       <div style={{ fontSize: 11, color: "#414956", textTransform: "uppercase", letterSpacing: "1.2px", fontWeight: 700, margin: "26px 0 12px" }}>
         The two questions that matter today
       </div>
-      <div className="grid grid-cols-2 gap-3.5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-start">
         {/* Q1 — safe to run? */}
         <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "20px 22px" }}>
           <div className="flex items-baseline gap-2.5">

@@ -23,11 +23,18 @@ export interface CouncilHealth {
   cost_usd: number; cost_by_role: Record<string, number>; notes: string[];
 }
 
+// One trailing council-deliberated run (recent_council_health, oldest→newest); feeds the streak (A3).
+export interface CouncilRecentRun {
+  run_id: number; started_at: string | null; council_health: string | null; verdict: CouncilVerdict;
+  proposer_parse_rate: number; proposer_called: number; proposer_parse_failed: number;
+  by_provider: Record<string, { calls: number; parse_error: number; parse_error_rate?: number | null }>;
+}
+
 export interface PositionRow {
   id: number; symbol: string; direction: string; contract_symbol: string; status: string;
   dte: number | null; contracts: number; total_premium: number; mark: number | null;
   origin_conviction: string | null;
-  theme?: string; // ⚠ NOT yet emitted by positions_panel — pending a 1-line SELECT add (see adapter, fix #3).
+  theme: string | null; // emitted by positions_panel (dashboard_data.py SELECT p.theme)
 }
 
 // Active sentinel rows are state.active_sentinel_rows() (wide); only the fields the UI reads are named.
@@ -58,6 +65,7 @@ export interface Snapshot {
     health: CouncilHealth; model_mix: string | null;
     cost: { l0_framer_usd: number; l1_council_usd: number; cumulative_usd: number };
     by_provider: Record<string, { calls: number; parse_error: number; parse_error_rate: number | null }>;
+    recent: CouncilRecentRun[]; // recent_council_health window (oldest→newest); the run streak (A3)
   };
   performance: {
     p95_ci: { real: CI; shadow_all: CI; nogate_union_nogate: CI; nogate_basket_nogate: CI };
@@ -87,20 +95,63 @@ export interface Snapshot {
   };
   data_gathered: { chain_snapshots: { symbols: number; latest: string | null }; bar_coverage_symbols: number };
   t4: { conditions: { id: number; name: string; checkable: boolean; verdict: T4Verdict; detail: string }[]; note: string };
-  // available on the wire, not yet rendered: regime · deliberation · nulls · cap_flow · cost · dualread · curation
+  // Panels below are always emitted by load_all but may be replaced by {error} (dd.safe), so they are typed
+  // optional — the adapter must guard. (C: now rendered. regime/curation remain on the wire, not rendered.)
+  nulls?: NullHierarchy;
+  dualread?: DualRead;
+  cost?: { l0_framer_usd: number; l1_council_usd: number; cumulative_usd: number };
+  deliberation?: DeliberationRow[];
+  cap_flow?: { cluster_cap_rejections_of_passing: number; tightening_note: string };
+  regime?: unknown;
+  curation?: unknown;
   _fatal?: string;
+}
+
+// null_hierarchy: per-step clean/bundled contrasts, arms keyed by book label → CI (PREREG_FIXED_BASKET_NULL §2).
+export interface NullHierarchy {
+  steps: { name: string; clean: boolean; bundled?: string; censored_parse_fail_runs?: number; arms: Record<string, CI> }[];
+  note: string;
+}
+// gate_dualread_report: the §5 OPRA dual-read soak surface.
+export interface DualRead {
+  sessions: { run_id: number; names: number; median_d_ivrv: number | null; max_d_ivrv: number | null;
+    flips: string[]; material_flips: string[]; coverage_gaps: string[];
+    opra_coverage: number | null; indicative_coverage: number | null }[];
+  n_sessions_total: number;
+  tripwires: { window: number; delta_breach_sessions: number; delta_tripped: boolean;
+    flip_sessions: number; flip_tripped: boolean; flip_floor: number;
+    gap_sessions: number; gap_tripped: boolean };
+  disagree_veto: { until: string | null; active: boolean | null };
+  note: string;
+}
+// latest_run_deliberation: per-name proposer→adversary→strategist (the "why").
+export interface DeliberationRow {
+  run_id: number; symbol: string; proposer_direction: string | null;
+  adversary_stance: string | null; strategist_conviction: string | null;
 }
 
 /* ────────────────────────── 2 · ViewModel (flat render shape) ────────────────────────── */
 export type BeatKey = "kill" | "cycle" | "council" | "discovery" | "schema";
 export interface BookCI { n: number; p95: number | null }
 export interface ClusterVM { name: string; premium: number; cap: number; dirs: string }
-export interface PositionVM { symbol: string; theme?: string; dir: string; conviction: string | null; dte: number | null; premium: string; mark: number | null }
+export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; mark: number | null }
 export interface SentinelVM { symbol: string; basket?: string; note: string }
 export interface T4ItemVM { id: number; name: string; detail: string; verdict: T4Verdict; state: DisplayState }
+export interface ProviderVM { provider: string; calls: number; parseError: number; rate: number | null }
+export interface NullStepVM { name: string; clean: boolean; bundled: string | null; censored: number | null; arms: { label: string; ci: BookCI }[] }
+export interface DualReadVM {
+  sessions: number; lastRun: number | null; medianD: number | null; maxD: number | null;
+  opraCov: number | null; indCov: number | null; window: number;
+  deltaTripped: boolean; flipTripped: boolean; gapTripped: boolean; flipFloor: number;
+  deltaSessions: number; flipSessions: number; gapSessions: number;
+  vetoUntil: string | null; vetoActive: boolean | null;
+}
+export interface DeliberationVM { runId: number | null; rows: { symbol: string; dir: string | null; adversary: string | null; conviction: string | null }[] }
 
 export interface ViewModel {
   asOf: string; level: Level; headline: string; sub: string;
+  schemaWarning: string | null;        // B2 — header.schema_warning, rendered as a top strip
+  degraded: string[];                  // B1 — panel keys that came back {error} (fail-soft), shown inline
   issues: { sev: "warn"; text: string }[];
   beats: Record<BeatKey, string>;
   beatLevels: Record<BeatKey, Level>;
@@ -110,7 +161,13 @@ export interface ViewModel {
   council: {
     verdict: string; vlevel: Level; runId: number | null; roundtrips: number;
     parseFail: number; parseCalled: number; cost: string; streak: string; models: string;
+    byProvider: ProviderVM[];          // C — per-provider parse health (scoped to the latest run)
   };
+  cost: { framer: string; council: string; cumulative: string };  // C — LLM cost ledger
+  dualread: DualReadVM;                // C — OPRA gate dual-read soak (§5 safety)
+  nulls: NullStepVM[];                 // C — the null hierarchy contrasts
+  deliberation: DeliberationVM;        // C — latest run's per-name reasoning
+  capFlow: { rejected: number; note: string };  // C — cluster-cap rejections of otherwise-passing
   clusters: ClusterVM[];
   perf: {
     real: BookCI; shadow: BookCI; a3: BookCI; basket: BookCI;

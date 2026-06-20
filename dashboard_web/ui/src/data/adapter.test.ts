@@ -8,6 +8,10 @@ import type { Snapshot } from "./types";
 function synthetic(): Snapshot {
   const beat = (age: number, status: "ONLINE" | "STALE" | "OFFLINE") => ({ at: "2026-10-14T16:00:00+00:00", age_hours: age, status, stale: status !== "ONLINE" });
   const ci = (n: number, p95: number | null) => ({ n, p95, ci90: null, flag: null });
+  const rrun = (run_id: number, verdict: "ROUNDTRIP_CONFIRMED" | "ROUNDTRIP_DEGRADED") => ({
+    run_id, started_at: "2026-10-14T15:45:00+00:00", council_health: "ok" as const, verdict,
+    proposer_parse_rate: 0, proposer_called: 12, proposer_parse_failed: 0, by_provider: {},
+  });
   return {
     system_status: { level: "warn", headline: "🟡 A few things to check", issues: ["council ROUNDTRIP_DEGRADED", "ai_capex_power cluster at 78% of cap"] },
     header: {
@@ -33,7 +37,11 @@ function synthetic(): Snapshot {
       },
       model_mix: '{"proposer":"gemini/gemini-3.5-flash","adversary":"xai/grok-4","strategist":"anthropic/claude-opus-4-8","corpus":"fundamentals_v1"}',
       cost: { l0_framer_usd: 0.001, l1_council_usd: 0.114, cumulative_usd: 0.115 },
-      by_provider: {},
+      by_provider: { gemini: { calls: 12, parse_error: 0, parse_error_rate: 0 }, xai: { calls: 4, parse_error: 1, parse_error_rate: 0.25 } },
+      recent: [
+        rrun(284, "ROUNDTRIP_CONFIRMED"), rrun(285, "ROUNDTRIP_DEGRADED"),
+        rrun(286, "ROUNDTRIP_CONFIRMED"), rrun(287, "ROUNDTRIP_CONFIRMED"),
+      ], // oldest→newest ⇒ trailing streak = 2 (286, 287), broken at #285
     },
     performance: {
       p95_ci: { real: ci(11, 3.1), shadow_all: ci(18, 2.35), nogate_union_nogate: ci(22, 1.9), nogate_basket_nogate: ci(14, 1.55) },
@@ -72,6 +80,29 @@ function synthetic(): Snapshot {
       ],
       note: "",
     },
+    nulls: {
+      steps: [
+        { name: "gate (shadow − 3A)", clean: true, arms: { shadow: ci(18, 2.35), "3A": ci(22, 1.9) } },
+        { name: "council (real − shadow)", clean: true, censored_parse_fail_runs: 1, arms: { real: ci(11, 3.1), shadow: ci(18, 2.35) } },
+        { name: "apparatus (real − 3B)", clean: false, bundled: "universe AND caps differ", arms: { real: ci(11, 3.1), "3B": ci(14, 1.55) } },
+      ],
+      note: "x",
+    },
+    dualread: {
+      sessions: [
+        { run_id: 129, names: 33, median_d_ivrv: 0.004, max_d_ivrv: 0.02, flips: [], material_flips: [], coverage_gaps: [], opra_coverage: 1, indicative_coverage: 1 },
+        { run_id: 130, names: 33, median_d_ivrv: 0.0075, max_d_ivrv: 0.031, flips: ["NOC"], material_flips: [], coverage_gaps: [], opra_coverage: 0.97, indicative_coverage: 1 },
+      ],
+      n_sessions_total: 5,
+      tripwires: { window: 5, delta_breach_sessions: 0, delta_tripped: false, flip_sessions: 0, flip_tripped: false, flip_floor: 0.02, gap_sessions: 1, gap_tripped: false },
+      disagree_veto: { until: "2026-07-10", active: true },
+      note: "x",
+    },
+    cost: { l0_framer_usd: 0.001, l1_council_usd: 0.114, cumulative_usd: 0.115 },
+    deliberation: [
+      { run_id: 287, symbol: "ACME", proposer_direction: "bullish", adversary_stance: "agree", strategist_conviction: "MODERATE" },
+    ],
+    cap_flow: { cluster_cap_rejections_of_passing: 3, tightening_note: "x" },
   };
 }
 
@@ -130,9 +161,55 @@ describe("fromBackend", () => {
     expect(vm.funnel.opened).toBe(2);
   });
 
-  it("computes readiness: VACUOUS excluded, accruing counted separately", () => {
-    // conditions: MET(pass) · null(accruing) · VACUOUS(excluded) · BREACH(blocked) · IN_PROGRESS(inprogress)
-    expect(vm.readiness).toEqual({ pass: 1, checkable: 3, accruing: 1 });
+  it("computes readiness off the backend `checkable` flag (A1)", () => {
+    // checkable conditions: #1 MET, #3 VACUOUS, #5 IN_PROGRESS ⇒ checkable=3, pass=1 (only MET).
+    // accruing = the NON-checkable conditions (#2, #4) ⇒ 2 — even though #4 carries a BREACH verdict, it is
+    // !checkable so it is deferred, not a blocked gate. Matches dashboard.py's composition.
+    expect(vm.readiness).toEqual({ pass: 1, checkable: 3, accruing: 2 });
+  });
+
+  it("renders a non-checkable verdict-bearing row as deferred, not blocked (A1)", () => {
+    const c4 = vm.t4.find((c) => c.id === 4);
+    expect(c4?.verdict).toBe("BREACH"); // verdict preserved for display…
+    expect(c4?.state).toBe("deferred"); // …but state is deferred (it's !checkable)
+    expect(vm.t4.find((c) => c.id === 3)?.state).toBe("vacuous"); // checkable VACUOUS still shows vacuous
+  });
+
+  it("computes the council run streak from council.recent (A3)", () => {
+    expect(vm.council.streak).toBe("2 clean, then #285");
+    expect(vm.council.byProvider).toHaveLength(2);
+    expect(vm.council.byProvider.find((p) => p.provider === "xai")?.rate).toBe(0.25);
+  });
+
+  it("maps the cost ledger, dual-read soak, null hierarchy, deliberation, cap-flow (C)", () => {
+    expect(vm.cost.cumulative).toBe("$0.115");
+    expect(vm.dualread.lastRun).toBe(130); // latest session
+    expect(vm.dualread.flipTripped).toBe(false);
+    expect(vm.dualread.vetoUntil).toBe("2026-07-10");
+    expect(vm.nulls).toHaveLength(3);
+    expect(vm.nulls[0].arms.map((a) => a.label)).toEqual(["shadow", "3A"]);
+    expect(vm.deliberation.runId).toBe(287);
+    expect(vm.deliberation.rows).toHaveLength(1);
+    expect(vm.capFlow.rejected).toBe(3);
+  });
+
+  it("flags a fail-soft {error} panel as degraded, not silently empty (B1)", () => {
+    const clean = fromBackend(synthetic());
+    expect(clean.degraded).toEqual([]);
+    const broken = fromBackend({ ...synthetic(), risk: { error: "OperationalError: boom" } } as never);
+    expect(broken.degraded).toContain("risk");
+  });
+
+  it("surfaces a non-null schema_warning (B2)", () => {
+    expect(vm.schemaWarning).toBeNull();
+    const warned = fromBackend({ ...synthetic(), header: { ...synthetic().header, schema_warning: "schema 13 < expected 14" } } as never);
+    expect(warned.schemaWarning).toBe("schema 13 < expected 14");
+  });
+
+  it("computes honest calibration phase progress (A2)", () => {
+    // edgeAccrual.n = real CI n = 11; target 30 ⇒ 37%.
+    expect(vm.phasePct).toBe("37%");
+    expect(vm.phaseSub).toBe("11/30 resolved bets");
   });
 
   it("maps performance tails + rounds bled/hit-rate to whole percents", () => {

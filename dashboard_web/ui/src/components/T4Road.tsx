@@ -1,18 +1,20 @@
-import { STATE_PRESENT } from "../data/status";
+import { STATE_PRESENT, isAccruingState } from "../data/status";
 import type { ViewModel } from "../data/types";
+import { useCountUp } from "../data/useCountUp";
 import { color, signal } from "../theme/tokens";
 import { Chip } from "./primitives";
 
 /** The road to go-live: a readiness ring + the five T4 conditions as status rows (accruing rows pulse). */
 export function T4Road({ vm }: { vm: ViewModel }) {
   const r = vm.readiness;
+  const passN = useCountUp(r.pass); // F2 — count up the prominent ring number
   const allPass = r.checkable > 0 && r.pass === r.checkable;
   const ringColor = allPass ? signal.ok.text : color.accent;
   return (
     <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "22px 24px", marginTop: 18 }}>
       <div className="flex items-center" style={{ gap: 18, paddingBottom: 16, borderBottom: "1px solid #edf0f4" }}>
         <div className="flex flex-col items-center justify-center" style={{ width: 80, height: 80, borderRadius: "50%", border: `3px solid ${ringColor}`, flex: "none" }}>
-          <span className="font-mono" style={{ fontSize: 24, fontWeight: 700, color: ringColor, lineHeight: 1 }}>{r.pass}/{r.checkable}</span>
+          <span className="font-mono" style={{ fontSize: 24, fontWeight: 700, color: ringColor, lineHeight: 1 }}>{passN}/{r.checkable}</span>
           <span style={{ fontSize: 9, color: "#6a7280", textTransform: "uppercase", letterSpacing: ".6px", marginTop: 2 }}>gates</span>
         </div>
         <div className="flex-1">
@@ -29,7 +31,7 @@ export function T4Road({ vm }: { vm: ViewModel }) {
         {vm.t4.map((cond) => {
           const [lvl, icon, tag] = STATE_PRESENT[cond.state];
           const s = signal[lvl];
-          const accru = cond.state === "accruing";
+          const accru = isAccruingState(cond.state);
           return (
             <div key={cond.id} className="flex items-center" style={{ gap: 14, padding: "12px 4px", borderBottom: "1px solid #f6f8fa" }}>
               <span

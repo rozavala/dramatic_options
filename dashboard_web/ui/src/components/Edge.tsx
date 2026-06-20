@@ -1,5 +1,6 @@
 import type { ViewModel } from "../data/types";
 import { signal, type Level } from "../theme/tokens";
+import { Chip } from "./primitives";
 
 const INTRO =
   "The point of the calibration period is to prove the apparatus earns its keep. Each shadow book switches one " +
@@ -68,7 +69,40 @@ export function Edge({ vm }: { vm: ViewModel }) {
         <div style={{ fontSize: 11.5, color: "#6a7280", marginTop: 14, lineHeight: 1.5, fontStyle: "italic" }}>{caveat}</div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* the null hierarchy — which contrast is clean (PREREG_FIXED_BASKET_NULL §2) */}
+      {vm.nulls.length > 0 && (
+        <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "20px 22px", marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>The null hierarchy <span style={{ color: "#6a7280", fontWeight: 400 }}>· which contrast is clean</span></div>
+          <div style={{ fontSize: 12, color: "#414956", marginTop: 4, marginBottom: 14, lineHeight: 1.5 }}>
+            Each step isolates ONE variable; the bundled read is descriptive only. This is plumbing — the significance verdict belongs to the blind/mature null layer (T4 #2).
+          </div>
+          {vm.nulls.map((step) => (
+            <div key={step.name} style={{ padding: "11px 0", borderTop: "1px solid #edf0f4" }}>
+              <div className="flex items-center justify-between" style={{ gap: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: "#2c3645" }}>{step.name}</span>
+                <Chip level={step.clean ? "acc" : "mute"}>{step.clean ? "clean · 1-var" : "bundled"}</Chip>
+              </div>
+              {step.bundled && <div style={{ fontSize: 11, color: "#6a7280", marginTop: 2 }}>{step.bundled}</div>}
+              <div className="flex flex-wrap" style={{ gap: 16, marginTop: 7 }}>
+                {step.arms.map((a) => (
+                  <span key={a.label} className="font-mono" style={{ fontSize: 12 }}>
+                    <span style={{ color: "#6a7280" }}>{a.label}</span>{" "}
+                    <span style={{ fontWeight: 500, color: a.ci.p95 != null ? "#2c3645" : signal.mute.text }}>
+                      {a.ci.p95 != null ? `${a.ci.p95.toFixed(2)}×` : "accruing"}
+                    </span>
+                    <span style={{ color: "#6a7280" }}> · n={a.ci.n}</span>
+                  </span>
+                ))}
+              </div>
+              {step.censored != null && step.censored > 0 && (
+                <div style={{ fontSize: 10.5, color: "#6a7280", marginTop: 5 }}>{step.censored} parse-fail run(s) censored from this contrast</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* premium & outcomes */}
         <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px" }}>
           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 14, color: "#141b28" }}>Premium &amp; outcomes so far</div>

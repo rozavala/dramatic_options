@@ -33,8 +33,8 @@ import numpy as np  # noqa: E402
 import dashboard_data as dd  # noqa: E402
 from config_loader import load_config  # noqa: E402
 
-# The 21 load_all panels in order. Kept as data so a parity test can assert this list == dashboard.load_all's
-# keys (catching drift if the live shell gains/loses a panel).
+# The 21 load_all panels in order. Kept as data so the parity test (test_snapshot_parity.py) can assert this
+# list == dashboard.load_all's keys (catching drift if the live shell gains/loses a panel).
 PANEL_KEYS: tuple[str, ...] = (
     "header", "t4", "risk", "account", "regime", "sentinels", "positions", "council", "deliberation",
     "performance", "nulls", "attribution", "funnel", "council_stage", "gate_reasons", "cap_flow",
