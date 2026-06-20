@@ -4,6 +4,7 @@ import { Sparkline } from "../components/Sparkline";
 import { Banner, Chip, Skeleton } from "../components/primitives";
 import { STATE_PRESENT, clusterLevel, directionLabel, isAccruingState, markLevel, relativeAge } from "../data/status";
 import type { ConsoleProps, ViewModel } from "../data/types";
+import { useCountUp } from "../data/useCountUp";
 import { TITLES, type SectionId } from "../nav";
 import { color, signal, type Level } from "../theme/tokens";
 
@@ -22,9 +23,11 @@ const dirLabel = directionLabel; // A6 — single source in status.ts
 function MOverview({ vm }: { vm: ViewModel }) {
   const sig = signal[vm.level];
   const r = vm.readiness;
-  const ringColor = r.checkable > 0 && r.pass === r.checkable ? signal.ok.text : color.accent;
+  const allPass = r.checkable > 0 && r.pass === r.checkable; // guard vacuous 0/0 (parity with KpiRow)
+  const passN = useCountUp(r.pass); // F2 parity — count up the ring number
+  const ringColor = allPass ? signal.ok.text : color.accent;
   const kpis: { label: string; value: string; color: string; sub: string; chip: string; level: Level }[] = [
-    { label: "Go-live", value: `${r.pass}/${r.checkable}`, color: color.ink, sub: `${r.accruing} accruing`, chip: r.pass === r.checkable ? "on track" : "in progress", level: r.pass === r.checkable ? "ok" : "acc" },
+    { label: "Go-live", value: `${r.pass}/${r.checkable}`, color: color.ink, sub: `${r.accruing} accruing`, chip: allPass ? "on track" : "in progress", level: allPass ? "ok" : "acc" },
     { label: "Safety", value: vm.bookDD, color: signal.ok.text, sub: `${vm.openN}/${vm.maxN} open`, chip: "safe", level: "ok" },
     { label: "Council", value: vm.council.vlevel === "ok" ? "Healthy" : "Degraded", color: signal[vm.council.vlevel].text, sub: `#${vm.council.runId ?? "—"}`, chip: vm.council.vlevel === "ok" ? "clean" : "check", level: vm.council.vlevel },
     { label: "Edge", value: `${vm.edgeAccrual.n}/~${vm.edgeAccrual.target}`, color: color.ink, sub: "resolved bets", chip: "accruing", level: "mute" },
@@ -53,7 +56,7 @@ function MOverview({ vm }: { vm: ViewModel }) {
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
         <div className="flex items-center" style={{ gap: 13, paddingBottom: 12, borderBottom: "1px solid #edf0f4" }}>
           <div className="flex flex-col items-center justify-center" style={{ width: 56, height: 56, borderRadius: "50%", border: `3px solid ${ringColor}`, flex: "none" }}>
-            <span className="font-mono" style={{ fontSize: 18, fontWeight: 700, color: ringColor, lineHeight: 1 }}>{r.pass}/{r.checkable}</span>
+            <span className="font-mono" style={{ fontSize: 18, fontWeight: 700, color: ringColor, lineHeight: 1 }}>{passN}/{r.checkable}</span>
             <span style={{ fontSize: 7.5, color: "#5f6675", textTransform: "uppercase", letterSpacing: ".4px", marginTop: 1 }}>gates</span>
           </div>
           <div>
