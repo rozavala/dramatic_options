@@ -63,6 +63,19 @@ def shadow_gate_eval(provider, *, symbol: str, direction: str, rv, underlying_pr
             "cheap": bool(v.cheap), "wing": s.contract.symbol}
 
 
+def classify_error_note(exc: BaseException) -> str:
+    """A sweep-arm fetch error → a CLASSIFIED ``note`` prefix (#72, §5 close-out / decision #1).
+
+    Mirrors ``paper_loop``'s ``f"{kind}: {e}"`` (the §7 inline entry-veto) so the sweep population
+    carries the SAME entitlement/transient signal §7 records only for evaluated names. The prefix is
+    what the §5 coverage-gap partition reads to route an OPRA ``¬structured`` row to its class
+    (``entitlement:`` → feed-wide hold; ``transient:`` → per-name escalation; anything else, i.e. a
+    structural ``select_structure`` reason, → structural-absence). No migration — it rides ``note``."""
+    from feeds import classify_feed_error
+
+    return f"{classify_feed_error(exc)}: {exc}"
+
+
 def record_arm(conn, *, run_id, as_of_iso: str, symbol: str, feed: str, source: str,
                row: dict | None = None, error: str | None = None) -> None:
     """Persist one arm (fail-soft at the call site). A failed arm is a structured=0 + note row."""
@@ -103,7 +116,7 @@ def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, pr
         except Exception as e:  # noqa: BLE001 — the sweep is measurement, never a cycle blocker
             counts["errors"] += 1
             record_arm(conn, run_id=run_id, as_of_iso=as_of_iso, symbol=sym, feed="opra",
-                       source="sweep", error=str(e))
+                       source="sweep", error=classify_error_note(e))
             continue
         for feed, prov, ok_key in (("opra", provider_record, "record_ok"),
                                    ("indicative", provider_shadow, "shadow_ok")):
@@ -117,5 +130,5 @@ def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, pr
             except Exception as e:  # noqa: BLE001
                 counts["errors"] += 1
                 record_arm(conn, run_id=run_id, as_of_iso=as_of_iso, symbol=sym, feed=feed,
-                           source="sweep", error=str(e))
+                           source="sweep", error=classify_error_note(e))
     return counts

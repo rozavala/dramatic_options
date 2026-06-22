@@ -38,7 +38,11 @@ this pre-reg.**
   1. one contract of the selected 25%-OTM 180–365d structure ≤ **$1,000** (the frozen per-name cap,
      measured on the real chain via the production `select_structure` + `convexity_position_size`);
   2. a listed tenor exists in **180–365d**;
-  3. two-sided far-OTM quote; spread ≤ the live eligibility **25%**; OI ≥ **50**;
+  3. two-sided far-OTM quote; spread ≤ the live eligibility **25%**; OI ≥ **50 (when present)**
+     — matching `structure.py:contract_eligible` (the OI floor is informational where the chain
+     reports no OI; window #1's was vacuous cohort-wide [every 6/9 name `OI: n/a`], UROY = N=1
+     logged toward a future-window decision on tag-flagging OI-absent admissions as
+     marginal-liquidity) [§2.3 reconcile, frozen 2026-06-22 with the dual-read close-out];
   4. price ≥ **$3**; ADV ≥ **$3M** (SIP) — the existing `universe.py`/discovery floors.
 - **Info columns (pure arithmetic, NEVER selection thresholds):** cluster-budget fit ($2,000);
   **achieved OTM% + neighbor-strike interval** (low-priced chains have coarse strikes;

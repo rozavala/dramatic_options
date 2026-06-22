@@ -982,6 +982,24 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N)
 GATE_FLIP_MATERIALITY_FLOOR = 0.02  # §5 amendment 2026-06-12: a flip trips only at |Δ iv/rv| ≥ this
 
 
+def _gap_note_class(note: str | None) -> str:
+    """Classify an OPRA ``¬structured`` row's ``note`` into the §5 coverage-gap partition class
+    (#72 / the 2026-07-10 close-out). The sweep stores a CLASSIFIED prefix on a fetch error
+    (``gate_dualread.classify_error_note``); a structural ``select_structure`` reason has no prefix.
+
+      - ``entitlement`` — a subscription/permission lapse (``feeds.classify_feed_error``) ⇒ feed-wide.
+      - ``transient``   — a per-name fetch blip ⇒ log/escalate.
+      - ``structural``  — OPRA legitimately has no tradeable wing (``no_eligible_contract_in_tenor_window``
+                          and the other selection reasons), OR an unrecognized/empty note (fail-safe:
+                          an unknown absence is treated as OPRA-correct, never as a feed outage)."""
+    msg = (note or "").strip().lower()
+    if msg.startswith("entitlement:"):
+        return "entitlement"
+    if msg.startswith("transient:"):
+        return "transient"
+    return "structural"
+
+
 def gate_dualread_report(conn, config: dict | None = None) -> dict:
     """The §5 named surface (PREREG_DATA_FEED_OPRA_SEQUENCING): per-session dual-read stats,
     both-arms coverage (a silently-empty shadow arm must not read as agreement), the rolling-5
@@ -991,7 +1009,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
     reported, an uncomputable delta counts fail-closed), and the disagree-veto's dated auto-lapse."""
     import statistics
 
-    rows = _rows(conn, "SELECT run_id, symbol, feed, source, structured, iv_rv, cheap "
+    rows = _rows(conn, "SELECT run_id, symbol, feed, source, structured, iv_rv, cheap, note "
                        "FROM gate_dualread ORDER BY run_id, symbol, feed")
     sessions: dict[int, dict[str, dict[str, dict]]] = {}
     for r in rows:
@@ -1003,15 +1021,32 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
         flips: list[str] = []
         material_flips: list[str] = []
         gaps: list[str] = []
+        gap_structural: list[str] = []   # §5 coverage-gap split (#72): OPRA-correct absence
+        gap_transient: list[str] = []    #   per-name fetch instability
+        entitlement = False              #   feed-wide OPRA-trust failure (any ¬structured note)
+        opra_wing: list[str] = []        #   names with a durable OPRA wing (the debounce re-arm)
         opra_ok = ind_ok = 0
         for sym, arms in sorted(by_sym.items()):
             o, i = arms.get("opra"), arms.get("indicative")
             if o and o.get("structured"):
                 opra_ok += 1
+                opra_wing.append(sym)
             if i and i.get("structured"):
                 ind_ok += 1
+            # The §5 coverage-gap class is read off the OPRA ¬structured row's NOTE (#72 / the
+            # 2026-07-10 close-out): entitlement is FEED-WIDE (a subscription lapse fails every
+            # OPRA fetch — detect per session, not per name, and decoupled from the gap subset);
+            # structural-absence / transient classify the GAP names (INDICATIVE structures, OPRA
+            # cannot) by whether the absence is OPRA-correct vs a per-name fetch blip.
+            if o is not None and not o.get("structured") and _gap_note_class(o.get("note")) == "entitlement":
+                entitlement = True
             if i and i.get("structured") and (not o or not o.get("structured")):
                 gaps.append(sym)  # INDICATIVE structures, OPRA cannot — the §5 coverage gap
+                cls = _gap_note_class(o.get("note") if o else None)
+                if cls == "transient":
+                    gap_transient.append(sym)
+                elif cls != "entitlement":
+                    gap_structural.append(sym)  # structural / unknown ⇒ OPRA-correct absence
             if o and i and o.get("structured") and i.get("structured"):
                 d = None
                 if o.get("iv_rv") is not None and i.get("iv_rv") is not None:
@@ -1027,6 +1062,8 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
             "median_d_ivrv": round(statistics.median(deltas), 4) if deltas else None,
             "max_d_ivrv": round(max(deltas), 4) if deltas else None,
             "flips": flips, "material_flips": material_flips, "coverage_gaps": gaps,
+            "gap_structural": gap_structural, "gap_transient": gap_transient,
+            "entitlement": entitlement, "opra_wing": opra_wing,
             "opra_coverage": round(opra_ok / n, 3) if n else None,
             "indicative_coverage": round(ind_ok / n, 3) if n else None,
         })
@@ -1035,6 +1072,21 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
                          if (s["median_d_ivrv"] or 0) > 0.05 or (s["max_d_ivrv"] or 0) > 0.10)
     flip_sessions = sum(1 for s in last5 if s["material_flips"])
     gap_sessions = sum(1 for s in last5 if s["coverage_gaps"])
+    # The §5 coverage-gap partition (#72 / the 2026-07-10 close-out): the legacy gap wire splits by
+    # breach MECHANISM. Each class trips on its OWN per-class rolling-5 count — heterogeneous reasons
+    # do NOT aggregate (1 structural + 1 transient + 1 entitlement-session trips nothing on
+    # absence/transient). structural-absence ⇒ feasibility page (no revert); transient ≥2/5 ⇒ per-name
+    # escalate; entitlement ⇒ feed-wide hold + one page/session (no rolling threshold, never debounced).
+    structural_sessions = sum(1 for s in last5 if s["gap_structural"])
+    transient_sessions = sum(1 for s in last5 if s["gap_transient"])
+    entitlement_sessions = sum(1 for s in last5 if s["entitlement"])
+    gap_partition = {
+        "window": len(last5),
+        "structural_sessions": structural_sessions, "structural_tripped": structural_sessions >= 2,
+        "transient_sessions": transient_sessions, "transient_escalate": transient_sessions >= 2,
+        "entitlement_sessions": entitlement_sessions,
+        "entitlement_active": bool(last5 and last5[-1]["entitlement"]),
+    }
     until = ((config or {}).get("data_feed", {}) or {}).get("dualread_disagree_veto_until")
     veto_active = None
     if until:
@@ -1054,6 +1106,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
             "flip_floor": GATE_FLIP_MATERIALITY_FLOOR,
             "gap_sessions": gap_sessions, "gap_tripped": gap_sessions >= 2,
         },
+        "gap_partition": gap_partition,
         "disagree_veto": {"until": until, "active": veto_active},
         "note": "shadow arm = INDICATIVE; it never authorizes (veto-only, date-gated). "
                 "A tripped wire ⇒ the §5 fail-closed response (investigate / revert+page).",
