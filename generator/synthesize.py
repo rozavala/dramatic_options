@@ -151,15 +151,27 @@ def check_emit_cleanliness(
 def render_corpus_block(corpus: dict[str, list[dict[str, Any]]], *, max_per_source: int = 200) -> str:
     """Render the Stage-0 corpus union into the synthesis prompt's grounding block (deterministic).
 
-    One section per source (sorted), each record a compact JSON line so the model can copy
-    ``(source, key, ts)`` citations verbatim. ``max_per_source`` bounds the prompt; the bound is a
-    rendering cap only (it never changes which coords exist for the P2 citation trace)."""
-    lines: list[str] = ["CORPUS (point-in-time structural records; cite (source, key, ts) verbatim):"]
+    One section per source (sorted). Each entry is rendered as
+    ``{"cite": {"source","key","ts"}, "record": {...}}`` so the model can copy the EXACT coordinate
+    the §3 verifier resolves. The ``key`` is the cache COORD key (carried as ``_coord_key`` by
+    ``assemble_corpus(tag_key=True)`` — capital_raises=``form``, customer_concentration/etf=``symbol``,
+    bls=``series_id``, federal_awards=``hash``, nrc=``power_reactors``), NOT a record-body id
+    (accession / PIID). Exposing it is the citation-key-contract fix: without the coord shown, the
+    model guesses the key from the record body and mis-cites every source whose cache key is not a
+    body field (5 of 7), causing false ``entity_unresolved`` drops. ``max_per_source`` bounds the
+    prompt; the bound is a rendering cap only (it never changes which coords exist for the trace)."""
+    lines: list[str] = [
+        'CORPUS (point-in-time structural records). Each entry is '
+        '{"cite": {"source","key","ts"}, "record": {...}}. To cite a record, copy its "cite" object '
+        "VERBATIM into a claim's citations — that triple is the coordinate the verifier resolves:"
+    ]
     for source in sorted(corpus):
         recs = corpus[source]
         lines.append(f"\n## {source} ({len(recs)} records)")
         for r in recs[:max_per_source]:
-            lines.append(json.dumps(r, sort_keys=True, default=str))
+            body = {k: v for k, v in r.items() if k != "_coord_key"}
+            cite = {"source": source, "key": r.get("_coord_key"), "ts": r.get("ts")}
+            lines.append(json.dumps({"cite": cite, "record": body}, sort_keys=True, default=str))
     return "\n".join(lines)
 
 

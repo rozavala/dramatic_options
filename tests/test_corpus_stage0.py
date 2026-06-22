@@ -320,6 +320,23 @@ def test_assemble_corpus_unions_as_of(tmp_path):
     assert [r["v"] for r in out["corpus_a"]] == [1]
     assert [r["v"] for r in out["corpus_b"]] == [3]
     assert out["corpus_missing"] == []  # requested-but-empty is distinguishable from not-requested
+    # default (no tag_key): records carry no _coord_key (back-compat)
+    assert "_coord_key" not in out["corpus_a"][0]
+
+
+def test_assemble_corpus_tag_key_carries_coord_key(tmp_path):
+    # tag_key=True attaches the cache COORD key (the form here), NOT the record-body accession — the
+    # citation-key-contract fix the Stage-1 render consumes so the model cites a resolvable coord.
+    cache = PointInTimeCache(tmp_path)
+    cov = dict(coverage_from=datetime(2026, 1, 1, tzinfo=UTC),
+               coverage_through=datetime(2026, 12, 31, tzinfo=UTC))
+    cache.write("corpus_capital_raises", "424B5",
+                [{"ts": "2026-01-10T20:00:00+00:00", "accession": "0001-26-000435"}], **cov)
+    out = assemble_corpus(cache, datetime(2026, 2, 15, tzinfo=UTC),
+                          [("corpus_capital_raises", "424B5")], tag_key=True)
+    rec = out["corpus_capital_raises"][0]
+    assert rec["_coord_key"] == "424B5"          # the cache coord key (form), not the body accession
+    assert rec["accession"] == "0001-26-000435"  # the record body is preserved alongside the tag
 
 
 def test_capital_raises_uses_corpus_namespace(tmp_path):
