@@ -122,6 +122,53 @@ Worked examples (mandatory, in the frozen schema) — `ai_power`, `nuclear_fuel`
 `glp1_obesity` claim — are retained from rev-3 as the schema demonstration + the adversarial-paraphrase
 case a deterministic-only lexicon would miss.
 
+### Amendment 2026-06-22 — bucket taxonomy ENUMERATED (completes the FROZEN `headline_quantities` set)
+
+> **DATED amendment, not a rewrite of the frozen §4 above.** §4 (and §3) froze the
+> `headline_quantities[].bucket` taxonomy on 2026-06-17 but named only **three buckets by example**
+> (`weeks_x2plus`, `usd_tens_of_billions`, `pct_25_50`) — the full set was never enumerated, a
+> *coverage* gap (unlike the vocab enum, which the coercion-map resolves). This amendment enumerates
+> the frozen set so the Stage-1 generator can emit a valid bucket for any in-class figure. It is the
+> probe-side completion of the FROZEN generator↔probe schema contract; the full proposal +
+> design-principle rationale + the operator open-choices are in
+> `records/2026-06-22_bucket_taxonomy_PROPOSAL.md`. Already implemented in
+> `generator/prompts.py:BUCKET_FAMILIES` / `HEADLINE_BUCKETS` (a byte-pinned prompt enum) and read by
+> `generator/verify.py` (the §3 fact trace) — a drift between doc and code is unshippable.
+
+**Design (unchanged from the frozen rule):** buckets are **UNSIGNED magnitude bins** — the **sign** is
+carried by `mechanism_direction.sign`, never the bucket (a decline and a rise of the same magnitude
+share a bucket). Bins are **OOM-spaced per dimension-family**, so the frozen §4 "±1 bucket / same-OOM"
+match tolerance is one adjacent bin **within a family**. The metric string carries the dimension
+context. **Five families:**
+
+| Family | Buckets (low→high) | Notes |
+|---|---|---|
+| **`pct_`** (rates / changes / share) | `pct_0_10` · `pct_10_25` · `pct_25_50` · `pct_50_100` · `pct_100_300` · `pct_300plus` | **`pct_25_50` = a frozen example.** |
+| **`usd_`** ($ amounts) | `usd_millions` · `usd_tens_of_millions` · `usd_hundreds_of_millions` · `usd_billions` · `usd_tens_of_billions` · `usd_hundreds_of_billions_plus` | **`usd_tens_of_billions` = a frozen example.** |
+| **`dur_`** (lead times / time-to-event) | `dur_weeks_lt10` · `dur_weeks_10_50` · `dur_weeks_50plus` · `dur_months_12_36` · `dur_years_3plus` | absolute durations |
+| **`x_`** (multipliers, "N×") | `x_lt2` · `x_2plus` · `x_5plus` · `x_10plus` | **`weeks_x2plus` → `x_2plus`** (the multiplier reading; the metric carries "weeks"). |
+| **`cnt_`** (counts / physical capacity: units, MW, GW, tons, reactors) | `cnt_lt100` · `cnt_100_10k` · `cnt_10k_1m` · `cnt_1m_plus` | generic OOM ladder; the metric carries the unit (least-precise family). |
+
+**The three frozen examples map in:** `pct_25_50` (direct), `usd_tens_of_billions` (direct),
+`weeks_x2plus` → **`x_2plus`** (the multiplier reading; the absolute reading would be
+`dur_weeks_50plus`).
+
+**The e1 note — `dur_` / `x_` are WHERE-PRESENT, not fact-MANDATORY** (operator-ratified 2026-06-22):
+these two families have **no traceable corpus magnitude** (the structural corpus exposes no lead-time
+or multiple field), so their figures are **narrative-ungroundable** — the §3 *citation* trace does NOT
+apply to them; the **probe's narration scoring is their check** (the probe's `headline_quantities`
+overlap leg is exactly where a `dur_`/`x_` figure earns or fails its keep). The §3 ENTITY trace stays
+mandatory regardless, and `pct_`/`usd_`/`cnt_` stay fact-MANDATORY under a class-(a) citation. This is
+the §3-verifier behavior recorded in `PREREG_THEME_GENERATOR §10` (C.3) and implemented in
+`generator/verify.py` (`FACT_MANDATORY_FAMILIES = {pct_, usd_, cnt_}`); it does NOT alter the probe's
+own scoring of these fields (the probe scores narration; the verifier traces facts — distinct axes).
+
+**Amendment scope:** enumeration + the e1 trace-applicability note only. It does NOT change the §4
+field weights (0.40/0.30/0.30), the `mechanism_direction` enum, the elicitation×scoring FROZEN-B
+choice, or the §5 threshold — those stay as frozen 2026-06-17. A bucket outside this enumerated set
+(or a figure that resolves to none) remains a **schema-REOPEN escalation**, never a build-time add
+(§4 / the reopen path).
+
 ---
 
 ## 5. The fiat-permissive threshold — a deterministic RULE, value by fiat (replaces the calibration)

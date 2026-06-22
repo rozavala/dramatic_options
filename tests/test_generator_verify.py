@@ -114,6 +114,53 @@ def test_real_entity_untraced_figure_drops_fact_untraced(tmp_path):
     assert v.untraced_quantities == ["fleet share"]
 
 
+# ── the e1 carve-out: dur_/x_ are WHERE-PRESENT even under a class-(a) citation (no DROP) ───────
+
+def test_dur_family_quantity_where_present_under_class_a_kept(tmp_path):
+    """e1 (operator-ratified 2026-06-22): a `dur_*` headline figure with a class-(a) citation + a
+    resolved entity is KEPT — the corpus carries no structural duration field, so the magnitude is
+    narrative-ungroundable and EXEMPT from the mandatory trace. The entity still anchors the claim.
+
+    Pre-e1 this DROPPED as fact_untraced (dur_ traces to no record). The split counter is unchanged:
+    dropped_fact_untraced == 0.
+    """
+    cache = _cache(tmp_path)
+    # Cameco/CCJ resolves in the cited class-(a) URNM record; the dur_ lead-time traces to nothing.
+    c = _claim("dur1", [{"canonical": "Cameco Corp", "ticker": "CCJ"}],
+               [{"source": ETF_SOURCE, "key": "URNM", "ts": _TS}],
+               quantities=[{"metric": "enrichment lead time", "value": "~120 weeks",
+                            "bucket": "dur_weeks_50plus"}])
+    v = verify.verify_claim(c, cache)
+    assert not v.dropped and v.reason is None
+    res = verify.verify_claims([c], cache)
+    assert res.dropped_fact_untraced == 0 and res.n_kept == 1
+
+
+def test_x_family_quantity_where_present_under_class_a_kept(tmp_path):
+    """e1: an `x_*` multiple (the `weeks_x2plus`→`x_2plus` generalization) is likewise WHERE-PRESENT
+    under a class-(a) citation — multiples are derived/narrative, no raw corpus field to trace."""
+    cache = _cache(tmp_path)
+    c = _claim("x1", [{"canonical": "Cameco Corp", "ticker": "CCJ"}],
+               [{"source": ETF_SOURCE, "key": "URNM", "ts": _TS}],
+               quantities=[{"metric": "lead-time blowout", "value": "~2x", "bucket": "x_2plus"}])
+    v = verify.verify_claim(c, cache)
+    assert not v.dropped and v.reason is None
+
+
+def test_e1_exempts_dur_but_pct_on_same_claim_still_mandatory(tmp_path):
+    """e1 is FAMILY-scoped, not claim-scoped: a class-(a) claim carrying BOTH an exempt `dur_` figure
+    AND an invented `pct_` figure still DROPs on the pct_ (pct_/usd_/cnt_ stay fact-MANDATORY)."""
+    cache = _cache(tmp_path)
+    c = _claim("mix", [{"canonical": "Cameco Corp", "ticker": "CCJ"}],
+               [{"source": ETF_SOURCE, "key": "URNM", "ts": _TS}],
+               quantities=[{"metric": "enrichment lead time", "value": "~120 weeks",
+                            "bucket": "dur_weeks_50plus"},
+                           {"metric": "fleet share", "value": "400%", "bucket": "pct_300plus"}])
+    v = verify.verify_claim(c, cache)
+    assert v.dropped and v.reason == "fact_untraced"
+    assert v.untraced_quantities == ["fleet share"]  # only the pct_ figure is counted, not the dur_
+
+
 # ── fact leg per source-class ─────────────────────────────────────────────────────────────────
 
 def test_fact_trace_class_a_entity_bearing_record_keyed(tmp_path):

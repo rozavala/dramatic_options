@@ -21,6 +21,14 @@ Two legs:
   - **(a) entity-bearing** (``capital_raises`` / ``customer_concentration`` / ``etf_constituents``)
     → record-keyed numeric trace, **fact-MANDATORY**: a claim that cites a class-(a) source and
     asserts a headline figure that traces to NO cited record → ``dropped_fact_untraced`` → DROP.
+    **By taxonomy-family, with the e1 carve-out (operator-ratified 2026-06-22):** only the
+    corpus-traceable families — ``pct_`` / ``usd_`` / ``cnt_`` — are fact-MANDATORY here; the
+    ``dur_`` / ``x_`` families are **WHERE-PRESENT even under a class-(a) citation** (an untraced
+    ``dur_``/``x_`` figure does NOT DROP). The corpus carries no structural lead-time or multiple
+    field (``_NUMERIC_FIELDS_BY_FAMILY[dur_] == () == [x_]``), so those magnitudes are
+    narrative-ungroundable; the §3 trace does not apply to them and the probe's narration scoring is
+    their check. The ENTITY leg stays mandatory regardless. (See ``PREREG_THEME_GENERATOR §10`` /
+    the ``PREREG_NARRATION_PROBE §4`` 2026-06-22 amendment.)
   - **(b) entity-free macro** (``bls`` / ``eia`` / ``nrc``) → SOURCE+KEY+value-bucket trace,
     **fact-where-present** (an untraced figure is tolerated — the sparse-tolerant precedent).
   - **(c) free-text recipient** (``federal_awards``) → ``recipient`` name-normalization tolerance +
@@ -68,6 +76,15 @@ SOURCE_CLASS: dict[str, str] = {
     NRC_SOURCE: ENTITY_FREE_MACRO,
     AWARDS_SOURCE: FREE_TEXT_RECIPIENT,
 }
+
+# ── the e1 taxonomy-family carve-out (operator-ratified 2026-06-22) ────────────────────────────
+# Within a class-(a) entity-bearing citation, only these families are fact-MANDATORY (an untraced
+# figure DROPs). The `dur_`/`x_` families are WHERE-PRESENT even under class-(a): the corpus exposes
+# no structural lead-time/multiple magnitude field (`_NUMERIC_FIELDS_BY_FAMILY[dur_]==()==[x_]`), so
+# those figures are narrative-ungroundable and the §3 trace does not apply — the probe's narration
+# scoring is their check. A family-LESS quantity (no/empty/unknown bucket) is NOT exempted: it stays
+# subject to the mandatory trace (and still verifies via the (c) name-normalization tolerance).
+FACT_MANDATORY_FAMILIES: frozenset[str] = frozenset({"pct_", "usd_", "cnt_"})
 
 # Record fields that can carry a traceable numeric MAGNITUDE, per family. The fact trace reads the
 # cited record(s)' values from these fields and classifies each into its family ordinal; a claim's
@@ -241,6 +258,18 @@ def _concrete_ts_citations(raw_citations: list[Any]) -> list[Citation]:
     return [c for c in as_citations(raw_citations) if c.ts is not None]
 
 
+def _is_fact_mandatory_quantity(q: dict[str, Any]) -> bool:
+    """True iff this headline_quantity must trace under a class-(a) citation (the e1 carve-out).
+
+    A ``dur_``/``x_``-family quantity is WHERE-PRESENT — EXEMPT from the mandatory trace (its
+    magnitude is narrative-ungroundable, no corpus field to trace against). Everything else stays
+    mandatory: ``pct_``/``usd_``/``cnt_`` (the traceable families) AND a family-LESS quantity
+    (no/empty/unknown bucket — ``_family_of`` is None), which still verifies via the (c) name-
+    normalization tolerance inside ``_trace_quantity``."""
+    fam = _family_of(str((q or {}).get("bucket", "")))
+    return fam not in {"dur_", "x_"}
+
+
 def _trace_quantity(
     q: dict[str, Any],
     records_by_class: dict[str, list[dict[str, Any]]],
@@ -307,6 +336,8 @@ def verify_claim(
     untraced: list[str] = []
     if fact_mandatory:
         for q in claim.get("headline_quantities") or []:
+            if not _is_fact_mandatory_quantity(q):
+                continue  # e1: dur_/x_ figures are where-present even under a class-(a) citation
             if not _trace_quantity(q, records_by_class):
                 untraced.append(str((q or {}).get("metric") or (q or {}).get("value") or "?"))
     if untraced:
