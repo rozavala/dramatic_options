@@ -9,12 +9,13 @@ description = "Allow documented placeholders, not real secrets"
 paths = [
   '''\.env\.example$''',
   '''\.gitleaks\.toml$''',
+  # Generator test fixtures use the corpus-coord `key` field (the (source, key, ts)
+  # tuple) with synthetic identifiers; the field name "key" + a 10+char value trips
+  # the default generic-api-key rule. These files are fixture-inert — no real secrets.
+  '''tests/test_generator_.*\.py$''',
 ]
 regexes = [
   '''your_alpaca_(paper_)?(key|secret)''',
   '''<[A-Z_]+>''',
   '''xxx+''',
-  # EDGAR accession numbers (public filing IDs) in corpus/test fixtures — the field
-  # name "accession" contains "access", which trips the default generic-api-key rule.
-  '''[0-9]{10}-[0-9]{2}-[0-9]{6}''',
 ]
