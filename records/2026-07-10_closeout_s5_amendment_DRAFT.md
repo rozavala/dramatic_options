@@ -1,6 +1,12 @@
 # §5 Amendment (DRAFT) — dual-read tripwire response, split by breach mechanism
 
-> **STATUS: DRAFT — NOT IN FORCE until the 2026-07-10 close-out merge. #72 HELD.**
+> **STATUS: FROZEN 2026-06-22 — merged into `PREREG_DATA_FEED_OPRA_SEQUENCING §5` +
+> `PREREG_UNIVERSE_CURATION §2.3` (brought forward from the planned 2026-07-10 close-out;
+> anti-HARK-clean — the text was committed BLIND 2026-06-17/18 and is unchanged). #72
+> (`dualread_executor.py`) now builds against this frozen table; its Phase-3 Δ-wire revert latch
+> stays `config.data_feed.dualread_revert_enabled=false` until the OPRA deploy-gates clear. The
+> `veto-dualread-disagree` auto-lapse (§5 response 1) is UNCHANGED — still 2026-07-10; the
+> lapse-vs-extend decision remains the dated near-deadline call.**
 >
 > Anti-HARK pre-commitment: the amendment text is committed now, weeks before the close-out, so the
 > close-out's Δ / material-flip population cannot reshape the response table after the fact. It governs

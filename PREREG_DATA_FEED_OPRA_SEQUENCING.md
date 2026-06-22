@@ -99,11 +99,54 @@ Per L1 session, over the option-eligible universe (the swept population) + the e
      never holds indefinite veto power over the gate-of-record. The rule can only VETO
      (tighten); the shadow arm never authorizes.
   2. A recurring threshold breach per above → **revert `option_gate`→indicative** — itself a
-     record-segmenting provenance event (`runs.data_feed`) — plus a page.
+     record-segmenting provenance event (`runs.data_feed`) — plus a page. **[Superseded 2026-06-22
+     by the per-class split amendment below — the |Δ iv/rv| wire is the SOLE revert trigger;
+     gap / flip / entitlement route to feasibility / investigate / feed-wide-hold.]**
 - **Duration:** ≥10 L1 sessions of dual-read before the dated close-out review; weekly review
   cadence; **one named reporting surface** = `gate_dualread_report` (tested, value-pinned) + its
   dashboard panel; the close-out decision (drop the shadow arm / renew the veto rule / revert) is
   a dated, documented operator decision.
+- **Amendment — the dual-read close-out (drafted BLIND 2026-06-17/18 as
+  `records/2026-07-10_closeout_s5_amendment_DRAFT.md`; FROZEN 2026-06-22, brought forward from the
+  planned 2026-07-10 close-out — operator-authorized via this merge):** response (2)'s single
+  "recurring threshold breach → revert" is SUPERSEDED by a response SPLIT by breach mechanism. One
+  response was bound to three structurally different breaches — coherent for a feed-*trust* breach
+  (OPRA noisy → fall back to the validated prior feed), **incoherent for a coverage gap** (OPRA has
+  no tradeable wing; reverting would restore the phantom coverage the gate correctly refuses).
+
+  | Wire | Trip | Response |
+  |---|---|---|
+  | **\|Δ iv/rv\|** | med>0.05 ∨ max>0.10, ≥3/5 | `revert option_gate→indicative` + page. **The SOLE revert trigger.** |
+  | **cheap-flip (material, \|Δ\|≥0.02)** | ≥2/5 | investigate + page; **no revert** (magnitude is the Δ wire's job). Rising-edge, debounced. |
+  | **coverage-gap** | per class ↓ | OPRA can't structure — the `note` reason decides the class ↓ |
+
+  **Coverage-gap partition** (reason in the dual-read `note`): **structural-absence**
+  (`select_structure` reasons; ≥2/5) → feasibility page, **no revert**, the name stays in the basket
+  (the gate fail-closes it; the sweep's `structured=0 + note` row IS the feasibility record — no
+  separate §2.3 re-run); **entitlement** (a `feeds.classify_feed_error` entitlement class;
+  per-session, feed-wide) → the §7 feed-wide hold + one page/session, **no revert** (never the silent
+  downgrade §7 forbids); **transient** (≤1/5 log; escalates to a per-name page at ≥2/5). Heterogeneous
+  reasons do NOT aggregate (1 structural + 1 transient + 1 entitlement trips none of absence/transient).
+  **One name's flaky chain NEVER raises the feed-wide entitlement state** (only a
+  `classify_feed_error`-entitlement arm raises it).
+
+  **Debounce:** the structural-absence and material-flip pages are rising-edge, suppressed until
+  **≥4 consecutive** clear sessions (the concrete count — derived from the rolling-5 so a single lift
+  can't immediately re-trip a flickering name) or a disposition; the entitlement state is **never**
+  debounced (one page/session while down — an outage is ongoing-actionable).
+
+  **Carve-out ledger** (what the *revert trigger* reserves; the other wires still fire, they just don't
+  revert): 2026-06-12 flip-materiality floor (\|Δ\|≥0.02, sub-floor not counted) · 2026-07-10
+  coverage-gap split (structural→feasibility, entitlement→feed-wide hold, transient→log/escalate; none
+  revert) · 2026-07-10 cheap-flip demotion (revert is the \|Δ iv/rv\| wire's exclusive job).
+  **Reserved revert-trigger space: the \|Δ iv/rv\| wire ALONE.**
+
+  **Anti-HARK:** the amendment text was committed BLIND weeks before the close-out, so the close-out's
+  Δ / material-flip population cannot reshape the response table after the fact; UROY's then-tripped
+  `gap_tripped` reclassifies to coverage-feasibility and exits the revert-trigger population. The
+  runtime mechanism that EXECUTES this table is **#72** (`dualread_executor.py`, Phases 1–2 active; the
+  Δ-wire revert latch behind `config.data_feed.dualread_revert_enabled`, default false until the OPRA
+  deploy-gates clear).
 
 ## 6. Storage + the coverage guard
 
