@@ -239,7 +239,10 @@ class GeminiProvider:
             system_instruction=system, max_output_tokens=max_tokens,
             http_options=types.HttpOptions(timeout=int(timeout_s * 1000)),
         )
-        if self._json_mode:
+        # Gate JSON mode on the prompt asking for JSON (mirrors OpenAIProvider) — so a free-PROSE
+        # caller (e.g. the Stage-2 probe describer) gets prose, while every JSON caller (council
+        # proposer, framer — both say "Reply with ONE JSON object") keeps the response_mime_type.
+        if self._json_mode and ("json" in system.lower() or "json" in user.lower()):
             cfg_kwargs["response_mime_type"] = "application/json"
         tcfg = self._thinking_config(types)
         if tcfg is not None:
