@@ -30,14 +30,27 @@ MECHANISM_VOCAB: tuple[str, ...] = (
     "supply_cut", "demand_surge", "capacity_constraint",
 )
 
-# The frozen `headline_quantities[].bucket` taxonomy. The schema EXEMPLIFIES rather than enumerates
-# it (the three values that appear in the frozen text / §6 smoke exemplars); §4 confirm-set marks
-# "quantity buckets — FROZEN". Treated as the explicitly-frozen seed set: a non-matching bucket is
-# FLAGGED for schema-reopen, never silently accepted. (Operator question — see the build report:
-# the taxonomy should be explicitly enumerated at freeze rather than left exemplary.)
-HEADLINE_BUCKETS: tuple[str, ...] = (
-    "weeks_x2plus", "usd_tens_of_billions", "pct_25_50",
-)
+# The frozen `headline_quantities[].bucket` taxonomy — the RATIFIED enumeration (operator-confirmed
+# 2026-06-22; supersedes the three exemplary values the §6 smoke seeded). Buckets are UNSIGNED
+# magnitude bins ORGANIZED BY FAMILY (sign comes from `mechanism_direction`, never the bucket). The
+# families are ORDERED low→high so the P2 fact-level match can apply a ±1-bucket (same-OOM) tolerance
+# WITHIN a family. A bucket outside this set (or a value that resolves to NO bucket) is FLAGGED for a
+# schema-REOPEN escalation, never auto-added (§4 / the schema-REOPEN flag).
+#
+# The frozen `weeks_x2plus` exemplar maps into the x_ family as `x_2plus` (per the ratified taxonomy).
+BUCKET_FAMILIES: dict[str, tuple[str, ...]] = {
+    "pct_": ("pct_0_10", "pct_10_25", "pct_25_50", "pct_50_100", "pct_100_300", "pct_300plus"),
+    "usd_": ("usd_millions", "usd_tens_of_millions", "usd_hundreds_of_millions",
+             "usd_billions", "usd_tens_of_billions", "usd_hundreds_of_billions_plus"),
+    "dur_": ("dur_weeks_lt10", "dur_weeks_10_50", "dur_weeks_50plus",
+             "dur_months_12_36", "dur_years_3plus"),
+    "x_": ("x_lt2", "x_2plus", "x_5plus", "x_10plus"),
+    "cnt_": ("cnt_lt100", "cnt_100_10k", "cnt_10k_1m", "cnt_1m_plus"),
+}
+
+# The flat frozen set (every family member) — the membership the emit-cleanliness check resolves
+# against. Derived from BUCKET_FAMILIES so the two can never drift.
+HEADLINE_BUCKETS: tuple[str, ...] = tuple(b for fam in BUCKET_FAMILIES.values() for b in fam)
 
 SYNTHESIS_SYSTEM = (
     "You are the thesis GENERATOR for a disciplined options system that trades long-dated, far-OTM, "
@@ -61,8 +74,14 @@ SYNTHESIS_SYSTEM = (
     "\"citations\" (array of {\"source\", \"key\", \"ts\"} drawn from the provided corpus records). "
     "Use mechanism_direction.vocab ONLY from this set: "
     "shortage, surplus, backlog_growth, capex_up, supply_cut, demand_surge, capacity_constraint. "
-    "Use headline_quantities[].bucket ONLY from this set: "
-    "weeks_x2plus, usd_tens_of_billions, pct_25_50. "
+    "Each headline_quantities[].bucket is an UNSIGNED magnitude bin (the sign lives in "
+    "mechanism_direction, never the bucket). Use ONLY a bucket from this set: "
+    "pct_0_10, pct_10_25, pct_25_50, pct_50_100, pct_100_300, pct_300plus; "
+    "usd_millions, usd_tens_of_millions, usd_hundreds_of_millions, usd_billions, "
+    "usd_tens_of_billions, usd_hundreds_of_billions_plus; "
+    "dur_weeks_lt10, dur_weeks_10_50, dur_weeks_50plus, dur_months_12_36, dur_years_3plus; "
+    "x_lt2, x_2plus, x_5plus, x_10plus; "
+    "cnt_lt100, cnt_100_10k, cnt_10k_1m, cnt_1m_plus. "
     "Reply with the JSON object and nothing else."
 )
 

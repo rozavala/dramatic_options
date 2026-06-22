@@ -23,7 +23,7 @@ _GOOD_CLAIM = {
     "named_entities": [{"canonical": "Cameco Corp", "ticker": "CCJ", "aliases": ["Cameco"]}],
     "mechanism_direction": {"vocab": "shortage", "sign": "+"},
     "headline_quantities": [{"metric": "transformer lead time", "value": "~50->~120 weeks",
-                             "bucket": "weeks_x2plus"}],
+                             "bucket": "x_2plus"}],
     "provenance": "generated",
     "citations": [{"source": "corpus_etf_constituents", "key": "URNM",
                    "ts": "2026-03-02T20:00:00+00:00"}],
@@ -41,7 +41,7 @@ def _responder_for(payload):
 def test_synthesis_prompt_sha_pin():
     # Mirrors tests/test_council_prompts.py: a drifted byte is unshippable (the prompt is part of
     # the generator forward record — a change needs a re-pin, never a quiet edit).
-    pin = "09c17c8a6d85e60b"
+    pin = "49a59fe5064e5b77"
     got = hashlib.sha256(prompts.SYNTHESIS_SYSTEM.encode()).hexdigest()[:16]
     assert got == pin, f"SYNTHESIS_SYSTEM drifted (pin {pin}, got {got}) — re-pin via a freeze, not an edit"
 

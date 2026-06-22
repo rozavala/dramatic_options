@@ -165,11 +165,20 @@ def render_corpus_block(corpus: dict[str, list[dict[str, Any]]], *, max_per_sour
 
 @dataclass
 class SynthesisResult:
-    """The P1 output: the parsed claims + the §4 emit-cleanliness verdict (no DROP / no yield bank)."""
+    """The synthesis output: the (verified) claims + the §4 emit-cleanliness verdict + raw text.
+
+    ``claims`` holds the SURVIVING claims after the P2 §3 citation verifier DROPs (when a verifying
+    cache is supplied); ``parsed`` is the pre-DROP parsed set (so the DROP yield is inspectable) and
+    ``verify`` the :class:`generator.verify.VerifyResult` (the split counters + over-citation
+    telemetry). With no cache, ``claims == parsed`` and ``verify is None`` (P1 parse-only). The §4
+    ``cleanliness`` is a SHAPE property of what the model EMITTED, so it is read over ``parsed`` —
+    independent of citation verification (the DROP gate is a separate, deterministic concern)."""
 
     claims: list[dict[str, Any]]
     cleanliness: EmitCleanliness
     raw_text: str
+    parsed: list[dict[str, Any]] = field(default_factory=list)
+    verify: Any | None = None  # generator.verify.VerifyResult | None (None ⇒ no verification run)
 
 
 def synthesize(
@@ -179,23 +188,40 @@ def synthesize(
     role: str = "generator",
     coercion_map: dict[str, str] | None = None,
     max_tokens: int | None = None,
+    verify_against: Any | None = None,
+    edgar: Any | None = None,
 ) -> SynthesisResult:
-    """Run one synthesis pass: render → call router → parse §3 → check emit-cleanliness.
+    """Run one synthesis pass: render → call router → parse §3 → check emit-cleanliness → VERIFY.
 
     ``router`` defaults to ``FakeRouter()`` (offline, no keys, no network — the §5 fixture-only
     default + the test path). The LIVE router is built CONFIG-DRIVEN by the caller via
-    ``council.router.build_router`` (roster is config, never hardcoded here) — that wiring +
-    kill/cost gates land in P3 (not built). Fail-closed: a router/transport error or a wrong-shape
-    response yields zero claims (the response text is preserved for forensics).
+    ``council.router.build_router`` (roster is config, never hardcoded here). Fail-closed: a
+    router/transport error or a wrong-shape response yields zero claims (the response text is
+    preserved for forensics).
+
+    When ``verify_against`` (a point-in-time cache) is supplied, the P2 §3 citation VERIFIER
+    (:func:`generator.verify.verify_claims`) runs after the parse: a parsed claim whose entities do
+    not resolve in its CITED records, or whose headline figure does not trace (for an entity-bearing
+    citation), is DROPPED — ``claims`` then holds only the survivors. ``edgar`` is the OPTIONAL
+    ticker→CIK secondary (default off). With no cache the verifier is skipped (P1 parse-only).
     """
     router = router or FakeRouter()
     system, _ = synthesis_prompt("")
     user = render_corpus_block(corpus)
     resp = router.call(role=role, system=system, user=user, max_tokens=max_tokens)
     text = resp.text or ""
-    claims = parse_synthesis(text)
+    parsed = parse_synthesis(text)
+    cleanliness = check_emit_cleanliness(parsed, coercion_map=coercion_map)
+    verify_result = None
+    kept = parsed
+    if verify_against is not None:
+        from generator.verify import verify_claims  # local import keeps the P1 parse path LLM-clean
+        verify_result = verify_claims(parsed, verify_against, edgar=edgar)
+        kept = verify_result.kept
     return SynthesisResult(
-        claims=claims,
-        cleanliness=check_emit_cleanliness(claims, coercion_map=coercion_map),
+        claims=kept,
+        cleanliness=cleanliness,
         raw_text=text,
+        parsed=parsed,
+        verify=verify_result,
     )
