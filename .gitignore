@@ -36,6 +36,9 @@ data/backtest/
 # Kill switch (operational, never committed)
 KILL
 
+# §5 dual-read revert override sentinel (#72, operational, never committed)
+OPRA_REVERTED
+
 # Force-track themes.json: it is the hand-seeded strategy input the paper loop LOADS
 # (config themes_path), so a fresh clone needs it. A personal GLOBAL excludes file
 # (~/.config/git/ignore) lists "themes.json"; an in-tree negation outranks the global,

@@ -715,6 +715,32 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             log.info("Gate dual-read sweep: %s", counts)
                         except Exception as e:  # noqa: BLE001 — measurement never halts the cycle
                             log.warning("gate dual-read sweep failed (non-fatal): %s", e)
+
+                        # The §5 dual-read tripwire EXECUTOR (#72, post-sweep): single-sources the
+                        # canonical gate_dualread_report (NO re-derivation), then disposes the
+                        # CONVERGED per-class response — Phase 1 logs, Phase 2 pages (debounced),
+                        # Phase 3 reverts ONLY when config.data_feed.dualread_revert_enabled is true
+                        # (DEFAULT false ⇒ inert here). FAIL-SOFT (a crash never halts the cycle —
+                        # entries already ran) but FAIL-LOUD on a degraded read (page, never silent).
+                        try:
+                            import dualread_executor
+                            from dashboard_data import gate_dualread_report
+
+                            report = gate_dualread_report(conn, config)
+                            verdict = dualread_executor.run_executor(
+                                report, config, notify=notify)
+                            log.info("Gate dual-read §5 executor: delta=%s flip=%s structural=%s "
+                                     "entitlement=%s reverted=%s",
+                                     verdict["delta"]["tripped"],
+                                     verdict["material_flip"]["tripped"],
+                                     verdict["gap_structural"]["tripped"],
+                                     verdict["entitlement"]["active"],
+                                     verdict.get("revert_written", False))
+                        except Exception as e:  # noqa: BLE001 — never halts; degrade LOUDLY
+                            log.error("gate dual-read executor failed (DEGRADED, non-fatal): %s", e)
+                            notify.send("Dual-read §5 executor DEGRADED",
+                                        f"the runtime tripwire executor errored (entries already "
+                                        f"ran; no revert/page evaluated this cycle): {e}", priority=1)
                     if result.halted:
                         # Kill switch / kill rule halted NEW entries (exit 0) → page in-app (PR2 R-C).
                         notify.send(
