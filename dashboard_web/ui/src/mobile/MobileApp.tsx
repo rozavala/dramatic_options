@@ -97,6 +97,7 @@ function MSafety({ vm }: { vm: ViewModel }) {
     { label: "Cost", value: c.cost },
   ];
   const dr = vm.dualread;
+  const rt = vm.dualreadRuntime;
   const dualTw = [
     { label: "Δ iv/rv wire", tripped: dr.deltaTripped },
     { label: "material flips", tripped: dr.flipTripped },
@@ -157,6 +158,12 @@ function MSafety({ vm }: { vm: ViewModel }) {
             <Chip level={t.tripped ? "bad" : "ok"} style={{ fontSize: 9, padding: "2px 7px" }}>{t.tripped ? "⚠ TRIPPED" : "clear"}</Chip>
           </div>
         ))}
+        <div className="flex justify-between items-center" style={{ gap: 10, padding: "7px 0", borderTop: "1px solid #edf0f4", marginTop: 2 }}>
+          <span style={{ fontSize: 11.5, color: "#33373f" }}>revert latch (#72)</span>
+          <Chip level={rt.latched ? "bad" : "ok"} style={{ fontSize: 9, padding: "2px 7px" }}>
+            {rt.latched ? "LATCHED" : `Phase 3 ${rt.phase3 ? "ON" : "OFF"}`}
+          </Chip>
+        </div>
         <div style={{ fontSize: 10, color: "#5f6675", marginTop: 9 }}>cumulative LLM cost {vm.cost.cumulative}</div>
       </div>
     </>

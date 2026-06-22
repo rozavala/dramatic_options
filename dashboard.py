@@ -75,6 +75,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "cost": dd.safe(dd.cost_ledger, conn),
             "market_ctx": dd.safe(dd.market_context, conn),
             "dualread": dd.safe(dd.gate_dualread_report, conn, config),
+            "dualread_runtime": dd.safe(dd.dualread_runtime_panel, conn, config),
             "curation": dd.safe(dd.curation_panel, conn, config, market),
             "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir),
         }
@@ -422,6 +423,59 @@ def _render_funnel(snap) -> None:
         cc[2].metric("cumulative", f"${co['cumulative_usd']:.4f}")
 
 
+_DUALREAD_CLASS_LABELS = {
+    "delta": "|Δ iv/rv| wire — the SOLE revert trigger",
+    "material_flip": "material cheap-flip — investigate (no revert)",
+    "gap_structural": "coverage gap · structural absence — feasibility (no revert)",
+    "gap_transient": "coverage gap · transient — escalate ≥2/5 (no revert)",
+    "entitlement": "entitlement lapse — feed-wide hold (no revert)",
+}
+
+
+def _render_dualread_runtime(rt) -> None:
+    """The #72 §5 dual-read RUNTIME view: the per-class verdict, the Phase-3 revert latch, and the
+    debounce/page summary — what the live ``dualread_executor`` would do (read-only)."""
+    st.markdown("**§5 dual-read — runtime (#72)** "
+                f"(rolling-{rt.get('window', 0)}; latest #{rt.get('last_run') if rt.get('last_run') is not None else '—'})")
+    st.caption("The per-class response the live post-cycle executor would take. Each class routes to its own "
+               "action; only the Δ wire can ever revert option_gate→indicative (and only with Phase 3 ON).")
+
+    latch = rt.get("revert_latch", {})
+    lc = st.columns(3)
+    lc[0].metric("Phase 3 (revert latch)", "ON" if latch.get("enabled") else "OFF",
+                 help="config.data_feed.dualread_revert_enabled — default OFF (the latch is inert on the live loop).")
+    lc[1].metric("latched", "yes" if latch.get("latched") else "no",
+                 help="The OPRA_REVERTED sentinel is present ⇒ the next cycle forces option_gate=indicative.")
+    lc[2].metric("revert authorized", "yes" if latch.get("authorized") else "no",
+                 help="Δ wire tripped AND Phase 3 ON — what the executor would write this cycle.")
+
+    classes = rt.get("classes", {})
+    table = [
+        {"class": _DUALREAD_CLASS_LABELS.get(k, k),
+         "tripped": "⚠ TRIPPED" if c.get("tripped") else "clear",
+         "rolling-5": c.get("sessions"),
+         "reverts?": "Δ (yes)" if c.get("revert") else "no",
+         "paging now": ", ".join(c.get("pages") or []) or "—"}
+        for k, c in classes.items()
+    ]
+    if table:
+        st.dataframe(table, width="stretch", hide_index=True)
+
+    # Debounce: which tripped names page now (rising edge) vs are suppressed (already alerted) under the
+    # ≥N-consecutive re-arm — the UROY-pin made legible.
+    deb = rt.get("debounce", {})
+    rearm = deb.get("rearm_consecutive")
+    paging, suppressed = [], []
+    for cls in ("material_flip", "gap_structural", "gap_transient"):
+        split = deb.get(cls, {})
+        paging += [f"{n} ({cls})" for n in split.get("paging", [])]
+        suppressed += [f"{n} ({cls})" for n in split.get("suppressed", [])]
+    if paging or suppressed:
+        st.caption(f"debounce (≥{rearm} consecutive clear sessions re-arm): "
+                   f"paging now → {', '.join(paging) or '—'} · "
+                   f"suppressed (already alerted) → {', '.join(suppressed) or '—'}")
+
+
 def _render_scanning(snap) -> None:
     st.caption("What the scanner surfaced, what's in each book (with provenance), and what data has accrued.")
     if _show(snap.get("dualread"), "gate dual-read"):
@@ -441,6 +495,8 @@ def _render_scanning(snap) -> None:
             st.dataframe(dr["sessions"], width="stretch")
         else:
             st.caption("no dual-read sessions yet (accruing from the first post-flip L1)")
+    if _show(snap.get("dualread_runtime"), "dual-read runtime"):
+        _render_dualread_runtime(snap["dualread_runtime"])
     if _show(snap["sentinels"], "sentinels"):
         se = snap["sentinels"]
         st.markdown(f"**Active sentinels** — {se['active_n']} active · {se['dormant']} dormant")

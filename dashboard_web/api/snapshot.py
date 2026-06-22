@@ -33,12 +33,12 @@ import numpy as np  # noqa: E402
 import dashboard_data as dd  # noqa: E402
 from config_loader import load_config  # noqa: E402
 
-# The 21 load_all panels in order. Kept as data so the parity test (test_snapshot_parity.py) can assert this
+# The load_all panels in order. Kept as data so the parity test (test_snapshot_parity.py) can assert this
 # list == dashboard.load_all's keys (catching drift if the live shell gains/loses a panel).
 PANEL_KEYS: tuple[str, ...] = (
     "header", "t4", "risk", "account", "regime", "sentinels", "positions", "council", "deliberation",
     "performance", "nulls", "attribution", "funnel", "council_stage", "gate_reasons", "cap_flow",
-    "cost", "market_ctx", "dualread", "curation", "data_gathered",
+    "cost", "market_ctx", "dualread", "dualread_runtime", "curation", "data_gathered",
 )
 
 
@@ -102,6 +102,7 @@ def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
             "cost": dd.safe(dd.cost_ledger, conn),
             "market_ctx": dd.safe(dd.market_context, conn),
             "dualread": dd.safe(dd.gate_dualread_report, conn, config),
+            "dualread_runtime": dd.safe(dd.dualread_runtime_panel, conn, config),
             "curation": dd.safe(dd.curation_panel, conn, config, market),
             "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir),
         }

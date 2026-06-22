@@ -1111,3 +1111,83 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
         "note": "shadow arm = INDICATIVE; it never authorizes (veto-only, date-gated). "
                 "A tripped wire ⇒ the §5 fail-closed response (investigate / revert+page).",
     }
+
+
+def dualread_runtime_panel(conn, config: dict | None = None) -> dict:
+    """The #72 RUNTIME view of the now-live ``dualread_executor`` — the per-class §5 VERDICT, the
+    Phase-3 revert-latch state, and the page/debounce summary, made legible alongside the existing
+    soak surface (which shows the rolling sessions). READ-ONLY: it derives nothing of its own; it
+    SINGLE-SOURCES ``gate_dualread_report`` (the rolling-5 / gap-partition math) and runs the
+    executor's PURE ``dualread_executor.evaluate`` over that report — so the dashboard shows EXACTLY
+    the branch the live post-cycle hook would take (the executor's single-source-of-truth discipline,
+    mirrored here). No paging, no sentinel write — observation only.
+
+    Shape (every count hand-checked in the tests):
+      • ``classes`` — the five §5 wires, each {tripped, sessions (rolling-5 count where applicable),
+        pages (names on the rising edge this session), revert (does THIS class ever revert?)}. Only
+        the Δ wire can revert; structural/transient/flip/entitlement never do (the safety invariant).
+      • ``revert_latch`` — {enabled (``config.data_feed.dualread_revert_enabled``, Phase-3 default
+        false), latched (the ``OPRA_REVERTED`` sentinel is present ⇒ next cycle forced indicative),
+        authorized (Δ-tripped ∧ enabled — what the executor WOULD write), sentinel_path}.
+      • ``debounce`` — the ≥4-consecutive re-arm in effect: the names PAGING this session (rising
+        edge) vs SUPPRESSED (currently tripped but already alerted), per debounced class.
+      • ``window`` / ``last_run`` — the rolling window length + the latest session's run_id."""
+    import dualread_executor as dx
+
+    report = gate_dualread_report(conn, config)
+    verdict = dx.evaluate(report, config or {})
+    tw = report.get("tripwires", {}) or {}
+    gp = report.get("gap_partition", {}) or {}
+    sessions = report.get("sessions", []) or []
+    window = gp.get("window", tw.get("window", 0))
+
+    # Per-class debounce split: the names that are TRIPPED in the latest session, partitioned into
+    # those PAGING now (rising edge — in the executor's page set) vs SUPPRESSED (tripped but already
+    # alerted under the ≥4-consecutive re-arm). Single-sourced from the report's last session + the
+    # executor's page sets; no re-derivation of the rolling math.
+    last = sessions[-1] if sessions else {}
+
+    def _split(active_names: list, page_names: list) -> dict:
+        active = sorted(active_names or [])
+        paging = sorted(n for n in active if n in set(page_names or []))
+        return {"active": active, "paging": paging,
+                "suppressed": sorted(n for n in active if n not in set(page_names or []))}
+
+    classes = {
+        # the SOLE revert trigger — feed-wide |Δ iv/rv| breach (no per-name page list; it's a session wire)
+        "delta": {"tripped": verdict["delta"]["tripped"], "sessions": tw.get("delta_breach_sessions"),
+                  "pages": [], "revert": True},
+        # material cheap-flip — investigate + page (debounced); NEVER reverts
+        "material_flip": {"tripped": verdict["material_flip"]["tripped"], "sessions": tw.get("flip_sessions"),
+                          "pages": verdict["material_flip"]["pages"], "revert": False},
+        # coverage-gap · structural absence — feasibility page (debounced); NEVER reverts
+        "gap_structural": {"tripped": verdict["gap_structural"]["tripped"], "sessions": gp.get("structural_sessions"),
+                           "pages": verdict["gap_structural"]["pages"], "revert": False},
+        # coverage-gap · transient — per-name page once it recurs to ≥2/5 (escalate); NEVER reverts
+        "gap_transient": {"tripped": bool(gp.get("transient_escalate")), "sessions": gp.get("transient_sessions"),
+                          "pages": verdict["gap_transient"]["pages"], "revert": False},
+        # entitlement — feed-wide OPRA-trust failure, per-session (never debounced, never reverts)
+        "entitlement": {"tripped": verdict["entitlement"]["active"], "sessions": gp.get("entitlement_sessions"),
+                        "pages": [], "revert": False},
+    }
+
+    return {
+        "window": window,
+        "last_run": last.get("run_id"),
+        "classes": classes,
+        "revert_latch": {
+            "enabled": verdict["delta"]["revert_enabled"],
+            "latched": dx.revert_latched(),
+            "authorized": verdict["delta"]["revert_authorized"],
+            "sentinel_path": str(dx.REVERT_SENTINEL),
+        },
+        "debounce": {
+            "rearm_consecutive": dx.DEBOUNCE_REARM,
+            "material_flip": _split(last.get("material_flips", []), verdict["material_flip"]["pages"]),
+            "gap_structural": _split(last.get("gap_structural", []), verdict["gap_structural"]["pages"]),
+            "gap_transient": _split(last.get("gap_transient", []), verdict["gap_transient"]["pages"]),
+        },
+        "note": "Single-sources gate_dualread_report + dualread_executor.evaluate (the live hook's "
+                "branch). Phase 3 (revert) is default-OFF; only the Δ wire can ever revert. "
+                "Observation only — no paging, no sentinel write.",
+    }
