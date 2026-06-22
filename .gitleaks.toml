@@ -14,4 +14,7 @@ regexes = [
   '''your_alpaca_(paper_)?(key|secret)''',
   '''<[A-Z_]+>''',
   '''xxx+''',
+  # EDGAR accession numbers (public filing IDs) in corpus/test fixtures — the field
+  # name "accession" contains "access", which trips the default generic-api-key rule.
+  '''[0-9]{10}-[0-9]{2}-[0-9]{6}''',
 ]
