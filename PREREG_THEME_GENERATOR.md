@@ -1,18 +1,20 @@
 # PRE-REG — the Stage-1 thesis GENERATOR (theme-generation layer)
 
-**STATUS: DRAFT (v3, post red-team rounds 1+2) — NOT frozen; the freeze is PARKED until after the
-7/10 close-out.** This is the parameter-freeze document the `PREREG_THEME_GENERATION_STUB.md` deferred.
-It freezes the four generator parameters (C.2 roster · C.3 citation predicate · C.5 blind yield band ·
-C.6 the red-team) and the build posture.
+**STATUS: FROZEN via this merge 2026-06-22.** This is the parameter-freeze document the
+`PREREG_THEME_GENERATION_STUB.md` deferred. It freezes the four generator parameters (C.2 roster · C.3
+citation predicate · C.5 blind yield band · C.6 the red-team) and the build posture. The §10
+confirm-set is FILLED (operator-ratified, pinned blind); the operator's MERGE of this branch is the
+freeze act.
+
+**Freeze preconditions — ALL MET (was the parked gate):** (a) the **7/10 close-out bandwidth blocker is
+CLEARED** — `PREREG_COUNCIL_GATE_SEPARATION §5` is frozen and L1 #72 is live, so the freeze no longer
+contends with the close-out for the binding operator/red-team bandwidth (§6); (b) the **§10 confirm-set
+values are written into this text by the operator, blind**, as the merge act; (c) the final operator
+sign-off rides this merge. Deploy stays **September-gated regardless** (§6) — the freeze gates the
+judgment-grade run, not the fixture-INERT build.
 
 **Red-team status:** round 1 = the 5-lens MECE pass (2026-06-22); round 2 = the operator pass
-(2026-06-22, landed almost entirely on §3); both folded into this v3. **It is NOT frozen until ALL
-of:** (a) the **7/10 three-artifact dual-read close-out is merged** — the freeze consumes operator
-red-team bandwidth, the binding scarce resource, and must not contend with the close-out (§6); (b) the
-**§10 confirm-set values are written into this text by the operator, blind**, as the merge act (an
-empty slot = not frozen); (c) a final operator sign-off after (a). **No early-pinning** — deploy is
-September-gated regardless, so pinning §10 now would be exactly the operator-attention contention the
-doc warns against. Dated 2026-06-22.
+(2026-06-22, landed almost entirely on §3); both folded into v3, then frozen here. Dated 2026-06-22.
 
 Text only — **§5-safe**: touches no live config/loop/council/gate, not the §5 funnel window. Drafting
 (through v3) is **author bandwidth**, not operator bandwidth, so it does not contend with the
@@ -259,30 +261,63 @@ cap-fit.
 
 ---
 
-## 10. CONFIRM-SET — the operator pins these BLIND, as the merge act (empty = NOT frozen; PARKED until post-7/10)
+## 10. CONFIRM-SET — FILLED at the freezing merge 2026-06-22 (operator-RATIFIED, pinned BLIND)
 
 > Mirrors `PREREG_NARRATION_PROBE.md §9/§10`: the freezing merge is the act of writing these in, before
-> any generator output is seen. Per the status line + §6, this does NOT begin until the 7/10 close-out
-> merges (no early-pinning — deploy is September-gated regardless).
+> any generator output is seen. The 7/10 close-out bandwidth blocker (status line + §6) is now CLEARED
+> — `PREREG_COUNCIL_GATE_SEPARATION §5` frozen + L1 #72 live — so the operator filled these as the
+> merge act. Each was pinned blind (no generator output seen). Deploy stays September-gated (§6); these
+> values gate only the judgment-grade run, not the build (which was fixture-INERT throughout).
 
-- **C.5 — expected per-run yield/rejection range:** `[ ___ – ___ ]`  *(operator)*
-- **C.5 — large-n selectivity-flag threshold (a number):** `___`  *(operator)*
-- **C.5 — cumulative N-floor** (cf. the probe's ≥20): `___`  *(operator)*
+- **C.5 — expected per-run yield/rejection range:** **~[1 – 12] theses/run** *(operator-ratified)* —
+  the proceed band; a per-run "0" is sampling noise, resolved by ACCUMULATING to the N-floor, never by
+  re-rolling (§5).
+- **C.5 — large-n selectivity-flag threshold (a number):** **>~25/run** *(operator-ratified)* — above
+  this, selectivity-flag (investigate the corpus/prompt; do NOT bank the yield, do NOT loosen the
+  probe).
+- **C.5 — cumulative N-floor** (cf. the probe's ≥20): **20** *(operator-ratified)* — the cumulative
+  count before "0% / degenerate" is actionable (mirrors the probe's ≥20).
 - **C.3 — fact-level match rule + tolerance**, tied to the sparse-tolerant precedent (`:146-150`):
-  `___`  *(operator)*
+  **the sparse-tolerant precedent — a ±1-bucket (same-OOM) numeric trace WITHIN a family; failure =
+  DROP** *(operator-ratified)*. An unfiled value is omitted (never fabricated/zeroed), so an
+  absent-but-traceable figure is tolerated where the class allows.
 - **C.3 — which source-classes are fact-MANDATORY vs fact-where-present** (entity-bearing /
-  entity-free-macro / free-text-recipient): `___`  *(operator)*
+  entity-free-macro / free-text-recipient): **fact-MANDATORY for the ENTITY-BEARING class**
+  (`capital_raises` / `customer_concentration` / `etf_constituents`); **fact-WHERE-PRESENT for
+  entity-free macro** (`bls` / `eia` / `nrc`) **and free-text recipient** (`federal_awards`)
+  *(operator-ratified)*. **AND — by taxonomy-family (the e1 carve-out, ratified 2026-06-22):** the
+  `dur_` / `x_` families are **WHERE-PRESENT even under an entity-bearing citation** (no traceable
+  corpus magnitude → narrative-ungroundable → the §3 trace does not apply; the probe's narration
+  scoring is their check); only `pct_` / `usd_` / `cnt_` stay fact-MANDATORY there. The ENTITY leg is
+  mandatory regardless. Implemented in `generator/verify.py` (`FACT_MANDATORY_FAMILIES = {pct_, usd_,
+  cnt_}`) + the `PREREG_NARRATION_PROBE §4` 2026-06-22 amendment.
 - **C.2 — generator provider→role roster assignment** (council-distinct; OpenAI off contingency) — a
-  one-way door: `___`  *(operator)*
+  one-way door: **OpenAI (off the council contingency) as the generator SYNTHESIZER**
+  *(operator-ratified)*, a distinct provider→role assignment from the live council (gemini=proposer /
+  xai=adversary / anthropic=strategist); exact-version-pinned via `runs.model_mix`.
 - **C.2 — single-synthesis vs an additional LLM self-critique pass** (recommend single-synthesis):
-  `___`  *(operator)*
+  **single-synthesis** *(operator-ratified)* — the deterministic §3 verifier is the backstop; no extra
+  LLM self-critique pass.
 - **§4 — vocab-resolution choice:** the pinned synonym/coercion map (recommended, probe-untouching) OR
-  close the probe enum (a dated probe amendment): `___`  *(operator)*
+  close the probe enum (a dated probe amendment): **the coercion-map resolution** *(operator-ratified)*
+  — probe-untouching (the map defaults EMPTY, an operator artifact; an unresolved miss is a
+  schema-REOPEN, never a build-time add).
 - **§4 — N in the Phase-1 emit-cleanliness sample** (predicate shape pinned in §4; N may stay blind):
-  `___`  *(operator)*
+  **~20** *(operator-ratified)*.
+- **Stage-D — off-cycle deploy-warrant bar** (when an off-cycle generator deploy is warranted, vs
+  waiting for curation window #2): **warranted iff a run yields ≥3 probe-passing QUIET theses, of which
+  ≥2 are CAP-FITTABLE** (≤$1k/contract) *(operator-ratified)*. Below that bar, the generated theses
+  wait for the next quarterly curation window (§6 / `PREREG_UNIVERSE_CURATION`).
 
 C.1 (mechanism-claim unit) and C.4 (classifier bar) are confirm-only / out-of-scope (§0). The C.5
-noise rule is now a fixed rule in §5 (infrastructure-nondeterminism re-runs only), not a blind value.
+noise rule is a fixed rule in §5 (infrastructure-nondeterminism re-runs only), not a blind value.
+
+**Split-counter EXEMPLARS — RATIFIED 2026-06-22.** The two hand-checked exact-value tests (§3 / §9,
+anti-HARK) ship with the operator-ratified canonical exemplars: `dropped_entity_unresolved` via
+**Aldermarsh/ALDP in no cited record** (confabulation), and `dropped_fact_untraced` via **Cameco/CCJ
+asserting `pct_300plus` (400%) four buckets off the cited URNM `pct_10_25`** (an invented figure on a
+real entity). See `tests/test_generator_verify.py` (`test_dropped_entity_unresolved_exact_value` /
+`test_dropped_fact_untraced_exact_value`), and the e1 carve-out tests (`dur_`/`x_` where-present).
 
 ---
 
@@ -300,3 +335,9 @@ built (Phase 2):
   key — e.g. `capital_raises` stamps filings at post-close 20:00 UTC, so same-day 424B5s collide on
   `(source, key, ts)`. Nail the coord→record resolution semantics in Phase 2 (the tie-break /
   set-membership rule); do NOT assume one-to-one.
+- **Split-counter exemplars — RATIFIED 2026-06-22 (the as-built P2).** The two anti-HARK exact-value
+  tests ship with the operator-ratified canonical exemplars (mirrored in §10): `entity_unresolved` via
+  **ALDP in no cited record**; `fact_untraced` via **Cameco 400% → `pct_300plus`** off the cited URNM
+  `pct_10_25`. The e1 carve-out (`dur_`/`x_` where-present even under a class-(a) citation) ships with
+  its own KEPT tests (`generator/verify.py:FACT_MANDATORY_FAMILIES`). Coord→record resolution uses the
+  ts-collision-aware `generator.entity._coord_records` (the caution above, discharged).
