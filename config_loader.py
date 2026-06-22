@@ -72,6 +72,18 @@ def load_config() -> dict[str, Any]:
     df.setdefault("equity_bars", "iex")
     df.setdefault("option_gate", "indicative")
     df.setdefault("option_monitor", "indicative")
+    df.setdefault("dualread_revert_enabled", False)
+    # The §5 dual-read REVERT override (#72, Phase 3): a runtime sentinel file ``OPRA_REVERTED`` at
+    # repo root (the KILL-file precedent) FORCES option_gate→indicative until an operator removes it.
+    # One-directional toward safety, idempotent, record-segmenting (the next run's data_feed_stamp
+    # changes). Consulted AFTER config.json so an operator (or the gated Phase-3 latch) can fall the
+    # gate back to the validated prior feed without a code/config deploy. Default config never trips
+    # this (the sentinel is absent); the executor only writes it when dualread_revert_enabled is true.
+    from dualread_executor import revert_latched
+
+    if revert_latched() and df.get("option_gate") == "opra":
+        df["option_gate"] = "indicative"
+        df["_dualread_reverted"] = True  # provenance for the stamp/log (a comment key, dropped from frame)
     try:
         validate_data_feed(df)
     except FeedConfigError as e:
