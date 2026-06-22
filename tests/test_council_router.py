@@ -123,6 +123,60 @@ def test_fake_router_custom_responder():
     assert json.loads(fr.call(role="adversary", system="s", user="u").text) == {"role": "adversary"}
 
 
+# ── OpenAIProvider token-param swap (gpt-5 / o-series reject max_tokens) ──────────────────────
+from types import SimpleNamespace  # noqa: E402
+
+
+class _FakeOAIError(Exception):
+    def __init__(self, msg, status_code=400):
+        super().__init__(msg)
+        self.status_code = status_code
+
+
+class _FakeCompletions:
+    """Records the create() kwargs; ``reject_max_tokens`` simulates gpt-5/o-series (400 on max_tokens)."""
+
+    def __init__(self, *, reject_max_tokens):
+        self.calls = []
+        self._reject = reject_max_tokens
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self._reject and "max_tokens" in kwargs:
+            raise _FakeOAIError("Unsupported parameter: 'max_tokens' is not supported with this model. "
+                                "Use 'max_completion_tokens' instead.")
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'), finish_reason="stop")],
+            usage=SimpleNamespace(prompt_tokens=12, completion_tokens=7))
+
+
+def _oai_provider_with_fake(*, reject_max_tokens):
+    from council.router import OpenAIProvider
+    prov = OpenAIProvider("k", name="openai", json_mode=True)
+    comp = _FakeCompletions(reject_max_tokens=reject_max_tokens)
+    prov._client = SimpleNamespace(chat=SimpleNamespace(completions=comp))  # bypass lazy SDK import
+    return prov, comp
+
+
+def test_openai_provider_swaps_to_max_completion_tokens_on_400():
+    # gpt-5/o-series: max_tokens 400s → swap to max_completion_tokens and retry, byte-for-byte same prompt.
+    prov, comp = _oai_provider_with_fake(reject_max_tokens=True)
+    text, intok, outtok, meta = prov.complete(
+        model="gpt-5.4", system="reply with ONE json object", user="u", timeout_s=5, max_tokens=64)
+    assert json.loads(text) == {"ok": True} and (intok, outtok) == (12, 7) and meta["finish_reason"] == "stop"
+    assert len(comp.calls) == 2
+    assert "max_tokens" in comp.calls[0] and "max_completion_tokens" not in comp.calls[0]
+    assert comp.calls[1].get("max_completion_tokens") == 64 and "max_tokens" not in comp.calls[1]
+
+
+def test_openai_provider_keeps_max_tokens_for_compatible_models():
+    # grok/perplexity/gpt-4.x accept max_tokens → no swap, single call (the unchanged path).
+    prov, comp = _oai_provider_with_fake(reject_max_tokens=False)
+    text, *_ = prov.complete(model="grok-4.3", system="reply with json", user="u", timeout_s=5, max_tokens=64)
+    assert json.loads(text) == {"ok": True}
+    assert len(comp.calls) == 1 and comp.calls[0].get("max_tokens") == 64
+
+
 def test_build_router_threads_gemini_thinking_knobs():
     # The P0 fix is config-driven: the gemini provider must receive thinking_level + json_mode so a 3.x
     # thinking model doesn't starve its output budget (SDKs lazy → no network).
