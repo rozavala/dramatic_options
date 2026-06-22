@@ -42,6 +42,27 @@
         "ARKX constituent file (stockanalysis.com/etf/arkx/holdings, fetched 2026-06-10)"
       ],
       "cluster_default": "space_smallcap"
+    },
+    "silver_deficit": {
+      "provenance": "operator",
+      "added": "2026-06-22 (window #2, off-cycle)",
+      "thesis": "A structural silver supply deficit — industrial + solar (PV) demand outrunning constrained primary mine supply and falling above-ground stocks — drives sustained higher realized silver prices for primary silver producers; the deficit is under-narrated relative to gold/precious-metals coverage.",
+      "falsifier": "Mine supply growth, recycling, or demand substitution closes the deficit; silver fails to escalate through 2+ consecutive deficit-year prints.",
+      "sources": [
+        "SIL constituent file (Global X Silver Miners ETF, stockanalysis.com/etf/sil/holdings, fetched 2026-06-22)",
+        "SLVP constituent file (iShares MSCI Global Silver & Metals Miners, fetched 2026-06-22)"
+      ],
+      "cluster_default": "silver_deficit"
+    },
+    "seaborne_freight": {
+      "provenance": "operator",
+      "added": "2026-06-22 (window #2, off-cycle)",
+      "thesis": "A constrained seaborne fleet (low orderbook, aging vessels, IMO scrapping) against resilient ton-mile demand tightens freight rates for vessel operators; the rate cycle is under-narrated relative to the broad-market beta the names trade on.",
+      "falsifier": "Newbuild deliveries / demand softening loosen freight rates; spot rates fall for 2+ consecutive quarters against the orderbook thesis.",
+      "sources": [
+        "BOAT constituent file (SonicShares Global Shipping ETF, stockanalysis.com/etf/boat/holdings, fetched 2026-06-22)"
+      ],
+      "cluster_default": "seaborne_freight"
     }
   },
   "windows": {
@@ -83,6 +104,24 @@
       "excluded_no_structure": ["WLDN", "AZZ"],
       "deferred_recall_unverified": {"BKSY": "space_smallcap candidate — no constituent verification yet (window #2)", "SPIR": "space_smallcap candidate — no constituent verification yet (window #2)"},
       "notes": "defense_smallcap: no admissible names this window (DRS band-fail; MRCY/AVAV fit-fail) — basket NOT created. Cluster re-partition recorded in config _comment (CCJ→nuclear_fuel, FCX→copper_supply, RKLB→space_smallcap, grid names→ai_capex_power). Screen ran 2026-06-09 ~23:31 UTC on after-hours OPRA quotes; ADV on SIP bars."
+    },
+    "2": {
+      "date": "2026-06-22 (off-cycle)",
+      "rule": "PREREG_UNIVERSE_CURATION §11 Rule 1 + §10 off-cycle deploy-warrant. sources ∩ US-listed-optionable ∩ feasibility (1 contract ≤ $1,000) ∩ achieved-OTM 15–35%. The admitted names also read under_narrated=True in the live council re-scores (the silver/freight survivors) where the AI-power/nuclear cluster read False; at_inflection is the remaining market-dependent leg.",
+      "screen_records": ["ephemeral live checks 2026-06-22 (cap-fit OPRA + achieved-OTM + council under_narrated re-score; ~/cap_check_survivors.py + ~/survivor_rescore.py)"],
+      "admitted": {
+        "PAAS": {"basket": "silver_deficit",   "sources": ["SIL", "SLVP"], "per_contract_usd": 615, "achieved_otm_pct": 22.7, "tag": "research+rule"},
+        "HL":   {"basket": "silver_deficit",   "sources": ["SIL", "SLVP"], "per_contract_usd": 208, "achieved_otm_pct": 25.2, "tag": "research+rule"},
+        "CDE":  {"basket": "silver_deficit",   "sources": ["SIL", "SLVP"], "per_contract_usd": 222, "achieved_otm_pct": 28.8, "tag": "research+rule"},
+        "AG":   {"basket": "silver_deficit",   "sources": ["SIL", "SLVP"], "per_contract_usd": 328, "achieved_otm_pct": 24.2, "tag": "research+rule"},
+        "FRO":  {"basket": "seaborne_freight", "sources": ["BOAT"],        "per_contract_usd": 278, "achieved_otm_pct": 20.3, "tag": "research+rule"}
+      },
+      "excluded_band": {
+        "STNG": "achieved 9.2% (near-ATM; the eligible far-OTM wing is illiquid — like window #1's LTBR/ITRI)",
+        "SBLK": "achieved -5.7% (ITM-only eligibility; the chain cannot express the 25%-OTM structure — like window #1's IE/GSAT)"
+      },
+      "excluded_no_structure": ["AMPH (pharma-reshoring — no listed options chain; pharma_reshoring basket NOT created)"],
+      "notes": "OFF-CYCLE admission. The generator's OWN theses were NOT admitted — 8/9 of its cap-fittable names were already in the universe AND the council reads them narrated (the generator framing did not move under_narrated; gen_rescore 0/17). The silver/freight SURVIVORS (parallel-research, 2026-06-22) are the genuine quiet+fittable candidates: FRO/CDE read under_narrated=True, all admitted are cheap on the IV gate + cap-fittable. Two NEW clusters (silver_deficit, seaborne_freight). Stales the §5 four-scan DISCOVERY baseline (a measurement, not a safety gate; re-measurable from a fresh window) — operator-accepted, to position quiet candidates ahead of their at_inflection break."
     }
   }
 }
