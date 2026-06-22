@@ -34,7 +34,11 @@ def read_corpus(
     "source had nothing as-of T" from "source not requested" (``assemble_corpus`` contract).
     """
     coords = read_coords(content, config)
-    return assemble_corpus(cache, as_of, coords)
+    # tag_key=True: carry each record's cache COORD key (form / symbol / series_id / hash /
+    # "power_reactors") so the synthesis render can show the LLM a coord the §3 verifier resolves.
+    # Without it the model cites a record-body id (accession / PIID) that mis-resolves for 5 of 7
+    # sources (only bls/etf coincide), deflating the §3 grounding gate (the citation-key contract gap).
+    return assemble_corpus(cache, as_of, coords, tag_key=True)
 
 
 def iter_records(corpus: dict[str, list[dict[str, Any]]]) -> list[tuple[str, dict[str, Any]]]:

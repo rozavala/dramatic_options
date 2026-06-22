@@ -162,8 +162,20 @@ def test_emit_cleanliness_flags_non_frozen_bucket():
 
 # ── render: corpus block carries source/key/ts for verbatim citation ───────────────────────────
 
-def test_render_corpus_block_includes_records_for_citation():
+def test_render_corpus_block_exposes_cite_coord_for_citation():
+    # tag_key=True records carry _coord_key (the cache COORD key) → render shows an explicit
+    # {"cite":{source,key,ts},"record":{...}} so the model copies a coord the §3 verifier RESOLVES
+    # (the citation-key-contract fix). Here the coord key is the etf symbol, distinct from a body id.
+    import json as _json
+
     corpus = {"corpus_etf_constituents": [
-        {"ts": "2026-03-02T20:00:00+00:00", "etf": "URNM", "symbol": "CCJ", "name": "Cameco Corp"}]}
+        {"ts": "2026-03-02T20:00:00+00:00", "etf": "URNM", "symbol": "CCJ",
+         "name": "Cameco Corp", "_coord_key": "URNM"}]}
     block = synthesize.render_corpus_block(corpus)
-    assert "corpus_etf_constituents" in block and "Cameco Corp" in block and "URNM" in block
+    assert "corpus_etf_constituents" in block and "Cameco Corp" in block
+    line = next(ln for ln in block.splitlines() if ln.startswith("{"))
+    obj = _json.loads(line)
+    assert obj["cite"] == {"source": "corpus_etf_constituents", "key": "URNM",
+                           "ts": "2026-03-02T20:00:00+00:00"}
+    # the record body keeps its fields; the internal _coord_key tag is stripped from the rendered body
+    assert obj["record"]["symbol"] == "CCJ" and "_coord_key" not in obj["record"]
