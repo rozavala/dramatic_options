@@ -32,7 +32,8 @@ def markers_dict(m: MarkerSet) -> dict:
     """The marker values, JSON-ready — also the framer/council grounding corpus (PR2)."""
     return {
         "momentum": m.momentum, "rel_strength": m.rel_strength, "rv": m.rv,
-        "rv_slope": m.rv_slope, "has_event": m.has_event, "event_kind": m.event_kind,
+        "rv_slope": m.rv_slope, "mom_recent": m.mom_recent, "rv_rising": m.rv_rising,
+        "has_event": m.has_event, "event_kind": m.event_kind,
         "news_count": m.news_count, "price": m.price, "adv_usd": m.adv_usd,
     }
 

@@ -101,7 +101,9 @@ def test_framer_sentinel_pack_byte_identical():
         "CANDIDATE: UEC bullish nuclear_fuel\n"
         "OPERATOR_THESIS: discovery hypothesis\n"
         "NEWS_COVERAGE: 2 article(s) as of 2026-06-01\n"
-        "RECENT_HEADLINES:\n  - momentum +0.500\n  - rv_slope +0.300"
+        # horizon-labeled markers (PREREG_FRESH_INFLECTION_FUNNEL §7) — a pre-registered render
+        # change so at_inflection reads recent-vs-trailing; the framer pack stays §9-corpus-free.
+        "RECENT_HEADLINES:\n  - momentum_12m +0.500\n  - rv_reexpansion_1y +0.300"
     )
 
 

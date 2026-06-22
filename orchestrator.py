@@ -309,7 +309,8 @@ def run_discover(demo: bool = False) -> int:
             market = discovery.synthetic_market(all_syms, as_of, movers=movers)
             run_id = record_run(conn, mode="DISCOVERY-DEMO", equity=None, note="discovery demo",
                                 frame_version=compute_frame_version(config),
-                                data_feed=data_feed_stamp(config))
+                                data_feed=data_feed_stamp(config),
+                                discovery_funnel=discovery.DISCOVERY_FUNNEL_VERSION)
             log.info("(demo: ephemeral DB %s — real sentinel store untouched)", demo_db.name)
         else:
             try:
@@ -334,7 +335,8 @@ def run_discover(demo: bool = False) -> int:
                                 feed=equity_feed)
             run_id = record_run(conn, mode="DISCOVERY", equity=None, note="weekly scan",
                                 frame_version=compute_frame_version(config),
-                                data_feed=data_feed_stamp(config))
+                                data_feed=data_feed_stamp(config),
+                                discovery_funnel=discovery.DISCOVERY_FUNNEL_VERSION)
             # The structural-event leg (PREREG_EVENT_LEG): fail-SOFT factory — a missing UA or
             # construction failure degrades to a motion-only scan, LOUDLY (status + note stamp).
             from data.structural_events import build_event_provider

@@ -9,6 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MIGRATION_0001 = REPO_ROOT / "scripts" / "migrations" / "0001_initial.py"
 MIGRATION_0009 = REPO_ROOT / "scripts" / "migrations" / "0009_frame_version.py"
 MIGRATION_0013 = REPO_ROOT / "scripts" / "migrations" / "0013_data_feed.py"
+MIGRATION_0015 = REPO_ROOT / "scripts" / "migrations" / "0015_discovery_funnel.py"
 
 
 def _load_migration(path):
@@ -24,10 +25,11 @@ def _migrate(conn):
         "(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
     )
     _load_migration(MIGRATION_0001).apply(conn)
-    # record_run writes runs.frame_version (migration 0009) + runs.data_feed (migration 0013);
-    # apply both so the journal insert works.
+    # record_run writes runs.frame_version (0009) + runs.data_feed (0013) + runs.discovery_funnel
+    # (0015); apply them so the journal insert works.
     _load_migration(MIGRATION_0009).apply(conn)
     _load_migration(MIGRATION_0013).apply(conn)
+    _load_migration(MIGRATION_0015).apply(conn)
     conn.execute(
         "INSERT OR IGNORE INTO schema_version (version, applied_at) VALUES (1, datetime('now'))"
     )

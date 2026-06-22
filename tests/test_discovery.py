@@ -66,9 +66,11 @@ class _Events:
 # ── pure-function gate / direction / ranking ────────────────────────────────────────────────
 
 
-def _m(symbol, basket="b", *, mom=None, rv_slope=None, has_event=False, price=10.0, adv=1e7):
+def _m(symbol, basket="b", *, mom=None, rv_slope=None, mom_recent=None, rv_rising=None,
+       has_event=False, price=10.0, adv=1e7):
     return MarkerSet(symbol, basket, mom, None, 0.4, rv_slope, has_event,
-                     "424B5" if has_event else None, 0, price, adv)
+                     "424B5" if has_event else None, 0, price, adv,
+                     mom_recent=mom_recent, rv_rising=rv_rising)
 
 
 def test_gate_is_disjunctive_on_absolute_floors():
@@ -86,11 +88,87 @@ def test_direction_follows_motion_sign():
 
 
 def test_rank_is_within_basket_and_event_bonus():
+    # the rank is now the FRESHNESS composite z(rv_rising)+z(|mom_recent|) — §5 (trailing magnitude
+    # removed); a fresher name (rising vol + recent move) ranks higher, the event bonus dominates.
     p = MarkerParams(event_bonus=10.0)
-    cleared = [_m("HI", mom=0.5), _m("LO", mom=0.2), _m("EVT", mom=0.2, has_event=True)]
+    cleared = [_m("HI", rv_rising=0.5, mom_recent=0.4), _m("LO", rv_rising=0.1, mom_recent=0.1),
+               _m("EVT", rv_rising=0.1, mom_recent=0.1, has_event=True)]
     scores = rank_basket(cleared, p)
-    assert scores["HI"] > scores["LO"]          # stronger motion ranks higher within basket
+    assert scores["HI"] > scores["LO"]          # fresher (rising vol + recent move) ranks higher
     assert scores["EVT"] > scores["HI"]          # the event bonus dominates
+
+
+# ── fresh-inflection re-target (PREREG_FRESH_INFLECTION_FUNNEL) ──────────────────────────────
+
+
+def test_fresh_leg_surfaces_quiet_just_moving_name_not_post_spike_monster():
+    """§4: the fresh conjunct (|mom_recent|≥0.20 AND rv_rising≥0.10) surfaces a trailing-quiet name
+    the trailing legs miss; a post-spike monster (big trailing, vol rolling over) does NOT clear it."""
+    p = MarkerParams()
+    fresh = _m("FRESH", mom=0.05, rv_slope=0.10, mom_recent=0.30, rv_rising=0.25)  # trailing-quiet, just moving
+    ok, reason = clears_gate(fresh, p)
+    assert ok and reason == "fresh"                       # surfaces ONLY via the fresh leg
+    monster = _m("MON", mom=2.0, rv_slope=0.05, mom_recent=0.05, rv_rising=-0.10)  # ran, vol fading
+    okm, reasonm = clears_gate(monster, p)
+    assert okm and reasonm == "momentum"                  # surfaces, but via trailing momentum — NOT fresh
+
+
+def test_fresh_reason_labels_a_name_clearing_both_fresh_and_momentum():
+    """§4/§8.1: the fresh conjunct is checked BEFORE momentum, so a name clearing both reads `fresh`
+    (observable for the 'fresh cohort enters' telemetry)."""
+    both = _m("BOTH", mom=0.4, mom_recent=0.30, rv_rising=0.25)
+    ok, reason = clears_gate(both, MarkerParams())
+    assert ok and reason == "fresh"
+
+
+def test_freshness_rank_invariant_fresh_outranks_post_spike_monster():
+    """§10 unit invariant (universe-independent): in one basket a fresh-ramp out-ranks a post-spike
+    monster — magnitude no longer drives the rank, freshness does."""
+    cleared = [_m("MON", mom=3.0, rv_slope=0.05, mom_recent=0.04, rv_rising=-0.05),
+               _m("FRESH", mom=0.10, rv_slope=0.30, mom_recent=0.35, rv_rising=0.30)]
+    scores = rank_basket(cleared, MarkerParams())
+    assert scores["FRESH"] > scores["MON"]
+
+
+def test_direction_keys_on_recent_move_only_with_params():
+    """§6: with params, a fresh ROLLOVER (recent down, trailing up) surfaces bearish/puts; without
+    params (the null books' callers) direction stays trailing-based; a sub-epsilon recent move falls back."""
+    p = MarkerParams()
+    roll = _m("ROLL", mom=0.5, mom_recent=-0.25)          # trailing up, recent DOWN
+    assert direction_of(roll, p) == "bearish"             # funnel path → the recent move
+    assert direction_of(roll) == "bullish"                # null-book path → trailing (unchanged)
+    tiny = _m("TINY", mom=0.5, mom_recent=0.01)           # |recent| < dir_recent_epsilon
+    assert direction_of(tiny, p) == "bullish"             # falls back to trailing
+
+
+def test_compute_markers_populates_freshness(tmp_path):
+    """compute_markers fills mom_recent + rv_rising from bars (the §3 markers)."""
+    from discovery import compute_markers
+    md = _md(tmp_path, {"X": _ramp(10, 25), "SPY": _ramp(100, 110)})
+    m = compute_markers("X", AS_OF, market=md, benchmark="SPY", params=MarkerParams(), basket="b")
+    assert m.mom_recent is not None and m.rv_rising is not None
+
+
+def test_record_run_stamps_discovery_funnel(convexity_db):
+    """§8/§9: the funnel version is segmentable on the run row (migration 0015)."""
+    import state
+    rid = state.record_run(convexity_db, mode="DISCOVERY", equity=None, note="t",
+                           discovery_funnel="fresh_v1")
+    row = convexity_db.execute("SELECT discovery_funnel FROM runs WHERE id=?", (rid,)).fetchone()
+    assert row["discovery_funnel"] == "fresh_v1"
+
+
+def test_migration_0015_is_idempotent(convexity_db):
+    """The guarded ADD COLUMN re-applies cleanly (conftest already applied it once)."""
+    import importlib.util
+    from pathlib import Path
+    p = Path(__file__).resolve().parent.parent / "scripts" / "migrations" / "0015_discovery_funnel.py"
+    spec = importlib.util.spec_from_file_location(p.stem, p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.apply(convexity_db)   # second application must not raise
+    cols = {r["name"] for r in convexity_db.execute("PRAGMA table_info(runs)")}
+    assert "discovery_funnel" in cols
 
 
 # ── integration scans ───────────────────────────────────────────────────────────────────────

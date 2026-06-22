@@ -8,8 +8,10 @@ independence). The prescreen claims only "**something is happening here**".
 
 Two design rules learned in plan-review and enforced here:
 
-1. **Surface = a disjunctive GATE on ABSOLUTE floors, not a weighted blend.** A name surfaces iff
-   ``|raw momentum| ≥ mom_floor`` OR ``rv_slope ≥ rv_slope_floor`` OR a structural event is present.
+1. **Surface = a disjunctive GATE on ABSOLUTE floors, not a weighted blend.** A name surfaces iff a
+   structural event is present OR a FRESH inflection (``|mom_recent| ≥ fresh_mom_floor`` AND
+   ``rv_rising ≥ fresh_rv_rising_floor``) OR ``|mom_12-1| ≥ mom_floor`` OR ``rv_slope ≥ rv_slope_floor``
+   (the freshness leg = PREREG_FRESH_INFLECTION_FUNNEL §4; checked before the trailing legs, §8.1).
    Heterogeneous markers (a continuous z vs a 0/1 filing flag) are **never summed** into the
    surface decision — that has no principled exchange rate and collapses into whatever you weighted
    (the FSSD friction-composite-→-smallness failure). Absolute floors are also the only thing that
@@ -17,7 +19,9 @@ Two design rules learned in plan-review and enforced here:
 
 2. **Within-basket z only RANKS the names that already cleared the gate** (ordering / top-K).
    Pooling heterogeneous baskets into one z would bury a low-vol basket's real inflection under a
-   high-vol basket's raw magnitudes — so z is computed **per basket**.
+   high-vol basket's raw magnitudes — so z is computed **per basket**. The rank is the within-basket
+   FRESHNESS composite (``z(rv_rising) + z(|mom_recent|)``) — trailing magnitude removed so the top-K
+   is the freshest names, not the biggest movers (PREREG_FRESH_INFLECTION_FUNNEL §5).
 
 Two-sided: the sign of the motion sets direction (tailwind → bullish/calls, rollover →
 bearish/puts). Pure functions over an injected ``MarketData`` + an optional structural-event
@@ -36,6 +40,11 @@ from convexity_gate import realized_vol
 
 log = logging.getLogger("discovery")
 
+# The live discovery-prescreen funnel version, stamped per discovery run into runs.discovery_funnel
+# (migration 0015) so the forward-scored layers segment OLD vs NEW funnels (PREREG_FRESH_INFLECTION_FUNNEL
+# §8). Bump this string when the funnel's surface/rank knobs change in a record-segmenting way.
+DISCOVERY_FUNNEL_VERSION = "fresh_v1"
+
 
 # ── marker computation ───────────────────────────────────────────────────────────────────────
 
@@ -46,12 +55,17 @@ class MarkerParams:
 
     mom_lookback: int = 252
     mom_skip: int = 21
+    mom_recent_lookback: int = 63    # the recent-move window (~3mo), skip 0 — the freshness leg (§3)
     rv_recent: int = 21
     rv_base: int = 252
+    rv_mid_window: int = 63          # rv_rising = rv_21 vs rv_63 (vol accelerating, not post-spike fade)
     adv_window: int = 20
     # absolute floors — the disjunctive surface gate
     mom_floor: float = 0.15          # |12-1 return| ≥ 15% = a real move
     rv_slope_floor: float = 0.25     # realized vol rose ≥ 25% recent-vs-baseline
+    fresh_mom_floor: float = 0.20        # |recent move| for the freshness surface leg (§4)
+    fresh_rv_rising_floor: float = 0.10  # rv_21/rv_63 − 1 ≥ 10% = vol rising (§4)
+    dir_recent_epsilon: float = 0.02     # |mom_recent| ≥ this sets direction from the recent move (§6)
     event_bonus: float = 1.0         # fixed rank boost for a structural event (NOT a surface blend)
     min_price: float = 3.0
     min_adv_usd: float = 3_000_000.0
@@ -73,6 +87,8 @@ class MarkerSet:
     price: float | None
     adv_usd: float | None
     notes: tuple[str, ...] = ()
+    mom_recent: float | None = None      # recent-window return, skip 0 (§3 freshness re-target)
+    rv_rising: float | None = None       # (rv_21 − rv_63)/rv_63 — vol accelerating (§3)
 
     @property
     def eligible(self) -> bool:
@@ -124,6 +140,10 @@ def compute_markers(
     rv_recent = realized_vol(closes[-(params.rv_recent + 1):], window=params.rv_recent) if closes else None
     rv_base = realized_vol(closes, window=params.rv_base) if closes else None
     rv_slope = ((rv_recent - rv_base) / rv_base) if (rv_recent and rv_base and rv_base > 0) else None
+    # freshness markers (§3): recent move (skip 0) + vol accelerating (rv_21 vs rv_63)
+    mom_recent = market.momentum(symbol, as_of, lookback=params.mom_recent_lookback, skip=0)
+    rv_mid = realized_vol(closes[-(params.rv_mid_window + 1):], window=params.rv_mid_window) if closes else None
+    rv_rising = ((rv_recent - rv_mid) / rv_mid) if (rv_recent and rv_mid and rv_mid > 0) else None
     adv = market.adv_usd(symbol, as_of, window=params.adv_window)
     has_event, ev_kind = (False, None)
     if event_provider is not None:
@@ -133,7 +153,7 @@ def compute_markers(
             has_event, ev_kind = False, None
             log.debug("event provider failed for %s: %s", symbol, e)
     return MarkerSet(symbol, basket, mom, rel, rv_base, rv_slope, bool(has_event), ev_kind,
-                     0, price, adv)
+                     0, price, adv, mom_recent=mom_recent, rv_rising=rv_rising)
 
 
 # ── the disjunctive surface gate + direction ───────────────────────────────────────────────────
@@ -147,6 +167,12 @@ def clears_gate(m: MarkerSet, params: MarkerParams) -> tuple[bool, str | None]:
         return False, None
     if m.has_event:
         return True, f"event:{m.event_kind or 'structural'}"
+    # the FRESHNESS leg — a recent move AND vol rising together (§4). Checked BEFORE the trailing
+    # legs so the `fresh` reason labels the whole fresh cohort (a name clearing both fresh and
+    # momentum reads `fresh`, not `momentum`) — needed for the §8.1 "fresh cohort enters" telemetry.
+    if (m.mom_recent is not None and abs(m.mom_recent) >= params.fresh_mom_floor
+            and m.rv_rising is not None and m.rv_rising >= params.fresh_rv_rising_floor):
+        return True, "fresh"
     if m.momentum is not None and abs(m.momentum) >= params.mom_floor:
         return True, "momentum"
     if m.rv_slope is not None and m.rv_slope >= params.rv_slope_floor:
@@ -154,10 +180,16 @@ def clears_gate(m: MarkerSet, params: MarkerParams) -> tuple[bool, str | None]:
     return False, None
 
 
-def direction_of(m: MarkerSet) -> str:
+def direction_of(m: MarkerSet, params: MarkerParams | None = None) -> str:
     """Motion sign → direction. Tailwind (up) → bullish/calls; rollover (down) → bearish/puts.
 
-    Relative strength breaks a flat-momentum tie; defaults bullish only if truly undetermined."""
+    The fresh-inflection re-target (§6) keys direction on the RECENT move when ``params`` is supplied
+    (the surfaced-sentinel path) — so a fresh rollover surfaces bearish/puts. Without ``params`` (the
+    null books' motion-direction callers, e.g. 3B/shares) the trailing-momentum behavior is unchanged.
+    Relative strength breaks a flat tie; defaults bullish only if truly undetermined."""
+    eps = params.dir_recent_epsilon if params is not None else None
+    if eps is not None and m.mom_recent is not None and abs(m.mom_recent) >= eps:
+        return "bullish" if m.mom_recent > 0 else "bearish"
     if m.momentum is not None and abs(m.momentum) > 1e-9:
         return "bullish" if m.momentum > 0 else "bearish"
     if m.rel_strength is not None and abs(m.rel_strength) > 1e-9:
@@ -182,14 +214,19 @@ def _zmap(values: dict[str, float]) -> dict[str, float]:
 
 
 def rank_basket(cleared: list[MarkerSet], params: MarkerParams) -> dict[str, float]:
-    """inflection_score per cleared name = sum of WITHIN-BASKET z of the continuous markers
-    (|momentum|, rv_slope, |rel_strength|) + a fixed event bonus. Ordering only — not a signal."""
-    z_mom = _zmap({m.symbol: abs(m.momentum) for m in cleared if m.momentum is not None})
-    z_rv = _zmap({m.symbol: m.rv_slope for m in cleared if m.rv_slope is not None})
-    z_rs = _zmap({m.symbol: abs(m.rel_strength) for m in cleared if m.rel_strength is not None})
+    """inflection_score per cleared name = WITHIN-BASKET z of the FRESHNESS markers
+    (rv_rising, |mom_recent|) + a fixed event bonus. Ordering only — not a signal
+    (PREREG_FRESH_INFLECTION_FUNNEL §5): the trailing |momentum|/|rel_strength| magnitude terms are
+    removed so the top-K is the *relatively* freshest names, not the biggest movers; rv_slope is
+    dropped from the rank too (it shares the rv_21 numerator with rv_rising → double-weights vol, and
+    stays high for a still-elevated post-spike monster → re-imports magnitude). NOTE (§8.1): z is
+    within-basket/relative, so on an all-monster basket the *least-stale* name still ranks — the rank
+    prefers freshness, it cannot manufacture it; the §10 yield band is the guard."""
+    z_rvr = _zmap({m.symbol: m.rv_rising for m in cleared if m.rv_rising is not None})
+    z_mr = _zmap({m.symbol: abs(m.mom_recent) for m in cleared if m.mom_recent is not None})
     out: dict[str, float] = {}
     for m in cleared:
-        score = z_mom.get(m.symbol, 0.0) + z_rv.get(m.symbol, 0.0) + z_rs.get(m.symbol, 0.0)
+        score = z_rvr.get(m.symbol, 0.0) + z_mr.get(m.symbol, 0.0)
         if m.has_event:
             score += params.event_bonus
         out[m.symbol] = score
@@ -265,7 +302,7 @@ def scan_baskets(
         # rank only the gate-clearers, WITHIN this basket
         scores = rank_basket(cleared_in_basket, params)
         for m in cleared_in_basket:
-            scored.append(Surfaced(m, direction_of(m), scores.get(m.symbol, 0.0),
+            scored.append(Surfaced(m, direction_of(m, params), scores.get(m.symbol, 0.0),
                                    _gate_reason(m, params)))
         result.by_basket[basket] = len(cleared_in_basket)
         result.n_cleared += len(cleared_in_basket)
