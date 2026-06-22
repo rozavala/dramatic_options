@@ -151,23 +151,46 @@ class OpenAIProvider:
     def complete(self, *, model: str, system: str, user: str, timeout_s: float, max_tokens: int) -> tuple[str, int, int, dict]:
         client = self._ensure()
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-        kwargs = dict(model=model, max_tokens=max_tokens, timeout=timeout_s, messages=messages)
         # JSON mode REQUIRES the literal "json" in the messages (OpenAI/xAI precondition) — without it the
         # API 400s, or worse streams unbounded whitespace to the token cap. Our role prompts all say
         # "Reply with ONE JSON object", so the gate passes; if a compat endpoint rejects response_format we
-        # retry once WITHOUT it (loud) — the prompt + the Part-2 schema validation still elicit/guard JSON.
+        # retry WITHOUT it (loud) — the prompt + the Part-2 schema validation still elicit/guard JSON.
         use_json = self._json_mode and ("json" in system.lower() or "json" in user.lower())
-        if use_json:
-            kwargs["response_format"] = {"type": "json_object"}
-        try:
-            resp = client.chat.completions.create(**kwargs)
-        except Exception as e:  # noqa: BLE001
-            if use_json and getattr(e, "status_code", None) == 400:
-                log.warning("openai %s/%s: response_format rejected (%s) — retrying without json_object", self.name, model, e)
-                kwargs.pop("response_format", None)
-                resp = client.chat.completions.create(**kwargs)
-            else:
+        # Token-limit param: OpenAI's gpt-5 / o-series models REJECT `max_tokens` (400 — they require
+        # `max_completion_tokens`); xAI/Grok + Perplexity still take `max_tokens`. Start with max_tokens
+        # (so grok/perplexity/gpt-4.x are byte-unchanged) and SWAP on the specific 400, mirroring the
+        # response_format retry — one provider class serves both without a hardcoded model-family list
+        # (which would drift as new reasoning models ship). Verified live 2026-06-22 against gpt-5.4.
+        token_param = "max_tokens"
+
+        def _kwargs() -> dict:
+            kw = dict(model=model, timeout=timeout_s, messages=messages, **{token_param: max_tokens})
+            if use_json:
+                kw["response_format"] = {"type": "json_object"}
+            return kw
+
+        resp = None
+        for _ in range(3):  # at most two corrective swaps: the token param and/or response_format
+            try:
+                resp = client.chat.completions.create(**_kwargs())
+                break
+            except Exception as e:  # noqa: BLE001
+                if getattr(e, "status_code", None) != 400:
+                    raise
+                emsg = str(e).lower()
+                if token_param == "max_tokens" and "max_completion_tokens" in emsg:
+                    log.warning("openai %s/%s: max_tokens unsupported — retrying with max_completion_tokens",
+                                self.name, model)
+                    token_param = "max_completion_tokens"
+                    continue
+                if use_json:
+                    log.warning("openai %s/%s: response_format rejected (%s) — retrying without json_object",
+                                self.name, model, e)
+                    use_json = False
+                    continue
                 raise
+        if resp is None:  # defensive — the loop returns a resp or re-raises inside
+            raise RouterError(f"openai {self.name}/{model}: 400 after corrective retries")
         text = resp.choices[0].message.content or ""
         usage = resp.usage
         meta = {"finish_reason": getattr(resp.choices[0], "finish_reason", None), "thoughts_tokens": None}
