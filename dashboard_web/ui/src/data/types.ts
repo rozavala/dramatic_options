@@ -99,6 +99,7 @@ export interface Snapshot {
   // optional — the adapter must guard. (C: now rendered. regime/curation remain on the wire, not rendered.)
   nulls?: NullHierarchy;
   dualread?: DualRead;
+  dualread_runtime?: DualReadRuntime;
   cost?: { l0_framer_usd: number; l1_council_usd: number; cumulative_usd: number };
   deliberation?: DeliberationRow[];
   cap_flow?: { cluster_cap_rejections_of_passing: number; tightening_note: string };
@@ -124,6 +125,21 @@ export interface DualRead {
   disagree_veto: { until: string | null; active: boolean | null };
   note: string;
 }
+// dualread_runtime_panel: the #72 RUNTIME view — the per-class §5 verdict, the Phase-3 revert latch,
+// and the debounce/page summary (what the live dualread_executor would do; read-only).
+export interface DualReadRuntime {
+  window: number;
+  last_run: number | null;
+  classes: Record<string, { tripped: boolean; sessions: number | null; pages: string[]; revert: boolean }>;
+  revert_latch: { enabled: boolean; latched: boolean; authorized: boolean; sentinel_path: string };
+  debounce: {
+    rearm_consecutive: number;
+    material_flip: { active: string[]; paging: string[]; suppressed: string[] };
+    gap_structural: { active: string[]; paging: string[]; suppressed: string[] };
+    gap_transient: { active: string[]; paging: string[]; suppressed: string[] };
+  };
+  note: string;
+}
 // latest_run_deliberation: per-name proposer→adversary→strategist (the "why").
 export interface DeliberationRow {
   run_id: number; symbol: string; proposer_direction: string | null;
@@ -146,6 +162,13 @@ export interface DualReadVM {
   deltaSessions: number; flipSessions: number; gapSessions: number;
   vetoUntil: string | null; vetoActive: boolean | null;
 }
+export interface DualReadRuntimeClassVM { key: string; label: string; tripped: boolean; sessions: number | null; pages: string[]; reverts: boolean }
+export interface DualReadRuntimeVM {
+  window: number; lastRun: number | null;
+  phase3: boolean; latched: boolean; authorized: boolean;
+  rearm: number; classes: DualReadRuntimeClassVM[];
+  paging: string[]; suppressed: string[];   // debounce split across the debounced classes (name (class))
+}
 export interface DeliberationVM { runId: number | null; rows: { symbol: string; dir: string | null; adversary: string | null; conviction: string | null }[] }
 
 export interface ViewModel {
@@ -165,6 +188,7 @@ export interface ViewModel {
   };
   cost: { framer: string; council: string; cumulative: string };  // C — LLM cost ledger
   dualread: DualReadVM;                // C — OPRA gate dual-read soak (§5 safety)
+  dualreadRuntime: DualReadRuntimeVM;  // #72 — the §5 dual-read runtime view (per-class verdict + revert latch)
   nulls: NullStepVM[];                 // C — the null hierarchy contrasts
   deliberation: DeliberationVM;        // C — latest run's per-name reasoning
   capFlow: { rejected: number; note: string };  // C — cluster-cap rejections of otherwise-passing

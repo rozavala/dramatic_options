@@ -147,6 +147,63 @@ export function Safety({ vm }: { vm: ViewModel }) {
           ))}
         </div>
       </div>
+
+      {/* §5 dual-read RUNTIME (#72) — the per-class verdict + the Phase-3 revert latch */}
+      <DualReadRuntime vm={vm} />
     </>
+  );
+}
+
+function LatchPill({ label, on, tone, onText, offText, help }: {
+  label: string; on: boolean; tone: "neutral" | "danger"; onText: string; offText: string; help: string;
+}) {
+  const lv = on ? (tone === "danger" ? "bad" : "warn") : "ok";
+  return (
+    <div title={help} className="bg-white border rounded-card" style={{ borderColor: "#cbd0da", padding: "11px 13px", flex: 1 }}>
+      <div style={{ fontSize: 11.5, color: "#414956" }}>{label}</div>
+      <div style={{ marginTop: 7 }}><Chip level={lv}>{on ? onText : offText}</Chip></div>
+    </div>
+  );
+}
+
+function DualReadRuntime({ vm }: { vm: ViewModel }) {
+  const rt = vm.dualreadRuntime;
+  return (
+    <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px", marginTop: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
+        §5 dual-read <span style={{ color: "#6a7280", fontWeight: 400 }}>· runtime (#72)</span>
+      </div>
+      <div style={{ fontSize: 12, color: "#414956", marginTop: 3, marginBottom: 14, lineHeight: 1.5 }}>
+        The per-class response the live post-cycle executor would take (rolling-{rt.window} · latest {rt.lastRun != null ? `#${rt.lastRun}` : "—"}).
+        Each class routes to its own action; only the Δ wire can ever revert option_gate→indicative — and only with Phase 3 ON.
+      </div>
+
+      <div className="flex" style={{ gap: 10, marginBottom: 14 }}>
+        <LatchPill label="Phase 3 (revert latch)" on={rt.phase3} tone="neutral" onText="ON" offText="OFF" help="config.data_feed.dualread_revert_enabled — default OFF; the latch is inert on the live loop." />
+        <LatchPill label="latched (OPRA_REVERTED)" on={rt.latched} tone="danger" onText="yes" offText="no" help="The override sentinel is present ⇒ the next cycle forces option_gate=indicative." />
+        <LatchPill label="revert authorized" on={rt.authorized} tone="danger" onText="yes" offText="no" help="Δ wire tripped AND Phase 3 ON — what the executor would write this cycle." />
+      </div>
+
+      <div style={{ borderTop: "1px solid #edf0f4" }}>
+        {rt.classes.map((c) => (
+          <div key={c.key} className="flex justify-between items-center" style={{ gap: 14, padding: "8px 0", borderBottom: "1px solid #edf0f4" }}>
+            <span style={{ fontSize: 12.5, color: "#2c3645" }}>
+              {c.label} <span style={{ color: "#9aa0ab", fontSize: 11 }}>{c.reverts ? "· can revert" : "· no revert"}</span>
+            </span>
+            <span className="flex items-center" style={{ gap: 9 }}>
+              {c.pages.length > 0 && <span className="font-mono" style={{ fontSize: 11.5, color: "#9a5b00" }}>pages: {c.pages.join(", ")}</span>}
+              {c.sessions != null && <span className="font-mono" style={{ fontSize: 11.5, color: "#6a7280" }}>{c.sessions}/{rt.window}</span>}
+              <Chip level={c.tripped ? "bad" : "ok"}>{c.tripped ? "⚠ TRIPPED" : "clear"}</Chip>
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {(rt.paging.length > 0 || rt.suppressed.length > 0) && (
+        <div style={{ fontSize: 11, color: "#6a7280", marginTop: 12, lineHeight: 1.5 }}>
+          debounce (≥{rt.rearm} consecutive clear sessions re-arm) · paging now → {rt.paging.join(", ") || "—"} · suppressed (already alerted) → {rt.suppressed.join(", ") || "—"}
+        </div>
+      )}
+    </div>
   );
 }

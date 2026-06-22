@@ -402,3 +402,103 @@ def test_executor_internal_sentinel_write_failure_fails_loud(convexity_db):
     v = dx.run_executor(rep, _flag_on(), notify=n, write_sentinel=failing_writer)
     assert v["revert_written"] is False
     assert any("revert FAILED to latch" in t for t in n.titles())
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# 6. dashboard_data.dualread_runtime_panel — the #72 RUNTIME view (single-sources the report +
+#    the executor's evaluate; every number hand-checked, the anti-HARK dashboard discipline)
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+def test_runtime_panel_empty_db_is_accruing(convexity_db):
+    """No dual-read sessions yet ⇒ every class clear, no pages, latch off, window 0 — never raises."""
+    from dashboard_data import dualread_runtime_panel
+
+    r = dualread_runtime_panel(convexity_db, {})
+    assert r["window"] == 0 and r["last_run"] is None
+    assert all(not c["tripped"] and not c["pages"] for c in r["classes"].values())
+    assert r["revert_latch"] == {"enabled": False, "latched": False, "authorized": False,
+                                 "sentinel_path": str(dx.REVERT_SENTINEL)}
+    # only the Δ class ever reverts (the safety invariant, made legible in the panel)
+    assert r["classes"]["delta"]["revert"] is True
+    assert all(r["classes"][k]["revert"] is False
+               for k in ("material_flip", "gap_structural", "gap_transient", "entitlement"))
+
+
+def test_runtime_panel_structural_rising_edge_then_suppressed(convexity_db):
+    """The UROY pin, surfaced: the FIRST structural absence pages (rising edge, sessions=1 not yet
+    tripped); the SECOND consecutive absence TRIPS the rolling-5 (2/5) but is SUPPRESSED by the
+    ≥4-consecutive debounce (one continuous episode, never a nightly re-page)."""
+    from dashboard_data import dualread_runtime_panel
+
+    _session(convexity_db, arms=_gap("UROY", note="no_eligible_contract_in_tenor_window"))
+    r1 = dualread_runtime_panel(convexity_db, {})
+    s = r1["classes"]["gap_structural"]
+    assert s["sessions"] == 1 and s["tripped"] is False and s["pages"] == ["UROY"]
+    assert r1["debounce"]["gap_structural"] == {"active": ["UROY"], "paging": ["UROY"], "suppressed": []}
+    assert r1["debounce"]["rearm_consecutive"] == 4
+
+    _session(convexity_db, arms=_gap("UROY", note="no_eligible_contract_in_tenor_window"))
+    r2 = dualread_runtime_panel(convexity_db, {})
+    s = r2["classes"]["gap_structural"]
+    assert s["sessions"] == 2 and s["tripped"] is True and s["pages"] == []  # suppressed: already alerted
+    assert r2["debounce"]["gap_structural"] == {"active": ["UROY"], "paging": [], "suppressed": ["UROY"]}
+    assert r2["last_run"] == r2["classes"]["gap_structural"]["sessions"]  # 2 sessions, run_id 2
+
+
+def test_runtime_panel_revert_latch_states(convexity_db, monkeypatch):
+    """The three Phase-3 latch facts the panel exposes: ``enabled`` follows the flag; ``latched``
+    follows the OPRA_REVERTED sentinel; ``authorized`` = Δ-tripped ∧ enabled (what the executor would
+    write). A structural trip (no Δ) is NEVER authorized — even with the flag on."""
+    # point REVERT_SENTINEL at a temp path that does not exist → latched False
+    import tempfile
+    from pathlib import Path
+
+    from dashboard_data import dualread_runtime_panel
+    tmp = Path(tempfile.mkdtemp()) / "OPRA_REVERTED"
+    monkeypatch.setattr(dx, "REVERT_SENTINEL", tmp)
+
+    # a Δ-wire trip across ≥3/5 sessions (|Δ iv/rv| 0.20 > 0.10 max each session)
+    for _ in range(3):
+        _session(convexity_db, arms=[_opra("ZZZ", structured=True, iv_rv=1.30, cheap=True),
+                                     _ind("ZZZ", structured=True, iv_rv=1.10, cheap=True)])
+
+    off = dualread_runtime_panel(convexity_db, {"data_feed": {"dualread_revert_enabled": False}})
+    assert off["classes"]["delta"]["tripped"] is True and off["classes"]["delta"]["sessions"] == 3
+    assert off["revert_latch"]["enabled"] is False and off["revert_latch"]["authorized"] is False
+    assert off["revert_latch"]["latched"] is False
+
+    on = dualread_runtime_panel(convexity_db, _flag_on())
+    assert on["revert_latch"]["enabled"] is True and on["revert_latch"]["authorized"] is True
+
+    # latched: the sentinel exists ⇒ latched True (next cycle forced indicative)
+    tmp.write_text("test")
+    latched = dualread_runtime_panel(convexity_db, _flag_on())
+    assert latched["revert_latch"]["latched"] is True
+
+
+def test_runtime_panel_structural_trip_never_authorizes_revert(convexity_db, monkeypatch):
+    """Safety invariant in the panel: a STRUCTURAL trip (the live UROY state) with the revert flag ON
+    still reports authorized=False — only the Δ wire can revert. The operator sees the gap, not a revert."""
+    import tempfile
+    from pathlib import Path
+
+    from dashboard_data import dualread_runtime_panel
+    monkeypatch.setattr(dx, "REVERT_SENTINEL", Path(tempfile.mkdtemp()) / "OPRA_REVERTED")
+    for _ in range(2):
+        _session(convexity_db, arms=_gap("UROY", note="no_eligible_contract_in_tenor_window"))
+    r = dualread_runtime_panel(convexity_db, _flag_on())
+    assert r["classes"]["gap_structural"]["tripped"] is True
+    assert r["classes"]["delta"]["tripped"] is False
+    assert r["revert_latch"]["enabled"] is True and r["revert_latch"]["authorized"] is False
+
+
+def test_runtime_panel_entitlement_feed_wide_no_debounce(convexity_db):
+    """An entitlement note in the latest session ⇒ the entitlement class trips per-session (feed-wide,
+    not debounced, never reverts). It carries no per-name page list (it's a feed-wide hold)."""
+    from dashboard_data import dualread_runtime_panel
+
+    _session(convexity_db, arms=_gap("CCC", note="entitlement: subscription does not permit"))
+    r = dualread_runtime_panel(convexity_db, _flag_on())
+    e = r["classes"]["entitlement"]
+    assert e["tripped"] is True and e["sessions"] == 1 and e["pages"] == [] and e["revert"] is False
+    assert r["revert_latch"]["authorized"] is False  # entitlement never authorizes a revert

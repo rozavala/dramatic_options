@@ -8,7 +8,8 @@
 //   #4 sentinel `note` ("rv-slope · 4d") is composed (trigger + age) — not a raw column; best-effort here.
 
 import type {
-  DeliberationVM, NullStepVM, PositionVM, ProviderVM, SentinelVM, Snapshot, ViewModel,
+  DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM, NullStepVM, PositionVM, ProviderVM,
+  SentinelVM, Snapshot, ViewModel,
 } from "./types";
 import { levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
@@ -109,7 +110,8 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["performance", P.performance], ["attribution", P.attribution], ["funnel", P.funnel],
       ["council_stage", P.council_stage], ["gate_reasons", P.gate_reasons], ["positions", P.positions],
       ["sentinels", P.sentinels], ["market_ctx", P.market_ctx], ["t4", P.t4], ["nulls", P.nulls],
-      ["dualread", P.dualread], ["cost", P.cost], ["deliberation", P.deliberation], ["cap_flow", P.cap_flow],
+      ["dualread", P.dualread], ["dualread_runtime", P.dualread_runtime], ["cost", P.cost],
+      ["deliberation", P.deliberation], ["cap_flow", P.cap_flow],
       ["data_gathered", P.data_gathered],
     ] as [string, unknown][]
   )
@@ -154,6 +156,29 @@ export function fromBackend(P: Snapshot): ViewModel {
     flipFloor: tw?.flip_floor ?? 0.02,
     deltaSessions: tw?.delta_breach_sessions ?? 0, flipSessions: tw?.flip_sessions ?? 0, gapSessions: tw?.gap_sessions ?? 0,
     vetoUntil: dr?.disagree_veto?.until ?? null, vetoActive: dr?.disagree_veto?.active ?? null,
+  };
+
+  // #72: the §5 dual-read RUNTIME view — per-class verdict + the Phase-3 revert latch + the debounce split.
+  // Maps the dualread_runtime panel 1:1 (the per-class math is single-sourced server-side; we only label/flatten).
+  const RT_LABELS: Record<string, string> = {
+    delta: "Δ iv/rv wire (sole revert)", material_flip: "material cheap-flip",
+    gap_structural: "coverage gap · structural", gap_transient: "coverage gap · transient",
+    entitlement: "entitlement (feed-wide)",
+  };
+  const rt = P.dualread_runtime;
+  const rtClasses: DualReadRuntimeClassVM[] = Object.entries(rt?.classes ?? {}).map(([key, c]) => ({
+    key, label: RT_LABELS[key] ?? key, tripped: c.tripped, sessions: c.sessions ?? null,
+    pages: c.pages ?? [], reverts: c.revert,
+  }));
+  const rtSplit = (which: "material_flip" | "gap_structural" | "gap_transient", kind: "paging" | "suppressed") =>
+    (rt?.debounce?.[which]?.[kind] ?? []).map((n) => `${n} (${which})`);
+  const dualreadRuntime: DualReadRuntimeVM = {
+    window: rt?.window ?? 0, lastRun: rt?.last_run ?? null,
+    phase3: rt?.revert_latch?.enabled ?? false, latched: rt?.revert_latch?.latched ?? false,
+    authorized: rt?.revert_latch?.authorized ?? false, rearm: rt?.debounce?.rearm_consecutive ?? 4,
+    classes: rtClasses,
+    paging: [...rtSplit("material_flip", "paging"), ...rtSplit("gap_structural", "paging"), ...rtSplit("gap_transient", "paging")],
+    suppressed: [...rtSplit("material_flip", "suppressed"), ...rtSplit("gap_structural", "suppressed"), ...rtSplit("gap_transient", "suppressed")],
   };
 
   // C: LLM cost ledger — prefer council.cost (the same ledger, always alongside health), else the top-level panel.
@@ -208,7 +233,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       cost: usd(ch.cost_usd), streak: councilStreak(P.council?.recent), models: modelMixSummary(P.council?.model_mix ?? null),
       byProvider,
     },
-    cost, dualread, nulls, deliberation,
+    cost, dualread, dualreadRuntime, nulls, deliberation,
     capFlow: { rejected: cf?.cluster_cap_rejections_of_passing ?? 0, note: cf?.tightening_note ?? "" },
     clusters: (rk.clusters ?? []).map((c) => ({ name: c.cluster, premium: c.premium, cap: c.cap, dirs: (c.directions ?? []).join(", ") || "—" })),
     perf: {

@@ -98,6 +98,24 @@ function synthetic(): Snapshot {
       disagree_veto: { until: "2026-07-10", active: true },
       note: "x",
     },
+    dualread_runtime: {
+      window: 5, last_run: 130,
+      classes: {
+        delta: { tripped: false, sessions: 0, pages: [], revert: true },
+        material_flip: { tripped: false, sessions: 0, pages: [], revert: false },
+        gap_structural: { tripped: true, sessions: 2, pages: [], revert: false },
+        gap_transient: { tripped: false, sessions: 0, pages: [], revert: false },
+        entitlement: { tripped: false, sessions: 0, pages: [], revert: false },
+      },
+      revert_latch: { enabled: false, latched: false, authorized: false, sentinel_path: "/x/OPRA_REVERTED" },
+      debounce: {
+        rearm_consecutive: 4,
+        material_flip: { active: [], paging: [], suppressed: [] },
+        gap_structural: { active: ["UROY"], paging: [], suppressed: ["UROY"] },
+        gap_transient: { active: [], paging: [], suppressed: [] },
+      },
+      note: "x",
+    },
     cost: { l0_framer_usd: 0.001, l1_council_usd: 0.114, cumulative_usd: 0.115 },
     deliberation: [
       { run_id: 287, symbol: "ACME", proposer_direction: "bullish", adversary_stance: "agree", strategist_conviction: "MODERATE" },
@@ -191,6 +209,27 @@ describe("fromBackend", () => {
     expect(vm.deliberation.runId).toBe(287);
     expect(vm.deliberation.rows).toHaveLength(1);
     expect(vm.capFlow.rejected).toBe(3);
+  });
+
+  it("maps the §5 dual-read runtime view (#72) — per-class verdict + revert latch + debounce split", () => {
+    const rt = vm.dualreadRuntime;
+    expect(rt.window).toBe(5);
+    expect(rt.lastRun).toBe(130);
+    // Phase 3 OFF, not latched, not authorized (the live UROY-structural state)
+    expect(rt.phase3).toBe(false);
+    expect(rt.latched).toBe(false);
+    expect(rt.authorized).toBe(false);
+    expect(rt.rearm).toBe(4);
+    // five classes; only Δ can revert
+    expect(rt.classes.map((c) => c.key)).toEqual(["delta", "material_flip", "gap_structural", "gap_transient", "entitlement"]);
+    expect(rt.classes.find((c) => c.key === "delta")?.reverts).toBe(true);
+    expect(rt.classes.find((c) => c.key === "gap_structural")?.reverts).toBe(false);
+    // structural tripped (2/5); the debounce split shows UROY suppressed (already alerted), labelled by class
+    const struct = rt.classes.find((c) => c.key === "gap_structural")!;
+    expect(struct.tripped).toBe(true);
+    expect(struct.sessions).toBe(2);
+    expect(rt.paging).toEqual([]);
+    expect(rt.suppressed).toEqual(["UROY (gap_structural)"]);
   });
 
   it("flags a fail-soft {error} panel as degraded, not silently empty (B1)", () => {
