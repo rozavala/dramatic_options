@@ -1,11 +1,20 @@
 # PREREG — Fresh-Inflection Funnel Re-Target (the discovery prescreen)
 
 **STATUS: FROZEN 2026-06-22 — operator-authorized ("freeze + build"); §10 pins ratified as proposed.**
-The freeze takes effect on merge of this PR (pre-reg → build merge order); the BUILD PR is held past the
-2026-07-10 dual-read close-out (single-variable). Converged over two code-grounded red-team rounds (R1
-v1→v2, R2 v2→v3). Anti-HARK: pinned **blind to forward outcomes** — the freshness parameters were informed
-by a read-only cross-sectional probe of the *current* funnel state (§1), never a forward include/trade
-result (there are none — the book is empty). Disclosed like the OPRA tripwires.
+The freeze takes effect on merge (pre-reg → build merge order). Converged over two code-grounded red-team
+rounds (R1 v1→v2, R2 v2→v3). Anti-HARK: pinned **blind to forward outcomes** — the freshness parameters
+were informed by a read-only cross-sectional probe of the *current* funnel state (§1), never a forward
+include/trade result (there are none — the book is empty). Disclosed like the OPRA tripwires.
+
+**⏩ ACCELERATION — operator-authorized 2026-06-23 ("merge both and keep moving"):** the build merges NOW,
+not held past the 2026-07-10 dual-read close-out as §8.2 / §11-Q4 originally sequenced. A dated OPERATIONAL
+deviation — the design + §10 pins are UNCHANGED (sequencing is not a measurement parameter, so this is NOT
+HARK; named as a relaxation, not a silent override). The 7/10 OPRA dual-read close-out remains its own
+separate obligation, unaffected (the funnel is orthogonal to the dual-read sweep population). **Live-exercise
+split:** the §7 horizon-labeled council grounding goes live at the **next L1** (the markers render on every
+council pack); the §4/§5/§6 discovery re-target (gate/rank/direction) first exercises at the **next weekly
+L0 (Sun 2026-06-28)** = the §10 yield-band read. The OLD-funnel arm stops accruing at this merge (stamped
+legacy/NULL), accepting the immaturity §8.2 concedes.
 
 This amends the **funnel knobs** of `discovery.py` (the T3 prescreen, `PREREG_THEMATIC_CONVEXITY §2`). It
 does **not** touch the IV gate, cluster cap, council prompts, risk frame, or any capital-authorizing layer.

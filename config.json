@@ -121,8 +121,10 @@
     "cost_cap_usd": 3.0,
     "framer": {"provider": "gemini", "model": "gemini-3.1-flash-lite"},
     "markers": {
-      "mom_lookback": 252, "mom_skip": 21, "rv_recent": 21, "rv_base": 252,
+      "mom_lookback": 252, "mom_skip": 21, "mom_recent_lookback": 63,
+      "rv_recent": 21, "rv_base": 252, "rv_mid_window": 63,
       "adv_window": 20, "mom_floor": 0.15, "rv_slope_floor": 0.25,
+      "fresh_mom_floor": 0.20, "fresh_rv_rising_floor": 0.10, "dir_recent_epsilon": 0.02,
       "event_bonus": 1.0, "min_price": 3.0, "min_adv_usd": 3000000.0
     },
     "events": {

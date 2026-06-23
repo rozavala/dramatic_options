@@ -47,6 +47,7 @@ def record_run(
     note: str = "",
     frame_version: str | None = None,
     data_feed: str | None = None,
+    discovery_funnel: str | None = None,
 ) -> int:
     """Insert a row into ``runs`` and return its id. Atomic.
 
@@ -55,12 +56,15 @@ def record_run(
     "was this entry admitted under the THEN-LIVE frame" (PREREG §5 cluster-cap amendment).
     ``data_feed`` (migration 0013) likewise stamps the resolved feed roles so the record segments
     by data regime (the gate's RV/option inputs + the discovery funnel hang off these).
+    ``discovery_funnel`` (migration 0015) stamps the live discovery-prescreen funnel version so the
+    forward-scored layers that join on ``run_id`` (the discovery null, the framer, the council Brier)
+    segment by funnel regime — OLD (NULL = pre-re-target) vs NEW (PREREG_FRESH_INFLECTION_FUNNEL).
     """
     with conn:  # commits on success, rolls back on exception
         cur = conn.execute(
-            "INSERT INTO runs (started_at, mode, equity, note, frame_version, data_feed) "
-            "VALUES (datetime('now'), ?, ?, ?, ?, ?)",
-            (mode, equity, note, frame_version, data_feed),
+            "INSERT INTO runs (started_at, mode, equity, note, frame_version, data_feed, discovery_funnel) "
+            "VALUES (datetime('now'), ?, ?, ?, ?, ?, ?)",
+            (mode, equity, note, frame_version, data_feed, discovery_funnel),
         )
     return int(cur.lastrowid)
 

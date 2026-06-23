@@ -157,12 +157,25 @@ def _has_numeric(texts: list[str]) -> bool:
 
 def _marker_evidence(markers: dict) -> list[str]:
     """Turn a sentinel's deterministic markers into numeric evidence strings (the grounding
-    corpus). These carry digits, so a pre-news discovered name is `grounded` on facts, not news."""
+    corpus). These carry digits, so a pre-news discovered name is `grounded` on facts, not news.
+
+    Each marker is rendered with an explicit HORIZON LABEL (PREREG_FRESH_INFLECTION_FUNNEL §7) so
+    at_inflection can read the recent-vs-trailing contrast the fresh-inflection re-target hinges on —
+    `momentum_12m` (a big trailing move may be BEHIND the name) vs `momentum_recent_3m` (the move is
+    happening NOW). The display labels carry the horizon; the underlying markers-dict keys are
+    unchanged. Contrasting pairs are rendered adjacent."""
     lines: list[str] = []
-    for key in ("momentum", "rel_strength", "rv_slope", "rv"):
+    for key, label in (
+        ("momentum", "momentum_12m"),          # trailing 12-1 (252d, skip 21)
+        ("mom_recent", "momentum_recent_3m"),  # recent 63d, no skip (freshness)
+        ("rel_strength", "rel_strength_12m"),
+        ("rv_slope", "rv_reexpansion_1y"),     # rv_21 vs rv_252
+        ("rv_rising", "rv_accel_3m"),          # rv_21 vs rv_63 (freshness)
+        ("rv", "rv_annualized"),
+    ):
         v = markers.get(key)
         if isinstance(v, (int, float)):
-            lines.append(f"{key} {v:+.3f}")
+            lines.append(f"{label} {v:+.3f}")
     if markers.get("has_event"):
         lines.append(f"structural_event {markers.get('event_kind') or 'present'}")
     px, adv = markers.get("price"), markers.get("adv_usd")
