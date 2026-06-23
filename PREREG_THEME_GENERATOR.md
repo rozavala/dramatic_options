@@ -6,6 +6,15 @@ citation predicate · C.5 blind yield band · C.6 the red-team) and the build po
 confirm-set is FILLED (operator-ratified, pinned blind); the operator's MERGE of this branch is the
 freeze act.
 
+**2026-06-23 — STATUS NOTE (the autonomous *discovery* path is CAPPED; the frozen params are
+UNTOUCHED).** A measure-first diagnostic floored the generator as an autonomous quiet-name *discovery*
+mechanism — a §2-clean corpus is blind to *quietness*, and its structural inflection signals are
+**coverage-skewed** (every magnitude-ranked scan rides the salience axis), so decorrelation-from-coverage
+is an irreducible *human* input. Closed on **measurement** (the third clean negative, after divergence /
+FSSD) — see `records/2026-06-23_autonomous_corpus_generator_negative.md`. The build + this freeze stand
+as-is; the redeployment is `etf_constituents` as a human-named-quiet-sector **curation** accelerant (the
+FRO/CDE path). No parameter change; this is a dated pointer, not a re-opening.
+
 **Freeze preconditions — ALL MET (was the parked gate):** (a) the **7/10 close-out bandwidth blocker is
 CLEARED** — `PREREG_COUNCIL_GATE_SEPARATION §5` is frozen and L1 #72 is live, so the freeze no longer
 contends with the close-out for the binding operator/red-team bandwidth (§6); (b) the **§10 confirm-set
