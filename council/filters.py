@@ -67,7 +67,10 @@ def evidence_text(pack) -> str:
     FUNDAMENTALS block — exactly the citations the corpus exists to enable — would flag as
     unsupported and dampen conviction (worst on the thin-news hand-seeds §9 targets)."""
     from council.context import fundamental_evidence_tokens
-    return " ".join([pack.operator_thesis or "", *pack.headlines, *fundamental_evidence_tokens(pack)])
+    # PR2: include the structural backdrop so an agent citing it (e.g. a phrase from the theme thesis)
+    # isn't flagged unsupported and dampened (the §9 red-team #0 surface, now from the STRUCTURAL_CONTEXT line).
+    return " ".join([pack.operator_thesis or "", getattr(pack, "structural_context", None) or "",
+                     *pack.headlines, *fundamental_evidence_tokens(pack)])
 
 
 def apply_filter(texts: list[str], pack, *, confidence: str) -> tuple[str, FilterResult]:

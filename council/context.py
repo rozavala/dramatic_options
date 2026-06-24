@@ -47,6 +47,9 @@ class ContextPack:
     news_7d: int | None = None                 # None = "not fetched" (framer); int (even 0) = fetched
     news_90d: int | None = None
     origin: str = "hand-seed"                  # "hand-seed" | "sentinel" — gates the grounded OR-leg
+    structural_context: str | None = None      # PR2: the basket's operator-authored structural thesis,
+    # surfaced to a sentinel as READ-ONLY backdrop (evidence, not permission — never gates). Default None
+    # ⇒ the framer pack + hand-seed packs render byte-identically (only the council's sentinels set it).
 
     @property
     def fundamentals_present(self) -> bool:
@@ -70,6 +73,11 @@ class ContextPack:
             f"CANDIDATE: {self.symbol} {self.direction} {self.theme}",
             f"OPERATOR_THESIS: {self.operator_thesis}",
         ]
+        # STRUCTURAL_CONTEXT — the theme's secular backdrop (PR2). Conditional so the framer pack
+        # (structural_context None) is byte-identical (§6 leash). Backdrop, NOT a directional claim:
+        # the candidate's direction + markers still drive; the council judges direction-relative.
+        if self.structural_context:
+            lines.append(f"STRUCTURAL_CONTEXT: {self.structural_context} (secular backdrop)")
         # NEWS_COVERAGE — conditional so the framer pack (counts None) is byte-identical:
         if self.news_7d is not None:
             lines.append(f"NEWS_COVERAGE: 7d={self.news_7d} 90d={self.news_90d} "
@@ -233,6 +241,7 @@ def sentinel_context_pack(
     candidate: Theme, *, as_of: datetime,
     fundamentals: list[dict] | None = None, fundamentals_status: str | None = None,
     news_7d: int | None = None, news_90d: int | None = None,
+    structural_context: str | None = None,
 ) -> ContextPack:
     """Origin-aware grounding for a DISCOVERED (source='sentinel') candidate: ground on its
     deterministic MARKERS, not news (T3 PR2). Without this both the framer and the council would
@@ -252,6 +261,7 @@ def sentinel_context_pack(
         as_of=as_of, notes=["sentinel: grounded on deterministic markers, not news"],
         fundamentals=fundamentals or [], fundamentals_status=fundamentals_status,
         news_7d=news_7d, news_90d=news_90d, origin="sentinel",
+        structural_context=structural_context,
     )
 
 
@@ -263,6 +273,7 @@ def build_context_pack(
     lookback_days: int = 90,
     max_headlines: int = 12,
     fundamentals=None,
+    theme_theses: dict | None = None,
 ) -> ContextPack:
     """Assemble current grounding for one candidate. ``news`` is a duck-typed object exposing
     ``headlines_asof(symbol, as_of) -> list[{'headline': str, 'ts': str, ...}]``
@@ -279,9 +290,12 @@ def build_context_pack(
     news_7d, news_90d = _news_counts(news, candidate.symbol, as_of)
 
     if getattr(candidate, "source", "hand-seed") == "sentinel":
+        # PR2: symbol-keyed structural backdrop (the register thesis for this name's basket). Keyed on
+        # SYMBOL (not candidate.name — that is the framer's LLM theme slug, not the register key).
         return sentinel_context_pack(
             candidate, as_of=as_of, fundamentals=fund_lines, fundamentals_status=fund_status,
             news_7d=news_7d, news_90d=news_90d,
+            structural_context=(theme_theses or {}).get(candidate.symbol),
         )
 
     headlines: list[str] = []

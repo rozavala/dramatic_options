@@ -53,6 +53,7 @@ from risk import kill_switch_active
 from sentinel_scoring import resolve_due_references
 from state import append_run_note, get_db, record_run
 from themes import active_themes, load_themes
+from universe import load_theme_theses
 
 log = logging.getLogger("orchestrator")
 if not log.handlers:
@@ -143,6 +144,7 @@ def _stamp_council_health(conn, run_id: int, config: dict, router) -> None:
             hashlib.sha256(s.encode()).hexdigest()[:16]
             for s in (_agents._COMMON, _agents.ADVERSARY_SYSTEM, _agents.STRATEGIST_SYSTEM))
         mix["corpus"] = "fundamentals_v2"  # §9: pack-change record-segmentation (v2 = IFRS taxonomy + tag-recency + annual fallback; zero migration)
+        mix["theme_thesis"] = "v1"  # PR2: STRUCTURAL_CONTEXT backdrop pack-change segmentation (zero migration)
         if health["called"]:
             log.info("Council proposer parse-health: %d/%d failed (%.0f%%)",
                      health["parse_failed"], health["called"], health["rate"] * 100)
@@ -656,7 +658,8 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             )
                             themes = council_to_themes(
                                 conn, candidates=candidates, router=router, config=config,
-                                clock=clock, news=news_dep, fundamentals=fund_dep, demo=demo,
+                                clock=clock, news=news_dep, fundamentals=fund_dep,
+                                theme_theses=load_theme_theses(config), demo=demo,
                                 run_id=run_id,
                             )
                             log.info(router.ledger.summary())

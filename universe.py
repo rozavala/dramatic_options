@@ -74,6 +74,26 @@ def load_universe(config: dict[str, Any]) -> Universe:
     )
 
 
+def load_theme_theses(config: dict[str, Any], *, register_path: str = "universe_register.json") -> dict[str, str]:
+    """symbol → the operator-authored STRUCTURAL thesis for its basket (PR2 council backdrop).
+
+    Joins the loop-facing universe (``config.universe.themes`` via ``Universe.theme_of``: symbol→basket)
+    with the theme REGISTER's per-basket ``thesis`` (``universe_register.json``). The register is "never
+    loaded by the trading loop" for ADMISSION — this reads ONLY its thesis text as council CONTEXT
+    (gates still dispose). Fail-soft: a missing file / malformed JSON / absent thesis → the affected
+    symbols are simply omitted (no backdrop line)."""
+    import json
+    from pathlib import Path
+
+    theme_of = load_universe(config).theme_of  # symbol -> basket
+    try:
+        reg = json.loads(Path(register_path).read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    theses = {b: e.get("thesis") for b, e in (reg.get("themes", {}) or {}).items()}
+    return {sym: theses[basket] for sym, basket in theme_of.items() if theses.get(basket)}
+
+
 @dataclass(frozen=True)
 class EligibilityResult:
     """Per-symbol eligibility outcome (advisory in Phase 1 — flags, does not drop history)."""
