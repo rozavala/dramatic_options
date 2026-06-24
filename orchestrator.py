@@ -142,7 +142,7 @@ def _stamp_council_health(conn, run_id: int, config: dict, router) -> None:
         mix["prompts"] = "/".join(
             hashlib.sha256(s.encode()).hexdigest()[:16]
             for s in (_agents._COMMON, _agents.ADVERSARY_SYSTEM, _agents.STRATEGIST_SYSTEM))
-        mix["corpus"] = "fundamentals_v1"  # §9: the pack-change record-segmentation key (zero migration)
+        mix["corpus"] = "fundamentals_v2"  # §9: pack-change record-segmentation (v2 = IFRS taxonomy + tag-recency + annual fallback; zero migration)
         if health["called"]:
             log.info("Council proposer parse-health: %d/%d failed (%.0f%%)",
                      health["parse_failed"], health["called"], health["rate"] * 100)

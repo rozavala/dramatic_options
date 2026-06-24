@@ -230,8 +230,24 @@ class FundamentalsData:
         try:
             cik = self._cik(symbol)
             raw = self._raw_fresh(cik, force_refresh=force_refresh) if cik else None
-            usg = (raw or {}).get("facts", {}).get("us-gaap", {})
-            lines = corpus_lines(usg, as_of) if usg else []
+            facts = (raw or {}).get("facts", {})
+            usg, ifr = facts.get("us-gaap", {}), facts.get("ifrs-full", {})
+            # Pick the taxonomy whose REVENUE is FRESHER (us-gaap wins ties → US filers byte-identical;
+            # routes annual-only / dead-stub IFRS filers to ifrs-full). Then a taxonomy-level fallback:
+            # if the chosen taxonomy produces nothing, try the other (the present-but-non-computable edge).
+            usg_end = _latest_revenue_end(usg, CONCEPT_TAGS["revenue"], as_of) if usg else None
+            ifr_end = _latest_revenue_end(ifr, IFRS_CONCEPT_TAGS["revenue"], as_of) if ifr else None
+            if ifr_end is not None and (usg_end is None or ifr_end > usg_end):
+                order = [(ifr, IFRS_CONCEPT_TAGS), (usg, CONCEPT_TAGS)]
+            else:
+                order = [(usg, CONCEPT_TAGS), (ifr, IFRS_CONCEPT_TAGS)]
+            lines: list[dict] = []
+            for facts_tax, tg in order:
+                if not facts_tax:
+                    continue
+                lines = corpus_lines(facts_tax, as_of, tags=tg)
+                if lines:
+                    break
         except Exception:  # noqa: BLE001
             lines = []
         n_concepts = len({ln["concept"] for ln in lines})
@@ -263,6 +279,19 @@ CONCEPT_TAGS: dict[str, list[str]] = {
     "cost_of_revenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold", "CostOfGoodsSold"],
     "rpo": ["RevenueRemainingPerformanceObligation"],
     "capex": ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"],
+}
+# IFRS taxonomy (foreign private issuers — 40-F/20-F filers report under `ifrs-full` with DIFFERENT
+# concept names). The INTERNAL keys are identical so the line shape / `fundamentals_present` / render
+# are unchanged; only the XBRL tag strings differ. Verified present in the live universe: `Revenue`
+# (AG/PAAS/FRO/HBM), `RevenueFromContractsWithCustomers` (ERO). cost/capex are best-effort — annual-only
+# IFRS filers don't produce the quarterly margin/capex shapes anyway, and a fail-closed miss just omits
+# that line.
+IFRS_CONCEPT_TAGS: dict[str, list[str]] = {
+    "revenue": ["Revenue", "RevenueFromContractsWithCustomers"],
+    "cost_of_revenue": ["CostOfSales"],
+    "rpo": [],
+    "capex": ["PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+              "PurchaseOfPropertyPlantAndEquipment"],
 }
 # Denominator floors (omit a YoY whose base is below floor or flips sign — no "+4,300%" lines).
 MIN_BASE = {"revenue_ttm": 10e6, "revenue_qtr": 2.5e6, "capex_qtr": 1e6, "rpo": 10e6}
@@ -388,12 +417,76 @@ def _line(concept: str, metric: str, value: float, latest: dict, base: dict | No
             "period_end": latest["end"], "filed": latest["filed"]}
 
 
-def corpus_lines(usg: dict, as_of: datetime) -> list[dict]:
-    """The pinned §2 evidence lines from one companyfacts us-gaap dict, as-of-correct."""
+def _pick_revenue_quarterly(facts_tax: dict, rev_tags: list[str], as_of: datetime) -> tuple[str | None, list[dict]]:
+    """The FRESHEST revenue tag (by latest deduped period-end) that yields a COMPUTABLE quarterly TTM.
+
+    Ranks the candidate tags freshest-first and returns the first whose quarterly series can build a
+    TTM at its latest period — so a name that migrated tags (e.g. SalesRevenueNet → Revenues →
+    RevenueFromContract…) gets CURRENT revenue, not the longest-but-stale legacy tag. Still ONE tag
+    (the §9 anti-splice invariant holds), and never darkening: a fresh-but-too-sparse tag (no 4
+    consecutive quarters) is SKIPPED, falling through to the freshest computable (worst case the prior
+    stale tag = no regression)."""
+    ranked: list[tuple[str, str, list[dict]]] = []
+    for tag in rev_tags:
+        series = _pit_dedup(_collect(facts_tax, tag, instant=False), as_of)
+        if series:
+            ranked.append((series[-1]["end"], tag, series))
+    ranked.sort(key=lambda r: r[0], reverse=True)  # freshest latest-period-end first
+    for _end, tag, series in ranked:
+        rev_q = quarterly_income_series(series)
+        if not rev_q:
+            continue
+        pts = [{"start": q["start"], "end": q["end"], "val": q["val"], "filed": q["filed"]} for q in rev_q]
+        if _ttm_at(pts, rev_q[-1]["end"]) is not None:
+            return tag, rev_q
+    return None, []
+
+
+def _latest_revenue_end(facts_tax: dict, rev_tags: list[str], as_of: datetime) -> str | None:
+    """Most-recent visible revenue period-end across the candidate tags (the staleness key the
+    taxonomy guard compares)."""
+    best: str | None = None
+    for tag in rev_tags:
+        series = _pit_dedup(_collect(facts_tax, tag, instant=False), as_of)
+        if series and (best is None or series[-1]["end"] > best):
+            best = series[-1]["end"]
+    return best
+
+
+def _annual_revenue_yoy(facts_tax: dict, rev_tags: list[str], as_of: datetime) -> dict | None:
+    """A single annual revenue-YoY line from FY (330–380d) durations — the fallback for annual-only
+    filers (foreign IFRS issuers report FY revenue, no quarters). Own 2-FY-period floor (a YoY's
+    arithmetic minimum, NOT the quarterly ≥4), reuses `_year_ago` (±45d) + the TTM revenue base floor
+    — zero new constants. Freshest FY-bearing tag wins. Backward-looking → cadence-marked at render so
+    it informs structural/under-narrated, not at-inflection."""
+    ranked: list[tuple[str, list[dict]]] = []
+    for tag in rev_tags:
+        fys = [f for f in _pit_dedup(_collect(facts_tax, tag, instant=False), as_of)
+               if _FY[0] <= _dur_days(f) <= _FY[1]]
+        if len(fys) >= 2:
+            ranked.append((fys[-1]["end"], fys))
+    ranked.sort(key=lambda r: r[0], reverse=True)
+    for _end, fys in ranked:
+        latest = fys[-1]
+        base = _year_ago(fys, latest["end"])
+        if base is None:
+            continue
+        v = _yoy(latest, base, min_base=MIN_BASE["revenue_ttm"])
+        if v is not None:
+            return {"concept": "revenue", "metric": "rev_annual_yoy", "value": round(v, 4),
+                    "latest_musd": round(latest["val"] / 1e6, 1),
+                    "base_musd": round(base["val"] / 1e6, 1),
+                    "period_end": latest["end"], "filed": latest["filed"]}
+    return None
+
+
+def corpus_lines(facts_tax: dict, as_of: datetime, *, tags: dict[str, list[str]] = CONCEPT_TAGS) -> list[dict]:
+    """The pinned §2 evidence lines from one companyfacts taxonomy dict (us-gaap or ifrs-full),
+    as-of-correct. ``tags`` selects the concept→XBRL-tag registry for that taxonomy."""
     lines: list[dict] = []
 
-    _rtag, rev_raw = _pick_tag(usg, CONCEPT_TAGS["revenue"], as_of)
-    rev_q = quarterly_income_series(rev_raw)
+    _rtag, rev_q = _pick_revenue_quarterly(facts_tax, tags["revenue"], as_of)
+    produced_revenue = False
     if rev_q:
         latest = rev_q[-1]
         # revenue level: TTM YoY (consecutive both legs)
@@ -406,6 +499,7 @@ def corpus_lines(usg: dict, as_of: datetime) -> list[dict]:
                 lines.append(_line("revenue", "ttm_yoy", ttm_now / ttm_prior - 1.0,
                                    {"val": ttm_now, "end": latest["end"], "filed": latest["filed"]},
                                    {"val": ttm_prior, "end": prior_anchor["end"], "filed": prior_anchor["filed"]}))
+                produced_revenue = True
         # quarterly accel: qtr YoY now minus qtr YoY two quarters back (earlier than TTM-on-TTM)
         def _qtr_yoy(anchor: dict) -> float | None:
             base = _year_ago(rev_q, anchor["end"])
@@ -414,13 +508,14 @@ def corpus_lines(usg: dict, as_of: datetime) -> list[dict]:
         yoy_prev = _qtr_yoy(rev_q[-3]) if len(rev_q) >= 3 else None
         if yoy_now is not None:
             lines.append(_line("revenue", "qtr_yoy", yoy_now, latest, _year_ago(rev_q, latest["end"])))
+            produced_revenue = True
             if yoy_prev is not None:
                 lines.append({"concept": "revenue", "metric": "qtr_yoy_accel",
                               "value": round(yoy_now - yoy_prev, 4), "latest_musd": None,
                               "base_musd": None, "period_end": latest["end"], "filed": latest["filed"]})
 
         # gross margin Δ — the CONSISTENT (revenue, cost) pair
-        _ctag, cost_raw = _pick_tag(usg, CONCEPT_TAGS["cost_of_revenue"], as_of)
+        _ctag, cost_raw = _pick_tag(facts_tax, tags["cost_of_revenue"], as_of)
         cost_q = {c["end"]: c for c in quarterly_income_series(cost_raw)}
         common = [q for q in rev_q if q["end"] in cost_q and q["val"] > 0]
         if common:
@@ -435,7 +530,14 @@ def corpus_lines(usg: dict, as_of: datetime) -> list[dict]:
                               "period_end": cur["end"],
                               "filed": max(cur["filed"], cost_q[cur["end"]]["filed"])})
 
-    _ktag, capex_raw = _pick_tag(usg, CONCEPT_TAGS["capex"], as_of)
+    # Annual fallback: an annual-only filer (foreign IFRS issuer) has no quarterly revenue line — emit
+    # a single backward-looking annual revenue YoY so the name is grounded rather than dark.
+    if not produced_revenue:
+        annual = _annual_revenue_yoy(facts_tax, tags["revenue"], as_of)
+        if annual is not None:
+            lines.append(annual)
+
+    _ktag, capex_raw = _pick_tag(facts_tax, tags["capex"], as_of)
     capex_q = ytd_cashflow_series(capex_raw)
     if capex_q:
         latest = capex_q[-1]
@@ -445,7 +547,7 @@ def corpus_lines(usg: dict, as_of: datetime) -> list[dict]:
             if v is not None:
                 lines.append(_line("capex", "qtr_yoy", v, latest, base))
 
-    _ptag, rpo = _pick_tag(usg, CONCEPT_TAGS["rpo"], as_of, instant=True)
+    _ptag, rpo = _pick_tag(facts_tax, tags["rpo"], as_of, instant=True)
     if rpo:
         latest = rpo[-1]
         base = _year_ago(rpo, latest["end"], lo=350, hi=380)
