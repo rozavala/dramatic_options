@@ -164,6 +164,27 @@ gets a low freshness-rank z → lands in cleared-but-not-top-K limbo, contributi
 two non-freshness surface disjuncts are now *surfacing-only* (curation visibility), not rank-bearing — by
 design, stated so they aren't quietly decorative.
 
+### §5.1 — Lone-basket fallback (fresh_v2 amendment, dated 2026-06-25; a DOCUMENTED §5 departure)
+
+The §5 rank is `rank_basket`'s **within-basket** z. `_zmap` of a single element collapses (`std<1e-9 →
+0.0`), so a name **alone in its basket** scores `inflection_score == 0.0` **however hard it breaks** —
+the rank is blind to its own freshness. Found live: `seaborne_freight` holds exactly one name (FRO);
+FRO surfaced at L0 run #288 (2026-06-24) with `mom_recent +0.32 / rv_rising +0.08` yet scored `0.000`,
+ranking it mid-pack (#22 of 35) below the council's 12-candidate cut — i.e. structurally un-catchable
+even on a real fresh leg. This is a **scoring-correctness defect** independent of any catch/fast-track
+work.
+
+**Fix (`rank_scores`):** a basket with **<2 clearers** falls back to a **cross-section z** over all
+clearers, so the lone name's score is responsive to its freshness. **This is NOT §5 compliance — it is a
+documented §5 *departure*:** §5 chose within-basket relativity *precisely to avoid* cross-theme
+vol-regime comparison (a freight name's freshness vs a silver name's). A lone-basket name has no
+within-basket answer, so we accept the cross-theme / **mixed-scale** impurity (a cross-section z and a
+within-basket z are not the same distribution) **over a permanent 0.0**. ≥2-clearer baskets are
+byte-identical to before. The **principled dissolution is curation** — a second name in the basket
+removes the n<2 case entirely; the scoring fallback is the robust general guard for any future singleton.
+**Segmentation:** `DISCOVERY_FUNNEL_VERSION` bumped `fresh_v1→fresh_v2` (a rank change can move which
+names reach the council top-K → record-segmenting, §8).
+
 ---
 
 ## §6 — Direction under freshness

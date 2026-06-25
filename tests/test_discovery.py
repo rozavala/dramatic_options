@@ -14,6 +14,7 @@ from discovery import (
     clears_gate,
     direction_of,
     rank_basket,
+    rank_scores,
     scan_baskets,
 )
 
@@ -96,6 +97,32 @@ def test_rank_is_within_basket_and_event_bonus():
     scores = rank_basket(cleared, p)
     assert scores["HI"] > scores["LO"]          # fresher (rising vol + recent move) ranks higher
     assert scores["EVT"] > scores["HI"]          # the event bonus dominates
+
+
+def test_lone_basket_z_is_degenerate_under_per_basket_rank():
+    """Regression ANCHOR (the defect): the per-basket z of a SINGLE clearer is exactly 0.0 — `_zmap`
+    collapses with no peers — so a lone-basket name scores 0.0 however hard it breaks (seaborne_freight/
+    FRO: surfaced 6/24 with mom_recent +0.32 / rv_rising +0.08 yet inflection_score == 0.000)."""
+    solo = [_m("FRO", "freight", rv_rising=0.25, mom_recent=0.40)]
+    assert rank_basket(solo, MarkerParams())["FRO"] == 0.0
+
+
+def test_rank_scores_lone_basket_responsive_and_no_regression():
+    """§5.1: a <2-clearer basket falls back to a CROSS-SECTION z so a lone name's score is RESPONSIVE
+    to its own freshness (vs the degenerate 0.0 above); ≥2-clearer baskets stay byte-identical to
+    `rank_basket` (no regression)."""
+    p = MarkerParams()
+    multi = [_m("AG", "silver", rv_rising=0.20, mom_recent=0.30),
+             _m("HL", "silver", rv_rising=0.05, mom_recent=-0.10)]
+    solo_fresh = [_m("FRO", "freight", rv_rising=0.25, mom_recent=0.40)]
+    scores = rank_scores({"silver": multi, "freight": solo_fresh}, p)
+    # lone fresh name: responsive, and positive (above the cross-section mean), NOT the degenerate 0.0
+    assert scores["FRO"] != 0.0
+    assert scores["FRO"] > 0.0
+    # ≥2-clearer basket: byte-identical to the within-basket rank (no regression)
+    within = rank_basket(multi, p)
+    assert scores["AG"] == within["AG"]
+    assert scores["HL"] == within["HL"]
 
 
 # ── fresh-inflection re-target (PREREG_FRESH_INFLECTION_FUNNEL) ──────────────────────────────
