@@ -264,6 +264,35 @@ A fresh inflection's tradeable direction is the **recent** move. `direction_of` 
 
 **Coverage stays OUT** (§2 corollary). The council already gets coverage via §9 news counts.
 
+### §7.1 — Known limitation: the binding leg is grounded on weekly-STALE markers (recorded 2026-06-25; decoupled, not a fix)
+
+The §7 grounding lets `at_inflection` reason over the recent-vs-trailing markers — but **those markers are
+the PERSISTED ones from the last weekly L0 scan; they are never recomputed at the daily L1.** The council
+reads `candidate.markers` (the persisted JSON) via `_marker_evidence` (`council/context.py:_marker_evidence`,
+fed from `sentinel_context_pack`); meanwhile `build_context_pack` fetches **news and fundamentals FRESH**
+each L1 (`context.py` `_news_counts` / `_fundamentals_corpus`), and `compute_markers` runs **only** in the
+discovery path (`orchestrator.py` L0). So there is an **architectural asymmetry**: the *binding* leg
+(`at_inflection`, the empirically rate-limiting criterion — see the A0 pilot) is grounded on **up-to-6-day-
+stale** data, while the other two legs (`under_narrated` via news, `structural` via fundamentals) refresh
+daily.
+
+- **Harmless on slow cohorts** — the live universe re-rates over months (8–12mo up-legs, measured), so
+  markers a few days stale don't change the read. The 2026-06 silver/freight diagnosis (branch-A verdict)
+  holds *for that cohort* on this basis.
+- **Latent risk on fast names** — a name that breaks mid-week is **not reflected in the markers (or the
+  rank) until the next L0**, so `at_inflection` is blind to the break for up to ~7 days. On a fast mover the
+  diagnosis would have been wrong without anyone noticing — the staleness is **invisible in the council row**.
+- **Why it went unnoticed:** the one production read the branch-A diagnosis leaned on (AG @ run303,
+  2026-06-24) happened to be **fresh by accident** — the manual one-shot L0 fired the *same morning* (~8h
+  before the council), not the usual ≤6 days. So "the gate works" is established only as "works on fresh
+  inputs (n=1, by luck); untested on stale-and-moved."
+
+**Decoupled from any build:** this is recorded as an architectural fact, **not** a justification for
+fast-track urgency. It bites the catch problem **only if** the cheap-entry window is shorter than the
+staleness lag — a market-gated number the cheapness-watch (§-future) measures. Pin it here so a future
+reader weighs the binding leg's confidence accordingly; do not let it become manufactured urgency the
+timescale data (slow cohort) does not support.
+
 ---
 
 ## §8 — Forward measurement, segmentation, the regime boundary (anti-HARK)
