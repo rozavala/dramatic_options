@@ -14,6 +14,7 @@ from discovery import (
     clears_gate,
     direction_of,
     rank_basket,
+    rank_scores,
     scan_baskets,
 )
 
@@ -96,6 +97,65 @@ def test_rank_is_within_basket_and_event_bonus():
     scores = rank_basket(cleared, p)
     assert scores["HI"] > scores["LO"]          # fresher (rising vol + recent move) ranks higher
     assert scores["EVT"] > scores["HI"]          # the event bonus dominates
+
+
+def test_lone_basket_z_is_degenerate_under_per_basket_rank():
+    """Regression ANCHOR (the defect): the per-basket z of a SINGLE clearer is exactly 0.0 — `_zmap`
+    collapses with no peers — so a lone-basket name scores 0.0 however hard it breaks (seaborne_freight/
+    FRO: surfaced 6/24 with mom_recent +0.32 / rv_rising +0.08 yet inflection_score == 0.000)."""
+    solo = [_m("FRO", "freight", rv_rising=0.25, mom_recent=0.40)]
+    assert rank_basket(solo, MarkerParams())["FRO"] == 0.0
+
+
+def test_rank_scores_lone_basket_responsive_and_no_regression():
+    """§5.1: a <2-clearer basket falls back to a CROSS-SECTION z so a lone name's score is RESPONSIVE
+    to its own freshness (vs the degenerate 0.0 above); ≥2-clearer baskets stay byte-identical to
+    `rank_basket` (no regression)."""
+    p = MarkerParams()
+    multi = [_m("AG", "silver", rv_rising=0.20, mom_recent=0.30),
+             _m("HL", "silver", rv_rising=0.05, mom_recent=-0.10)]
+    solo_fresh = [_m("FRO", "freight", rv_rising=0.25, mom_recent=0.40)]
+    scores = rank_scores({"silver": multi, "freight": solo_fresh}, p)
+    # lone fresh name: responsive, and positive (above the cross-section mean), NOT the degenerate 0.0
+    assert scores["FRO"] != 0.0
+    assert scores["FRO"] > 0.0
+    # ≥2-clearer basket: byte-identical to the within-basket rank (no regression)
+    within = rank_basket(multi, p)
+    assert scores["AG"] == within["AG"]
+    assert scores["HL"] == within["HL"]
+
+
+def test_rank_scores_lone_basket_inverts_against_a_hotter_cohort():
+    """§5.1 ADVERSARIAL (the residual the fix does NOT solve): the cross-section fallback is responsive
+    in BOTH directions — a lone-basket name with a GENUINE break scores NEGATIVE when a correlated
+    cohort co-breaks harder, because it's z-scored against a cohort it doesn't belong to. This is the
+    INTENDED, ACCEPTED behavior (a genuinely-hotter cohort should rank first in a slot-limited council;
+    forcing the lone name high would be manufacturing). The documented pathology (§5.1): regime-mixing
+    can understate a genuine lone break (a 30% move is exceptional for low-vol freight, ordinary for
+    high-beta silver) — NOT fixable in the z-math, dissolved only by curation (within-regime peers)."""
+    p = MarkerParams()
+    fro = _m("FRO", "freight", rv_rising=0.25, mom_recent=0.40)   # a real freight break
+    quiet_cohort = {"silver": [_m("AG", "silver", rv_rising=0.02, mom_recent=0.03),
+                               _m("HL", "silver", rv_rising=0.01, mom_recent=0.02)], "freight": [fro]}
+    hot_cohort = {"silver": [_m("AG", "silver", rv_rising=0.40, mom_recent=0.55),
+                             _m("HL", "silver", rv_rising=0.45, mom_recent=0.60),
+                             _m("CDE", "silver", rv_rising=0.50, mom_recent=0.65)], "freight": [fro]}
+    assert rank_scores(quiet_cohort, p)["FRO"] > 0.0     # genuinely freshest → ranks high (the fix's win)
+    assert rank_scores(hot_cohort, p)["FRO"] < 0.0       # hotter cohort → buried (accepted; curation dissolves)
+
+
+def test_within_basket_z_is_sign_only_for_two_clearers():
+    """The §5.1 different-N caveat, pinned: a 2-clearer basket's within-basket z is pure SIGN — the
+    winner scores +2.0 whether it wins by 0.01 or 0.80 (magnitude fully discarded). So the rank axis
+    mixes a sign-only ±2 doubleton with a real-valued cross-section z (lone-basket fallback): sorted on
+    one axis, NOT on one scale. (Broader: every curated basket is small → the rank is coarse generally.)"""
+    p = MarkerParams()
+    near = rank_basket([_m("A", "x", rv_rising=0.51, mom_recent=0.51),
+                        _m("B", "x", rv_rising=0.50, mom_recent=0.50)], p)
+    far = rank_basket([_m("A", "x", rv_rising=0.90, mom_recent=0.90),
+                       _m("B", "x", rv_rising=0.10, mom_recent=0.10)], p)
+    assert near["A"] == far["A"] == 2.0                  # winner: +2 regardless of margin (magnitude discarded)
+    assert near["B"] < 0 and far["B"] < 0               # loser: ∓2 (sign only)
 
 
 # ── fresh-inflection re-target (PREREG_FRESH_INFLECTION_FUNNEL) ──────────────────────────────

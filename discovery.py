@@ -43,7 +43,10 @@ log = logging.getLogger("discovery")
 # The live discovery-prescreen funnel version, stamped per discovery run into runs.discovery_funnel
 # (migration 0015) so the forward-scored layers segment OLD vs NEW funnels (PREREG_FRESH_INFLECTION_FUNNEL
 # §8). Bump this string when the funnel's surface/rank knobs change in a record-segmenting way.
-DISCOVERY_FUNNEL_VERSION = "fresh_v1"
+# fresh_v1→fresh_v2: the lone-basket rank fix (a <2-clearer basket fell to a degenerate within-basket
+# z of 0.0 → blind to its own freshness; now cross-section-z fallback, PREREG_FRESH_INFLECTION_FUNNEL
+# §5.1). A rank change → it can move which names reach the council top-K → record-segmenting, so bump.
+DISCOVERY_FUNNEL_VERSION = "fresh_v2"
 
 
 # ── marker computation ───────────────────────────────────────────────────────────────────────
@@ -233,6 +236,33 @@ def rank_basket(cleared: list[MarkerSet], params: MarkerParams) -> dict[str, flo
     return out
 
 
+def rank_scores(cleared_by_basket: dict[str, list[MarkerSet]], params: MarkerParams) -> dict[str, float]:
+    """inflection_score for every cleared name across all baskets (the union order).
+
+    A basket with **≥2 clearers** is ranked WITHIN-BASKET (``rank_basket`` — §5: freshness-z relative to
+    same-theme peers; byte-identical to the prior per-basket path). A basket with **<2 clearers** has no
+    within-basket peers, so ``_zmap`` collapses to 0.0 → the lone name would score 0.0 **however hard it
+    breaks** (the ``seaborne_freight``/FRO defect: a curation artifact that makes the rank blind to a real
+    fresh leg). For those names we fall back to a **CROSS-SECTION z** over all clearers.
+
+    This fallback is a **DOCUMENTED §5 DEPARTURE** (PREREG_FRESH_INFLECTION_FUNNEL §5.1), *not* §5
+    compliance: §5 chose within-basket relativity precisely to avoid cross-theme vol-regime comparison; a
+    lone-basket name has no within-basket answer, so we accept the cross-theme / mixed-scale impurity over
+    a permanent 0.0. The principled dissolution is curation (a second name in the basket removes the n<2
+    case). The cross-section z is computed lazily — only when a <2-clearer basket exists."""
+    out: dict[str, float] = {}
+    cross: dict[str, float] | None = None
+    for cleared in cleared_by_basket.values():
+        if len(cleared) >= 2:
+            out.update(rank_basket(cleared, params))
+        elif cleared:  # lone-basket name → cross-section fallback (§5.1)
+            if cross is None:
+                cross = rank_basket([m for ms in cleared_by_basket.values() for m in ms], params)
+            for m in cleared:
+                out[m.symbol] = cross.get(m.symbol, 0.0)
+    return out
+
+
 # ── scan orchestration ─────────────────────────────────────────────────────────────────────────
 
 
@@ -283,6 +313,7 @@ def scan_baskets(
     eligible_unsurfaced: list[MarkerSet] = []
     surfaced_syms: set[str] = set()
 
+    cleared_by_basket: dict[str, list[MarkerSet]] = {}
     for basket, members in baskets.items():
         if result.n_scanned >= max_scan_names:
             break
@@ -299,17 +330,23 @@ def scan_baskets(
             passed, _reason = clears_gate(m, params)
             if passed and sym not in exclude:
                 cleared_in_basket.append(m)
-        # rank only the gate-clearers, WITHIN this basket
-        scores = rank_basket(cleared_in_basket, params)
-        for m in cleared_in_basket:
-            scored.append(Surfaced(m, direction_of(m, params), scores.get(m.symbol, 0.0),
-                                   _gate_reason(m, params)))
+        cleared_by_basket[basket] = cleared_in_basket
         result.by_basket[basket] = len(cleared_in_basket)
         result.n_cleared += len(cleared_in_basket)
         # eligible-but-not-cleared names feed the control pool
         cleared_syms = {m.symbol for m in cleared_in_basket}
         eligible_unsurfaced.extend(m for m in markers_in_basket
                                    if m.eligible and m.symbol not in cleared_syms)
+
+    # rank the gate-clearers: within-basket freshness-z for ≥2-clearer baskets (§5); a CROSS-SECTION z
+    # fallback for a <2-clearer basket (no within-basket peers → degenerate 0.0, blind to its own
+    # freshness — the §5.1 lone-basket departure). Deferred past the scan loop so the fallback sees the
+    # full cleared cross-section.
+    scores = rank_scores(cleared_by_basket, params)
+    for cleared_in_basket in cleared_by_basket.values():
+        for m in cleared_in_basket:
+            scored.append(Surfaced(m, direction_of(m, params), scores.get(m.symbol, 0.0),
+                                   _gate_reason(m, params)))
 
     scored.sort(key=lambda s: s.inflection_score, reverse=True)
     result.surfaced = scored[:top_k]
