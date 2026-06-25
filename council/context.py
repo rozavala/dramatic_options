@@ -113,7 +113,8 @@ def _fmt_fundamental_line(ln: dict) -> str | None:
         paren = f" ({latest}% vs {base}% margin)" if base is not None else f" ({latest}% margin)"
     else:
         paren = f" (${latest}M vs ${base}M)" if base is not None else f" (${latest}M)"
-    return f"- {concept} {metric} {vtxt}{paren}; period {ln.get('period_end')}, filed {ln.get('filed')}"
+    cadence = " (annual)" if metric == "rev_annual_yoy" else ""
+    return f"- {concept} {metric} {vtxt}{paren}; period {ln.get('period_end')}{cadence}, filed {ln.get('filed')}"
 
 
 def _fmt_value(ln: dict) -> str | None:
@@ -124,7 +125,7 @@ def _fmt_value(ln: dict) -> str | None:
     if value is None:
         return None
     metric = ln.get("metric", "")
-    if metric in ("ttm_yoy", "qtr_yoy", "yoy"):
+    if metric in ("ttm_yoy", "qtr_yoy", "yoy", "rev_annual_yoy"):
         return f"{value:+.1%}"
     if metric == "delta_pts":
         return f"{value:+.1f}pts"
