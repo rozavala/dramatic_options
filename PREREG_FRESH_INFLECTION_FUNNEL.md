@@ -185,6 +185,32 @@ removes the n<2 case entirely; the scoring fallback is the robust general guard 
 **Segmentation:** `DISCOVERY_FUNNEL_VERSION` bumped `fresh_v1→fresh_v2` (a rank change can move which
 names reach the council top-K → record-segmenting, §8).
 
+**Known residuals — this fix is PARTIAL; do not read it as solved:**
+
+1. **Conditional (co-break) blindness.** The cross-section z is responsive in BOTH directions: a
+   lone-basket name's *genuine* break scores **negative** when a correlated cohort co-breaks harder
+   (verified: a freight break scoring `+2.83` alone scores `−3.21` cross-sectioned against a hotter
+   silver cohort). This is INTENDED responsiveness — in a slot-limited council a genuinely-hotter
+   cohort *should* rank first, and forcing the lone name high would be manufacturing. The pathology is
+   narrower: regime-mixing can **understate** a genuine lone break (a 30% move is exceptional for
+   low-vol freight, ordinary for high-beta silver miners). At the current cut this is **no worse than
+   the old `0.0`** — both sit below the ~+1.6 sentinel cut, so a co-breaking lone name is un-judged
+   either way; the fix REMOVES the unconditional blindness and LEAVES a conditional one (it does not
+   *introduce* a cut-level failure, it *fails to fix* the co-break case). silver/freight are both
+   cyclicals → co-breaks are realistic, not a corner. This understatement is **not fixable in the
+   z-math** (every cross-theme comparison has it); the clean dissolution is **curation** — a 2nd
+   freight name restores within-regime peers so the name is judged on its own basket's scale. Until
+   then, a lone name stays un-caught in a correlated co-break.
+
+2. **Scale incoherence across basket sizes (different-N).** The cross-section z (lone name) and the
+   within-basket z (multi-basket names) are sorted on ONE axis but are NOT on one scale: a 2-clearer
+   basket's within-basket z is **exactly ±1 per marker — pure SIGN, magnitude discarded** (a doubleton
+   scores `±2.0` whether it wins by 0.01 or 0.80), while the lone name's cross-section z is real-valued.
+   Broader: **every curated basket is small** (silver 4, freight 1, copper ~3, nuclear ~6), so the rank
+   is coarse/sign-only in the small-N regime *generally* — `inflection_score` sets the council cut at
+   low resolution universe-wide. The lone-basket fix is a local patch, **not** a rank-quality fix; a
+   separate rank-quality review is warranted (recorded, out of scope here).
+
 ---
 
 ## §6 — Direction under freshness
