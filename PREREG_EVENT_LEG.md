@@ -111,10 +111,19 @@ mixes sweep and real-loop evaluations. **Read when n_event ≥ 5**; direction on
   never FLIP it — conviction suppression is the only disposal. An event→direction map (e.g.
   424B5 = dilution = bearish?) would be new latitude on a question FSSD answered "no drift
   either way": deferred, its own pre-reg if ever.
-- **(b) The motion-fades-then-files seam.** `revalidate_active` already exempts event-origin
-  sentinels from motion-dormancy (sentinels.py:123 — by design). A MOTION-origin sentinel whose
-  motion fades and who files mid-week goes dormant until the next scan's event arm re-surfaces it
-  (lineage updates in place): one-scan latency, self-healing, accepted.
+- **(b) The motion-fades-then-files seam.** *(Corrected 2026-06-26 — the original "one-scan
+  self-healing" was false: it assumed a wiring that never happened.)* `revalidate_active`
+  (`sentinels.py`) is **DEFINED BUT UNWIRED** — no orchestrator call site, ever — and
+  `PREREG_FRESH_INFLECTION_FUNNEL §11 dial-2` deliberately leaves it so ("force-dormant on freshness
+  decay — NO; ANY-leg semantics already handle it"). So a MOTION-origin sentinel whose motion fades
+  does **not** go dormant mid-week; it lingers as an active candidate (judged on its last-surfaced
+  markers) until either the next L0 re-surfaces it — incl. via a fresh filing → it becomes
+  event-origin (lineage updates in place) — or the ~35-day TTL expires it. **Benign for the EVENT
+  path:** a decayed name is judged on still-decayed markers, which still say "decayed," so the
+  council correctly drops it regardless of the lingering. The *distinct* harm — a name that **broke**
+  into a fresh inflection whose **stale markers don't yet show it** — is **finding #1**
+  (`PREREG_FRESH_INFLECTION_FUNNEL §7.1`); its fix is to **persist refreshed markers** (NOT this
+  demote, which only sheds already-decayed names), gated on the cheapness-watch's §7.1 re-open trigger.
 - **(c) The 8-K pinned-item subset** (items 1.01 material agreements / 2.01 completed
   acquisitions — quiet-small-cap catalysts): the submissions path carries the `items` field, so
   this is nearly free later — but it is new latitude and raw 8-K would collapse the floor:
