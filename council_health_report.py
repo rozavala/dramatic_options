@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import statistics
+from datetime import datetime
 
 import state
 from council.proposal import CONVICTION_LEVELS, normalize_conviction, passes_floor
@@ -106,6 +107,31 @@ def _config_floor() -> str:
         return "MODERATE"
 
 
+def _marker_staleness(props) -> dict:
+    """Marker-age of the SENTINEL proposals this run judged (finding #1 / PREREG_FRESH_INFLECTION_FUNNEL
+    §7.1): age = ``as_of − markers_asof`` (both frozen on the row → non-corruptible). Surfaces the
+    staleness condition so it is AUDITABLE at grading time — the binding ``at_inflection`` leg reasons
+    over markers that refresh only on L0 top-K re-entry (days-to-weeks old). Hand-seed proposals
+    (``markers_asof`` NULL, news-grounded) are excluded. Fail-soft on a bad/absent timestamp."""
+    ages: list[tuple[float, str]] = []
+    for p in props:
+        mz, asof = p["markers_asof"], p["as_of"]
+        if not mz or not asof:
+            continue
+        try:
+            age = (datetime.fromisoformat(asof) - datetime.fromisoformat(mz)).total_seconds() / 86400.0
+        except (ValueError, TypeError):
+            continue
+        ages.append((age, p["symbol"]))
+    out: dict = {"n_with_markers": len(ages)}
+    if ages:
+        oldest = max(ages)
+        out["median_age_days"] = round(statistics.median(a for a, _ in ages), 1)
+        out["max_age_days"] = round(oldest[0], 1)
+        out["max_age_symbol"] = oldest[1]
+    return out
+
+
 def council_l1_health(conn, *, run_id: int | None = None, floor: str | None = None, page_rate: float = 0.5) -> dict:
     """Grade one council run against the checklist. ``run_id`` defaults to the latest council run.
 
@@ -123,7 +149,8 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str | None = No
     parse = state.council_parse_health(conn, run_id)
 
     props = conn.execute(
-        "SELECT id, symbol, direction, conviction, rationale FROM council_proposals WHERE run_id = ?",
+        "SELECT id, symbol, direction, conviction, rationale, as_of, markers_asof "
+        "FROM council_proposals WHERE run_id = ?",
         (run_id,)
     ).fetchall()
     aos = conn.execute(
@@ -159,6 +186,7 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str | None = No
 
     cost = round(sum(cost_by_role.values()), 6)
     above_floor = sum(1 for p in props if passes_floor(p["conviction"], floor))
+    marker_staleness = _marker_staleness(props)
 
     if council_health == "parse_fail" or (parse["called"] >= 2 and parse["rate"] >= page_rate):
         verdict = "PARSE_FAIL"                       # the #37 bug — FAIL (do NOT start the window)
@@ -182,6 +210,7 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str | None = No
                       "any_role_parse_error": any_parse_error},
         "cost_usd": cost, "cost_by_role": {r: round(c, 6) for r, c in cost_by_role.items()},
         "fundamentals": _fundamentals_summary(props),
+        "marker_staleness": marker_staleness,
         "notes": [
             "NO-ENTRY is HEALTHY — this grades parseable DELIBERATION, not a booked position.",
             "ROUNDTRIP_CONFIRMED on one L1 is necessary, not sufficient — the window needs >=2 clean L1s.",

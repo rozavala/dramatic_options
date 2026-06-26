@@ -198,3 +198,36 @@ def test_l1_health_degraded_when_strategist_parse_error(convexity_db):
 
 def test_l1_health_no_council(convexity_db):
     assert council_l1_health(convexity_db)["verdict"] == "NO_COUNCIL"
+
+
+# ── marker-age telemetry (finding #1 / §7.1, migration 0016) ───────────────────────────────────
+
+_M0016 = Path(__file__).resolve().parent.parent / "scripts" / "migrations" / "0016_marker_asof.py"
+
+
+def test_migration_0016_is_idempotent(convexity_db):
+    """The guarded ADD COLUMN re-applies cleanly (conftest already applied it once)."""
+    spec = importlib.util.spec_from_file_location(_M0016.stem, _M0016)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.apply(convexity_db)   # second apply → no error
+    cols = {r["name"] for r in convexity_db.execute("PRAGMA table_info(council_proposals)").fetchall()}
+    assert "markers_asof" in cols
+
+
+def test_marker_asof_stamped_and_grader_surfaces_staleness(convexity_db):
+    """A sentinel proposal stamps markers_asof; the grader surfaces marker-age (= as_of − markers_asof);
+    a hand-seed (markers_asof NULL) is excluded — the §7.1 staleness condition is now auditable."""
+    conn = convexity_db
+    run_id = state.record_run(conn, mode="PAPER", equity=10000)
+    # judged 2026-06-25 on markers last refreshed 2026-06-03 → ~22.7d stale (the live VRT case)
+    state.record_council_proposal(conn, run_id=run_id, as_of="2026-06-25T19:47:00+00:00", theme="x",
+                                  symbol="VRT", direction="bullish", conviction="NEUTRAL",
+                                  status="dropped", sentinel_id=1, markers_asof="2026-06-03T02:03:00+00:00")
+    # hand-seed: no markers → must NOT enter the staleness summary
+    state.record_council_proposal(conn, run_id=run_id, as_of="2026-06-25T19:47:00+00:00", theme="x",
+                                  symbol="NVDA", direction="bullish", conviction="NEUTRAL", status="dropped")
+    ms = council_l1_health(conn, run_id=run_id)["marker_staleness"]
+    assert ms["n_with_markers"] == 1                       # hand-seed excluded
+    assert ms["max_age_symbol"] == "VRT"
+    assert 22 < ms["max_age_days"] < 23                    # 2026-06-03 → 2026-06-25 ≈ 22.7d
