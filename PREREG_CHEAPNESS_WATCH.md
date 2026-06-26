@@ -33,6 +33,30 @@ Diagnostic only (like `marker_staleness`).
 5. **§7.1 re-open trigger:** re-open finding #1 (build the persist) **IFF** the measured cheap-window
    `<` the staleness lag (~16–23d). Equality/wider ⇒ do not fire.
 
+## §2.1 — Live-arm state-machine pins (amendment 2026-06-26, BLIND, before the build exists)
+
+"Days the gate stays cheap after a break" hides definitions the secular-ramp cohort makes non-trivial
+(no clean onset — the cutoff-straddle problem the narration probe dropped). Pinned blind, before the
+module is written, so the deciding measurement isn't defined after seeing data:
+
+1. **break-onset (clock START):** the FIRST session the funnel's fresh leg crosses UP —
+   `rv_rising ≥ fresh_rv_rising_floor (0.10) ∧ |mom_recent| ≥ fresh_mom_floor (0.20)` — **after ≥1 prior
+   session BELOW** the fresh leg (a fresh, debounced crossing; a continuation that never dipped below
+   does not re-trigger).
+2. **window-close (clock STOP):** the first session of **sustained** not-cheap = **2 consecutive**
+   not-cheap sessions (a 1-session IV blip does NOT close it). Window length = sessions from onset to the
+   first of those 2.
+3. **`never_cheap` — a DISTINCT state, never merged with `cheap_window_days = 0`.** If the gate is **not
+   cheap at the break-onset session** and does not turn cheap before close → state `never_cheap` (IV
+   already popped — the *modal* outcome for a narrated breaker). `cheap_window_days = 0` means the opposite
+   ("cheap at onset, flipped immediately"). For the §7.1 trigger these are **opposite** findings
+   ("never catchable" vs "caught cheap, briefly") — the schema records three states: `never_cheap` /
+   `cheap_window_days = 0` / `cheap_window_days = N≥1`.
+4. **§7.1 trigger (restated against the states):** fires (build the persist) IFF, across observed breaks,
+   the `cheap_window_days` distribution (excluding `never_cheap`) sits **below** the staleness lag
+   (~16–23d). `never_cheap` breaks are reported **separately** — they bear on catchability-at-all, not the
+   staleness-lag race.
+
 ## §3 — Two arms
 
 - **Live arm (market-gated):** the cohort's *actual* cheap-window on a real break. **Expect a long quiet
