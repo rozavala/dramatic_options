@@ -83,10 +83,20 @@ def test_header_empty(convexity_db, monkeypatch):
     assert h["cycle"]["stale"] is True  # no runs yet
 
 
-def test_schema_ahead_warning(convexity_db, monkeypatch):
+def test_schema_behind_warning(convexity_db, monkeypatch):
+    # DB BEHIND what a panel renders (expected ahead of the DB) → warn (rendered data missing).
     monkeypatch.setattr(dd, "SCHEMA_EXPECTED", 99)
     h = dd.header_status(convexity_db)
     assert h["schema_ok"] is False and h["schema_warning"]
+
+
+def test_schema_db_ahead_is_fine_no_false_warning(convexity_db, monkeypatch):
+    # DB AHEAD of expected (a landed-but-unrendered migration, e.g. the live 15-vs-14 after 0015) is
+    # FINE — extra migrations don't break older panels. The prior `==` tripwire false-warned here.
+    sv = state.schema_version(convexity_db)
+    monkeypatch.setattr(dd, "SCHEMA_EXPECTED", sv - 1)
+    h = dd.header_status(convexity_db)
+    assert h["schema_ok"] is True and h["schema_warning"] is None
 
 
 def test_staleness_flag(convexity_db):
