@@ -139,10 +139,19 @@ def persist_discovery(
 
 
 def revalidate_active(conn, as_of, *, market, benchmark, params: MarkerParams) -> int:
-    """Cheap daily freshness re-check (closes the intra-week staleness window). An active,
-    **motion-origin** sentinel whose motion no longer clears the absolute floor goes dormant
-    (drops from the union). Bars-only, no LLM, no cost. Event-origin sentinels are left to TTL
-    (a slow structural thesis shouldn't be dropped just because price hasn't moved yet)."""
+    """⚠️ DEFINED BUT UNWIRED — no orchestrator call site (ever). `PREREG_FRESH_INFLECTION_FUNNEL §11
+    dial-2` deliberately leaves it so ("force-dormant on freshness decay — NO; ANY-leg semantics
+    already handle it"). So it does NOT run, and does NOT "close the intra-week staleness window":
+    a motion-faded sentinel lingers to the ~35-day TTL (PREREG_EVENT_LEG §6(b), corrected). It is also
+    demote-ONLY — it sheds *decayed* names (correctly dropped anyway, their stale markers still say
+    "decayed"); it does NOT touch finding #1 (a *broken* name on stale markers), whose fix is to
+    PERSIST refreshed markers (gated on the cheapness-watch), not this demote. Kept as a tested
+    reference; wire ONLY via an explicit dial-2 re-decision.
+
+    [Behavior if ever wired] A cheap daily freshness re-check: an active **motion-origin** sentinel
+    whose motion no longer clears the absolute floor goes dormant (drops from the union). Bars-only,
+    no LLM, no cost. Event-origin sentinels are left to TTL (a slow structural thesis shouldn't be
+    dropped just because price hasn't moved yet)."""
     n = 0
     for row in state.active_sentinel_rows(conn):
         markers_were_event = False
