@@ -40,7 +40,8 @@ from council.proposal import passes_floor
 from council.scoring import agent_contribution
 from council_health_report import council_l1_health, latest_council_run
 
-SCHEMA_EXPECTED = 14  # manual tripwire — bump when a migration lands whose data a panel renders (else system_status warns).
+SCHEMA_EXPECTED = 14  # the highest migration whose data a panel RENDERS — bump ONLY then (not every migration).
+#                       Warns only if the DB is BEHIND this (a DB ahead is fine; see header_status schema_ok).
 # Rendered through 14: 0013 runs.data_feed (regime_panel) + 0014 gate_dualread (gate_dualread_report).
 # Staleness thresholds (hours) — documented, generous enough to not false-alarm over a normal weekend/holiday.
 STALE_HOURS = {"cycle": 26.0, "council": 96.0, "discovery": 8.0 * 24.0}
@@ -291,9 +292,14 @@ def header_status(conn, *, now: datetime | None = None) -> dict:
     return {
         "schema_version": schema,
         "schema_expected": SCHEMA_EXPECTED,
-        "schema_ok": schema == SCHEMA_EXPECTED,
-        "schema_warning": (None if schema == SCHEMA_EXPECTED else
-                           f"built for schema {SCHEMA_EXPECTED}, DB is {schema} — panels may be stale"),
+        # Warn ONLY if the DB is BEHIND what a panel renders (schema < expected → the rendered data is
+        # missing). A DB AHEAD is fine — a landed-but-unrendered migration doesn't break older panels.
+        # (The prior `== ` over-warned on any DB-ahead, e.g. a standing false alarm at schema 15 vs 14
+        # after 0015 landed unrendered — 2026-06-26 fix.)
+        "schema_ok": schema >= SCHEMA_EXPECTED,
+        "schema_warning": (None if schema >= SCHEMA_EXPECTED else
+                           f"DB at schema {schema} is BEHIND the {SCHEMA_EXPECTED} a panel renders — "
+                           "panels may be stale"),
         "kill_switch_engaged": kill_switch_active(),
         "discovery": _beat(last_disc, "discovery"),
         "cycle": _beat(last_cycle, "cycle"),
