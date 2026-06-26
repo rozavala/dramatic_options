@@ -44,12 +44,29 @@ Diagnostic only (like `marker_staleness`).
   **underlying move-speed** as a coarse upper-bound on the cheap-window timescale. **Methodology pinned:**
   over each cohort name's cached bars, report (a) trough→peak up-leg **duration** (trading days), (b) the
   fastest **20-day** return, (c) trough→**+25%** **early-leg duration** (the cheap-window proxy — how long
-  the move takes to cover the OTM distance the structure sits at). A move unfolding over **months** (long
-  duration, no sharp sub-leg, early-leg ≫ 23d) ⇒ a **wide** cheap-window ⇒ §7.1 trigger likely **does not
-  fire** ⇒ finding #1's persist is likely **low-value**.
-  **Caveat (pinned):** this is *underlying* move-speed, **not** IV reprice-speed — IV can pop ahead of the
-  underlying, narrowing the true cheap-window. So the historical arm shifts the **prior** hard; it can
-  **provisionally de-prioritize** finding #1, but only the live arm **confirms** — it never closes it.
+  the move takes to cover the OTM distance the structure sits at). See **§3.1** for the result.
+  **Caveat (pinned, LOAD-BEARING):** this is *underlying* move-speed (moneyness), **NOT** the gate's IV/RV
+  `cheap` — they coincide only if IV tracks RV, which it does **not** for an under-narrated breaker (IV lags
+  RV → IV/RV *falls*/stays cheap through the early break; the window is then the **narration lag**). So the
+  proxy systematically **understates** the cheap-window for the target cohort; it shifts a PRIOR at most and
+  can never de-prioritize finding #1 on its own — only the live arm measures the IV/RV window.
+
+### §3.1 — Historical-arm RESULT + pinned interpretation (run 2026-06-26 against the frozen §3 methodology)
+
+`trough→+25%` (the cheap-window proxy): **CDE 4d · PAAS 15d · AG 17d · HL 21d · FRO 25d** — comparable to /
+below the live staleness lag (16.7d median / 23.7d max). **It does NOT resolve finding #1, in either
+direction:**
+- **Pin 1 — name it for what it is.** An underlying-move-speed proxy on a **NARRATED** cohort (silver/
+  freight rallies get press → their historical IV popped early → a short proxy window *because* narrated —
+  anti-representative of the under-narrated *target*). A weak PRIOR, **not** the cheap-window; do not read
+  4–25d as "fire" (it overstates the case as much as the discarded "slow-ramp ⇒ wide" overstated "park").
+- **Pin 2 — interpretation governs the live read.** The live IV/RV arm **decides** (days-gate-stays-`cheap`-
+  after-break = the IV/RV window, measured directly). A live window **WIDER** than this proxy is the
+  **EXPECTED under-narration signature** (IV lagging RV — the thesis *working*), not an anomaly to explain
+  away. This pre-commits against anchoring on 4–25d when the live data lands.
+- Finding #1's persist is therefore **genuinely undetermined**; the live arm is the **decider**, not a
+  confirmer. **Re-run the proxy on the quiet-sector names once curated** (a less anti-representative
+  cohort) — it remains a move-speed proxy, never the IV/RV window.
 
 ## §4 — Refinements adopted (operator, 2026-06-26)
 
