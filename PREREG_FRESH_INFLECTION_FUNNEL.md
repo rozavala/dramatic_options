@@ -305,11 +305,15 @@ fundamentals) refresh daily.
   sentinel** on the 6/25 L1 (1.3d; ~8h at run303) — fresh by a same-morning manual-L0 **exception**, not the
   rule. So "the gate works" is established only as "works on fresh inputs (n=1, by luck); untested on
   stale-and-moved."
-- **Telemetry (the condition is currently UN-AUDITABLE).** Marker-age is **derivable** (`proposal.as_of −
-  sentinel.last_seen_at`) but **not stamped**, and the derivation is **corruptible** — `last_seen_at` advances
-  if the name re-surfaces later, mis-deriving a past proposal's age. The correct fix is a marker-age **stamped
-  at judgment** on the proposal (a separate code PR; also the precursor the cheapness-watch needs to compare
-  the cheap-window against the staleness lag).
+- **Telemetry (now AUDITABLE — migration 0016, PR #95).** Marker-age was *derivable* (`proposal.as_of −
+  sentinel.last_seen_at`) but the derivation is **corruptible** (`last_seen_at` advances on re-surface,
+  mis-deriving a past proposal's age), so `markers_asof` is now **stamped at judgment** on the proposal and
+  surfaced in `council_l1_health.marker_staleness` + the dashboard. **Read it as DIAGNOSTIC magnitude, NOT an
+  alarm:** `max_age_days` ceilings at the **~35-day sentinel TTL** (`sentinel_ttl_days`), and it is *recompute*
+  age — ~2 days tighter than true data-staleness (L0 runs on Friday-close data). A large age on a **quiet**
+  name is benign (stale-quiet ≈ still-quiet); the catch-relevant **"stale ∧ moved"** can't be read from age
+  alone — detecting it needs the marker-refresh (the gated finding-#1 fix). It is the precursor the
+  cheapness-watch needs to compare the cheap-window against the staleness lag (the re-open trigger below).
 
 **Decoupled from any build, with a pre-committed RE-OPEN trigger (anti-HARK, symmetric).** This is an
 architectural fact, **not** a fast-track-urgency justification (the slow-cohort timescale doesn't support
