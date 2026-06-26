@@ -211,6 +211,17 @@ names reach the council top-K → record-segmenting, §8).
    low resolution universe-wide. The lone-basket fix is a local patch, **not** a rank-quality fix; a
    separate rank-quality review is warranted (recorded, out of scope here).
 
+   **Review CLOSED (2026-06-26) — "generally coarse" was the n≤2 floor, not an n≥3 problem; no new
+   statistic.** Characterized against `rank_basket` directly: **n=1** degenerate (fixed by the §5.1
+   cross-section fallback); **n=2** sign-only (±2, magnitude discarded — a hard and a slight breaker both
+   score +2.0); **n≥3 RESOLVES** for *dispersed* clearers (silver n=4, real markers: `+1.84/+1.25/−0.88/
+   −2.21`). So the coarse regime is **n≤2**, which is common not because the rank can't resolve but because
+   **few names clear the gate per basket per scan** (selective gate + small baskets) — *and a single
+   idiosyncratic break is the n=1 case, already handled.* (Caveat, symmetric: even n≥3 degrades when clearers
+   *cluster* — z is margin-invariant when the non-winners tie — but the empirical case dispersed.) **No new
+   ranking statistic is warranted**; **curation** (more clearers per basket → lift n≤2 into the resolving
+   regime) is the principled lift, the same lever that dissolves the lone-basket co-break (residual #1).
+
 ---
 
 ## §6 — Direction under freshness
@@ -264,34 +275,48 @@ A fresh inflection's tradeable direction is the **recent** move. `direction_of` 
 
 **Coverage stays OUT** (§2 corollary). The council already gets coverage via §9 news counts.
 
-### §7.1 — Known limitation: the binding leg is grounded on weekly-STALE markers (recorded 2026-06-25; decoupled, not a fix)
+### §7.1 — Known limitation: the binding leg is grounded on STALE markers (TTL-bounded, observed in WEEKS; recorded 2026-06-25, magnitude corrected 2026-06-26; decoupled, not a fix)
 
 The §7 grounding lets `at_inflection` reason over the recent-vs-trailing markers — but **those markers are
-the PERSISTED ones from the last weekly L0 scan; they are never recomputed at the daily L1.** The council
-reads `candidate.markers` (the persisted JSON) via `_marker_evidence` (`council/context.py:_marker_evidence`,
-fed from `sentinel_context_pack`); meanwhile `build_context_pack` fetches **news and fundamentals FRESH**
-each L1 (`context.py` `_news_counts` / `_fundamentals_corpus`), and `compute_markers` runs **only** in the
-discovery path (`orchestrator.py` L0). So there is an **architectural asymmetry**: the *binding* leg
-(`at_inflection`, the empirically rate-limiting criterion — see the A0 pilot) is grounded on **up-to-6-day-
-stale** data, while the other two legs (`under_narrated` via news, `structural` via fundamentals) refresh
-daily.
+the PERSISTED ones from the last L0 that surfaced the name into the top-K; they are never recomputed at the
+daily L1.** The council reads `candidate.markers` (the persisted JSON) via `_marker_evidence`
+(`council/context.py:_marker_evidence`, fed from `sentinel_context_pack`); meanwhile `build_context_pack`
+fetches **news and fundamentals FRESH** each L1 (`context.py` `_news_counts` / `_fundamentals_corpus`), and
+`compute_markers` runs **only** in the discovery path (`orchestrator.py` L0). So there is an **architectural
+asymmetry**: the *binding* leg (`at_inflection`, the empirically rate-limiting criterion — see the A0 pilot)
+is grounded on STALE markers while the other two legs (`under_narrated` via news, `structural` via
+fundamentals) refresh daily.
 
-- **Harmless on slow cohorts** — the live universe re-rates over months (8–12mo up-legs, measured), so
-  markers a few days stale don't change the read. The 2026-06 silver/freight diagnosis (branch-A verdict)
-  holds *for that cohort* on this basis.
-- **Latent risk on fast names** — a name that breaks mid-week is **not reflected in the markers (or the
-  rank) until the next L0**, so `at_inflection` is blind to the break for up to ~7 days. On a fast mover the
-  diagnosis would have been wrong without anyone noticing — the staleness is **invisible in the council row**.
-- **Why it went unnoticed:** the one production read the branch-A diagnosis leaned on (AG @ run303,
-  2026-06-24) happened to be **fresh by accident** — the manual one-shot L0 fired the *same morning* (~8h
-  before the council), not the usual ≤6 days. So "the gate works" is established only as "works on fresh
-  inputs (n=1, by luck); untested on stale-and-moved."
+- **Magnitude (corrected — verify the number, don't assume the cadence).** The stale bound is the sentinel
+  **TTL / re-surfacing cadence, NOT the weekly L0 cadence** — markers refresh ONLY when a name re-enters the
+  L0 *surfaced top-K* (`scan_top_k`); a sentinel that persists without re-surfacing carries its old markers.
+  **Measured on the 2026-06-25 L1:** marker-ages ran **1.3 days (AG, re-surfaced 6/24) to 22.7 days (VRT,
+  last surfaced 6/3); 7 of 8 sentinels at 15–22 days.** The original "up-to-6-day" estimate (this note,
+  pre-correction) wrongly assumed every sentinel re-surfaces every weekly L0.
+- **Catch-latency ≠ absolute age (distinct).** A genuine *break* re-clears the gate and refreshes at the
+  next L0 **iff it cracks the top-K** → catch-relevant blindness is ~7 days (to the next L0), *longer if the
+  break doesn't rank into the top-K* (a coupling to the §5 rank). The 15–22-day ages above are **non-breaking**
+  names (quiet → stale-quiet markers ≈ still-quiet), so that large absolute staleness is **mostly harmless**.
+  The danger is a fast break inside the (next-L0 + top-K-entry) window.
+- **Harmless on slow cohorts** holds — the live universe re-rates over months (8–12mo up-legs, measured), and
+  a quiet name's weeks-old markers still read quiet; the 2026-06 silver/freight branch-A verdict stands *for
+  that cohort* on this basis.
+- **Why it went unnoticed:** the one production read the branch-A diagnosis leaned on (AG) was the **only fresh
+  sentinel** on the 6/25 L1 (1.3d; ~8h at run303) — fresh by a same-morning manual-L0 **exception**, not the
+  rule. So "the gate works" is established only as "works on fresh inputs (n=1, by luck); untested on
+  stale-and-moved."
+- **Telemetry (the condition is currently UN-AUDITABLE).** Marker-age is **derivable** (`proposal.as_of −
+  sentinel.last_seen_at`) but **not stamped**, and the derivation is **corruptible** — `last_seen_at` advances
+  if the name re-surfaces later, mis-deriving a past proposal's age. The correct fix is a marker-age **stamped
+  at judgment** on the proposal (a separate code PR; also the precursor the cheapness-watch needs to compare
+  the cheap-window against the staleness lag).
 
-**Decoupled from any build:** this is recorded as an architectural fact, **not** a justification for
-fast-track urgency. It bites the catch problem **only if** the cheap-entry window is shorter than the
-staleness lag — a market-gated number the cheapness-watch (§-future) measures. Pin it here so a future
-reader weighs the binding leg's confidence accordingly; do not let it become manufactured urgency the
-timescale data (slow cohort) does not support.
+**Decoupled from any build, with a pre-committed RE-OPEN trigger (anti-HARK, symmetric).** This is an
+architectural fact, **not** a fast-track-urgency justification (the slow-cohort timescale doesn't support
+that). But to guard the *opposite* failure — documented-and-forgotten — the deferral is conditional, not
+open-ended: **RE-OPEN finding #1 (build the L1 marker-refresh / fast-track) IFF the cheapness-watch measures a
+cheap-entry window shorter than the staleness lag** (the next-L0 + top-K re-surfacing latency — ~1+ weeks, not
+days, per the corrected magnitude). Until that measurement exists, it stays documented, not built.
 
 ---
 
