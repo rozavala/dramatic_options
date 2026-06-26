@@ -222,6 +222,13 @@ def _render_health_risk(snap) -> None:
                         help="LLM spend for this council run across all 3 providers.")
             if rt.get("strategist_abstained"):
                 st.caption(f"🧠 strategist reasoned-abstained on {rt['strategist_abstained']} name(s) — a healthy exclude, not a failure.")
+            ms = h.get("marker_staleness") or {}
+            if ms.get("n_with_markers"):
+                st.caption(
+                    f"🕐 markers as-of: median {ms.get('median_age_days')}d · max {ms.get('max_age_days')}d "
+                    f"({ms.get('max_age_symbol')}) over {ms['n_with_markers']} sentinel(s) — DIAGNOSTIC magnitude, "
+                    "not an alarm (a large age on a quiet name is benign; catch-relevant 'stale ∧ moved' needs "
+                    "the marker-refresh to detect). §7.1.")
         st.caption(f"models: {cp.get('model_mix') or '—'}")
 
         bp = cp.get("by_provider") or {}

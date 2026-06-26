@@ -40,9 +40,11 @@ from council.proposal import passes_floor
 from council.scoring import agent_contribution
 from council_health_report import council_l1_health, latest_council_run
 
-SCHEMA_EXPECTED = 14  # the highest migration whose data a panel RENDERS — bump ONLY then (not every migration).
+SCHEMA_EXPECTED = 16  # the highest migration whose data a panel RENDERS — bump ONLY then (not every migration).
 #                       Warns only if the DB is BEHIND this (a DB ahead is fine; see header_status schema_ok).
-# Rendered through 14: 0013 runs.data_feed (regime_panel) + 0014 gate_dualread (gate_dualread_report).
+# Rendered through 16: 0013 runs.data_feed (regime_panel) + 0014 gate_dualread (gate_dualread_report)
+#                      + 0016 council_proposals.markers_asof (council_l1_health.marker_staleness). 0015 is
+#                      NOT rendered, but the high-water mark is the DB version, and rendering 0016 needs ≥16.
 # Staleness thresholds (hours) — documented, generous enough to not false-alarm over a normal weekend/holiday.
 STALE_HOURS = {"cycle": 26.0, "council": 96.0, "discovery": 8.0 * 24.0}
 MIN_CI_N = 8  # below this, a percentile bootstrap is degenerate → suppress the CI (operator R2: n=3 reads tight)
