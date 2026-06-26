@@ -27,11 +27,10 @@ Diagnostic only (like `marker_staleness`).
    pick** — the real-extractor discipline, never a proxy wing.
 3. **break trigger — INHERITED:** the funnel's fresh leg, `|mom_recent| ≥ 0.20 ∧ rv_rising ≥ 0.10`
    ("a fresh inflection just started").
-4. **cheap-window (the deciding number) — counting methodology pinned:** the count of trading days the
-   gate stays `cheap` from the break trigger (first-cross) until it **first** flips to not-cheap. Daily
-   resolution; the gate's own `cheap` boolean; first-cross→first-flip (no post-hoc re-choice of window).
-5. **§7.1 re-open trigger:** re-open finding #1 (build the persist) **IFF** the measured cheap-window
-   `<` the staleness lag (~16–23d). Equality/wider ⇒ do not fire.
+4. **cheap-window + §7.1 trigger — SUPERSEDED by §2.1 (single source of truth).** The original
+   first-cross→first-flip window and the cheap-window-`<`-lag trigger are replaced by §2.1's debounced
+   break-onset, **sustained** (2-consecutive) close, the three `cheap_window`/`never_cheap` states, the
+   `marker_age_at_break` selection dimension, and the **JOINT** trigger. Read §2.1, not this item.
 
 ## §2.1 — Live-arm state-machine pins (amendment 2026-06-26, BLIND, before the build exists)
 
@@ -52,10 +51,20 @@ module is written, so the deciding measurement isn't defined after seeing data:
    ("cheap at onset, flipped immediately"). For the §7.1 trigger these are **opposite** findings
    ("never catchable" vs "caught cheap, briefly") — the schema records three states: `never_cheap` /
    `cheap_window_days = 0` / `cheap_window_days = N≥1`.
-4. **§7.1 trigger (restated against the states):** fires (build the persist) IFF, across observed breaks,
-   the `cheap_window_days` distribution (excluding `never_cheap`) sits **below** the staleness lag
-   (~16–23d). `never_cheap` breaks are reported **separately** — they bear on catchability-at-all, not the
-   staleness-lag race.
+4. **`marker_age_at_break` — the SELECTION dimension (recorded per break).** = the name's marker-age at
+   the onset session (`as_of − markers_asof`, the migration-0016 stamp). The watch only sees breaks in
+   names that are **active sentinels when they break**, and a break on a **fresh-marker** name is the case
+   finding #1 does **not** bite (at_inflection already sees it). So `marker_age_at_break` partitions
+   **benign** (fresh → seen in time) from **harmful** (stale → at_inflection blind) breaks. Without it the
+   watch could record wide `cheap_window_days` on freshly-surfaced names and conclude "don't fire" while
+   the harm case (break + stale markers + missed re-judge) goes **unmeasured** — the selection trap.
+5. **§7.1 trigger — the JOINT condition (restated).** Fires (build the persist) IFF, across breaks where
+   **`marker_age_at_break` was STALE** (≥ ~the staleness lag, so at_inflection was blind at the break), the
+   `cheap_window_days` distribution (excluding `never_cheap`) sits **below** the lag (~16–23d). Breaks on
+   **fresh-marker** names are benign-by-construction (recorded, NOT counted toward the harm — the persist
+   wouldn't have helped them). `never_cheap` breaks reported **separately** (catchability-at-all, not the
+   staleness race). **The persist's value = breaks that are BOTH catchable-cheap AND missed-due-to-staleness;
+   the watch measures that intersection, not the cheap-window alone.**
 
 ## §3 — Two arms
 
