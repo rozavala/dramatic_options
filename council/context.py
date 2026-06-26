@@ -243,6 +243,11 @@ def sentinel_context_pack(
     gets a byte-identical pack; the COUNCIL path (``build_context_pack``) passes the fetched corpus
     + counts so a council sentinel pack carries markers + FUNDAMENTALS + coverage counts (§3).
     ``grounded`` stays markers-only (origin='sentinel' → no OR-leg)."""
+    # KNOWN LIMITATION (PREREG_FRESH_INFLECTION_FUNNEL §7.1): these markers are the PERSISTED ones from
+    # the last weekly L0 scan — they are NOT recomputed at the daily L1 (compute_markers runs only in the
+    # discovery path). So the binding `at_inflection` leg is grounded on up-to-6-day-STALE data, while
+    # build_context_pack fetches news + fundamentals FRESH each cycle. Harmless on slow cohorts; on a fast
+    # mover the council can read a mid-week break up to ~7 days late, invisibly. Decoupled, not yet fixed.
     markers = (getattr(candidate, "markers", None) or {})
     lines = _marker_evidence(markers)
     return ContextPack(
