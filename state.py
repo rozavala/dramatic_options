@@ -759,11 +759,17 @@ def record_council_proposal(
     model_mix: Any = None,
     status: str = "proposed",
     sentinel_id: int | None = None,
+    markers_asof: str | None = None,
 ) -> int:
     """Insert a council theme proposal (T2). Returns its id. Atomic.
 
     Records EVERY proposal the strategist emitted, traded or not — the forward-scoring
     substrate (guardrail §6: the council is validated forward, never backtested).
+
+    ``markers_asof`` (migration 0016, finding #1 / §7.1): the sentinel's ``last_seen_at`` AT JUDGMENT
+    — i.e. when the markers the binding ``at_inflection`` leg reasoned over were last recomputed at an
+    L0. Stamped point-in-time + frozen so marker-age (= ``as_of − markers_asof``) is non-corruptible.
+    NULL for hand-seed proposals (news-grounded, no markers).
     """
     import json
 
@@ -775,11 +781,12 @@ def record_council_proposal(
         cur = conn.execute(
             "INSERT INTO council_proposals (run_id, as_of, theme, symbol, direction, conviction, "
             "structural_vs_fad, weakest_point, rationale, strategist_summary, cost_usd, model_mix, "
-            "status, sentinel_id, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            "status, sentinel_id, markers_asof, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
             (
                 run_id, as_of, theme, symbol, direction, conviction, structural_vs_fad,
-                weakest_point, rationale, strategist_summary, cost_usd, model_mix, status, sentinel_id,
+                weakest_point, rationale, strategist_summary, cost_usd, model_mix, status,
+                sentinel_id, markers_asof,
             ),
         )
     return int(cur.lastrowid)

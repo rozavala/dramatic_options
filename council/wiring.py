@@ -46,12 +46,20 @@ def council_to_themes(
     n_dropped = 0
     for p in proposals:
         is_trade = id(p) in tradeable_ids
+        # finding #1 / §7.1: stamp when the markers the binding at_inflection leg judged were last
+        # recomputed (the sentinel's last_seen_at AT JUDGMENT — same cycle, so it matches the markers
+        # actually read). Frozen on the row so marker-age is non-corruptible; None for hand-seeds.
+        markers_asof = None
+        if p.sentinel_id is not None:
+            srow = state.sentinel_by_id(conn, p.sentinel_id)
+            markers_asof = srow["last_seen_at"] if srow else None
         proposal_id = state.record_council_proposal(
             conn, run_id=run_id, as_of=as_of_iso, theme=p.theme, symbol=p.symbol,
             direction=p.direction, conviction=p.conviction, structural_vs_fad=p.structural_vs_fad,
             weakest_point=p.weakest_point, rationale=p.rationale,
             strategist_summary=p.strategist_summary, cost_usd=p.cost_usd, model_mix=p.model_mix,
             status="proposed" if is_trade else "dropped", sentinel_id=p.sentinel_id,
+            markers_asof=markers_asof,
         )
         for ao in p.agent_outputs:
             state.record_agent_output(
