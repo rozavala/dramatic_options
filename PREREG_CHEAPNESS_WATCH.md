@@ -45,12 +45,12 @@ module is written, so the deciding measurement isn't defined after seeing data:
 2. **window-close (clock STOP):** the first session of **sustained** not-cheap = **2 consecutive**
    not-cheap sessions (a 1-session IV blip does NOT close it). Window length = sessions from onset to the
    first of those 2.
-3. **`never_cheap` — a DISTINCT state, never merged with `cheap_window_days = 0`.** If the gate is **not
-   cheap at the break-onset session** and does not turn cheap before close → state `never_cheap` (IV
-   already popped — the *modal* outcome for a narrated breaker). `cheap_window_days = 0` means the opposite
-   ("cheap at onset, flipped immediately"). For the §7.1 trigger these are **opposite** findings
-   ("never catchable" vs "caught cheap, briefly") — the schema records three states: `never_cheap` /
-   `cheap_window_days = 0` / `cheap_window_days = N≥1`.
+3. **`never_cheap` — a DISTINCT state.** If the gate is **not cheap at the break-onset session** → state
+   `never_cheap` (IV already popped — the *modal* narrated-breaker outcome); otherwise the break is
+   `cheap_window_days = N`. **Under inclusive cheap-day counting the onset itself is ≥1 enterable day, so
+   `cheap_window_days = 0` is UNREACHABLE — `never_cheap` (0 enterable days) IS the 0-state.** Two states:
+   `never_cheap` / `cheap_window_days = N≥1` (the original "=0" wording dropped — implementation reconcile
+   2026-06-27; the distinct-state intent, "never catchable" vs "caught cheap", preserved).
 4. **`marker_age_at_break` — the SELECTION dimension (recorded per break).** = the name's marker-age at
    the onset session (`as_of − markers_asof`, the migration-0016 stamp). The watch only sees breaks in
    names that are **active sentinels when they break**, and a break on a **fresh-marker** name is the case
@@ -65,6 +65,28 @@ module is written, so the deciding measurement isn't defined after seeing data:
    wouldn't have helped them). `never_cheap` breaks reported **separately** (catchability-at-all, not the
    staleness race). **The persist's value = breaks that are BOTH catchable-cheap AND missed-due-to-staleness;
    the watch measures that intersection, not the cheap-window alone.**
+6. **N-floor (pinned — no verdict off noise).** The trigger reads **`insufficient_N`** until **≥
+   `n_qualify_floor` (default 5, configurable)** *qualifying* breaks (stale ∧ catchable) have been observed
+   — never a fire/don't-fire off 1–2 events (the generator's N-floor discipline; close negatives on
+   measurement, not argument). The panel shows the **qualifying-break count** beside any window stat.
+   **The conjunctive filters (active sentinel ∧ caught-at-onset ∧ stale markers ∧ cheap) make qualifying
+   breaks RARE** (plausibly 1–2/yr on a ~5–10-name cohort), so **`insufficient_N` is the EXPECTED
+   long-term state — and a sustained one is itself the finding:** the harm is too infrequent to spend on,
+   the persist stays gated, a clean negative — not a stall. Read it lightly; let it take the time it takes.
+7. **Rate-based close (the symmetric partner to the N-floor; pinned BLIND).** The decision-relevant
+   signal is the qualifying-break **RATE**, not the window distribution (N≥5 windows is *years*; the rate
+   reads in ~one quarter). The persist's value = rate × value-per-catch, so a near-zero qualifying rate
+   de-prioritizes finding #1 **on the rate alone** — no window distribution needed; the years-long N≥5
+   path binds ONLY in the surprising high-rate world (itself the thesis-relevant signal that the persist
+   matters). **Pinned:** if after **T = 90 days** the `qualifying_per_quarter` rate is **< 2** (the
+   materiality floor), **close finding #1 as a RARE-HARM negative — de-prioritize the persist** (a dated
+   clean negative, not an open loop). The N-floor guards against firing on noise; the rate-close guards
+   against `insufficient_N` forever.
+   **PRECONDITION — curation feeds the watch:** the rate is interpretable ONLY once the cohort holds
+   **break-CAPABLE** (fresh-ish quiet, curation-fed) names — a watch over post-move run-out names sees
+   zero breaks because they already moved, **NOT** because the harm is rare. Until the cohort is
+   curation-widened, a zero rate is **uninterpretable** (no break-capable names), not a clean negative —
+   **the T-clock starts when the cohort is break-capable**, not at first observation.
 
 ## §3 — Two arms
 

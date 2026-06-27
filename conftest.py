@@ -44,6 +44,7 @@ def convexity_db(tmp_path):
     _apply_migration(conn, "0014_gate_dualread.py")
     _apply_migration(conn, "0015_discovery_funnel.py")
     _apply_migration(conn, "0016_marker_asof.py")
+    _apply_migration(conn, "0017_cheapness_watch.py")
     try:
         yield conn
     finally:
