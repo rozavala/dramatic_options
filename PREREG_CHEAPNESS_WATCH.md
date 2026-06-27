@@ -65,6 +65,14 @@ module is written, so the deciding measurement isn't defined after seeing data:
    wouldn't have helped them). `never_cheap` breaks reported **separately** (catchability-at-all, not the
    staleness race). **The persist's value = breaks that are BOTH catchable-cheap AND missed-due-to-staleness;
    the watch measures that intersection, not the cheap-window alone.**
+6. **N-floor (pinned — no verdict off noise).** The trigger reads **`insufficient_N`** until **≥
+   `n_qualify_floor` (default 5, configurable)** *qualifying* breaks (stale ∧ catchable) have been observed
+   — never a fire/don't-fire off 1–2 events (the generator's N-floor discipline; close negatives on
+   measurement, not argument). The panel shows the **qualifying-break count** beside any window stat.
+   **The conjunctive filters (active sentinel ∧ caught-at-onset ∧ stale markers ∧ cheap) make qualifying
+   breaks RARE** (plausibly 1–2/yr on a ~5–10-name cohort), so **`insufficient_N` is the EXPECTED
+   long-term state — and a sustained one is itself the finding:** the harm is too infrequent to spend on,
+   the persist stays gated, a clean negative — not a stall. Read it lightly; let it take the time it takes.
 
 ## §3 — Two arms
 
