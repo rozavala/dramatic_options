@@ -133,6 +133,17 @@ def run_generate(
             log.info("generator.enabled=false — generator inert (no synthesis, no spend).")
             return GenerateResult([], 0, 0, 0, None, "generator_disabled")
 
+    # ── seed-slice feasibility (PREREG_SEEDED_GENERATOR_DIAGNOSTIC P1): a slice with no non-ETF
+    #    entity-RESOLVABLE source cannot satisfy leg (c) — fail closed BEFORE any router build / spend,
+    #    rather than filing a misattributed negative. Live path only (demo injects its own corpus). ──
+    if seed_theme and not demo and corpus is None:
+        from corpus.content import load_content
+        from generator.score import slice_feasible
+        if not slice_feasible(seed_theme, content=load_content(), config=config):
+            log.warning("seed theme '%s' slice has no non-ETF entity-resolvable source — leg (c) is "
+                        "unsatisfiable; refusing to spend (PREREG_SEEDED_GENERATOR_DIAGNOSTIC P1).", seed_theme)
+            return GenerateResult([], 0, 0, 0, None, "seed_slice_infeasible")
+
     as_of = as_of or datetime.now(UTC)
     router = _build_router(config, demo=demo)
     if router is None:

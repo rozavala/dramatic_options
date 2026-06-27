@@ -182,9 +182,27 @@ def test_run_generate_restricts_corpus_to_seed_theme_in_live_read(tmp_path, monk
     monkeypatch.setattr("generator.read.read_corpus", _spy_read)
     monkeypatch.setattr("risk.kill_switch_active", lambda: False)
     monkeypatch.setattr(orchestrate, "_build_router", lambda config, *, demo: _SpyRouter({"claims": []}))
-    orchestrate.run_generate(demo=False, seed_theme="nuclear_fuel", cache=object(), as_of=_NOW, write=False,
+    # space_smallcap is FEASIBLE (federal_awards) so it passes the guard and reaches the read; nuclear_fuel
+    # would be short-circuited by the feasibility guard (its own test below).
+    orchestrate.run_generate(demo=False, seed_theme="space_smallcap", cache=object(), as_of=_NOW, write=False,
                              config={"forward_enabled": True, "generator": {"enabled": True}})
-    assert list(captured["content"]["themes"].keys()) == ["nuclear_fuel"]   # restricted to the one theme
+    assert list(captured["content"]["themes"].keys()) == ["space_smallcap"]   # restricted to the one theme
+
+
+def test_run_generate_fails_closed_on_infeasible_seed_slice(tmp_path, monkeypatch):
+    # P0/P1: nuclear_fuel's non-ETF sources (nrc/eia) are entity-FREE → leg (c) unsatisfiable → the
+    # feasibility guard refuses to spend BEFORE the router build (never a misattributed negative).
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    monkeypatch.setattr("corpus.content.load_content",
+                        lambda *a, **k: json.loads((repo / "corpus_content.json").read_text()))
+    monkeypatch.setattr("risk.kill_switch_active", lambda: False)
+    built = {"n": 0}
+    monkeypatch.setattr(orchestrate, "_build_router",
+                        lambda config, *, demo: built.__setitem__("n", built["n"] + 1) or _SpyRouter())
+    res = orchestrate.run_generate(demo=False, seed_theme="nuclear_fuel", cache=object(), as_of=_NOW,
+                                   write=False, config={"forward_enabled": True, "generator": {"enabled": True}})
+    assert res.note == "seed_slice_infeasible" and built["n"] == 0   # refused BEFORE the router build (no spend)
 
 
 def test_demo_drops_confabulated_entity_through_the_full_entry(tmp_path, monkeypatch):

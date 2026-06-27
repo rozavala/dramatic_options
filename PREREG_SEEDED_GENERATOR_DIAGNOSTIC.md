@@ -6,6 +6,11 @@ band was pinned for the *full-corpus* run; a seeded slice has a different denomi
 §10 would HARK. The red-team caught the original criterion measuring *"narrow input → different output"*
 (near-tautological) instead of the hypothesis; this is the corrected pin.
 
+> **⚠ §9 (dated 2026-06-27) amends this BEFORE the first run — read it WITH §3/§4.** A second pre-spend
+> red-team found `nuclear_fuel`'s non-ETF sources are entity-FREE (leg (c) unsatisfiable → a structural zero).
+> §9 supersedes the **first theme** (§3: `nuclear_fuel` → **`space_smallcap`**) and **refines leg (c)** (§4:
+> "non-ETF source" → "non-ETF **entity-resolvable** source"). Where §3/§4 say `nuclear_fuel`/`nrc`/`eia`, §9 governs.
+
 ## §1 — Hypothesis
 The **autonomous** generator is measured-dead (`records/2026-06-23_…negative.md`: it re-derives
 narrated/in-universe names — `gen_rescore` 0/17 on `under_narrated`, 8/9 already in-universe — because a
@@ -91,3 +96,33 @@ before emissions exist (so no operationalization choice is made to taste later).
 6. **The scorer computes Stage-1 fully offline** (legs a+c, ≥3/5 stability, the subset plumbing-check, the
    DROP split) and emits the Stage-2 candidate list; **Stage-2 needs the ONE live council `under_narrated`
    re-score** on that list — the scorer then computes `YIELD(seeded) > YIELD(autonomous)` from the labels.
+
+## §9 — Pre-spend correction (dated amendment 2026-06-27, BLIND — no emission exists, so anti-HARK-clean)
+
+A pre-spend red-team caught a **structural** flaw seeded by the original `nuclear_fuel` recommendation
+("multi-source"), which propagated into §3/§4 and was sealed by the #108 universe-drop. Corrected before
+the first run.
+
+- **The error:** "multi-source" is NOT the property that matters; **"has a non-ETF *entity-resolvable*
+  source"** is. `nuclear_fuel`'s non-ETF sources `nrc`/`eia` are `ENTITY_FREE_MACRO` (§3 verify-class:
+  structural/series, no resolvable company), so leg (c) is **unsatisfiable** there — every surviving entity
+  is in the ETF (c2 fails), every non-ETF entity is DROPped pre-scoring (`dropped_entity_unresolved`). The
+  seeded yield is **zero by construction**, and `stage1` would misread empty-⊆-autonomous as a
+  plumbing-negative — filing a **false negative against the whole seeded-generator idea**.
+- **Leg (c) redefined** (§4): "non-ETF source" → "non-ETF **entity-resolvable** source" = §3 verify-class
+  `ENTITY_BEARING` or `FREE_TEXT_RECIPIENT`, NEVER `ENTITY_FREE_MACRO`. The scorer reuses
+  `generator.verify.SOURCE_CLASS` (single source of truth): `second_order_sources(nuclear_fuel)=∅`,
+  `(space_smallcap)={federal_awards}`.
+- **First theme → `space_smallcap`** (§3): it routes an ETF (UFO/ARKX, for the c2 exclusion) AND a
+  theme-scoped entity-resolvable source (`federal_awards` NAICS 336414, recipient-name = `FREE_TEXT_RECIPIENT`)
+  — the only currently-routed theme with both. (More narrated than nuclear ⇒ a harder, more-meaningful
+  Stage-2 bar.) `nuclear_fuel` is deferred to **option (b)**: theme-scope `customer_concentration` into its
+  slice (the 10-K supplier-of-the-supplier linkage) — the fidelity upgrade after an existence proof.
+- **Feasibility guard** (P1, the cluster-cap-guard pattern): `slice_feasible` asserts ≥1 non-ETF
+  entity-resolvable source; `run_generate` **fails closed (`seed_slice_infeasible`) before any router
+  build/spend** on a dead slice — never a misattributed negative.
+- **§6 DROP-split read corrected:** the dead-slice / entity-free signal is a high
+  **`dropped_entity_unresolved`**, NOT `dropped_fact_untraced`.
+- **#108 kept, not reverted:** the universe-drop is correct for a theme with a **theme-scoped**
+  entity-resolvable source (`space_smallcap`'s `federal_awards` survives it — verified); only option-(b)
+  themes that depend on universe-wide entity-bearing pulls need it refined, which option (b) does explicitly.
