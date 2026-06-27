@@ -1,5 +1,6 @@
 import type { ViewModel } from "../data/types";
 import { color, signal, type Level } from "../theme/tokens";
+import { CheapnessWatch } from "./CheapnessWatch";
 
 const INTRO =
   "Ideas pass through the AI debate first, then a deterministic cheapness gate, then the risk caps. The council can " +
@@ -117,6 +118,8 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
           ))}
         </div>
       )}
+
+      <div style={{ marginTop: 16 }}><CheapnessWatch data={vm.cheapness} /></div>
     </>
   );
 }

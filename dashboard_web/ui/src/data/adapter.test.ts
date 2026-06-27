@@ -266,4 +266,15 @@ describe("fromBackend", () => {
     expect(vm.data).toHaveLength(3);
     expect(vm.universe.n).toBe(54);
   });
+
+  it("maps the cheapness panel through; an {error} panel → null + degraded (finding #1 on :8602)", () => {
+    const ok = fromBackend({ ...synthetic(), cheapness: {
+      verdict: "insufficient_N", n_breaks: 0, n_qualifying: 0, n_never_cheap: 0, n_fresh_marker: 0,
+      qualifying_per_quarter: null, observed_days: null, latest_by_name: [], note: "x",
+    } } as Snapshot);
+    expect(ok.cheapness?.verdict).toBe("insufficient_N");
+    const bad = fromBackend({ ...synthetic(), cheapness: { error: "no such table" } } as unknown as Snapshot);
+    expect(bad.cheapness).toBeNull();
+    expect(bad.degraded).toContain("cheapness");
+  });
 });
