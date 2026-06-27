@@ -24,6 +24,12 @@ from typing import Any
 from corpus.content import read_coords, restrict_to_theme
 from corpus.etf_constituents import SOURCE as ETF_SOURCE
 from generator.entity import _norm
+from generator.verify import ENTITY_BEARING, FREE_TEXT_RECIPIENT, SOURCE_CLASS
+
+# §3 source classes that can carry a RESOLVABLE company entity (a non-ETF (a)+(c) candidate can only
+# resolve through one of these). ENTITY_FREE_MACRO (nrc/eia/bls — structural/series) cannot — the
+# nuclear_fuel trap: its only non-ETF sources are entity-free, so leg (c) is unsatisfiable there.
+_ENTITY_RESOLVABLE = frozenset({ENTITY_BEARING, FREE_TEXT_RECIPIENT})
 
 
 def assert_matched_version(artifacts: list[dict[str, Any]]) -> tuple[str, str]:
@@ -46,10 +52,20 @@ def assert_matched_version(artifacts: list[dict[str, Any]]) -> tuple[str, str]:
 
 def second_order_sources(seed_theme: str, *, content: dict[str, Any], config: dict[str, Any],
                          etf_source: str = ETF_SOURCE) -> set[str]:
-    """Theme-general (§4): the seed slice's cited sources MINUS the ETF source (for ``nuclear_fuel`` →
-    ``{nrc, eia}``). Derived from the routing — never hardcoded — so a new seed theme needs no edit."""
+    """Theme-general (§4): the seed slice's non-ETF sources that can carry a RESOLVABLE non-ETF entity —
+    §3 class ENTITY_BEARING or FREE_TEXT_RECIPIENT, NOT ENTITY_FREE_MACRO. Derived from the routing (never
+    hardcoded). The entity-free filter is the nuclear_fuel fix: `space_smallcap` → {federal_awards} (viable);
+    `nuclear_fuel` → {} (its non-ETF sources nrc/eia are entity-free → leg (c) unsatisfiable)."""
     sliced = read_coords(restrict_to_theme(content, seed_theme), config)
-    return {src for src, _ in sliced if src != etf_source}
+    return {src for src, _ in sliced if src != etf_source and SOURCE_CLASS.get(src) in _ENTITY_RESOLVABLE}
+
+
+def slice_feasible(seed_theme: str, *, content: dict[str, Any], config: dict[str, Any]) -> bool:
+    """The slice-feasibility guard (P1, the cluster-cap-guard pattern): True iff the seed slice has ≥1
+    non-ETF entity-RESOLVABLE source — i.e. leg (c) is satisfiable. A dead slice (e.g. nuclear_fuel) → False
+    → ``run_generate`` fails closed BEFORE any synthesis spend, rather than filing a misattributed negative
+    ('the slice has no entity-bearing source' must not read as 'the generator can't find quiet names')."""
+    return bool(second_order_sources(seed_theme, content=content, config=config))
 
 
 def _entities(artifact: dict[str, Any]) -> list[tuple[str, frozenset[str]]]:

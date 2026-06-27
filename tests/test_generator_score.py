@@ -6,9 +6,8 @@ from __future__ import annotations
 
 import pytest
 
-from corpus.eia_series import SOURCE as EIA_SOURCE
 from corpus.etf_constituents import SOURCE as ETF_SOURCE
-from corpus.nrc_dockets import SOURCE as NRC_SOURCE
+from corpus.federal_awards import SOURCE as AWARDS_SOURCE
 from generator import score
 from generator.entity import _norm
 
@@ -31,13 +30,19 @@ def test_assert_matched_version():
         score.assert_matched_version([_art([]), _art([], model="m2")])
 
 
-def test_second_order_sources_theme_general():
+def test_second_order_sources_filters_entity_free_and_feasibility():
     from pathlib import Path
 
     from corpus.content import load_content
     content = load_content(Path(__file__).resolve().parent.parent / "corpus_content.json")  # CWD-robust
-    srcs = score.second_order_sources("nuclear_fuel", content=content, config={"universe": {"themes": {}}})
-    assert srcs == {NRC_SOURCE, EIA_SOURCE}                  # the slice's sources MINUS the ETF source
+    cfg = {"universe": {"themes": {}}}
+    # nuclear_fuel: its non-ETF sources (nrc/eia) are ENTITY-FREE → no resolvable second-order source →
+    # leg (c) unsatisfiable → the slice is INFEASIBLE (the nuclear_fuel trap).
+    assert score.second_order_sources("nuclear_fuel", content=content, config=cfg) == set()
+    assert score.slice_feasible("nuclear_fuel", content=content, config=cfg) is False
+    # space_smallcap: federal_awards is FREE_TEXT_RECIPIENT (entity-resolvable) → feasible.
+    assert score.second_order_sources("space_smallcap", content=content, config=cfg) == {AWARDS_SOURCE}
+    assert score.slice_feasible("space_smallcap", content=content, config=cfg) is True
 
 
 def test_score_arm_hand_checked():
@@ -45,14 +50,14 @@ def test_score_arm_hand_checked():
     # OLDCO: in register → leg (a) fails. ETFCO: in the ETF → leg (c2) fails. NOSRC: ETF-only cite → (c) fails.
     # ONCE: qualifies but 1/5 → not stable.
     runs = [
-        [_claim("NEWCO", [NRC_SOURCE]), _claim("OLDCO", [NRC_SOURCE])],
-        [_claim("NEWCO", [EIA_SOURCE]), _claim("ETFCO", [NRC_SOURCE])],
-        [_claim("NEWCO", [NRC_SOURCE]), _claim("NOSRC", [ETF_SOURCE])],
-        [_claim("NEWCO", [NRC_SOURCE])],
-        [_claim("ONCE", [NRC_SOURCE])],
+        [_claim("NEWCO", [AWARDS_SOURCE]), _claim("OLDCO", [AWARDS_SOURCE])],
+        [_claim("NEWCO", [AWARDS_SOURCE]), _claim("ETFCO", [AWARDS_SOURCE])],
+        [_claim("NEWCO", [AWARDS_SOURCE]), _claim("NOSRC", [ETF_SOURCE])],
+        [_claim("NEWCO", [AWARDS_SOURCE])],
+        [_claim("ONCE", [AWARDS_SOURCE])],
     ]
     arm = score.score_arm([_art(r, de=1) for r in runs], register_keys={"OLDCO"},
-                          second_order_srcs={NRC_SOURCE, EIA_SOURCE}, etf_holdings={"ETFCO"}, stability_min=3)
+                          second_order_srcs={AWARDS_SOURCE}, etf_holdings={"ETFCO"}, stability_min=3)
     assert arm["stable_qualifying"] == {_norm("NEWCO")}      # 4/5 ≥ 3; everything else excluded
     assert arm["drop_split"]["dropped_entity_unresolved"] == 5   # 1 per run × 5 runs
 
