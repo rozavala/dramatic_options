@@ -121,12 +121,15 @@ def read_coords(content: dict[str, Any], config: dict[str, Any]) -> list[tuple[s
 
 
 def restrict_to_theme(content: dict[str, Any], seed_theme: str) -> dict[str, Any]:
-    """A copy of ``content`` with ``themes`` filtered to the single ``seed_theme`` — the seeded-generator
+    """A copy of ``content`` sliced to the single ``seed_theme``'s OWN routed pulls — the seeded-generator
     corpus slice (PREREG_SEEDED_GENERATOR_DIAGNOSTIC). The human names the (quiet) sector; the generator
-    then synthesizes only over that sector's pulls. Raises ``KeyError`` if the theme isn't routed (so a
-    typo fails loud, not silently over the whole corpus)."""
+    then synthesizes only over that sector's pulls. The **universe-wide** block (``capital_raises`` /
+    ``customer_concentration`` / ``federal_awards`` over the whole universe) is dropped too, so the slice is
+    theme-ISOLATED: its second-order sources are the theme's own non-ETF routes (e.g. nuclear_fuel → nrc,
+    eia), not cross-theme universe pulls. Raises ``KeyError`` if the theme isn't routed (a typo fails loud,
+    not silently over the whole corpus)."""
     themes = content.get("themes", {}) or {}
     if seed_theme not in themes:
         routed = sorted(k for k in themes if not k.startswith("_"))
         raise KeyError(f"seed theme '{seed_theme}' is not routed in corpus_content.json (routed: {routed})")
-    return {**content, "themes": {seed_theme: themes[seed_theme]}}
+    return {**content, "universe": {}, "themes": {seed_theme: themes[seed_theme]}}
