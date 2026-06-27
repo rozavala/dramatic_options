@@ -677,3 +677,18 @@ def test_build_theme_entry_requires_thesis_falsifier_source():
     te = dd.build_theme_entry(name="x9", cluster="", thesis="", falsifier="", source="", today="2026-06-27")
     assert not te["valid"] and len(te["problems"]) == 3        # thesis, falsifier, source all missing
     assert te["entry"]["cluster_default"] == "x9"              # empty cluster → defaults to the theme name
+
+
+def test_build_theme_entry_warns_on_unknown_cluster():
+    # the new-cluster cap footgun guard: an unknown cluster WARNS (not a blocker) so a PR reviewer can't
+    # miss that the names will fall to the $1k per-name cap instead of the $2k cluster cap.
+    known = ["ai_capex_power", "copper_supply"]
+    w = dd.build_theme_entry(name="humanoid_supply", cluster="robotics_supply", thesis="t", falsifier="f",
+                             source="s", today="2026-06-27", known_clusters=known)
+    assert w["valid"] and len(w["warnings"]) == 1 and "per-name cap" in w["warnings"][0]   # still valid, warned
+    ok = dd.build_theme_entry(name="x", cluster="copper_supply", thesis="t", falsifier="f", source="s",
+                              today="2026-06-27", known_clusters=known)
+    assert ok["warnings"] == []                                 # a known cluster → no warning
+    none = dd.build_theme_entry(name="x", cluster="anything", thesis="t", falsifier="f", source="s",
+                                today="2026-06-27")
+    assert none["warnings"] == []                               # no known_clusters passed → back-compat, silent
