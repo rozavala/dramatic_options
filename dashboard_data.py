@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
@@ -566,6 +567,72 @@ def cheapness_watch_panel(conn) -> dict:
         "ON cw.symbol = t.symbol AND cw.as_of = t.m ORDER BY cw.symbol",
     )
     return rep
+
+
+# ── curation tools (the keyless dashboard panel — DRAFTS only, never fetches/writes) ──────────────
+
+_TICKER_RE = re.compile(r"^[A-Z][A-Z.]{0,6}$")
+_THEME_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}$")
+
+
+def _sanitize_tickers(raw: str) -> list[str]:
+    """Free-text → clean uppercase tickers only (deduped, order-preserving). The rendered screen command is
+    pasted into a shell, so any token that isn't a clean ticker (letters/dot) is DROPPED — no shell
+    metacharacter (`;`, `|`, `$`, `/`, `-`, space, quote) can survive into the command."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for tok in re.split(r"[\s,]+", (raw or "").strip().upper()):
+        if tok and _TICKER_RE.match(tok) and tok not in seen:
+            seen.add(tok)
+            out.append(tok)
+    return out
+
+
+def build_screen_command(raw_tickers: str) -> dict:
+    """Build the box-side feasibility-screen command from free-text tickers (the keyless curation panel).
+    PURE — no fetch, no write, no keys; the operator runs the returned command on the box (where keys live).
+    Returns {tickers, command, dropped}."""
+    tickers = _sanitize_tickers(raw_tickers)
+    raw_count = len([t for t in re.split(r"[\s,]+", (raw_tickers or "").strip()) if t])
+    command = ("cd ~/dramatic_options && PYTHONPATH=. venv/bin/python "
+               "scripts/probe_basket_feasibility.py " + " ".join(tickers)) if tickers else ""
+    return {"tickers": tickers, "command": command, "dropped": max(0, raw_count - len(tickers))}
+
+
+def cluster_names(config: dict) -> list[str]:
+    """The existing cluster keys (for the new-theme cluster picker). Static config map; no fetch/keys."""
+    try:
+        return sorted(clusters.load_cluster_map(config).keys())
+    except Exception:  # noqa: BLE001 — the picker degrades to free-text on any config issue
+        return []
+
+
+def build_theme_entry(*, name: str, cluster: str, thesis: str, falsifier: str, source: str,
+                      today: str | None = None) -> dict:
+    """Draft a ``universe_register.json`` theme entry (the §11 ingestion shape) from form input. PURE; the
+    dashboard DISPLAYS this JSON for a PR — it NEVER writes the register (admission runs source∩screen∩OTM
+    + the gate disposes on cheapness). Returns {key, entry, json, valid, problems}."""
+    key = (name or "").strip().lower().replace(" ", "_")
+    today = today or datetime.now(UTC).date().isoformat()
+    problems: list[str] = []
+    if not _THEME_NAME_RE.match(key):
+        problems.append("name must be snake_case (a-z, then a-z/0-9/_)")
+    if not (thesis or "").strip():
+        problems.append("thesis required")
+    if not (falsifier or "").strip():
+        problems.append("falsifier required (what would kill the thesis)")
+    if not (source or "").strip():
+        problems.append("source required (the mechanical constituent source, e.g. an ETF holdings file)")
+    entry = {
+        "provenance": "operator",
+        "added": f"{today} (dashboard draft)",
+        "thesis": (thesis or "").strip(),
+        "falsifier": (falsifier or "").strip(),
+        "sources": [(source or "").strip()],
+        "cluster_default": (cluster or "").strip() or key,
+    }
+    return {"key": key, "entry": entry, "valid": not problems, "problems": problems,
+            "json": json.dumps({key: entry}, indent=2)}
 
 
 def attribution_panel(conn, config: dict) -> dict:

@@ -317,6 +317,41 @@ def _render_cheapness(snap) -> None:
     st.caption(cw["note"])
 
 
+def _render_curation_tools(config) -> None:
+    st.subheader("Curation tools")
+    st.caption("Draft the feasibility-screen command + a new-theme entry. Keyless · no-fetch · never writes — "
+               "you run the screen on the box, and a new theme lands via a quick PR (admission still runs the "
+               "§11 source∩screen∩OTM rule, and the gate disposes on cheapness).")
+
+    st.markdown("**Feasibility screen** — tickers → the command to run on the box")
+    raw = st.text_input("tickers (space/comma separated)", key="cur_tickers",
+                        placeholder="AMBA MBLY CF MOS IPI")
+    sc = dd.build_screen_command(raw)
+    if sc["tickers"]:
+        st.code(sc["command"], language="bash")
+        if sc["dropped"]:
+            st.caption(f"{sc['dropped']} token(s) dropped — only clean tickers kept (the command is pasted "
+                       f"into a shell).")
+
+    st.markdown("**New theme** — draft a `universe_register.json` entry for a PR")
+    c1, c2 = st.columns(2)
+    name = c1.text_input("theme name (snake_case)", key="cur_name", placeholder="av_autonomy")
+    cluster = c2.selectbox("cluster", options=["(new — same as theme name)"] + dd.cluster_names(config),
+                           key="cur_cluster")
+    thesis = st.text_area("thesis (the secular backdrop)", key="cur_thesis")
+    falsifier = st.text_area("falsifier (what would kill it)", key="cur_falsifier")
+    source = st.text_input("source (ETF holdings URL / constituent file)", key="cur_source")
+    if st.button("Draft theme entry", key="cur_draft"):
+        cl = "" if cluster.startswith("(new") else cluster
+        te = dd.build_theme_entry(name=name, cluster=cl, thesis=thesis, falsifier=falsifier, source=source)
+        if te["valid"]:
+            st.code(te["json"], language="json")
+            st.caption("Copy this into a PR against universe_register.json — or paste it to me and I'll open "
+                       "the PR. It does not trade until admission (§11) + the gate clear it.")
+        else:
+            st.warning("Incomplete — " + "; ".join(te["problems"]))
+
+
 def _render_market(snap) -> None:
     st.caption("Is the thesis playing out on open positions, and what regime is convexity priced in?")
     mc = snap["market_ctx"]
@@ -662,6 +697,7 @@ def main() -> None:
     with tabs[6]:
         _render_scanning(snap)
         _render_cheapness(snap)
+        _render_curation_tools(config)
 
 
 if __name__ == "__main__":
