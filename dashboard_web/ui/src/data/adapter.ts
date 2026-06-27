@@ -112,7 +112,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["sentinels", P.sentinels], ["market_ctx", P.market_ctx], ["t4", P.t4], ["nulls", P.nulls],
       ["dualread", P.dualread], ["dualread_runtime", P.dualread_runtime], ["cost", P.cost],
       ["deliberation", P.deliberation], ["cap_flow", P.cap_flow],
-      ["data_gathered", P.data_gathered],
+      ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
@@ -211,6 +211,7 @@ export function fromBackend(P: Snapshot): ViewModel {
     sub: (ss.issues && ss.issues.join(" · ")) || "Nothing needs your attention.",
     schemaWarning: h.schema_warning ?? null,
     degraded,
+    cheapness: panelError(P.cheapness) ? null : (P.cheapness ?? null),
     issues: (ss.issues ?? []).map((t) => ({ sev: "warn" as const, text: t })),
     beats: {
       kill: h.kill_switch_engaged ? "ENGAGED" : "off",

@@ -105,7 +105,19 @@ export interface Snapshot {
   cap_flow?: { cluster_cap_rejections_of_passing: number; tightening_note: string };
   regime?: unknown;
   curation?: unknown;
+  cheapness?: CheapnessPanel;
   _fatal?: string;
+}
+
+// cheapness-watch (finding #1): the §7.1 verdict + counts + per-name latest cheap state (PREREG_CHEAPNESS_WATCH).
+export interface CheapnessPanel {
+  verdict: string;
+  n_breaks: number; n_qualifying: number; n_never_cheap: number; n_fresh_marker: number;
+  qualifying_per_quarter: number | null; observed_days: number | null;
+  staleness_lag_days?: number; n_qualify_floor?: number;
+  latest_by_name: { symbol: string; as_of: string; cheap: number | null; iv_rv: number | null; marker_age_days: number | null }[];
+  note: string;
+  error?: string;
 }
 
 // null_hierarchy: per-step clean/bundled contrasts, arms keyed by book label → CI (PREREG_FIXED_BASKET_NULL §2).
@@ -209,6 +221,7 @@ export interface ViewModel {
   data: { label: string; value: string }[];
   t4: T4ItemVM[]; readiness: { pass: number; checkable: number; accruing: number };
   edgeAccrual: { n: number; target: number }; phasePct: string; phaseSub: string;
+  cheapness: CheapnessPanel | null;   // finding #1's instrument (PREREG_CHEAPNESS_WATCH)
 }
 
 /** Props the desktop console + mobile app both receive from <App> (one fetch, two layouts). */
