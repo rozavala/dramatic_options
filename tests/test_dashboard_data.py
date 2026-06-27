@@ -647,3 +647,33 @@ def test_cheapness_watch_panel(convexity_db):
     assert p["verdict"] == "insufficient_N"                    # no qualifying breaks → no decision off noise
     assert [r["symbol"] for r in p["latest_by_name"]] == ["AG"]
     assert p["latest_by_name"][0]["as_of"] == "2026-03-02"     # the MAX(as_of) row (latest cheap state)
+
+
+def test_build_screen_command_sanitizes_shell_meta():
+    # the rendered command is pasted into a shell → only clean tickers survive; shell-meta tokens dropped
+    out = dd.build_screen_command("amba, mbly, cf, $(whoami), /etc, a-b")
+    assert out["tickers"] == ["AMBA", "MBLY", "CF"]
+    assert out["dropped"] == 3
+    assert out["command"].endswith("probe_basket_feasibility.py AMBA MBLY CF")
+
+
+def test_build_screen_command_empty_is_blank():
+    out = dd.build_screen_command("   ")
+    assert out["tickers"] == [] and out["command"] == ""
+
+
+def test_build_theme_entry_valid_shape():
+    te = dd.build_theme_entry(name="AV Autonomy", cluster="ai_compute", thesis="robotaxi inflection",
+                              falsifier="IV stays rich; no scaling", source="https://x/holdings.csv",
+                              today="2026-06-27")
+    assert te["valid"] and te["key"] == "av_autonomy"
+    e = te["entry"]
+    assert e["provenance"] == "operator" and e["sources"] == ["https://x/holdings.csv"]
+    assert e["cluster_default"] == "ai_compute" and e["thesis"] and e["falsifier"]
+    assert "av_autonomy" in te["json"]
+
+
+def test_build_theme_entry_requires_thesis_falsifier_source():
+    te = dd.build_theme_entry(name="x9", cluster="", thesis="", falsifier="", source="", today="2026-06-27")
+    assert not te["valid"] and len(te["problems"]) == 3        # thesis, falsifier, source all missing
+    assert te["entry"]["cluster_default"] == "x9"              # empty cluster → defaults to the theme name
