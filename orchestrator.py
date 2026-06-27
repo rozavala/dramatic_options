@@ -22,6 +22,7 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+import cheapness_watch
 import clusters
 import discovery
 import fixed_basket
@@ -782,6 +783,20 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                         except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the real cycle
                             log.warning("no-gate 3A book pass failed (non-fatal): %s", e)
                             notify.send("Fixed-basket 3A entry failed (non-fatal)", str(e))
+
+                    # Cheapness-watch (PREREG_CHEAPNESS_WATCH) — finding #1's gating instrument, the LIVE
+                    # arm: per active sentinel, the gate-cheap read on the real tradeable structure +
+                    # FRESH markers (for the §2.1 break/window/never_cheap machine + the §7.1 rate-close).
+                    # Read-only, market-open (rides the L1 sweep cadence), fail-soft, never a trade.
+                    try:
+                        cwn = cheapness_watch.record_cheapness(
+                            conn, provider=provider, config=config, as_of=clock.now(), run_id=run_id,
+                        )
+                        if cwn:
+                            log.info("Cheapness-watch: recorded %d sentinel observation(s)", cwn)
+                    except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the real cycle
+                        log.warning("cheapness-watch pass failed (non-fatal): %s", e)
+                        notify.send("Cheapness-watch failed (non-fatal)", str(e))
 
         _print_book_summary(conn, config)
         return 0

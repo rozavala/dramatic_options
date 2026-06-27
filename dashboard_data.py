@@ -551,6 +551,23 @@ def null_hierarchy(conn) -> dict:
     }
 
 
+def cheapness_watch_panel(conn) -> dict:
+    """Finding #1's cheapness-watch (PREREG_CHEAPNESS_WATCH) — the §2.1 break/window/never_cheap state
+    machine + the §7.1 verdict (N-floor + rate-close) + per-name latest cheap state. DIAGNOSTIC:
+    ``insufficient_N`` is the EXPECTED reading (qualifying stale∧catchable breaks are conjunctively rare),
+    interpretable only once curation gives the cohort break-CAPABLE names (the §2.1.7 precondition)."""
+    import cheapness_watch
+
+    rep = cheapness_watch.cheapness_report(conn)
+    rep["latest_by_name"] = _rows(
+        conn,
+        "SELECT cw.symbol, cw.as_of, cw.cheap, cw.iv_rv, cw.marker_age_days FROM cheapness_watch cw "
+        "JOIN (SELECT symbol, MAX(as_of) m FROM cheapness_watch GROUP BY symbol) t "
+        "ON cw.symbol = t.symbol AND cw.as_of = t.m ORDER BY cw.symbol",
+    )
+    return rep
+
+
 def attribution_panel(conn, config: dict) -> dict:
     """Drivers (E): per-origin tails (above) + per-theme/cluster realized & RUNNING P&L + Brier (strategist
     final, REUSE the column) + per-role CONTRIBUTION Brier (REUSE scoring.agent_contribution, recomputed
