@@ -76,6 +76,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "market_ctx": dd.safe(dd.market_context, conn),
             "dualread": dd.safe(dd.gate_dualread_report, conn, config),
             "dualread_runtime": dd.safe(dd.dualread_runtime_panel, conn, config),
+            "cheapness": dd.safe(dd.cheapness_watch_panel, conn),
             "curation": dd.safe(dd.curation_panel, conn, config, market),
             "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir),
         }
@@ -296,6 +297,24 @@ def _render_nulls(snap) -> None:
         st.dataframe(_ci_rows(step["arms"]), width="stretch",
                      column_config={"p95": st.column_config.NumberColumn("p95", format="%.2f×")})
     st.caption(nulls["note"])
+
+
+def _render_cheapness(snap) -> None:
+    st.subheader("Cheapness-watch (finding #1)")
+    st.caption("When a staged name BREAKS, is there a cheap-entry window, and does it co-occur with stale "
+               "markers (the §7.1 harm)? `insufficient_N` is the EXPECTED reading — the harm is conjunctively "
+               "rare; interpretable only once curation gives the cohort break-capable names (§2.1.7).")
+    cw = snap["cheapness"]
+    if not _show(cw, "cheapness"):
+        return
+    rate = cw.get("qualifying_per_quarter")
+    rate_str = f" · {rate:.2f}/qtr" if rate is not None else ""
+    st.markdown(f"**verdict: `{cw['verdict']}`** · breaks {cw['n_breaks']} "
+                f"(qualifying {cw['n_qualifying']} · never-cheap {cw['n_never_cheap']} · "
+                f"fresh-marker {cw['n_fresh_marker']}){rate_str}")
+    if cw.get("latest_by_name"):
+        st.dataframe(cw["latest_by_name"], width="stretch")
+    st.caption(cw["note"])
 
 
 def _render_market(snap) -> None:
@@ -642,6 +661,7 @@ def main() -> None:
         _render_funnel(snap)
     with tabs[6]:
         _render_scanning(snap)
+        _render_cheapness(snap)
 
 
 if __name__ == "__main__":

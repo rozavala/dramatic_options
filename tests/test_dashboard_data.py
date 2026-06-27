@@ -628,6 +628,22 @@ def test_dashboard_graph_has_no_ungated_dotenv():
     # permitted reader is config_loader (gated), which the graph imports LAZILY, never at module load.
     root = Path(config_loader.__file__).resolve().parent
     graph = ["dashboard_data.py", "breach_audit.py", "clusters.py", "fixed_basket.py", "shadow_book.py",
-             "state.py", "council_health_report.py", "council/scoring.py", "council/proposal.py"]
+             "cheapness_watch.py", "state.py", "council_health_report.py", "council/scoring.py",
+             "council/proposal.py"]
     offenders = [m for m in graph if "load_dotenv" in (root / m).read_text()]
     assert not offenders, f"dashboard graph modules call load_dotenv (must stay keyless): {offenders}"
+
+
+def test_cheapness_watch_panel(convexity_db):
+    # the finding-#1 panel: cheapness_report verdict + per-name latest cheap state (read-only)
+    conn = convexity_db
+    with conn:
+        conn.execute(
+            "INSERT INTO cheapness_watch (run_id, as_of, symbol, cheap, iv_rv, rv_rising, mom_recent, "
+            "marker_age_days, created_at) VALUES "
+            "(NULL,'2026-03-01','AG',1,1.0,0.05,0.05,25,datetime('now')),"
+            "(NULL,'2026-03-02','AG',1,1.1,0.05,0.05,26,datetime('now'))")
+    p = dd.cheapness_watch_panel(conn)
+    assert p["verdict"] == "insufficient_N"                    # no qualifying breaks → no decision off noise
+    assert [r["symbol"] for r in p["latest_by_name"]] == ["AG"]
+    assert p["latest_by_name"][0]["as_of"] == "2026-03-02"     # the MAX(as_of) row (latest cheap state)
