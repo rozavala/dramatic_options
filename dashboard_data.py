@@ -608,10 +608,15 @@ def cluster_names(config: dict) -> list[str]:
 
 
 def build_theme_entry(*, name: str, cluster: str, thesis: str, falsifier: str, source: str,
-                      today: str | None = None) -> dict:
+                      today: str | None = None, known_clusters: list[str] | None = None) -> dict:
     """Draft a ``universe_register.json`` theme entry (the §11 ingestion shape) from form input. PURE; the
     dashboard DISPLAYS this JSON for a PR — it NEVER writes the register (admission runs source∩screen∩OTM
-    + the gate disposes on cheapness). Returns {key, entry, json, valid, problems}."""
+    + the gate disposes on cheapness). Returns {key, entry, json, valid, problems, warnings}.
+
+    ``known_clusters`` (the enforcement-map keys, i.e. ``cluster_names(config)``): when given and the chosen
+    ``cluster_default`` is NOT among them, a WARNING (not a blocker — a new cluster is allowed) flags that
+    the names will get the $1k per-name cap, NOT the $2k cluster cap, until ``clusters.py`` is also wired —
+    the silent risk-frame divergence a PR reviewer would otherwise miss because the entry *looks* correct."""
     key = (name or "").strip().lower().replace(" ", "_")
     today = today or datetime.now(UTC).date().isoformat()
     problems: list[str] = []
@@ -623,16 +628,22 @@ def build_theme_entry(*, name: str, cluster: str, thesis: str, falsifier: str, s
         problems.append("falsifier required (what would kill the thesis)")
     if not (source or "").strip():
         problems.append("source required (the mechanical constituent source, e.g. an ETF holdings file)")
+    cluster_default = (cluster or "").strip() or key
+    warnings: list[str] = []
+    if known_clusters is not None and cluster_default not in known_clusters:
+        warnings.append(
+            f"cluster '{cluster_default}' is NOT in the enforcement map (clusters.py) — its names get the "
+            f"$1k per-name cap, NOT the $2k cluster correlation cap, until clusters.py is wired.")
     entry = {
         "provenance": "operator",
         "added": f"{today} (dashboard draft)",
         "thesis": (thesis or "").strip(),
         "falsifier": (falsifier or "").strip(),
         "sources": [(source or "").strip()],
-        "cluster_default": (cluster or "").strip() or key,
+        "cluster_default": cluster_default,
     }
     return {"key": key, "entry": entry, "valid": not problems, "problems": problems,
-            "json": json.dumps({key: entry}, indent=2)}
+            "warnings": warnings, "json": json.dumps({key: entry}, indent=2)}
 
 
 def attribution_panel(conn, config: dict) -> dict:

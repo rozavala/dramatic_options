@@ -20,6 +20,7 @@ interface ThemeResult {
   json: string;
   valid: boolean;
   problems: string[];
+  warnings: string[];
 }
 
 // POST the form input to the PURE draft endpoint (no fetch/write/keys server-side — it reuses the same
@@ -142,6 +143,9 @@ export function Curation() {
         {theme && theme.valid && (
           <>
             <pre style={preStyle}>{theme.json}</pre>
+            {theme.warnings.length > 0 && (
+              <div style={{ marginTop: 8, color: signal.warn.text, fontSize: 12 }}>⚠ {theme.warnings.join(" ")}</div>
+            )}
             <div style={{ marginTop: 6, fontSize: 11.5, color: "#7c89a1" }}>
               Copy into a PR against universe_register.json — or paste it to your agent to open the PR.
             </div>

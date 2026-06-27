@@ -104,6 +104,18 @@ def test_curation_draft_theme_shape() -> None:
         assert body["entry"]["provenance"] == "operator" and "av_autonomy" in body["json"]
 
 
+def test_curation_draft_theme_warns_on_unknown_cluster() -> None:
+    # the API passes known_clusters=cluster_names(config) → an unknown cluster surfaces the cap warning
+    from fastapi.testclient import TestClient
+
+    with TestClient(server.app) as client:
+        r = client.post("/api/curation/draft", json={
+            "kind": "theme", "name": "zz_new", "cluster": "totally_new_cluster_xyz",
+            "thesis": "t", "falsifier": "f", "source": "s"})
+        assert r.status_code == 200
+        assert any("per-name cap" in w for w in r.json()["warnings"])
+
+
 def test_curation_draft_bad_kind_is_400() -> None:
     from fastapi.testclient import TestClient
 

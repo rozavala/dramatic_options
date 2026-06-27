@@ -115,7 +115,8 @@ def curation_draft(req: CurationDraftRequest) -> dict:
     if req.kind == "theme":
         return {"kind": "theme", **dd.build_theme_entry(
             name=req.name or "", cluster=req.cluster or "", thesis=req.thesis or "",
-            falsifier=req.falsifier or "", source=req.source or "")}
+            falsifier=req.falsifier or "", source=req.source or "",
+            known_clusters=dd.cluster_names(load_config()))}
     raise HTTPException(status_code=400, detail="kind must be 'screen' or 'theme'")
 
 
