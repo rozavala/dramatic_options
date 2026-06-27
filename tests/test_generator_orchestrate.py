@@ -16,6 +16,8 @@ import json
 import os
 from datetime import UTC, datetime
 
+import pytest
+
 from corpus.etf_constituents import SOURCE as ETF_SOURCE
 from data.cache import PointInTimeCache
 from generator import orchestrate
@@ -134,6 +136,33 @@ def test_demo_synthesizes_verifies_and_writes_one_artifact(tmp_path, monkeypatch
     assert payload["provenance"] == "generated" and payload["n_theses"] == 1
     assert payload["theses"][0]["claim_id"] == "uranium_supply_squeeze"
     assert payload["dropped_total"] == 0 and "over_citation" in payload
+
+
+def test_restrict_to_theme_slices_coords():
+    # the seeded slice (PREREG_SEEDED_GENERATOR_DIAGNOSTIC): restricting content to one theme yields a
+    # non-empty PROPER SUBSET of the full coords, drawn only from that theme's routed sources.
+    from corpus.content import load_content, read_coords, restrict_to_theme
+    content = load_content()
+    cfg = {"universe": {"themes": {}}}
+    full = set(read_coords(content, cfg))
+    sliced = set(read_coords(restrict_to_theme(content, "nuclear_fuel"), cfg))
+    assert sliced and sliced < full              # the slice bites: a non-empty, STRICT subset of the full coords
+    with pytest.raises(KeyError):
+        restrict_to_theme(content, "not_a_routed_theme")   # a typo fails loud, not silently over everything
+
+
+def test_demo_seed_theme_stamped_in_artifact(tmp_path, monkeypatch):
+    # step-0 plumbing smoke: --seed-theme flows through run_generate into the artifact (the live slice
+    # RESTRICTION itself is covered by test_restrict_to_theme_slices_coords).
+    monkeypatch.setattr("risk.kill_switch_active", lambda: False)
+    monkeypatch.setattr(orchestrate, "_build_router",
+                        lambda config, *, demo: _SpyRouter({"claims": [_GOOD]}))
+    monkeypatch.chdir(tmp_path)
+    res = orchestrate.run_generate(demo=True, corpus={}, cache=_cache(tmp_path),
+                                   config={"generator": {}}, as_of=_NOW, seed_theme="nuclear_fuel")
+    assert res.note == "ok"
+    payload = json.loads((tmp_path / res.artifact_path).read_text())
+    assert payload["seed_theme"] == "nuclear_fuel"
 
 
 def test_demo_drops_confabulated_entity_through_the_full_entry(tmp_path, monkeypatch):

@@ -102,6 +102,7 @@ def run_generate(
     as_of: datetime | None = None,
     config: dict[str, Any] | None = None,
     write: bool = True,
+    seed_theme: str | None = None,
 ) -> GenerateResult:
     """One generation pass: kill-gate → router → synthesize → §3 VERIFY → write ``records/generator/``.
 
@@ -142,12 +143,14 @@ def run_generate(
         if demo:
             corpus = corpus or {}
         else:
-            from corpus.content import load_content
+            from corpus.content import load_content, restrict_to_theme
             from data.cache import PointInTimeCache
             from generator.read import read_corpus
             cache = cache or PointInTimeCache(config.get("cache_dir", "data/cache"))
-            corpus = corpus if corpus is not None else read_corpus(
-                cache, as_of, load_content(), config)
+            content = load_content()
+            if seed_theme:  # the seeded slice (PREREG_SEEDED_GENERATOR_DIAGNOSTIC) — restrict to one theme
+                content = restrict_to_theme(content, seed_theme)
+            corpus = corpus if corpus is not None else read_corpus(cache, as_of, content, config)
 
     # ── synthesize → §3 VERIFY (fail-closed to ZERO on over-budget / provider error) ──
     coercion_map = gen.get("vocab_coercion_map") or {}
@@ -176,6 +179,7 @@ def run_generate(
         payload = {
             "as_of": as_of.isoformat(),
             "provenance": "generated",
+            "seed_theme": seed_theme,
             "n_parsed": len(result.parsed),
             "n_theses": len(result.claims),
             "dropped_entity_unresolved": de,
@@ -204,9 +208,12 @@ def main(argv: list[str] | None = None) -> int:
         "council judges and the deterministic gate disposes (the hard seam).")
     parser.add_argument("--demo", action="store_true",
                         help="Offline FakeRouter + fixture corpus (no creds/network/live-corpus).")
+    parser.add_argument("--seed-theme", default=None,
+                        help="Restrict synthesis to ONE routed theme's corpus slice "
+                             "(PREREG_SEEDED_GENERATOR_DIAGNOSTIC; e.g. nuclear_fuel).")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    res = run_generate(demo=args.demo)
+    res = run_generate(demo=args.demo, seed_theme=args.seed_theme)
     log.info("generate done: %d thesis(es), note=%s, artifact=%s",
              res.n_theses, res.note, res.artifact_path)
     return 0
