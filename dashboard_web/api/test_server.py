@@ -78,3 +78,34 @@ def test_snapshot_ttl_cache_and_nocache(monkeypatch) -> None:
         assert calls["n"] == 2  # nocache forced a rebuild
 
     server._snapshot_cache.clear()
+
+
+def test_curation_draft_screen_sanitizes() -> None:
+    from fastapi.testclient import TestClient
+
+    with TestClient(server.app) as client:
+        r = client.post("/api/curation/draft", json={"kind": "screen", "tickers": "amba, mbly, $(x), /etc"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["kind"] == "screen" and body["tickers"] == ["AMBA", "MBLY"]   # shell-meta dropped
+        assert body["command"].endswith("probe_basket_feasibility.py AMBA MBLY")
+
+
+def test_curation_draft_theme_shape() -> None:
+    from fastapi.testclient import TestClient
+
+    with TestClient(server.app) as client:
+        r = client.post("/api/curation/draft", json={
+            "kind": "theme", "name": "AV Autonomy", "cluster": "ai_compute",
+            "thesis": "robotaxi inflection", "falsifier": "IV stays rich", "source": "https://x/h.csv"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["kind"] == "theme" and body["valid"] is True and body["key"] == "av_autonomy"
+        assert body["entry"]["provenance"] == "operator" and "av_autonomy" in body["json"]
+
+
+def test_curation_draft_bad_kind_is_400() -> None:
+    from fastapi.testclient import TestClient
+
+    with TestClient(server.app) as client:
+        assert client.post("/api/curation/draft", json={"kind": "nope"}).status_code == 400

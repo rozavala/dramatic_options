@@ -31,6 +31,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from fastapi import Depends, FastAPI, Header, HTTPException  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from pydantic import BaseModel  # noqa: E402
 from snapshot import build_snapshot  # noqa: E402
 
 import dashboard_data as dd  # noqa: E402
@@ -59,7 +60,7 @@ _DEV_ORIGINS = os.environ.get(
 ).split(",")
 app.add_middleware(
     CORSMiddleware, allow_origins=[o.strip() for o in _DEV_ORIGINS if o.strip()],
-    allow_methods=["GET"], allow_headers=["*"],
+    allow_methods=["GET", "POST"], allow_headers=["*"],  # POST = the pure /api/curation/draft (no write)
 )
 
 
@@ -91,6 +92,31 @@ def snapshot(nocache: int = 0) -> dict:
 def health() -> dict:
     """Liveness only — never touches the DB or the broker."""
     return {"ok": True}
+
+
+class CurationDraftRequest(BaseModel):
+    kind: str
+    tickers: str | None = None
+    name: str | None = None
+    cluster: str | None = None
+    thesis: str | None = None
+    falsifier: str | None = None
+    source: str | None = None
+
+
+@app.post("/api/curation/draft", dependencies=[Depends(_require_token)])
+def curation_draft(req: CurationDraftRequest) -> dict:
+    """PURE drafting: input → text (a box feasibility-screen command, or a universe_register theme entry).
+    Reuses the SAME tested dashboard_data builders (single source of truth). NO DB, NO fetch, NO write, NO
+    keys — drafting is not writing, so the read-only / never-writes safety contract holds: the operator
+    runs the screen on the box, and a new theme lands via a PR + the §11 admission rule + the gate."""
+    if req.kind == "screen":
+        return {"kind": "screen", **dd.build_screen_command(req.tickers or "")}
+    if req.kind == "theme":
+        return {"kind": "theme", **dd.build_theme_entry(
+            name=req.name or "", cluster=req.cluster or "", thesis=req.thesis or "",
+            falsifier=req.falsifier or "", source=req.source or "")}
+    raise HTTPException(status_code=400, detail="kind must be 'screen' or 'theme'")
 
 
 # Production: serve the built SPA same-origin so the UI and /api share ONE port (no Vite/CORS in prod).

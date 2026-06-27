@@ -5,6 +5,7 @@ import type { ConsoleProps } from "../data/types";
 import { NAV, TITLES, type SectionId } from "../nav";
 import { color, signal } from "../theme/tokens";
 import { Book } from "./Book";
+import { Curation } from "./Curation";
 import { Edge } from "./Edge";
 import { Overview } from "./Overview";
 import { Pipeline } from "./Pipeline";
@@ -119,14 +120,15 @@ export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsolePr
             {vm && section === "edge" && <Edge vm={vm} />}
             {vm && section === "pipeline" && <Pipeline vm={vm} />}
             {vm && section === "book" && <Book vm={vm} />}
-            {!vm && !error && !fatal && loading && (
+            {section === "curation" && <Curation />}
+            {!vm && !error && !fatal && loading && section !== "curation" && (
               <div className="flex flex-col" style={{ gap: 16 }}>
                 <Skeleton height={92} />
                 <div className="grid grid-cols-4 gap-3.5">{[0, 1, 2, 3].map((i) => <Skeleton key={i} height={120} />)}</div>
                 <Skeleton height={220} />
               </div>
             )}
-            {!vm && !error && !fatal && !loading && <div style={{ color: "#5f6675" }}>No snapshot.</div>}
+            {!vm && !error && !fatal && !loading && section !== "curation" && <div style={{ color: "#5f6675" }}>No snapshot.</div>}
           </div>
         </div>
       </main>
