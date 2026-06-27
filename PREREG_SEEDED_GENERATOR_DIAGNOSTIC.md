@@ -1,0 +1,73 @@
+# PREREG — Seeded-Generator Diagnostic (the human-seed → second-order-source reach test)
+
+**Status: FROZEN 2026-06-27** (operator sign-off after a 2-round advisor red-team). Pins the criterion
+**BLIND before any bounded-live run.** Read **separately** from `PREREG_THEME_GENERATOR §10` — the §10 yield
+band was pinned for the *full-corpus* run; a seeded slice has a different denominator, so scoring against
+§10 would HARK. The red-team caught the original criterion measuring *"narrow input → different output"*
+(near-tautological) instead of the hypothesis; this is the corrected pin.
+
+## §1 — Hypothesis
+The **autonomous** generator is measured-dead (`records/2026-06-23_…negative.md`: it re-derives
+narrated/in-universe names — `gen_rescore` 0/17 on `under_narrated`, 8/9 already in-universe — because a
+§2-clean corpus is blind to quietness and magnitude-ranking rides coverage). Its **surviving** role: a
+HUMAN names a quiet sector (the decorrelating judgment the machine cannot supply); the generator,
+**restricted to that sector's corpus slice**, synthesizes a falsifiable mechanism-claim tracing to a
+**second-order source** — the supplier-of-the-supplier OUTSIDE the human's named ETF. **Tested: does a
+seeded run reach a genuinely-quiet name the human's own ETF (via §11 source∩screen∩OTM) would NOT already
+surface?**
+
+## §2 — Firewall (INERT)
+Operator-chosen seed → restrict `assemble_corpus` to that theme's slice → synthesize → `verify.py` DROPs
+any claim not tracing to a cited dated record → derived **sources** enter admission via
+source∩screen∩OTM∩gate; **the LLM never selects a ticker.** Writes only `records/generator/`
+(`GENERATOR_RECORDS_DIR`) — no register write, no live scan, no book. Fully parallel to #72 and the §5 read.
+
+## §3 — Method
+- **Bounded-LIVE synthesis** — real router, single cheap model, `generator.cost_cap_usd`, fail-closed
+  `BudgetExceeded`. **NOT `--demo`** (FakeRouter = canned ⇒ cannot measure emission content; the `--demo`
+  run is a **step-0 plumbing smoke ONLY**).
+- **First theme: `nuclear_fuel`** (routes `etfs`+`nrc`+`eia` — multi-source; `nrc`/`eia` are the non-ETF
+  second-order sources the mechanism needs). `copper_supply` (etfs-only) and `humanoid_supply` (unrouted)
+  are corpus-thin → would false-negative; `humanoid_supply` only AFTER it is routed to multi-source pulls.
+- **k = 5 runs per arm**, fresh at the **current** model/prompt/corpus-date (matched conditions — model
+  versions are record-segmenting). The 2026-06-22 autonomous artifact counts as one run IFF version-matched,
+  else a non-load-bearing reference.
+
+## §4 — The single quality bar (scored on BOTH arms; yields compared)
+An emission **QUALIFIES** iff ALL of:
+- **(a)** not in `universe_register.json` / `themes.json` (genuinely new); AND
+- **(c)** traces (via `verify.py` citations) to a **second-order source** — a cited source OTHER than the
+  seed theme's ETF (for `nuclear_fuel`: `nrc` / `eia`) — **AND the name is NOT a member of the seed theme's
+  ETF/constituent holdings** (a name in the seed's own ETF is already caught by §11 on the human's ETF — no
+  added reach); AND
+- **(Stage-2)** a council re-score reads `under_narrated = True`.
+
+**Frequency-aware (k=5):** a name is a **stable** emission for an arm iff it appears in **≥ 3 / 5** runs
+(factors out LLM sampling variance — the underpowered-N trap the abort discipline guards). **YIELD(arm)** =
+count of stable names meeting (a)+(c)+Stage-2. Score BOTH arms; the autonomous arm is the comparator
+(06-23 read ≈ 0).
+
+## §5 — Verdicts (Stage-1 = escalation; Stage-2 = confirmation)
+- **Stage-1 (NECESSARY, not sufficient):** ≥1 stable seeded emission meeting (a)+(c) → escalate to Stage-2.
+  **Plumbing-negative:** if the seeded stable set is a **subset** of the autonomous set, the slice isn't
+  biting (training recall, not the corpus) → stop.
+- **Stage-2 (CONFIRMATION):** `YIELD(seeded) > YIELD(autonomous)` on the full bar (a)+(c)+`under_narrated`.
+  The re-score is a **fixed-entity-list** invocation (the `gen_rescore` pattern), **not a discovery scan** →
+  it does not touch the §5 count.
+- **Demoted leg (b):** "different from the autonomous set" is **NOT** a success leg — near-tautological (a
+  narrower input yields different output by construction; a different name can still be narrated). It
+  survives ONLY as the subset plumbing-check above.
+
+## §6 — Reads + framing
+- **DROP split** (`dropped_entity_unresolved` / `dropped_fact_untraced`) reported per seeded run — a high
+  untraced rate = the slice is too thin to synthesize (a richness diagnostic, distinct from confabulation).
+- **A clean Stage-2 pass on `nuclear_fuel` is an EXISTENCE PROOF for ONE theme, not a validated accelerant**
+  (nuclear may carry a richer second-order supply chain than most). It licenses "promising — test more
+  themes," NOT "ship the seeded generator."
+- **Cost:** Stage-1 (bounded-live synthesis ×k) and Stage-2 (the council re-score) BOTH cost a little; only
+  the step-0 `--demo` smoke is free.
+
+## §7 — Sequence
+0. *(free)* `--demo` slice-assembly plumbing smoke (this PR). 1. freeze (this doc). 2. the `--seed-theme`
+   extension (this PR). 3. build the k=5 matched autonomous baseline. 4. bounded-live Stage-1 ×5 on
+   `nuclear_fuel`. 5. Stage-2 council re-score on divergence. Steps 3–5 are the only spend, all INERT.
