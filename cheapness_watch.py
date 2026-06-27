@@ -14,7 +14,6 @@ Read-only MEASUREMENT, never a trade, never wired into ``at_inflection`` (the ha
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime
 
@@ -39,6 +38,21 @@ def _age_days(as_of: datetime, markers_asof: str | None) -> float | None:
         return None
 
 
+def _fresh_freshness(closes: list[float] | None, *, mom_lookback: int = 63, rv_recent: int = 21,
+                     rv_mid: int = 63) -> tuple[float | None, float | None]:
+    """Recompute the funnel's fresh-leg markers from CURRENT bars (mirrors discovery.compute_markers's
+    ``mom_recent``/``rv_rising``): ``mom_recent`` = the recent 63d return (skip 0), ``rv_rising`` =
+    ``(rv_21 − rv_63)/rv_63``. FRESH each day so a real break is DETECTED — the persisted snapshot is
+    constant between L0s (the silent no-op this avoids). Returns (mom_recent, rv_rising); None on thin bars."""
+    if not closes or len(closes) <= mom_lookback:
+        return None, None
+    mom = closes[-1] / closes[-(mom_lookback + 1)] - 1.0
+    r_recent = realized_vol(closes[-(rv_recent + 1):], window=rv_recent)
+    r_mid = realized_vol(closes[-(rv_mid + 1):], window=rv_mid)
+    rising = ((r_recent - r_mid) / r_mid) if (r_recent and r_mid and r_mid > 0) else None
+    return mom, rising
+
+
 def record_cheapness(conn, *, provider, config: dict, as_of: datetime, run_id: int | None = None) -> int:
     """Record one daily cheapness observation per active sentinel. Returns the count recorded.
 
@@ -61,15 +75,16 @@ def record_cheapness(conn, *, provider, config: dict, as_of: datetime, run_id: i
 
 def _record_one(conn, row, *, provider, gate, elig, rv_window, as_of, as_of_iso, run_id) -> None:
     symbol = row["symbol"]
-    try:
-        markers = json.loads(row["markers"]) if row["markers"] else {}
-    except (ValueError, TypeError):
-        markers = {}
     last_seen = row["last_seen_at"]
     underlying_price = provider.underlying_price(symbol)
     chain = provider.chain(symbol)
     closes = provider.closes(symbol, window=rv_window)
     rv = realized_vol(closes, window=rv_window)
+    # FRESH freshness markers — recomputed from CURRENT bars each day, NOT row["markers"] (the persisted
+    # snapshot is constant between L0 re-surfaces → break-onset could never fire = a silent no-op on the
+    # exact stale-marker break this watch exists to catch). marker_age_days (below) still uses the
+    # PERSISTED last_seen_at — THAT measures the council's staleness; the fresh markers DETECT the break.
+    mom_recent, rv_rising = _fresh_freshness(closes)
 
     def _eligibility(c):  # the live entry's contract gate (paper_loop._eligibility), real-extractor
         return contract_eligible(
@@ -102,7 +117,7 @@ def _record_one(conn, row, *, provider, gate, elig, rv_window, as_of, as_of_iso,
             "cheap, atm_iv, wing_iv, rv, rv_rising, mom_recent, markers_asof, marker_age_days, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
             (run_id, as_of_iso, symbol, contract_symbol, iv_rv, otm_skew, cheap, atm_iv, wing_iv, rv,
-             markers.get("rv_rising"), markers.get("mom_recent"), last_seen, _age_days(as_of, last_seen)),
+             rv_rising, mom_recent, last_seen, _age_days(as_of, last_seen)),
         )
 
 
@@ -175,6 +190,18 @@ def cheapness_report(conn, *, staleness_lag_days: float = DEFAULT_STALENESS_LAG_
     qualifying = [b for b in catchable if (b["marker_age_at_break"] or 0.0) >= staleness_lag_days]
 
     windows = sorted(b["cheap_window_days"] for b in qualifying)
+    # the RATE (§2.1.7) — the decision-relevant signal that reads in MONTHS, not the years-away window N≥5.
+    # The persist's value = rate × value-per-catch; a near-zero qualifying rate de-prioritizes on the rate
+    # alone. The operator's rate-close (spec §2.1.7) reads this against a materiality floor over T months.
+    all_asof = [r["as_of"] for rows in by_sym.values() for r in rows]
+    observed_days = None
+    if len(all_asof) >= 2:
+        try:
+            observed_days = (datetime.fromisoformat(max(all_asof))
+                             - datetime.fromisoformat(min(all_asof))).total_seconds() / 86400.0
+        except (ValueError, TypeError):
+            observed_days = None
+    qualifying_per_quarter = (len(qualifying) / observed_days * 90.0) if observed_days else None
     if len(qualifying) < n_qualify_floor:
         verdict = "insufficient_N"
     else:
@@ -192,6 +219,8 @@ def cheapness_report(conn, *, staleness_lag_days: float = DEFAULT_STALENESS_LAG_
         "n_no_structure": len(no_structure),
         "n_fresh_marker": len(fresh),
         "n_qualifying": len(qualifying),
+        "observed_days": observed_days,
+        "qualifying_per_quarter": qualifying_per_quarter,
         "qualifying_windows": windows,
         "note": "verdict gated by the N-floor; QUALIFYING = stale-markers ∧ catchable-cheap (the §7.1 "
                 "JOINT — what the persist would fix). fresh-marker breaks benign-by-construction; "

@@ -98,7 +98,51 @@ def test_record_cheapness_smoke_no_fetch(convexity_db):
     row = conn.execute("SELECT symbol, cheap, marker_age_days, rv_rising FROM cheapness_watch").fetchone()
     assert row["symbol"] == "FCX" and row["cheap"] is not None     # the gate actually ran (FCX has a structure)
     assert 13.0 < row["marker_age_days"] < 15.0                    # 2026-03-01 → 2026-03-15 ≈ 14d
-    assert row["rv_rising"] == 0.3                                  # marker carried for break detection
+    assert row["rv_rising"] != 0.3 and isinstance(row["rv_rising"], float)  # FRESH from bars, NOT the persisted 0.3
+
+
+class _BarsOnlyProvider:
+    """Provider exercising only the markers path (empty chain → cheap=None); for the no-op regression."""
+
+    def __init__(self, closes):
+        self._closes = closes
+
+    def underlying_price(self, symbol):
+        return 10.0
+
+    def chain(self, symbol):
+        return []
+
+    def closes(self, symbol, *, window):
+        return self._closes
+
+
+def _breaking_closes(n=253):
+    """A path quiet for most of the year then a recent high-amplitude leg → fresh rv_rising > 0."""
+    px = [10.0]
+    for i in range(n - 1):
+        amp = 0.06 if i >= n - 1 - 25 else 0.004   # last ~25 sessions high-vol, the rest quiet
+        px.append(px[-1] * (1.0 + (amp if i % 2 == 0 else -amp)))
+    return px
+
+
+def test_record_uses_FRESH_markers_not_the_persisted_snapshot(convexity_db):
+    """Regression guard for the silent no-op: record_cheapness must recompute rv_rising/mom_recent from
+    CURRENT bars, NOT record the persisted row['markers'] snapshot (constant between L0s → break-onset
+    could never fire). The persisted snapshot is set to a sentinel value (0.99) the fresh computation
+    won't produce; the recorded values must be the FRESH ones."""
+    conn = convexity_db
+    state.record_sentinel_candidate(conn, run_id=None, as_of="2026-03-01T00:00:00+00:00", symbol="ZZ",
+                                    direction="bullish", basket="b", inflection_score=1.0,
+                                    markers={"rv_rising": 0.99, "mom_recent": 0.99})
+    closes = _breaking_closes()
+    cw.record_cheapness(conn, provider=_BarsOnlyProvider(closes), config=CONFIG,
+                        as_of=datetime(2026, 3, 15, tzinfo=UTC), run_id=None)
+    rec = conn.execute("SELECT rv_rising, mom_recent FROM cheapness_watch WHERE symbol='ZZ'").fetchone()
+    expect_mom, expect_rvr = cw._fresh_freshness(closes)
+    assert rec["rv_rising"] == expect_rvr and rec["rv_rising"] != 0.99   # FRESH from bars, not persisted 0.99
+    assert rec["mom_recent"] == expect_mom and rec["mom_recent"] != 0.99
+    assert rec["rv_rising"] > 0.10   # the recent high-vol leg crosses the fresh floor → a real break is detectable
 
 
 def test_migration_0017_is_idempotent(convexity_db):
