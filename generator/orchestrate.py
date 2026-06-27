@@ -29,6 +29,7 @@ from typing import Any
 
 from council.router import BudgetExceeded, FakeRouter, RouterError
 from generator import GENERATOR_RECORDS_DIR
+from generator.prompts import synthesis_prompt_sha
 from generator.synthesize import synthesize
 
 log = logging.getLogger("generator.orchestrate")
@@ -180,6 +181,8 @@ def run_generate(
             "as_of": as_of.isoformat(),
             "provenance": "generated",
             "seed_theme": seed_theme,
+            "model": result.model,            # §3 matched-version stamp (the scorer asserts these match)
+            "prompt_sha": synthesis_prompt_sha(),
             "n_parsed": len(result.parsed),
             "n_theses": len(result.claims),
             "dropped_entity_unresolved": de,

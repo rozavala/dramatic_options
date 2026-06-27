@@ -191,6 +191,7 @@ class SynthesisResult:
     raw_text: str
     parsed: list[dict[str, Any]] = field(default_factory=list)
     verify: Any | None = None  # generator.verify.VerifyResult | None (None ⇒ no verification run)
+    model: str | None = None   # the synthesis model id (for the artifact's matched-version stamp, §3)
 
 
 def synthesize(
@@ -236,4 +237,5 @@ def synthesize(
         raw_text=text,
         parsed=parsed,
         verify=verify_result,
+        model=getattr(resp, "model", None),
     )

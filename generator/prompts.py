@@ -89,3 +89,11 @@ SYNTHESIS_SYSTEM = (
 def synthesis_prompt(corpus_block: str) -> tuple[str, str]:
     """(system, user) for the synthesis call. ``corpus_block`` is the rendered corpus union."""
     return SYNTHESIS_SYSTEM, corpus_block
+
+
+def synthesis_prompt_sha() -> str:
+    """16-char sha of the frozen ``SYNTHESIS_SYSTEM`` — stamped into each generator artifact so the scorer
+    can enforce §3's matched-version requirement (a prompt edit segments the record)."""
+    import hashlib
+
+    return hashlib.sha256(SYNTHESIS_SYSTEM.encode()).hexdigest()[:16]

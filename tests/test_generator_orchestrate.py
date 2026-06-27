@@ -163,6 +163,28 @@ def test_demo_seed_theme_stamped_in_artifact(tmp_path, monkeypatch):
     assert res.note == "ok"
     payload = json.loads((tmp_path / res.artifact_path).read_text())
     assert payload["seed_theme"] == "nuclear_fuel"
+    assert payload["model"] == "fake-gen" and len(payload["prompt_sha"]) == 16   # §3 matched-version stamp
+
+
+def test_run_generate_restricts_corpus_to_seed_theme_in_live_read(tmp_path, monkeypatch):
+    # P3 seam: the LIVE corpus read receives content RESTRICTED to the seed theme — the slicing the whole
+    # experiment runs through (the demo/injected-corpus tests skip it).
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    monkeypatch.setattr("corpus.content.load_content",                       # CWD-robust real content
+                        lambda *a, **k: json.loads((repo / "corpus_content.json").read_text()))
+    captured = {}
+
+    def _spy_read(cache, as_of, content, config):
+        captured["content"] = content
+        return {}
+
+    monkeypatch.setattr("generator.read.read_corpus", _spy_read)
+    monkeypatch.setattr("risk.kill_switch_active", lambda: False)
+    monkeypatch.setattr(orchestrate, "_build_router", lambda config, *, demo: _SpyRouter({"claims": []}))
+    orchestrate.run_generate(demo=False, seed_theme="nuclear_fuel", cache=object(), as_of=_NOW, write=False,
+                             config={"forward_enabled": True, "generator": {"enabled": True}})
+    assert list(captured["content"]["themes"].keys()) == ["nuclear_fuel"]   # restricted to the one theme
 
 
 def test_demo_drops_confabulated_entity_through_the_full_entry(tmp_path, monkeypatch):

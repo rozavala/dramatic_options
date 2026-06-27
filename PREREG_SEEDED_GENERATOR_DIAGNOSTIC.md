@@ -71,3 +71,23 @@ count of stable names meeting (a)+(c)+Stage-2. Score BOTH arms; the autonomous a
 0. *(free)* `--demo` slice-assembly plumbing smoke (this PR). 1. freeze (this doc). 2. the `--seed-theme`
    extension (this PR). 3. build the k=5 matched autonomous baseline. 4. bounded-live Stage-1 ×5 on
    `nuclear_fuel`. 5. Stage-2 council re-score on divergence. Steps 3–5 are the only spend, all INERT.
+
+## §8 — Scorer operationalization (dated appendix 2026-06-27, BLIND before any run)
+
+The §4–§5 legs stay frozen; this pins **how** the scorer (`generator/score.py`) computes them, fixed
+before emissions exist (so no operationalization choice is made to taste later). It does NOT re-pin the legs.
+
+1. **In-register (leg a)** reads the FULL register — `config.universe.themes` baskets + `themes.json` — so
+   a **source-departed-but-retained** name counts as in-register (it IS in the universe → not novel).
+2. **ETF-membership (leg c2)** reads the seed theme's ETF constituents **point-in-time as-of the run date**
+   (the caller supplies that set); a name in the seed's own ETF is disqualified.
+3. **c2 dominates c1:** a claim citing BOTH the ETF and a second-order source still requires the *entity*
+   ∉ the seed's ETF — an ETF co-citation never rescues an in-ETF name.
+4. **Name matching** is EXACT — ticker, else canonical, normalized via `generator.entity._norm`; **no fuzzy
+   string matching** (so a borderline alias can't be resolved to taste).
+5. **Matched-version is an ASSERTION** (`assert_matched_version`): every artifact must carry `model` +
+   `prompt_sha` and all must be equal, else the set is refused — a pre-stamp run (e.g. the 2026-06-22
+   autonomous artifact) is a non-load-bearing reference, never counted toward the k=5.
+6. **The scorer computes Stage-1 fully offline** (legs a+c, ≥3/5 stability, the subset plumbing-check, the
+   DROP split) and emits the Stage-2 candidate list; **Stage-2 needs the ONE live council `under_narrated`
+   re-score** on that list — the scorer then computes `YIELD(seeded) > YIELD(autonomous)` from the labels.
