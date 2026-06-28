@@ -607,8 +607,9 @@ def cluster_names(config: dict) -> list[str]:
         return []
 
 
-def build_theme_entry(*, name: str, cluster: str, thesis: str, falsifier: str, source: str,
-                      today: str | None = None, known_clusters: list[str] | None = None) -> dict:
+def build_theme_entry(*, name: str, cluster: str, thesis: str, falsifier: str,
+                      source: str | list[str], today: str | None = None,
+                      known_clusters: list[str] | None = None, added_label: str = "dashboard draft") -> dict:
     """Draft a ``universe_register.json`` theme entry (the §11 ingestion shape) from form input. PURE; the
     dashboard DISPLAYS this JSON for a PR — it NEVER writes the register (admission runs source∩screen∩OTM
     + the gate disposes on cheapness). Returns {key, entry, json, valid, problems, warnings}.
@@ -619,6 +620,10 @@ def build_theme_entry(*, name: str, cluster: str, thesis: str, falsifier: str, s
     the silent risk-frame divergence a PR reviewer would otherwise miss because the entry *looks* correct."""
     key = (name or "").strip().lower().replace(" ", "_")
     today = today or datetime.now(UTC).date().isoformat()
+    if isinstance(source, str):
+        sources = [source.strip()] if source.strip() else []
+    else:
+        sources = [s.strip() for s in (source or []) if s and s.strip()]   # multi-ETF themes
     problems: list[str] = []
     if not _THEME_NAME_RE.match(key):
         problems.append("name must be snake_case (a-z, then a-z/0-9/_)")
@@ -626,7 +631,7 @@ def build_theme_entry(*, name: str, cluster: str, thesis: str, falsifier: str, s
         problems.append("thesis required")
     if not (falsifier or "").strip():
         problems.append("falsifier required (what would kill the thesis)")
-    if not (source or "").strip():
+    if not sources:
         problems.append("source required (the mechanical constituent source, e.g. an ETF holdings file)")
     cluster_default = (cluster or "").strip() or key
     warnings: list[str] = []
@@ -636,10 +641,10 @@ def build_theme_entry(*, name: str, cluster: str, thesis: str, falsifier: str, s
             f"$1k per-name cap, NOT the $2k cluster correlation cap, until clusters.py is wired.")
     entry = {
         "provenance": "operator",
-        "added": f"{today} (dashboard draft)",
+        "added": f"{today} ({added_label})",
         "thesis": (thesis or "").strip(),
         "falsifier": (falsifier or "").strip(),
-        "sources": [(source or "").strip()],
+        "sources": sources,
         "cluster_default": cluster_default,
     }
     return {"key": key, "entry": entry, "valid": not problems, "problems": problems,
