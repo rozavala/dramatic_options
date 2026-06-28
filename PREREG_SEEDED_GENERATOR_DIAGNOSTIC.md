@@ -191,3 +191,72 @@ non-universe + quiet reach. Read now (per-source `n_nonuniverse` / `nonuniverse_
   build), NOT re-slicing; if none, the seeded-generator phase **pauses** on that finding (the honest answer
   to "can a grounded generator out-quiet the human" on this corpus). Either way: **don't build option (b),
   and don't conclude "dead" from the confounded zero** — measure the quiet-reach first.
+
+## §12 — Un-confounding reach measurement: the pinned rule (dated amendment 2026-06-28, BLIND before the keyed run)
+
+Reframes §11's "next" after a 3-round operator red-team. **The finding is a curation-SOURCE gap, not a
+generator-rescue.** `restrict_to_theme` (`corpus/content.py:123`) drops `capital_raises` for the seeded
+generator AND curation's §11 admission is bounded by its theme's named sources (today the per-theme ETF
+pulls, `content.py:82-104`) — so a quiet sector capital-raiser **not in the theme's ETF** is invisible to
+the *working* lever too. The test below is therefore a **curation-source** test (does SIC-scoped
+`capital_raises` reach quiet *quality* names the ETF misses); the generator is a downstream beneficiary,
+**paused as a build.**
+
+**Why the source must be TESTED, not assumed (P1, load-bearing).** `capital_raises` is a **financing-event**
+surface (424B5/S-1), not a tailwind surface. Quietness there is mixed: a quiet supplier funding capacity on
+a real tailwind (wanted) co-occurs with distressed dilution, de-SPAC speculation, biotech binaries
+(quiet-but-junk). **Reach ≠ quality.** The diagnostic measures reach (a news count); only the **council**
+(`structural ∧ under_narrated ∧ at_inflection`) separates tailwind-quiet from distress-quiet → the council
+yield **gates the build warrant**, it does not sit downstream of it.
+
+**Population (Stage 1):** non-universe `capital_raises` filers that CIK→ticker-resolve via the EDGAR
+`company_tickers.json` inverse (`cik2tk` = CIK→current-ticker — survivorship-OK: delisted/foreign/private
+CIKs drop, which is tradeability-aligned). Window = a full **365d** pull so `Q` reads as a clean **per-year
+rate** (a flow source judged on one quarterly snapshot would false-pause; P2b). `etf_constituents`
+non-universe is measured secondarily — it only sharpens the *existing* ETF-curation lever; the genuinely
+*new* reach is `capital_raises`.
+
+**Measure:** trailing-90d uncapped news (the council's own §9 axis), live client (the `no_fetch`
+un-confound). **Raise-aware (P-ref a):** a 424B5/S-1 is itself a salience event, so for filers whose filing
+date falls inside the 90d window, news is *also* read over a **pre-filing baseline** (90d ending
+`filing_date − 7d`) so offering coverage cannot mislabel a thesis-quiet name as narrated; the residual is
+reported both naive-90d and raise-aware, **raise-aware primary.**
+
+**Optionability = the full §11 Rule-1 admission (P2a), not "has options"** — reuse
+`scripts/probe_basket_feasibility.py` wholesale: a `select_structure` 25%-OTM 180–365d structure exists ∧
+`contract_eligible` (spread ≤ 25%, OI when present) ∧ price ≥ $3 ∧ ADV ≥ $3M ∧ fits one contract ≤ the $1k
+per-name cap (`convexity_position_size(...).contracts ≥ 1`). The cheapest hard filter, before the council.
+(A quoting wing that still fails the band/cap/floors is *not* a candidate — the STNG/SBLK/LTBR/IE class.)
+
+**The chain:** reach → news-quiet (raise-aware) → §11-admissible → council `structural` → gate.
+
+**Decision (two-stage spend gate):**
+- **Stage 1 (the fork; no SIC, news + §11 only):** `Q` = non-universe names that are quiet (raise-aware)
+  **and** §11-admissible, **per year**. **`Q ≥ 6/yr` → proceed; `Q < 6/yr` → pause** the seeded-gen phase
+  on the recorded finding (the source is dry), curation stays on ETF sources. (`6/yr` is deliberately
+  **permissive** — Stage 1 only rules out a dry source; Stage 2's council yield is the real warrant.)
+- **Stage 2 (the build warrant; SIC + a sampled council batch on the `Q` survivors):**
+  - **2a basket geometry:** ≥ 1 SIC sector with **≥ 3** of the `Q` (a cluster needs ≥ 2 names to use its
+    ~2% budget; ≥ 3 = a real basket, not a hand-pick). SIC via the existing submissions fetch
+    (`data/filings.py:34/115` already pulls the blob; `sic`/`sicDescription` are top-level but un-extracted
+    — a small extraction, not a new fetch path).
+  - **2b council QUALITY (the actual test, P1):** re-score a sample (≤ ~10, sector-concentrated first)
+    through `council_to_themes`→`propose` with §9 news + fundamentals grounding; **structural-pass-rate
+    ≥ 1/3 among the council-DELIBERATED subsample.** **Grounding-aware (add to P1):** genuinely-quiet names
+    are thinly-newsed *by construction*, so grounding rides the §9 fundamentals OR-leg; the metric reads
+    `structural=True` among names the council actually deliberated (grounded, non-parse-error, reached the
+    strategist) and reports the grounding/deliberation rate **separately** — else grounding-thinness on
+    quiet names would *circularly deflate the very signal the quiet source exists to surface.*
+    `under_narrated` reported (expected ~True); `at_inflection` reported, **not gated** (market-timing,
+    ~False for staged names — the powered-endpoint lesson).
+  - **Build SIC-scoped `capital_raises` as a §11 named source for the qualifying sectors iff 2a ∧ 2b.**
+    Scattered singletons (no sector ≥ 3) or distress-dominated (structural < 1/3) → reach is real but not
+    basket-able / not quality → a hand-curation note, NOT a source build.
+
+**The blind values** (`Q ≥ 6/yr`, `≥ 3/sector`, `structural ≥ 1/3`) are pinned here BEFORE the keyed run;
+the operator may override before Stage 2 (the consequential gate). **Sequencing:** the measurement is
+read-only (news + OPRA reads; no discovery scan, no universe edit) → it does **not** re-stale the §5
+four-scan read → run it now. The curation **window** (the only §5-restaler) **holds until the §5 read
+closes (~mid-July)** unless a specific quiet candidate has an imminent at-inflection break (the window-#2
+rationale). Clean order: measurement now → §5 read → (if warranted) build the SIC source → window #3
+post-§5 with both the new reach and the validated funnel.
