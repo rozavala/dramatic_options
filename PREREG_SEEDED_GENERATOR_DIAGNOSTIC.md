@@ -131,7 +131,8 @@ the first run.
 
 The §9 `slice_feasible` guard checks source-class **existence** (necessary). It does NOT check
 candidate-universe **non-emptiness** or **mechanism-alignment** (sufficient). Added as a standing **free,
-offline pre-spend gate** (`scripts/seed_ceiling_check.py`): list the entity-resolvable second-order source's
+offline pre-spend gate** (`python -m generator.ceiling`; lives inside `generator/` per the §6.4 firewall):
+list the entity-resolvable second-order source's
 recipients MINUS the theme's ETF; if the residual is all narrated primes + private entities (no quiet,
 **public, ticker-mappable** name), a bounded-live spend returns a structural negative — learnable for $0.
 **Required before any bounded-live spend** (the pre-check that would have killed `nuclear_fuel` pre-freeze).
