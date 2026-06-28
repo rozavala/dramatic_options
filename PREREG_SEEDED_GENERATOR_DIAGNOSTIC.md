@@ -153,3 +153,41 @@ recipients MINUS the theme's ETF; if the residual is all narrated primes + priva
 - **Deferred until option (b) spends:** wiring the generator's live roster (harmless, theme-independent), and
   the c2 name-leak edge (pass BOTH ETF symbols AND normalized names into `etf_holdings`) — more live for a
   `FREE_TEXT_RECIPIENT` theme than for `customer_concentration` (`ENTITY_BEARING`, symbol-resolved).
+
+## §11 — Reach-diagnostic adjudication: option (b) is DEAD; the theme-scoping-vs-reach conflict (2026-06-28)
+
+A red-team flagged a **measure-first violation**: §10 proposed option (b) on mechanistic plausibility
+without consulting `records/2026-06-23_corpus_reach_diagnostic.json`, which already scores every source's
+non-universe + quiet reach. Read now (per-source `n_nonuniverse` / `nonuniverse_with_news` /
+`nonuniverse_quiet`):
+
+| source | class | n_entities | in-univ | **non-univ** | with-news | **quiet** |
+|---|---|---|---|---|---|---|
+| customer_concentration | symbol_keyed | 20 | 20 | **0** | 0 | 0 |
+| federal_awards | free_text_recipient | 157 | 0 | 0 | 0 | 0 *(157 unknown — recipients don't ticker-map)* |
+| etf_constituents | symbol_keyed | 129 | 26 | 102 | 0 | 0 |
+| capital_raises | cik_bearing | 1273 | 13 | **1260** | **0** | **0** |
+| nrc / eia / bls | entity_free | — | — | — | — | — |
+
+- **Option (b) is DEAD — confirmed structural.** `customer_concentration` reaches **0** non-universe names
+  (`n_nonuniverse=0`): it's `@all_basket_symbols`-scoped (the filers ARE the basket) and never extracts the
+  *named customer* (`{percentage, n_customers, snippet}` only — the customer NER is a deliberate §2 no-LLM
+  punt). So leg (a) excludes every entity by construction; it cannot deliver the down-chain supplier. **Do
+  not build it.**
+- **CORRECTION to "no source reaches quiet":** the diagnostic does NOT show that. `capital_raises` reaches
+  **1260 non-universe** names (and `etf_constituents` 102). Their `nonuniverse_quiet=0` is **confounded by
+  `no_fetch`**: `nonuniverse_with_news=0` (no cached news for non-universe names) → quiet is *unclassifiable*,
+  not measured-zero. So quiet-reach is **UNMEASURED for the sources that do reach non-universe.**
+- **The real structural blocker — theme-scoping vs reach conflict.** The only non-universe-reaching source
+  (`capital_raises`) is **universe-wide** (by form, not theme). The seeded slice (`restrict_to_theme`) DROPS
+  the universe block → discards `capital_raises` → the slice keeps only theme-scoped sources
+  (etf=in-universe, nrc/eia=entity-free, federal_awards=up-chain/unresolvable), none of which reach
+  non-universe. So **theme-scoping (to remove the LLM's salience bias) also removes the non-universe reach** —
+  the two goals conflict on the current corpus. This is the 06-23 "magnitude rides coverage" finding one
+  level down: the human seed decorrelates the *sector*, not the *source's* coverage skew.
+- **Next (measure-first, NOT a build):** (1) un-confound — re-run the reach diagnostic **with news** on
+  `capital_raises`/`etf` non-universe sets to measure whether any are genuinely quiet (a keyed box step);
+  (2) if quiet reach exists there, the real work is a **theme-scoped non-universe-reaching source** (a corpus
+  build), NOT re-slicing; if none, the seeded-generator phase **pauses** on that finding (the honest answer
+  to "can a grounded generator out-quiet the human" on this corpus). Either way: **don't build option (b),
+  and don't conclude "dead" from the confounded zero** — measure the quiet-reach first.
