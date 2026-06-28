@@ -126,3 +126,29 @@ the first run.
 - **#108 kept, not reverted:** the universe-drop is correct for a theme with a **theme-scoped**
   entity-resolvable source (`space_smallcap`'s `federal_awards` survives it — verified); only option-(b)
   themes that depend on universe-wide entity-bearing pulls need it refined, which option (b) does explicitly.
+
+## §10 — The candidate-universe ceiling gate + the space_smallcap result → pivot to option (b) (2026-06-27)
+
+The §9 `slice_feasible` guard checks source-class **existence** (necessary). It does NOT check
+candidate-universe **non-emptiness** or **mechanism-alignment** (sufficient). Added as a standing **free,
+offline pre-spend gate** (`scripts/seed_ceiling_check.py`): list the entity-resolvable second-order source's
+recipients MINUS the theme's ETF; if the residual is all narrated primes + private entities (no quiet,
+**public, ticker-mappable** name), a bounded-live spend returns a structural negative — learnable for $0.
+**Required before any bounded-live spend** (the pre-check that would have killed `nuclear_fuel` pre-freeze).
+
+- **`space_smallcap` ceiling result (2026-06-27):** the 336414 residual (minus UFO/ARKX) is **31 names, all
+  narrated primes** (Raytheon/RTX, BAE, Aerojet→L3Harris, Textron/TXT, General Dynamics/GD, Kratos/**KTOS
+  already in-universe**) **or private** (United Launch, Blue Origin, Astranis, Castelion, Corvid, Intelsat,
+  Dynetics, MBDA). **No quiet public ticker-mappable residual.** `federal_awards` (336414 *manufacturing*
+  prime awards) structurally surfaces the **integrator/up-chain** end, not the down-chain quiet supplier — a
+  mechanism inversion. A `space_smallcap` spend returns the **up-chain negative** (the corpus source's skew,
+  not the generator's ceiling). **Do not spend on it as the positive-shot.**
+- **Pivot → option (b) is the REAL test.** Theme-scope `customer_concentration` (an `ENTITY_BEARING`
+  down-chain source: a 10-K disclosing a quiet component maker sells >10% to a space prime is *exactly* the
+  supplier-of-the-supplier, pointing the right direction). `space_smallcap`-via-`federal_awards` is at most a
+  "does the plumbing produce an interpretable end-to-end read" run; option (b) is the "does seeded-gen
+  out-quiet the human" run. **Build option (b) next** (theme-scope `customer_concentration` + the criterion
+  amendment), then re-run the ceiling gate on its slice before spending.
+- **Deferred until option (b) spends:** wiring the generator's live roster (harmless, theme-independent), and
+  the c2 name-leak edge (pass BOTH ETF symbols AND normalized names into `etf_holdings`) — more live for a
+  `FREE_TEXT_RECIPIENT` theme than for `customer_concentration` (`ENTITY_BEARING`, symbol-resolved).
