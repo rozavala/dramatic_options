@@ -260,3 +260,13 @@ four-scan read → run it now. The curation **window** (the only §5-restaler) *
 closes (~mid-July)** unless a specific quiet candidate has an imminent at-inflection break (the window-#2
 rationale). Clean order: measurement now → §5 read → (if warranted) build the SIC source → window #3
 post-§5 with both the new reach and the validated funnel.
+
+**Result (2026-06-28) — see `records/2026-06-28_seeded_gen_reach_measurement.md`.** Stage 1 **PASS**
+(Q≈10/yr ≥ 6 — the §11 confounded zero is wrong; the source reaches ~10 quiet+optionable non-universe
+names/yr). Stage 2a **FAIL** (the Q=5 are 5 distinct SICs — aircraft/pharma/electric/data/finance — no
+sector ≥3, not basket-able). Quality (P1, by SIC+inspection, council 2b moot since 2a gates) = financing
+**noise** (biotech binaries · banks · CEFs · IPO-buzz; the only sector cluster, miners, is un-optionable).
+Found a raise-aware **IPO confound** (fresh S-1s read false-quiet — FRVO/HAWK/Cerebras/SpaceX) that only
+strengthens the negative. **Verdict: do NOT build the SIC source; seeded-generator / new-source phase
+CLOSED on measurement.** The irreducible quiet-discovery input stays the human sector judgment (cf. the
+2026-06-23 autonomous floor). Curation stays ETF-sourced; the window holds for the §5 read.
