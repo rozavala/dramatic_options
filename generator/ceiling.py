@@ -1,16 +1,17 @@
-"""seed_ceiling_check.py — the free, offline candidate-universe ceiling check (PREREG_SEEDED_GENERATOR §10).
+"""generator/ceiling.py — the free, offline candidate-universe ceiling check (PREREG_SEEDED_GENERATOR §10).
 
-The #109 ``slice_feasible`` guard checks source-class EXISTENCE (necessary — does the slice have a non-ETF
+The §9 ``slice_feasible`` guard checks source-class EXISTENCE (necessary — does the slice have a non-ETF
 entity-resolvable source?). This checks candidate-universe NON-EMPTINESS + mechanism-alignment (sufficient):
 for a seed theme, list the entity-resolvable second-order source's recipients MINUS the theme's ETF, sorted
 by award size, so the operator can eyeball whether any are **quiet, public, ticker-mappable** names — vs
-narrated primes + private entities. If the residual is all primes/private, a bounded-live spend would return
-a structural/up-chain negative (the corpus source's skew, not the generator's ceiling) — learnable here for
-$0. This is the pre-check that would have killed nuclear_fuel before its criterion froze.
+narrated primes + private entities. If the residual is all primes/private, a bounded-live spend returns a
+structural/up-chain negative (the corpus source's skew, not the generator's ceiling) — learnable here for $0.
+This is the pre-check that would have killed nuclear_fuel before its criterion froze.
 
-Read-only over the PIT cache (no fetch, no spend):
+Read-only over the PIT cache (no fetch, no spend). Lives INSIDE ``generator/`` (it imports ``generator.score``,
+which the §6.4 import-graph firewall forbids from any module outside the package):
 
-    PYTHONPATH=. python scripts/seed_ceiling_check.py space_smallcap
+    python -m generator.ceiling space_smallcap
 """
 
 from __future__ import annotations
@@ -20,14 +21,10 @@ import re
 import sys
 from pathlib import Path
 
-_REPO = Path(__file__).resolve().parent.parent
-if str(_REPO) not in sys.path:
-    sys.path.insert(0, str(_REPO))
-
-from corpus.content import load_content, read_coords, restrict_to_theme  # noqa: E402
-from corpus.etf_constituents import SOURCE as ETF_SOURCE  # noqa: E402
-from corpus.federal_awards import SOURCE as AWARDS_SOURCE  # noqa: E402
-from generator.score import second_order_sources  # noqa: E402
+from corpus.content import load_content, read_coords, restrict_to_theme
+from corpus.etf_constituents import SOURCE as ETF_SOURCE
+from corpus.federal_awards import SOURCE as AWARDS_SOURCE
+from generator.score import second_order_sources
 
 # Per entity-bearing source: the record field carrying the company entity + a magnitude field for ranking.
 # Extend for customer_concentration / capital_raises when option (b) routes them theme-scoped.
@@ -54,7 +51,9 @@ def main(argv: list[str] | None = None) -> int:
     seed = argv[0] if argv else "space_smallcap"
     cache = Path(argv[1]) if len(argv) > 1 else Path("data/cache")
     content = load_content()
-    config = json.loads(Path("config.json").read_text()) if Path("config.json").exists() else {}
+    # config is unused for a theme slice (restrict_to_theme drops the universe block, so read_coords needs
+    # no config.universe); pass {} and avoid a config.json path literal (the §6.4 write-isolation guard).
+    config: dict = {}
 
     so = second_order_sources(seed, content=content, config=config)
     if not so:
