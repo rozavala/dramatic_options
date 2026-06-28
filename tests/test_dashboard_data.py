@@ -692,3 +692,18 @@ def test_build_theme_entry_warns_on_unknown_cluster():
     none = dd.build_theme_entry(name="x", cluster="anything", thesis="t", falsifier="f", source="s",
                                 today="2026-06-27")
     assert none["warnings"] == []                               # no known_clusters passed → back-compat, silent
+
+
+def test_build_theme_entry_multi_source_and_added_label():
+    # the executor's P3 polish: a list source (multi-ETF themes) + a window-numbered audit label.
+    te = dd.build_theme_entry(name="silver deficit", cluster="silver_deficit", thesis="t", falsifier="f",
+                              source=["SIL holdings", "SLVP holdings"], today="2026-06-28",
+                              added_label="window #3")
+    assert te["valid"]
+    assert te["entry"]["sources"] == ["SIL holdings", "SLVP holdings"]   # both kept, order preserved
+    assert te["entry"]["added"] == "2026-06-28 (window #3)"              # audit-convention label, not "dashboard draft"
+
+
+def test_build_theme_entry_empty_source_list_is_problem():
+    te = dd.build_theme_entry(name="x", cluster="", thesis="t", falsifier="f", source=[], today="2026-06-28")
+    assert not te["valid"] and any("source required" in p for p in te["problems"])

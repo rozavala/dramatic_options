@@ -14,6 +14,8 @@ cluster-cap guard included), then writes the additive entry, branches, commits, 
   frozen-frame discipline; branch protection requires CI green first.
 - No market/trading keys — only ``git``/``gh`` (the dashboard stays the keyless read-only previewer; this
   executor is run intentionally by the operator).
+- ``--source`` is NOT fetch-validated here (keyless) — it is exercised at the KEYED screen step; a merged
+  register PR records the thesis, it does NOT confirm the source actually fetches.
 
 Usage (repo root):
     python scripts/curation_open_pr.py --name "silver deficit" --cluster silver_deficit \\
@@ -60,14 +62,17 @@ def main() -> int:
     ap.add_argument("--cluster", default="", help="cluster_default (enforcement-map key; new is allowed w/ a warning)")
     ap.add_argument("--thesis", required=True)
     ap.add_argument("--falsifier", required=True, help="what would kill the thesis")
-    ap.add_argument("--source", required=True, help="the mechanical constituent source (e.g. an ETF holdings file)")
+    ap.add_argument("--source", required=True, nargs="+",
+                    help="mechanical constituent source(s) — ETF holdings file(s); repeatable for multi-ETF themes")
+    ap.add_argument("--added-label", default="off-cycle",
+                    help="the register 'added' note (audit convention), e.g. 'window #3'; default 'off-cycle'")
     ap.add_argument("--dry-run", action="store_true", help="validate + preview only; no branch/commit/push/PR")
     args = ap.parse_args()
 
     config = load_config()
     draft = build_theme_entry(name=args.name, cluster=args.cluster, thesis=args.thesis,
                               falsifier=args.falsifier, source=args.source,
-                              known_clusters=cluster_names(config))
+                              added_label=args.added_label, known_clusters=cluster_names(config))
     key, entry = draft["key"], draft["entry"]
     for w in draft["warnings"]:
         print(f"  ⚠ WARNING: {w}")
@@ -77,24 +82,31 @@ def main() -> int:
         print("\nrefused — fix the problems above (no PR opened).")
         return 1
 
-    register = json.loads(REGISTER.read_text())
+    print(f"\n=== §11 theme entry: {key} ===")
+    print(json.dumps({key: entry}, indent=2, ensure_ascii=False))
+    print("\n(writes ONLY universe_register.json — the §11 rule artifact the loop never loads; names enter "
+          "later via the KEYED screen, NOT here. Additive; merge stays yours.)")
+
+    if args.dry_run:
+        local = json.loads(REGISTER.read_text())
+        if key in (local.get("themes") or {}):
+            print(f"  ⚠ note: '{key}' already in the LOCAL register (the real run checks a fresh origin/main).")
+        print("\n--dry-run: preview only; the real run merges onto a FRESH origin/main base. No writes/PR.")
+        return 0
+
+    # P2 — build the merge on a FRESH origin/main base, NEVER the worktree: the worktree register may LAG
+    # origin/main (the linked-worktree race) and writing a worktree-based merge over an origin/main checkout
+    # would silently DROP any theme merged since the last sync. Fetch → read the base from origin/main →
+    # merge (+ dup-check) → only THEN branch + write, so new_text and the checked-out tree share one base.
+    branch = f"curate-theme-{key}"
+    _git("fetch", "origin", "main")
+    register = json.loads(_git("show", "origin/main:universe_register.json"))
     try:
         new_register = merge_theme(register, key, entry)
     except ValueError as e:
         print(f"  ✗ {e}")
         return 1
     new_text = json.dumps(new_register, indent=2, ensure_ascii=False) + "\n"
-
-    print(f"\n=== §11 theme entry: {key} ===")
-    print(json.dumps({key: entry}, indent=2, ensure_ascii=False))
-    print("\n(writes ONLY universe_register.json — the rule artifact the loop never loads; names enter "
-          "later via the screen. Additive; merge stays yours.)")
-    if args.dry_run:
-        print("\n--dry-run: no branch/commit/push/PR. Re-run without --dry-run to open the PR.")
-        return 0
-
-    branch = f"curate-theme-{key}"
-    _git("fetch", "origin", "main")
     _git("checkout", "-B", branch, "origin/main")
     REGISTER.write_text(new_text)
     _git("add", "universe_register.json")
