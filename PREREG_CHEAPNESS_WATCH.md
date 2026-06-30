@@ -175,8 +175,14 @@ under-narrated wings are where unreadable/recent breaks cluster). Rule:
   verdict median *and* the N-floor), reported separately as **`censored_short`**.
 
 This keeps `insufficient_N` longer when wings are flaky / breaks are fresh — the **honest** outcome (can't
-measure the window ⇒ can't decide), not a regression. (The `qualifying_per_quarter` RATE still counts all
-qualifying breaks — the harm *occurred* even where the window is censored-short.)
+measure the window ⇒ can't decide), not a regression.
+
+**Pinned asymmetry (verdict-affecting via §2.1.7 — a deliberate decision, not an artifact):** a
+censored-short break is COUNTED by the `qualifying_per_quarter` RATE (its *occurrence* is certain) but
+EXCLUDED from the verdict median + N-floor (its window *magnitude* is unmeasurable). Rationale:
+excluding censored breaks from the rate too would systematically undercount breaks landing **near
+report-time** — a bias against *fresh* breaks, which is backwards for an earliness-seeking system. So:
+**occurrence → the rate; magnitude → requires an uncensored window.**
 
 **Make the blindness visible.** The report adds `n_degenerate_iv`, `n_unmeasurable`, `n_censored_short`,
 and a **reclassified-rows list** (`symbol / as_of / iv_rv / otm_skew / atm_iv / wing_iv / which-bound +
