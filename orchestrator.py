@@ -794,6 +794,10 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                         )
                         if cwn:
                             log.info("Cheapness-watch: recorded %d sentinel observation(s)", cwn)
+                        # §2.1.7: the fail-CLOSED clock-start basis is record-segmenting (rate values from
+                        # the prior fail-open basis are NOT comparable). Stamp it onto the run alongside the
+                        # model_mix discipline (same self-describing-version idiom as prompts/corpus).
+                        state.stamp_run_clock_basis(conn, run_id, cheapness_watch.CLOCK_BASIS)
                     except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the real cycle
                         log.warning("cheapness-watch pass failed (non-fatal): %s", e)
                         notify.send("Cheapness-watch failed (non-fatal)", str(e))

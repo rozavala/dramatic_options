@@ -853,6 +853,77 @@ def council_parse_health(conn: sqlite3.Connection, run_id: int) -> dict:
     return {"called": called, "parse_failed": failed, "rate": (failed / called) if called else 0.0}
 
 
+def _json_or_none(raw):
+    """Parse a persisted JSON cell (``rationale`` / ``raw``) → dict, or None. Fail-soft (never raises)."""
+    if not raw:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    try:
+        import json
+        d = json.loads(raw)
+        return d if isinstance(d, dict) else None
+    except Exception:  # noqa: BLE001 — a non-JSON cell is simply unreadable
+        return None
+
+
+def council_first_judgment_under_narrated(conn: sqlite3.Connection) -> dict[str, dict]:
+    """Per symbol, the council's FIRST-judgment ``under_narrated`` read — the substrate the cheapness-watch
+    clock-start gate (PREREG_CHEAPNESS_WATCH §2.1.7) reads. Returns ``{symbol: {...}}`` where the value is::
+
+        {"as_of": <first deliberated proposal's as_of>,
+         "under_narrated": True | False | None,   # the STRATEGIST's read (the binding tri-criteria role)
+         "parse_error": <bool>,                    # strategist agent_output was the fail-closed fallback
+         "confirmed_quiet": <bool>,                # under_narrated is True AND parse_error is False
+         "per_role": {role: True|False|None, ...}} # each role's under_narrated read (audit composition)
+
+    "First judgment" = the EARLIEST ``council_proposals.as_of`` for the symbol that reached the strategist
+    (``rationale.strategist`` present — a deliberated row; pre-strategist drops carry no tri-criteria and are
+    skipped). The read is timestamped at that judgment (anti-survivorship: a name that NARRATES later is
+    judged on its FIRST read, never re-confirmed away — §2.1.7). The aggregate ``under_narrated`` /
+    ``confirmed_quiet`` mirror the production read path (``dashboard_data.council_stage_funnel``): the
+    rationale JSON (``under_narrated`` is a strategist-only key — no column exists). ``per_role`` is read from
+    each role's ``council_agent_outputs.raw`` so the cohort's quietness COMPOSITION is auditable later.
+
+    Read-only; never raises (fail-soft per row). Symbols with no deliberated proposal are absent from the map.
+    """
+    # Earliest deliberated proposal per symbol. Ordered so the first deliberated row per symbol wins;
+    # the Python pass below keeps the first (a pre-strategist drop is skipped, never claiming the slot).
+    rows = conn.execute(
+        "SELECT id, symbol, as_of, rationale FROM council_proposals ORDER BY symbol, as_of, id"
+    ).fetchall()
+    out: dict[str, dict] = {}
+    for r in rows:
+        symbol = r["symbol"]
+        if symbol in out:
+            continue  # already have this symbol's first deliberated judgment
+        rat = _json_or_none(r["rationale"])
+        strat = (rat or {}).get("strategist")
+        if not isinstance(strat, dict):
+            continue  # not a deliberated row (ungrounded / proposer-abstained / pre-strategist drop)
+        un = strat.get("under_narrated")
+        under_narrated = un if isinstance(un, bool) else None
+        # parse_error + per-role composition from the persisted agent outputs of THIS proposal.
+        per_role: dict[str, bool | None] = {}
+        strat_parse_error = False
+        for ao in conn.execute(
+            "SELECT role, raw FROM council_agent_outputs WHERE proposal_id = ?", (r["id"],)
+        ):
+            ar = _json_or_none(ao["raw"]) or {}
+            v = ar.get("under_narrated")
+            per_role[ao["role"]] = v if isinstance(v, bool) else None
+            if ao["role"] == "strategist" and bool(ar.get("parse_error")):
+                strat_parse_error = True
+        out[symbol] = {
+            "as_of": r["as_of"],
+            "under_narrated": under_narrated,
+            "parse_error": strat_parse_error,
+            "confirmed_quiet": (under_narrated is True) and (strat_parse_error is False),
+            "per_role": per_role,
+        }
+    return out
+
+
 def update_run_council_health(
     conn: sqlite3.Connection, run_id: int, *, council_health: str, model_mix: str | None = None
 ) -> None:
@@ -868,6 +939,22 @@ def update_run_council_health(
             )
         else:
             conn.execute("UPDATE runs SET council_health = ? WHERE id = ?", (council_health, run_id))
+
+
+def stamp_run_clock_basis(conn: sqlite3.Connection, run_id: int, clock_basis: str) -> None:
+    """Record-segment a run by the cheapness-watch §2.1.7 fail-closed clock-start basis. Merges
+    ``{"clock_basis": <basis>}`` into the run's existing ``model_mix`` JSON (preserving the council
+    ``model_mix``/prompts/corpus keys ``_stamp_council_health`` writes), so a basis change is a
+    record-segmenting event (rate values across bases are NOT comparable) — the same self-describing-version
+    idiom as the prompt-sha / corpus stamps, zero migration. Atomic; fail-soft on a non-JSON existing cell."""
+    import json
+
+    row = conn.execute("SELECT model_mix FROM runs WHERE id = ?", (run_id,)).fetchone()
+    existing = _json_or_none(row["model_mix"]) if row else None
+    mix = existing if isinstance(existing, dict) else {}
+    mix["clock_basis"] = clock_basis
+    with conn:
+        conn.execute("UPDATE runs SET model_mix = ? WHERE id = ?", (json.dumps(mix), run_id))
 
 
 def link_proposal_position(

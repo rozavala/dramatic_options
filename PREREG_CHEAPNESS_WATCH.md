@@ -82,11 +82,44 @@ module is written, so the deciding measurement isn't defined after seeing data:
    materiality floor), **close finding #1 as a RARE-HARM negative — de-prioritize the persist** (a dated
    clean negative, not an open loop). The N-floor guards against firing on noise; the rate-close guards
    against `insufficient_N` forever.
-   **PRECONDITION — curation feeds the watch:** the rate is interpretable ONLY once the cohort holds
-   **break-CAPABLE** (fresh-ish quiet, curation-fed) names — a watch over post-move run-out names sees
-   zero breaks because they already moved, **NOT** because the harm is rare. Until the cohort is
-   curation-widened, a zero rate is **uninterpretable** (no break-capable names), not a clean negative —
-   **the T-clock starts when the cohort is break-capable**, not at first observation.
+   **PRECONDITION — curation feeds the watch (a FAIL-CLOSED gate, enforced; amendment 2026-06-30):** the
+   rate is interpretable ONLY once the cohort holds **break-CAPABLE** names — a watch over post-move
+   run-out names sees zero breaks because they already moved, **NOT** because the harm is rare. So **the
+   T-clock starts when the cohort is break-capable, not at first observation.** This was DOCUMENTED but
+   not enforced (`observed_days = max−min(as_of)` over ALL rows = fail-OPEN: the clock started at first
+   observation, diluting the rate over uninterpretable not-yet-break-capable days toward a false
+   `< 2/qtr` close). It is now **enforced**:
+   - **Clock-start basis — COUNCIL-CONFIRMED quiet (not feasibility-fresh membership).** `observed_days`
+     (and thus `qualifying_per_quarter`) counts only from the first day the active-sentinel cohort held
+     **≥1 name the council read `under_narrated=True` at FIRST judgment, with `parse_error=false`**. The
+     **STRATEGIST** is the binding tri-criteria role (CGS §10.7), so the strategist's read is the
+     confirmation; before that day the rate is **`None`** (uninterpretable, *not* a clean negative — the
+     `< 2/qtr` close cannot fire on a None rate). "Break-capable" is operationalised as council-confirmed
+     under-narration because that is the system's own judgment that a name is a quiet, not-yet-narrated
+     breaker — the exact population finding #1's harm requires; feasibility-fresh membership alone (the
+     prior implicit basis) admits post-move and never-quiet names that make the rate uninterpretable.
+   - **Cohort-name → council-read mapping.** A watched `symbol` is confirmed-quiet iff its first
+     deliberated council proposal (`rationale.strategist` present) carries `under_narrated=True` on a
+     clean strategist parse; the clock-start DATE is the first watch observation at/after that name's
+     first-judgment `as_of` (the name must be BOTH judged-quiet AND watched). The earliest such date
+     across confirmed-quiet names is the clock-start.
+   - **Anti-survivorship (PINNED).** The confirmation is **timestamped at clock-start and FROZEN**. A name
+     that **NARRATES during the watch window** (a later proposal reads `under_narrated=False`) **STAYS in
+     the cohort and keeps its clock-start** — during-window narration is the break-rate signal being
+     *measured*, NOT a disqualifier (dropping narrators would bias the break-rate toward zero).
+   - **Per-role recording + record-segmentation.** Each council role's `under_narrated` read + the
+     aggregate are recorded (`cheapness_report`'s `clock.composition`, read from
+     `council_agent_outputs.raw` / `council_proposals.rationale`) so the cohort's quietness composition is
+     auditable later. `under_narrated` is a strategist-only key (the proposer/adversary do not emit it →
+     `None` in the composition). A new clock-start basis is a **record-segmenting** event: rate values
+     from the prior fail-open basis are NOT comparable, so the basis (`council_confirmed_under_narrated_v1`)
+     is stamped onto `runs.model_mix` (the prompt-sha / corpus self-describing-version idiom; zero
+     migration), exactly as a model/prompt upgrade segments the council record.
+
+   Implementation: `cheapness_watch._clock_start` + `state.council_first_judgment_under_narrated` +
+   `state.stamp_run_clock_basis`; read-only MEASUREMENT, never a trade, never wired into `at_inflection`
+   (the hard seam holds). It cannot currently fire (no break-capable cohort exists yet) — landed as a
+   fail-open→fail-closed safety conversion before a name admits.
 
 ## §2.1.8 — the `degenerate_iv` + `unmeasurable` states (in force; amendment 2026-06-30)
 

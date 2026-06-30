@@ -312,6 +312,15 @@ def _render_cheapness(snap) -> None:
     st.markdown(f"**verdict: `{cw['verdict']}`** · breaks {cw['n_breaks']} "
                 f"(qualifying {cw['n_qualifying']} · never-cheap {cw['n_never_cheap']} · "
                 f"fresh-marker {cw['n_fresh_marker']}){rate_str}")
+    # §2.1.7 fail-closed clock-start — why the RATE reads (or is None): the clock starts only once the
+    # cohort holds a council-confirmed-quiet (under_narrated=True at first judgment) name.
+    clk = cw.get("clock") or {}
+    if clk.get("clock_started"):
+        st.caption(f"§2.1.7 clock STARTED {clk.get('clock_start')} on `{clk.get('clock_start_symbol')}` "
+                   f"(council-confirmed-quiet: {clk.get('n_confirmed_quiet_watched', 0)} watched)")
+    else:
+        st.caption("§2.1.7 clock NOT STARTED — no council-confirmed-quiet (under_narrated=True at first "
+                   "judgment) name in the cohort yet → rate uninterpretable (fail-closed), not a clean negative.")
     # §2.1.8 — make the blindness visible: the reclassified/censored counts (0/0/0 is the healthy reading)
     st.caption(f"§2.1.8 reclassified out — degenerate_iv {cw.get('n_degenerate_iv', 0)} · "
                f"unmeasurable {cw.get('n_unmeasurable', 0)} · censored-short {cw.get('n_censored_short', 0)}")
