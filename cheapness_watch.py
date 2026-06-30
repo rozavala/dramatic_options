@@ -9,13 +9,16 @@ Read-only MEASUREMENT, never a trade, never wired into ``at_inflection`` (the ha
 - ``cheapness_report`` — the §2.1 state machine over the daily history: debounced break-onset, sustained
   (2-consecutive) close, the three ``cheap_window``/``never_cheap`` states, the ``marker_age_at_break``
   SELECTION dimension, and the §7.1 JOINT trigger with the N-floor (``insufficient_N`` until ≥
-  ``n_qualify_floor`` qualifying stale∧catchable breaks — no verdict off noise).
+  ``n_qualify_floor`` qualifying stale∧catchable breaks — no verdict off noise). The §2.1.7 rate-clock is
+  fail-CLOSED: ``observed_days`` (→ ``qualifying_per_quarter``) starts only once the cohort holds a
+  COUNCIL-CONFIRMED-QUIET name (strategist ``under_narrated=True`` at first judgment), never at first
+  observation — a not-yet-break-capable cohort reads a ``None`` rate, not a diluted false negative.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 import state
 from convexity_gate import is_cheap_convexity, realized_vol
@@ -25,6 +28,9 @@ log = logging.getLogger("cheapness_watch")
 
 FRESH_RV_FLOOR = 0.10    # §2.1.1 break-onset (mirrors discovery.MarkerParams.fresh_rv_rising_floor)
 FRESH_MOM_FLOOR = 0.20   # §2.1.1
+# §2.1.7 — the fail-CLOSED clock-start basis (record-segmentation key; stamped onto runs.model_mix). A
+# change here means rate values from the prior basis are NOT comparable (segments the record).
+CLOCK_BASIS = "council_confirmed_under_narrated_v1"
 DEFAULT_STALENESS_LAG_DAYS = 20.0   # the §7.1 comparator (live 16.7d median / 23.7d max, run #337)
 DEFAULT_N_QUALIFY_FLOOR = 5          # §2.1.6 — no fire/hold verdict below this many qualifying breaks
 DEGEN_SUSTAINED_RUN = 2              # §2.1.8 — a SUSTAINED unreadable run (≥2, mirroring the §2.1.2 close) truncates
@@ -189,6 +195,87 @@ def _classify(row, bounds: dict[str, float]) -> str:
     return "no_structure"                        # cheap IS None
 
 
+# ── §2.1.7 the fail-closed clock-start gate (council-confirmed-quiet) ─────────────────────────────
+
+
+def _parse_iso(s: str | None) -> datetime | None:
+    """Parse an ISO timestamp → a tz-NORMALIZED naive datetime (UTC wall-clock), so the council judgment's
+    tz-aware ``as_of`` and the watch's (often naive, date-only) ``as_of`` compare without a naive-vs-aware
+    TypeError (the migration-0016 tz-offset hazard). None on an unparseable/empty value (fail-soft)."""
+    if not s:
+        return None
+    try:
+        dt = datetime.fromisoformat(s)
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(UTC).replace(tzinfo=None)
+    return dt
+
+
+def _clock_start(conn, by_sym: dict[str, list]) -> dict:
+    """The §2.1.7 fail-CLOSED clock-start. ``observed_days`` (→ ``qualifying_per_quarter``) counts only from
+    the day the active-sentinel cohort first held ≥1 **council-confirmed-quiet** name — the strategist's
+    ``under_narrated=True`` at FIRST judgment with ``parse_error=false`` (the binding tri-criteria role).
+    Replaces the fail-OPEN ``max−min(as_of)`` over all rows (which started the clock at first observation,
+    diluting the rate over uninterpretable not-yet-break-capable days).
+
+    Mapping (cohort-name → council-read): a watched ``symbol`` is confirmed-quiet iff
+    ``state.council_first_judgment_under_narrated`` reports ``confirmed_quiet`` for it; the clock-start DATE
+    is the first watch ``as_of`` at/after that name's first-judgment ``as_of`` (so the clock starts when the
+    name is BOTH judged-quiet AND being watched). The earliest such date across confirmed-quiet names is the
+    clock-start; ``observed_days`` = last watch ``as_of`` − clock-start.
+
+    Anti-survivorship (pinned): the confirmation is FROZEN at first judgment. A name that narrates LATER stays
+    in the cohort and keeps its clock-start (during-window narration is the break-rate signal being measured,
+    not a disqualifier — dropping narrators biases the break-rate toward zero).
+
+    Returns the audit block folded into the report (clock-start basis + per-role composition). Read-only;
+    fail-soft (an unparseable timestamp drops that name from the gate, never raises)."""
+    reads = state.council_first_judgment_under_narrated(conn)
+    confirmed = {sym: rd for sym, rd in reads.items() if rd.get("confirmed_quiet")}
+
+    all_asof = [a for rows in by_sym.values() for r in rows if (a := _parse_iso(r["as_of"])) is not None]
+    last_obs = max(all_asof) if all_asof else None
+
+    # Per confirmed-quiet name actually being watched: clock-start = first watch obs at/after its first
+    # judgment. (A name confirmed-quiet but never watched cannot start the clock — no break-capable OBS.)
+    candidates: list[tuple[datetime, str]] = []
+    composition: dict[str, dict] = {}
+    for sym, rd in confirmed.items():
+        rows = by_sym.get(sym)
+        if not rows:
+            continue
+        judged = _parse_iso(rd.get("as_of"))
+        obs = sorted(a for r in rows if (a := _parse_iso(r["as_of"])) is not None)
+        if judged is None or not obs:
+            continue
+        start = next((o for o in obs if o >= judged), None)
+        if start is None:  # judged AFTER the last observation of this name → not yet clock-capable here
+            continue
+        candidates.append((start, sym))
+        composition[sym] = {"first_judgment_as_of": rd.get("as_of"), "clock_start_obs": start.isoformat(),
+                            "under_narrated": rd.get("under_narrated"), "parse_error": rd.get("parse_error"),
+                            "per_role": rd.get("per_role", {})}
+
+    clock_start: datetime | None = min((c[0] for c in candidates), default=None)
+    observed_days = None
+    if clock_start is not None and last_obs is not None and last_obs > clock_start:
+        observed_days = (last_obs - clock_start).total_seconds() / 86400.0
+
+    return {
+        "observed_days": observed_days,
+        "clock_started": clock_start is not None,
+        "clock_start": clock_start.isoformat() if clock_start else None,
+        "clock_start_symbol": (min(candidates)[1] if candidates else None),
+        "n_confirmed_quiet": len(confirmed),
+        "n_confirmed_quiet_watched": len(candidates),
+        "confirmed_quiet_symbols": sorted(confirmed),
+        "composition": composition,
+        "clock_basis": CLOCK_BASIS,
+    }
+
+
 # ── the §2.1 state machine + the §7.1 JOINT trigger ──────────────────────────────────────────────
 
 
@@ -271,7 +358,14 @@ def cheapness_report(conn, *, staleness_lag_days: float = DEFAULT_STALENESS_LAG_
     BOTH the verdict median AND the N-floor). Verdict ``insufficient_N`` below the floor (no decision off
     noise); else ``fire`` iff the decision-set ``cheap_window_days`` median sits below the lag, else ``hold``.
     ``degenerate_iv`` / ``unmeasurable`` / ``never_cheap`` / ``no_structure`` / fresh-marker breaks are
-    reported separately, never folded in. ``bounds`` defaults to the pinned §2.1.8 degenerate bounds."""
+    reported separately, never folded in. ``bounds`` defaults to the pinned §2.1.8 degenerate bounds.
+
+    §2.1.7 (fail-CLOSED clock-start): ``qualifying_per_quarter`` = ``n_qualifying / observed_days``, and
+    ``observed_days`` counts only from the day the cohort first held a COUNCIL-CONFIRMED-QUIET name (the
+    strategist's ``under_narrated=True`` at first judgment, ``parse_error=false``) — NOT from first
+    observation. Before that the rate is ``None`` (uninterpretable, not a clean negative): a feasibility-fresh
+    but not-yet-break-capable cohort cannot dilute the rate toward a false negative. The ``clock`` block in
+    the result carries the basis + per-role quietness composition (audit). See ``_clock_start``."""
     bounds = bounds or DEFAULT_DEGEN_BOUNDS
     by_sym: dict[str, list] = {}
     for r in conn.execute(
@@ -311,14 +405,16 @@ def cheapness_report(conn, *, staleness_lag_days: float = DEFAULT_STALENESS_LAG_
     # The persist's value = rate × value-per-catch; a near-zero qualifying rate de-prioritizes on the rate
     # alone. The operator's rate-close (spec §2.1.7) reads this against a materiality floor over T months.
     # The rate counts ALL qualifying breaks (the harm OCCURRED even where the window is censored-short).
-    all_asof = [r["as_of"] for rows in by_sym.values() for r in rows]
-    observed_days = None
-    if len(all_asof) >= 2:
-        try:
-            observed_days = (datetime.fromisoformat(max(all_asof))
-                             - datetime.fromisoformat(min(all_asof))).total_seconds() / 86400.0
-        except (ValueError, TypeError):
-            observed_days = None
+    #
+    # FAIL-CLOSED clock-start (§2.1.7): observed_days counts ONLY from the point the cohort became
+    # break-CAPABLE — defined as the first day the active cohort held ≥1 name the council read
+    # `under_narrated=True` at FIRST judgment (parse_error=false). A feasibility-fresh-but-not-council-
+    # confirmed cohort sees a zero rate UNINTERPRETABLY (no break-capable names) — counting those days
+    # would dilute the rate toward a false negative. So the clock does not start until ``clock_start``.
+    # Anti-survivorship: the confirmation is timestamped at clock-start; a name that NARRATES during the
+    # window STAYS in the cohort (during-window narration is the signal, not a disqualifier).
+    clock = _clock_start(conn, by_sym)
+    observed_days = clock["observed_days"]
     qualifying_per_quarter = (len(qualifying) / observed_days * 90.0) if observed_days else None
     if len(windows) < n_qualify_floor:        # the N-floor counts the DECISION set (censored_short excluded)
         verdict = "insufficient_N"
@@ -344,12 +440,17 @@ def cheapness_report(conn, *, staleness_lag_days: float = DEFAULT_STALENESS_LAG_
         "qualifying_per_quarter": qualifying_per_quarter,
         "qualifying_windows": windows,
         "reclassified_rows": _reclassified_rows(degenerate_iv, unmeasurable, bounds),
+        "clock": clock,   # §2.1.7 fail-closed clock-start basis + per-role quietness composition (audit)
         "note": "verdict gated by the N-floor over the DECISION set (§2.1.8 censored-short excluded); "
                 "QUALIFYING = stale-markers ∧ catchable-cheap (the §7.1 JOINT — what the persist would "
                 "fix). fresh-marker breaks benign-by-construction; never_cheap = catchability-not-the-race; "
                 "degenerate_iv/unmeasurable reclassified OUT of qualifying & never_cheap (the break is "
                 "re-attributed, never hidden); insufficient_N is the EXPECTED long-term state (conjunctive "
-                "filters make qualifying breaks rare) — a sustained one is itself the finding.",
+                "filters make qualifying breaks rare) — a sustained one is itself the finding. The RATE "
+                "(qualifying_per_quarter) is fail-CLOSED: observed_days counts only from the §2.1.7 "
+                "council-confirmed-quiet clock-start (None until the cohort holds a name read "
+                "under_narrated=True at first judgment), so a not-yet-break-capable cohort reads None, "
+                "never a diluted false-negative rate.",
     }
 
 

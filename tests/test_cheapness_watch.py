@@ -360,3 +360,151 @@ def test_classify_is_none_safe_and_total(convexity_db):
     assert cw._classify(dict(cheap=1, **CDE_HIGH), b) == "degenerate_iv"
     # a stray None on a present-IV row must not raise and must not spuriously trip
     assert cw._classify(dict(cheap=1, atm_iv=0.5, wing_iv=0.45, iv_rv=1.0, otm_skew=None), b) == "cheap"
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+# §2.1.7 — the FAIL-CLOSED clock-start gate (council-confirmed-quiet). The RATE (qualifying_per_quarter)
+# counts observed_days only from the day the cohort first held a name the STRATEGIST read
+# under_narrated=True at FIRST judgment (parse_error=false) — never from first observation.
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def _council_read(conn, symbol, *, as_of, under_narrated, parse_error=False, strat_conv="MODERATE",
+                  proposer_un=None, run_id=None):
+    """Record one council judgment for ``symbol`` carrying the strategist's ``under_narrated`` read.
+
+    Mirrors the production persist path: the aggregate rides ``rationale.strategist.under_narrated``
+    (the read path the §2.1.7 gate uses), and each role's read rides ``council_agent_outputs.raw`` (the
+    per-role audit). ``parse_error`` marks the strategist agent_output as the fail-closed fallback."""
+    rationale = {"strategist": {"under_narrated": under_narrated, "at_inflection": True,
+                                "include": bool(under_narrated), "conviction": strat_conv}}
+    pid = state.record_council_proposal(
+        conn, run_id=run_id, as_of=as_of, theme="t", symbol=symbol, direction="bullish",
+        conviction=strat_conv, rationale=rationale, status="proposed",
+    )
+    # proposer/adversary structurally don't emit under_narrated (a strategist-only key) — record them as
+    # such so the per_role composition is truthful (None for the non-emitting roles unless overridden).
+    state.record_agent_output(conn, proposal_id=pid, role="proposer", provider="g", model="m",
+                              confidence="MODERATE", stance="bullish",
+                              raw=({"under_narrated": proposer_un} if proposer_un is not None
+                                   else {"confidence": "MODERATE", "inflection_thesis": "x"}))
+    state.record_agent_output(conn, proposal_id=pid, role="adversary", provider="x", model="m",
+                              confidence="MODERATE", stance="bearish", raw={"counter_case": "c"})
+    srow = ({"confidence": "NEUTRAL", "parse_error": True} if parse_error
+            else {"conviction": strat_conv, "under_narrated": under_narrated, "at_inflection": True,
+                  "include": bool(under_narrated)})
+    state.record_agent_output(conn, proposal_id=pid, role="strategist", provider="a", model="m",
+                              confidence=strat_conv, stance="bullish", raw=srow)
+    return pid
+
+
+# a qualifying cheap_window break (stale markers age 25 ≥ lag 20, closes at V=2 < lag → would fire)
+_QUALIFYING = [(*BELOW, 1), (*FRESH, 1), (*FRESH, 0), (*FRESH, 0)]
+
+
+def test_clock_does_not_start_on_feasibility_fresh_not_council_confirmed(convexity_db):
+    """A feasibility-fresh cohort with NO council-confirmed-quiet name: the clock does NOT start, so
+    observed_days / qualifying_per_quarter are None — EVEN with a qualifying break present. (Fail-CLOSED:
+    a not-yet-break-capable cohort cannot dilute the rate toward a false negative.)"""
+    _series(convexity_db, "X", _QUALIFYING, marker_age=25)
+    rep = cw.cheapness_report(convexity_db, staleness_lag_days=20.0, n_qualify_floor=1)
+    assert rep["n_qualifying"] == 1                       # the break is detected & qualifies
+    assert rep["observed_days"] is None                   # but the RATE clock has not started
+    assert rep["qualifying_per_quarter"] is None
+    assert rep["clock"]["clock_started"] is False and rep["clock"]["n_confirmed_quiet"] == 0
+
+
+def test_clock_starts_at_first_council_confirmed_quiet_name(convexity_db):
+    """With a council-confirmed-quiet name (strategist under_narrated=True at first judgment,
+    parse_error=false) in the cohort, the clock STARTS — observed_days spans from the clock-start obs and
+    the rate is a real number."""
+    # judgment lands on/before the watch history; the watch runs 2026-03-01..03-04 (4 obs)
+    _council_read(convexity_db, "X", as_of="2026-02-15T00:00:00+00:00", under_narrated=True)
+    _series(convexity_db, "X", _QUALIFYING, marker_age=25)
+    rep = cw.cheapness_report(convexity_db, staleness_lag_days=20.0, n_qualify_floor=1)
+    assert rep["clock"]["clock_started"] is True and rep["clock"]["clock_start_symbol"] == "X"
+    assert rep["clock"]["n_confirmed_quiet_watched"] == 1
+    # clock-start = first watch obs (2026-03-01); last obs 2026-03-04 → ~3 days
+    assert rep["observed_days"] is not None and 2.9 < rep["observed_days"] < 3.1
+    assert rep["qualifying_per_quarter"] is not None and rep["qualifying_per_quarter"] > 0
+
+
+def test_clock_does_not_start_on_under_narrated_false_or_parse_error(convexity_db):
+    """A deliberated under_narrated=False, and a strategist parse_error, are NOT confirmations — neither
+    starts the clock (the binding tri-criteria role must AFFIRM quietness on a clean parse)."""
+    _council_read(convexity_db, "FALSEY", as_of="2026-02-15T00:00:00+00:00", under_narrated=False)
+    _council_read(convexity_db, "PARSEFAIL", as_of="2026-02-15T00:00:00+00:00", under_narrated=True,
+                  parse_error=True)
+    _series(convexity_db, "FALSEY", _QUALIFYING, marker_age=25)
+    _series(convexity_db, "PARSEFAIL", _QUALIFYING, marker_age=25)
+    rep = cw.cheapness_report(convexity_db, staleness_lag_days=20.0, n_qualify_floor=1)
+    assert rep["clock"]["clock_started"] is False
+    assert rep["observed_days"] is None and rep["qualifying_per_quarter"] is None
+
+
+def test_name_narrating_mid_window_stays_counted_anti_survivorship(convexity_db):
+    """Anti-survivorship (§2.1.7): a name confirmed-quiet at FIRST judgment that later NARRATES
+    (under_narrated=False in a subsequent proposal) STAYS in the cohort and keeps its clock-start — the
+    during-window narration is the signal being measured, never a disqualifier. The clock-start, the
+    confirmed-quiet count, and the qualifying break are all unchanged vs. confirmation alone."""
+    _council_read(convexity_db, "X", as_of="2026-02-15T00:00:00+00:00", under_narrated=True)   # FIRST: quiet
+    _council_read(convexity_db, "X", as_of="2026-03-20T00:00:00+00:00", under_narrated=False)  # LATER: narrates
+    _series(convexity_db, "X", _QUALIFYING, marker_age=25)
+    rep = cw.cheapness_report(convexity_db, staleness_lag_days=20.0, n_qualify_floor=1)
+    # the FIRST judgment (under_narrated=True) is the binding read; the later narration does not drop it
+    assert rep["clock"]["clock_started"] is True and rep["clock"]["n_confirmed_quiet"] == 1
+    assert rep["clock"]["composition"]["X"]["first_judgment_as_of"] == "2026-02-15T00:00:00+00:00"
+    assert rep["n_qualifying"] == 1 and rep["observed_days"] is not None   # the narrator is still counted
+
+
+def test_per_role_under_narrated_reads_recorded_in_composition(convexity_db):
+    """Per-role recording (§2.1.7 point 4): each council role's under_narrated read is captured in the
+    clock composition so the cohort's quietness composition is auditable. under_narrated is a
+    strategist-only key (proposer/adversary don't emit it → None); the strategist carries the True read."""
+    _council_read(convexity_db, "X", as_of="2026-02-15T00:00:00+00:00", under_narrated=True,
+                  proposer_un=False)   # force a proposer read to prove per-role capture is real
+    _series(convexity_db, "X", _QUALIFYING, marker_age=25)
+    rep = cw.cheapness_report(convexity_db, staleness_lag_days=20.0, n_qualify_floor=1)
+    comp = rep["clock"]["composition"]["X"]
+    assert comp["per_role"]["strategist"] is True       # the binding role affirmed quiet
+    assert comp["per_role"]["proposer"] is False        # captured verbatim (proven non-None here)
+    assert comp["per_role"]["adversary"] is None        # adversary structurally doesn't emit it
+    assert comp["under_narrated"] is True and comp["parse_error"] is False
+
+
+def test_clock_start_requires_the_confirmed_name_to_be_watched(convexity_db):
+    """A council-confirmed-quiet name that is NOT in the watch cohort cannot start the clock (no
+    break-capable OBSERVATION of it); a DIFFERENT, unconfirmed watched name does not start it either."""
+    _council_read(convexity_db, "CONFIRMED_BUT_UNWATCHED", as_of="2026-02-15T00:00:00+00:00",
+                  under_narrated=True)
+    _series(convexity_db, "WATCHED_BUT_UNCONFIRMED", _QUALIFYING, marker_age=25)
+    rep = cw.cheapness_report(convexity_db, staleness_lag_days=20.0, n_qualify_floor=1)
+    assert rep["clock"]["n_confirmed_quiet"] == 1            # the confirmation exists
+    assert rep["clock"]["n_confirmed_quiet_watched"] == 0    # but it is not watched → clock unstarted
+    assert rep["clock"]["clock_started"] is False and rep["observed_days"] is None
+
+
+def test_council_first_judgment_under_narrated_uses_first_deliberated(convexity_db):
+    """state.council_first_judgment_under_narrated picks the EARLIEST DELIBERATED proposal per symbol; a
+    pre-strategist drop (no rationale.strategist) never claims the slot."""
+    # an earlier ungrounded drop (no strategist) must NOT be the first judgment
+    state.record_council_proposal(convexity_db, run_id=None, as_of="2026-01-01T00:00:00+00:00", theme="t",
+                                  symbol="X", direction="bullish", conviction="NEUTRAL",
+                                  rationale={"dropped": "ungrounded (no numeric evidence)"}, status="dropped")
+    _council_read(convexity_db, "X", as_of="2026-02-15T00:00:00+00:00", under_narrated=True)
+    reads = state.council_first_judgment_under_narrated(convexity_db)
+    assert reads["X"]["as_of"] == "2026-02-15T00:00:00+00:00"   # the deliberated row, not the earlier drop
+    assert reads["X"]["confirmed_quiet"] is True
+
+
+def test_stamp_run_clock_basis_merges_into_model_mix(convexity_db):
+    """state.stamp_run_clock_basis record-segments the run by the §2.1.7 basis WITHOUT clobbering the
+    council model_mix keys (the prompt/corpus stamp idiom)."""
+    import json
+    rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
+    state.update_run_council_health(convexity_db, rid, council_health="ok",
+                                    model_mix=json.dumps({"proposer": "gemini/x", "corpus": "fundamentals_v2"}))
+    state.stamp_run_clock_basis(convexity_db, rid, cw.CLOCK_BASIS)
+    mix = json.loads(convexity_db.execute("SELECT model_mix FROM runs WHERE id=?", (rid,)).fetchone()["model_mix"])
+    assert mix["clock_basis"] == cw.CLOCK_BASIS               # the new segmentation key
+    assert mix["proposer"] == "gemini/x" and mix["corpus"] == "fundamentals_v2"   # preserved, not clobbered
