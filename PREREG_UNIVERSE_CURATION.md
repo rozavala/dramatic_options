@@ -238,6 +238,21 @@ council (forward-scored), with the gate and caps disposing.
   (the map stays deterministic and operator-owned — the cap never keys on anything LLM-set);
   re-routing and cross-cluster migrations are dated operator amendments recorded in the register;
   the trailing-return correlation diagnostic remains the backstop.
+- **Rule 5 — thesis-premise-currency check (gate; 2026-06-30 amendment; between Rule-1 feasibility
+  and admission).** Before a theme's names are admitted, a **current-state pull** (latest filings +
+  trailing news/coverage) must confirm the thesis premise is **presently true**: (a) the named
+  narrative/mechanism still holds — not exited, faded, or inverted — and (b) the name(s) remain
+  **attention-displaced** (thin coverage, not the loud leader / battleground / meme). A failed
+  premise → **drop or re-thesise, never an automatic pass.** This is orthogonal to Rule-1 feasibility
+  (which tests tradeability, not currency) and to the council's `under_narrated` read (which only
+  judges what reaches it) — a pre-admission gate so a stale-premise name is caught by the **funnel,
+  not by luck**. The cheapness/motion prohibitions are unchanged: the pull verifies the THESIS is
+  current and the name is QUIET, never that it is cheap or has moved. **Proof-of-need (2026-06-30 —
+  every name passed Rule-1 feasibility, every name dropped here):** AUR (already multi-lane → the
+  "single-lane pilot" premise pre-falsified); ERII (CO2-refrigeration wound down + desal guidance cut
+  → premise inverted); ALTM/WBA (delisted / taken-private at the revulsion low); SEDG/WBD (turnaround
+  already priced, +85%/+170% off the bottom). Three demonstrated catch-types — **mechanism-stale,
+  name-delisted, thesis-already-priced**. See `records/2026-06-30_premise_currency_check.md`.
 
 **Disclosure tiers, clarified (binds the future generation layer).** The §6 sweep's per-basket
 aggregates are pinned OPEN at the operator tier (per-basket = per-theme; the frozen §6 already says
