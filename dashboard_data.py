@@ -552,20 +552,29 @@ def null_hierarchy(conn) -> dict:
     }
 
 
-def cheapness_watch_panel(conn) -> dict:
+def cheapness_watch_panel(conn, config: dict | None = None) -> dict:
     """Finding #1's cheapness-watch (PREREG_CHEAPNESS_WATCH) — the §2.1 break/window/never_cheap state
-    machine + the §7.1 verdict (N-floor + rate-close) + per-name latest cheap state. DIAGNOSTIC:
+    machine + the §7.1 verdict (N-floor + rate-close) + per-name latest state. DIAGNOSTIC:
     ``insufficient_N`` is the EXPECTED reading (qualifying stale∧catchable breaks are conjunctively rare),
-    interpretable only once curation gives the cohort break-CAPABLE names (the §2.1.7 precondition)."""
+    interpretable only once curation gives the cohort break-CAPABLE names (the §2.1.7 precondition).
+
+    §2.1.8: ``latest_by_name`` carries the per-row classifier **state** (cheap / not_cheap / degenerate_iv /
+    unmeasurable / no_structure) beside ``iv_rv`` — so a degenerate row that still stores ``cheap=1`` does
+    NOT contradict the verdict (the row and the verdict agree). Plus the new degenerate/censoring counts."""
     import cheapness_watch
 
-    rep = cheapness_watch.cheapness_report(conn)
-    rep["latest_by_name"] = _rows(
+    bounds = cheapness_watch.bounds_from_config(config)
+    rep = cheapness_watch.cheapness_report(conn, bounds=bounds)
+    latest = _rows(
         conn,
-        "SELECT cw.symbol, cw.as_of, cw.cheap, cw.iv_rv, cw.marker_age_days FROM cheapness_watch cw "
+        "SELECT cw.symbol, cw.as_of, cw.cheap, cw.iv_rv, cw.atm_iv, cw.wing_iv, cw.otm_skew, "
+        "cw.marker_age_days FROM cheapness_watch cw "
         "JOIN (SELECT symbol, MAX(as_of) m FROM cheapness_watch GROUP BY symbol) t "
         "ON cw.symbol = t.symbol AND cw.as_of = t.m ORDER BY cw.symbol",
     )
+    for r in latest:
+        r["state"] = cheapness_watch._classify(r, bounds)   # §2.1.8 — row state agrees with the verdict
+    rep["latest_by_name"] = latest
     return rep
 
 

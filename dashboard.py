@@ -76,7 +76,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "market_ctx": dd.safe(dd.market_context, conn),
             "dualread": dd.safe(dd.gate_dualread_report, conn, config),
             "dualread_runtime": dd.safe(dd.dualread_runtime_panel, conn, config),
-            "cheapness": dd.safe(dd.cheapness_watch_panel, conn),
+            "cheapness": dd.safe(dd.cheapness_watch_panel, conn, config),
             "curation": dd.safe(dd.curation_panel, conn, config, market),
             "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir),
         }
@@ -312,8 +312,14 @@ def _render_cheapness(snap) -> None:
     st.markdown(f"**verdict: `{cw['verdict']}`** · breaks {cw['n_breaks']} "
                 f"(qualifying {cw['n_qualifying']} · never-cheap {cw['n_never_cheap']} · "
                 f"fresh-marker {cw['n_fresh_marker']}){rate_str}")
+    # §2.1.8 — make the blindness visible: the reclassified/censored counts (0/0/0 is the healthy reading)
+    st.caption(f"§2.1.8 reclassified out — degenerate_iv {cw.get('n_degenerate_iv', 0)} · "
+               f"unmeasurable {cw.get('n_unmeasurable', 0)} · censored-short {cw.get('n_censored_short', 0)}")
     if cw.get("latest_by_name"):
         st.dataframe(cw["latest_by_name"], width="stretch")
+    if cw.get("reclassified_rows"):   # the audit list — which bound tripped + the offending value
+        st.caption("Reclassified rows (§2.1.8 audit — which bound + offending value):")
+        st.dataframe(cw["reclassified_rows"], width="stretch")
     st.caption(cw["note"])
 
 
