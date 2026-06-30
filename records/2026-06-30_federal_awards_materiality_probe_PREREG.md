@@ -79,3 +79,94 @@ Read-only: no `config.universe.themes` edit, no loop/council/gate change, no adm
 at the input (materiality is scale, not motion; the price-coupling is disclosed above). The ephemeral
 probe driver lives outside the repo; the name→ticker resolver is committed as tested infrastructure
 **only if** the probe says BUILD.
+
+---
+
+# RESULT (post-run, dated 2026-06-30) — GRAVEYARD (dated negative). Source-negative, not market-empty.
+
+The frozen blind body above is unedited; this is the dated addendum (the `§10-append` pattern). The
+cheap leg ran; the chain screen was never reached (correctly — the population isn't real). **Verdict:
+GRAVEYARD.** `federal_awards` joins `capital_raises`; the **EDGAR funnel as a *surfacing apparatus* is
+settled** (both tractable sources ceilinged) — a clean dated negative consistent with the project's
+epistemics (divergence / FSSD / seeded-generator). The resolver stays ephemeral (BUILD not earned).
+
+## The finding (the durable output) — the size-cell is structurally near-empty, NOT "prime-dominated"
+The material `≥10%` set was **2, both prime/large** (LMT 26%, SAIC 16%; **NON-OBVIOUS = 0**). But the
+durable finding is **not** "the salient end won the material cell" — that framing is a **ceiling
+artifact** (see caveat 1: LMT's "$30.1B" is a multi-year IDV *ceiling*, not a period obligation; under
+a clean obligated-period measure the cell is ~empty for **everyone, primes included**). The real result:
+
+> **The `material ∩ quiet ∩ optionable` cell is structurally near-empty because the three constraints
+> are mutually antagonistic.** Optionable ⇒ cap not tiny (thin chains below ~$200–300M); material ⇒
+> award ≥10% of a non-tiny cap ⇒ a *large* award; and a quiet small-cap winning a large *prime* award
+> is both **rare** (small defense names mostly **subcontract** — their wins are recorded under the
+> prime, invisible to a prime-award feed) and **self-limiting** — when one does win big, the public
+> award **re-rates** it out of "small" and "quiet" (exactly what KTOS/AVAV did; the recall test caught
+> them resolved-but-non-material). Prime awards are the wrong **locus**; the quiet operational signal
+> lives in **subaward** flow this source doesn't capture.
+
+**Transferable lesson (scoped correction to the materiality-enricher escape):** a **current-cap-
+denominated materiality enricher self-defeats on visible catalysts** — the catalyst moves the
+denominator — so it works as an under-narration proxy **only where the catalyst isn't visibly priced**,
+which a *public award*, by construction, is.
+
+**Source-negative, not market-empty:** near-empty *here* does **not** mean the market is dry on
+inflections (not an earned World-2 on the market). It means **prime federal awards are the wrong
+instrument** — the inflections may well exist; this feed can't see them. That distinction keeps the
+negative from reading as defeatist and points back to where the signal does live (curation; subawards).
+
+## The data (per the pinned distribution-read, not a bare count)
+| read | result |
+|---|---|
+| enumeration (180d, ≥$10M, DoD A/B/C/D) | **core 2,152** + **flagged 2,106** = **4,258** awards; **BOTH EXHAUSTED** (`hasNext=False` at 22/60 pages; smallest award fetched = $10.0M = the floor) — see "Enumeration-exhaustiveness" below |
+| name→ticker join | **26** unique public tickers; **75.9%** recipient-rows unmatched (private-awardee + *prime*-subsidiary majority — Accenture Federal, AAR Government Services; prime-biased, doesn't threaten "0 quiet") |
+| market-cap join coverage | **23/26 = 88.5%** (per-symbol price; 3 no price/shares) |
+| material **≥10%** | **2 — both prime/large**: LMT 26% (336411), SAIC 16% (541712). **NON-OBVIOUS = 0** |
+| 5–10% shoulder | LDOS 6% (prime), **TLS 6%** (Telos — the *only* quiet small-cap anywhere near the line, **below** the pinned 10% threshold). Shoulder **not "populated"** → the AMBIGUOUS→revisit-threshold door (blind §"Decision rule") is **not** triggered; recorded as the lone hint, not a revisit. |
+| shortlist recall | **AVAV, KTOS** resolved (the only shortlist names with a ≥$10M in-window DoD award); **both non-material** (caps re-rated past it). **Recall test SATISFIED** — the verdict is not a join leak. |
+
+## Enumeration-exhaustiveness (the load-bearing check — stands in for both of option-(b)'s reruns)
+The failure mode that bit this path twice is *top-by-amount enumeration not reaching the small awards*.
+Re-verified post-`$10M`-floor: **both** NAICS-group fetches **EXHAUSTED** (`hasNext=False` at page 22 of
+60; smallest award = exactly $10.0M, so the desc-sorted pull reached the floor — no material award hides
+beyond a cap). With both groups exhausted, **"0 quiet" is airtight on the only dimension that can flip
+it.** (Skipped, deliberately: the obligated-period de-confound and the parent/subsidiary recall pass —
+option (b). The ceiling-confound cuts *toward* emptier, so the clean obligated number only tidies a
+non-load-bearing figure; shortlist recall is clean and unmatched-leakage is prime-biased, so a sub
+recall pass can't manufacture quiet names. Running them would be rigor-theater on a settled negative.)
+
+## The `$10M` floor (disclosed as a tractability bound — added mid-run, so named)
+A server-side `award_amounts.lower_bound = $10M` was added during the run to bound the enumeration
+(the fix for the page-cap). **Justification:** a sub-$10M award is **<5%** of any optionable-sized
+(≥$200M-cap) name — **below the 5% shoulder** — so nothing material to a *tradeable* name lives beneath
+the floor. It is a tractability bound, not a yield knob (it cannot drop a material-to-optionable award).
+
+## Auditability — three protocol-sanctioned plumbing fix-and-reruns; **none touched the frozen decision pin**
+1. **enumeration page-cap** (top-by-amount missing small awards) → **core/flagged NAICS split + the $10M floor** (bounds each group; honors the blind NAICS-bucketing pin).
+2. **price-batch bug** (one bad symbol zeroed the whole batched bars call) → **per-symbol price** fetch.
+3. **`3M COMPANY` (≡ MMM) recall leak** ("COMPANY" ≠ EDGAR's "CO") → **suffix-strip** in `norm()` — this was the **frozen recall protocol firing *as designed*** (a demonstrated public-name leak ⇒ fix-and-rerun, never graveyard). Recall jumped 15→26 resolved.
+
+Each was a deterministic plumbing fix under the pre-specified fix-and-rerun protocol; **none** touched
+the frozen threshold (10%), window (180d), denominator, or decision rule → the negative is **not
+HARK-tainted**.
+
+## Two caveats (both cut *toward* the negative — they strengthen it)
+1. **Ceiling-confound** — LMT's "$30.1B" is a multi-year IDV **ceiling**, not a period obligation. This
+   **overstates** prime materiality, so the *true* (annual-obligated) material set is **even emptier**.
+   The confound only **strengthens** the negative (it is why "prime-dominated" is the wrong framing).
+2. **Name-join recall is decent-not-airtight** — 26 public cos from 4,258 awards; the shortlist recall
+   **passes**, and the unmatched are dominated by private LLCs + *prime* subsidiaries, so a leak is
+   **prime-biased** and can't manufacture quiet names. Not airtight, but it cannot flip "0 quiet."
+
+## Footnote (where you'd look if you ever revisit — explicitly NOT now)
+The size-cell finding *points* to **subawards** as the only place federal-contracting quiet signal could
+live: small-caps **subcontract**, and subaward reporting carries a lag that *might* escape the visible-
+catalyst defeat. But that's a **new source with its own completeness/lag wall** — flagged, not opened.
+
+## Tie-back
+This **reinforces** the standing conclusion rather than adding a new one: filing/enumeration sources
+surface the **salient end** and structurally miss quiet under-narration — now shown **twice**
+(`capital_raises` can't go quiet; `federal_awards`' target cell is empty). The EDGAR funnel as a
+*surfacing apparatus* is **settled**, and the binding constraint returns to where it was: **manual
+curation throughput** — the irreducible human judgment that decouples candidates from the salience axis.
+There is no automated substitute on these sources; the human judgment **is** the input.
