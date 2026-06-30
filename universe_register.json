@@ -63,6 +63,16 @@
         "BOAT constituent file (SonicShares Global Shipping ETF, stockanalysis.com/etf/boat/holdings, fetched 2026-06-22)"
       ],
       "cluster_default": "seaborne_freight"
+    },
+    "desalination_efficiency": {
+      "provenance": "operator",
+      "added": "2026-06-30 (off-cycle (2026-06-29 curation))",
+      "thesis": "ERII's narrative sits on its CO2-refrigeration pivot, leaving the core pressure-exchanger desalination franchise under-attended as large reverse-osmosis capacity enters award/build; the un-priced repricing is a desal bookings/backlog inflection, not the refrigeration story the tape watches.",
+      "falsifier": "Thesis-retention falsifier (OTM holds the tail; informs universe retention/re-entry, NOT a mid-life exit; never price). Dies if by entry+12mo desal-segment bookings/backlog show no >=30% step-up (window-end point-in-time desal backlog vs trailing-4Q-average at entry; baseline verified from the latest 10-Q at pin). The 'major RO award names ERII content' leg is confirmatory only, NOT a kill condition (ERII SWRO pressure-exchanger near-monopoly makes it near-vacuous).",
+      "sources": [
+        "Invesco Water Resources ETF (PHO) constituent"
+      ],
+      "cluster_default": "desalination_efficiency"
     }
   },
   "windows": {
@@ -74,53 +84,272 @@
         "records/2026-06-09_window1_feasibility_screen.txt"
       ],
       "admitted": {
-        "UEC":  {"basket": "nuclear_fuel",   "sources": ["URNM", "NLR"],  "per_contract_usd": 213, "achieved_otm_pct": 22.1, "tag": "rule"},
-        "UUUU": {"basket": "nuclear_fuel",   "sources": ["URNM", "NLR"],  "per_contract_usd": 290, "achieved_otm_pct": 25.3, "tag": "rule"},
-        "NXE":  {"basket": "nuclear_fuel",   "sources": ["URNM", "NLR"],  "per_contract_usd": 150, "achieved_otm_pct": 20.8, "tag": "rule"},
-        "UROY": {"basket": "nuclear_fuel",   "sources": ["URNM"],         "per_contract_usd": 68,  "achieved_otm_pct": 15.5, "tag": "rule"},
-        "SMR":  {"basket": "nuclear_fuel",   "sources": ["NLR"],          "per_contract_usd": 282, "achieved_otm_pct": 20.0, "tag": "rule"},
-        "NNE":  {"basket": "nuclear_fuel",   "sources": ["NLR", "operator-named"], "per_contract_usd": 525, "achieved_otm_pct": 25.3, "tag": "operator-named+rule (predates the rule — §3 honesty note)"},
-        "ATKR": {"basket": "grid_equipment", "sources": ["GRID"],         "per_contract_usd": 625, "achieved_otm_pct": 23.8, "tag": "rule"},
-        "AMSC": {"basket": "grid_equipment", "sources": ["GRID"],         "per_contract_usd": 915, "achieved_otm_pct": 23.4, "tag": "rule"},
-        "FLNC": {"basket": "grid_equipment", "sources": ["GRID"],         "per_contract_usd": 700, "achieved_otm_pct": 23.6, "tag": "rule"},
-        "HBM":  {"basket": "copper_supply",  "sources": ["COPX"],         "per_contract_usd": 370, "achieved_otm_pct": 17.2, "tag": "rule"},
-        "ERO":  {"basket": "copper_supply",  "sources": ["COPX"],         "per_contract_usd": 308, "achieved_otm_pct": 33.3, "tag": "rule"},
-        "TGB":  {"basket": "copper_supply",  "sources": ["COPX"],         "per_contract_usd": 102, "achieved_otm_pct": 21.8, "tag": "rule"},
-        "PL":   {"basket": "space_smallcap", "sources": ["UFO"],          "per_contract_usd": 755, "achieved_otm_pct": 25.1, "tag": "rule"},
-        "LUNR": {"basket": "space_smallcap", "sources": ["UFO", "ARKX"],  "per_contract_usd": 810, "achieved_otm_pct": 23.8, "tag": "rule"},
-        "RDW":  {"basket": "space_smallcap", "sources": ["UFO"],          "per_contract_usd": 470, "achieved_otm_pct": 27.0, "tag": "rule"},
-        "FLY":  {"basket": "space_smallcap", "sources": ["UFO"],          "per_contract_usd": 830, "achieved_otm_pct": 25.6, "tag": "rule"},
-        "IRDM": {"basket": "space_smallcap", "sources": ["UFO", "ARKX"],  "per_contract_usd": 745, "achieved_otm_pct": 22.0, "tag": "rule"}
+        "UEC": {
+          "basket": "nuclear_fuel",
+          "sources": [
+            "URNM",
+            "NLR"
+          ],
+          "per_contract_usd": 213,
+          "achieved_otm_pct": 22.1,
+          "tag": "rule"
+        },
+        "UUUU": {
+          "basket": "nuclear_fuel",
+          "sources": [
+            "URNM",
+            "NLR"
+          ],
+          "per_contract_usd": 290,
+          "achieved_otm_pct": 25.3,
+          "tag": "rule"
+        },
+        "NXE": {
+          "basket": "nuclear_fuel",
+          "sources": [
+            "URNM",
+            "NLR"
+          ],
+          "per_contract_usd": 150,
+          "achieved_otm_pct": 20.8,
+          "tag": "rule"
+        },
+        "UROY": {
+          "basket": "nuclear_fuel",
+          "sources": [
+            "URNM"
+          ],
+          "per_contract_usd": 68,
+          "achieved_otm_pct": 15.5,
+          "tag": "rule"
+        },
+        "SMR": {
+          "basket": "nuclear_fuel",
+          "sources": [
+            "NLR"
+          ],
+          "per_contract_usd": 282,
+          "achieved_otm_pct": 20.0,
+          "tag": "rule"
+        },
+        "NNE": {
+          "basket": "nuclear_fuel",
+          "sources": [
+            "NLR",
+            "operator-named"
+          ],
+          "per_contract_usd": 525,
+          "achieved_otm_pct": 25.3,
+          "tag": "operator-named+rule (predates the rule — §3 honesty note)"
+        },
+        "ATKR": {
+          "basket": "grid_equipment",
+          "sources": [
+            "GRID"
+          ],
+          "per_contract_usd": 625,
+          "achieved_otm_pct": 23.8,
+          "tag": "rule"
+        },
+        "AMSC": {
+          "basket": "grid_equipment",
+          "sources": [
+            "GRID"
+          ],
+          "per_contract_usd": 915,
+          "achieved_otm_pct": 23.4,
+          "tag": "rule"
+        },
+        "FLNC": {
+          "basket": "grid_equipment",
+          "sources": [
+            "GRID"
+          ],
+          "per_contract_usd": 700,
+          "achieved_otm_pct": 23.6,
+          "tag": "rule"
+        },
+        "HBM": {
+          "basket": "copper_supply",
+          "sources": [
+            "COPX"
+          ],
+          "per_contract_usd": 370,
+          "achieved_otm_pct": 17.2,
+          "tag": "rule"
+        },
+        "ERO": {
+          "basket": "copper_supply",
+          "sources": [
+            "COPX"
+          ],
+          "per_contract_usd": 308,
+          "achieved_otm_pct": 33.3,
+          "tag": "rule"
+        },
+        "TGB": {
+          "basket": "copper_supply",
+          "sources": [
+            "COPX"
+          ],
+          "per_contract_usd": 102,
+          "achieved_otm_pct": 21.8,
+          "tag": "rule"
+        },
+        "PL": {
+          "basket": "space_smallcap",
+          "sources": [
+            "UFO"
+          ],
+          "per_contract_usd": 755,
+          "achieved_otm_pct": 25.1,
+          "tag": "rule"
+        },
+        "LUNR": {
+          "basket": "space_smallcap",
+          "sources": [
+            "UFO",
+            "ARKX"
+          ],
+          "per_contract_usd": 810,
+          "achieved_otm_pct": 23.8,
+          "tag": "rule"
+        },
+        "RDW": {
+          "basket": "space_smallcap",
+          "sources": [
+            "UFO"
+          ],
+          "per_contract_usd": 470,
+          "achieved_otm_pct": 27.0,
+          "tag": "rule"
+        },
+        "FLY": {
+          "basket": "space_smallcap",
+          "sources": [
+            "UFO"
+          ],
+          "per_contract_usd": 830,
+          "achieved_otm_pct": 25.6,
+          "tag": "rule"
+        },
+        "IRDM": {
+          "basket": "space_smallcap",
+          "sources": [
+            "UFO",
+            "ARKX"
+          ],
+          "per_contract_usd": 745,
+          "achieved_otm_pct": 22.0,
+          "tag": "rule"
+        }
       },
       "excluded_band": {
         "LTBR": "achieved 9.2% (near-ATM; coarse $2.5 grid on a $9 spot)",
         "ITRI": "achieved 9.3% (near-ATM)",
-        "DRS":  "achieved 37.3% (overshoot)",
-        "IE":   "achieved -30.4% (only-eligible contract is ITM — the chain cannot express the structure; the band's recorded motivation)",
+        "DRS": "achieved 37.3% (overshoot)",
+        "IE": "achieved -30.4% (only-eligible contract is ITM — the chain cannot express the structure; the band's recorded motivation)",
         "GSAT": "achieved -19.8% (ITM-only eligibility; also fails fit at $1,755)"
       },
-      "excluded_fit_recorded": ["LEU", "OKLO", "BWXT", "MYRG", "MTZ", "AEIS", "GNRC", "ENS", "ESE", "BDC", "PRIM", "SCCO", "ASTS", "VSAT", "SATS", "VOYG", "MRCY", "AVAV"],
-      "excluded_floor": {"DNN": "spot $2.95 < $3 min_price", "EU": "spot $1.28 < $3 + no eligible tenor", "URG": "spot $1.54 < $3 + no eligible tenor"},
-      "excluded_no_structure": ["WLDN", "AZZ"],
-      "deferred_recall_unverified": {"BKSY": "space_smallcap candidate — no constituent verification yet (window #2)", "SPIR": "space_smallcap candidate — no constituent verification yet (window #2)"},
+      "excluded_fit_recorded": [
+        "LEU",
+        "OKLO",
+        "BWXT",
+        "MYRG",
+        "MTZ",
+        "AEIS",
+        "GNRC",
+        "ENS",
+        "ESE",
+        "BDC",
+        "PRIM",
+        "SCCO",
+        "ASTS",
+        "VSAT",
+        "SATS",
+        "VOYG",
+        "MRCY",
+        "AVAV"
+      ],
+      "excluded_floor": {
+        "DNN": "spot $2.95 < $3 min_price",
+        "EU": "spot $1.28 < $3 + no eligible tenor",
+        "URG": "spot $1.54 < $3 + no eligible tenor"
+      },
+      "excluded_no_structure": [
+        "WLDN",
+        "AZZ"
+      ],
+      "deferred_recall_unverified": {
+        "BKSY": "space_smallcap candidate — no constituent verification yet (window #2)",
+        "SPIR": "space_smallcap candidate — no constituent verification yet (window #2)"
+      },
       "notes": "defense_smallcap: no admissible names this window (DRS band-fail; MRCY/AVAV fit-fail) — basket NOT created. Cluster re-partition recorded in config _comment (CCJ→nuclear_fuel, FCX→copper_supply, RKLB→space_smallcap, grid names→ai_capex_power). Screen ran 2026-06-09 ~23:31 UTC on after-hours OPRA quotes; ADV on SIP bars."
     },
     "2": {
       "date": "2026-06-22 (off-cycle)",
       "rule": "PREREG_UNIVERSE_CURATION §11 Rule 1 + §10 off-cycle deploy-warrant. sources ∩ US-listed-optionable ∩ feasibility (1 contract ≤ $1,000) ∩ achieved-OTM 15–35%. The admitted names also read under_narrated=True in the live council re-scores (the silver/freight survivors) where the AI-power/nuclear cluster read False; at_inflection is the remaining market-dependent leg.",
-      "screen_records": ["ephemeral live checks 2026-06-22 (cap-fit OPRA + achieved-OTM + council under_narrated re-score; ~/cap_check_survivors.py + ~/survivor_rescore.py)"],
+      "screen_records": [
+        "ephemeral live checks 2026-06-22 (cap-fit OPRA + achieved-OTM + council under_narrated re-score; ~/cap_check_survivors.py + ~/survivor_rescore.py)"
+      ],
       "admitted": {
-        "PAAS": {"basket": "silver_deficit",   "sources": ["SIL", "SLVP"], "per_contract_usd": 615, "achieved_otm_pct": 22.7, "tag": "research+rule"},
-        "HL":   {"basket": "silver_deficit",   "sources": ["SIL", "SLVP"], "per_contract_usd": 208, "achieved_otm_pct": 25.2, "tag": "research+rule"},
-        "CDE":  {"basket": "silver_deficit",   "sources": ["SIL", "SLVP"], "per_contract_usd": 222, "achieved_otm_pct": 28.8, "tag": "research+rule"},
-        "AG":   {"basket": "silver_deficit",   "sources": ["SIL", "SLVP"], "per_contract_usd": 328, "achieved_otm_pct": 24.2, "tag": "research+rule"},
-        "FRO":  {"basket": "seaborne_freight", "sources": ["BOAT"],        "per_contract_usd": 278, "achieved_otm_pct": 20.3, "tag": "research+rule"}
+        "PAAS": {
+          "basket": "silver_deficit",
+          "sources": [
+            "SIL",
+            "SLVP"
+          ],
+          "per_contract_usd": 615,
+          "achieved_otm_pct": 22.7,
+          "tag": "research+rule"
+        },
+        "HL": {
+          "basket": "silver_deficit",
+          "sources": [
+            "SIL",
+            "SLVP"
+          ],
+          "per_contract_usd": 208,
+          "achieved_otm_pct": 25.2,
+          "tag": "research+rule"
+        },
+        "CDE": {
+          "basket": "silver_deficit",
+          "sources": [
+            "SIL",
+            "SLVP"
+          ],
+          "per_contract_usd": 222,
+          "achieved_otm_pct": 28.8,
+          "tag": "research+rule"
+        },
+        "AG": {
+          "basket": "silver_deficit",
+          "sources": [
+            "SIL",
+            "SLVP"
+          ],
+          "per_contract_usd": 328,
+          "achieved_otm_pct": 24.2,
+          "tag": "research+rule"
+        },
+        "FRO": {
+          "basket": "seaborne_freight",
+          "sources": [
+            "BOAT"
+          ],
+          "per_contract_usd": 278,
+          "achieved_otm_pct": 20.3,
+          "tag": "research+rule"
+        }
       },
       "excluded_band": {
         "STNG": "achieved 9.2% (near-ATM; the eligible far-OTM wing is illiquid — like window #1's LTBR/ITRI)",
         "SBLK": "achieved -5.7% (ITM-only eligibility; the chain cannot express the 25%-OTM structure — like window #1's IE/GSAT)"
       },
-      "excluded_no_structure": ["AMPH (pharma-reshoring — no listed options chain; pharma_reshoring basket NOT created)"],
+      "excluded_no_structure": [
+        "AMPH (pharma-reshoring — no listed options chain; pharma_reshoring basket NOT created)"
+      ],
       "notes": "OFF-CYCLE admission. The generator's OWN theses were NOT admitted — 8/9 of its cap-fittable names were already in the universe AND the council reads them narrated (the generator framing did not move under_narrated; gen_rescore 0/17). The silver/freight SURVIVORS (parallel-research, 2026-06-22) are the genuine quiet+fittable candidates: FRO/CDE read under_narrated=True, all admitted are cheap on the IV gate + cap-fittable. Two NEW clusters (silver_deficit, seaborne_freight). Stales the §5 four-scan DISCOVERY baseline (a measurement, not a safety gate; re-measurable from a fresh window) — operator-accepted, to position quiet candidates ahead of their at_inflection break."
     }
   }
