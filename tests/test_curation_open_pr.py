@@ -98,3 +98,33 @@ def test_live_register_accepts_the_splice():
     b = json.loads(base)
     assert json.loads(out) == {**b, "themes": {**b["themes"], "__probe__": ENTRY}}
     assert out.endswith(base[base.index('  "windows"'):])
+
+
+# ── adversarial robustness (the gate must be robust to ARBITRARY future theme names/values, not just
+#    the clean cases) — string-manipulation-of-structured-data risk, neutralized by json.dumps escaping
+#    + a structural anchor + the caller's PARSED-object deep-equal. ──────────────────────────────────
+def test_insert_theme_robust_to_structural_text_in_values():
+    """A thesis/falsifier/source containing JSON-structural text — braces, quotes, and the LITERAL
+    themes-close anchor pattern with real newlines — must not shift the splice. json.dumps escapes it
+    inline (string newlines → \\n, never a real indent-2 `},\\n  "windows"`), so the structural anchor is
+    untouched, the parsed deep-equal holds, and the compact windows block survives byte-for-byte."""
+    adversarial = {
+        "provenance": "operator",
+        "thesis": 'braces { } and "quotes" and the literal },\n  "windows" anchor pattern inline',
+        "falsifier": 'more {nested-looking} text, "windows", and a },\n  "windows" lookalike',
+        "sources": ['a source with } and "windows" and a real\nnewline inside'],
+        "cluster_default": "x",
+    }
+    out = insert_theme_text(SYNTH, "weird_theme", adversarial)
+    base = json.loads(SYNTH)
+    assert json.loads(out) == {**base, "themes": {**base["themes"], "weird_theme": adversarial}}
+    assert out.endswith(SYNTH[SYNTH.index('  "windows"'):])   # adversarial value did NOT shift the anchor
+
+
+def test_insert_theme_robust_to_structural_chars_in_key():
+    """Defensive — keys are snake_case slugs in practice, but the gate must be robust to arbitrary future
+    names: a key containing a brace/quote is escaped by json.dumps → valid JSON → deep-equal holds."""
+    out = insert_theme_text(SYNTH, 'odd"}key', {"thesis": "t"})
+    base = json.loads(SYNTH)
+    assert json.loads(out) == {**base, "themes": {**base["themes"], 'odd"}key': {"thesis": "t"}}}
+    assert out.endswith(SYNTH[SYNTH.index('  "windows"'):])
