@@ -60,13 +60,17 @@
     }
   },
   "convexity_gate": {
-    "_comment": "Frozen IV/cheap-convexity gate — PREREG_THEMATIC_CONVEXITY §4. No historical IV exists (forward-only chains) → cheapness is measured vs the underlying's trailing realized vol (from bars) + the live skew shape. Thresholds changed only by documented operator edit, never to justify a trade.",
+    "_comment": "Frozen IV/cheap-convexity gate — PREREG_THEMATIC_CONVEXITY §4. No historical IV exists (forward-only chains) → cheapness is measured vs the underlying's trailing realized vol (from bars) + the live skew shape. Thresholds changed only by documented operator edit, never to justify a trade. The skew_abs_max_volpts/iv_rv_sanity_max/iv_floor_annualized/wing_atm_ratio_min_k keys are the cheapness-watch §2.1.8 degenerate_iv bounds (report-time MEASUREMENT only — they do NOT touch the live gate; the live gate's degenerate fail-close is the §2.4 stub, its own pre-reg). Pinned BLIND, once, from physics + the live gate-pass distribution (PREREG_CHEAPNESS_WATCH §2.1.8); the three clip-axis bounds (skew_abs_max, iv_floor, wing_atm_ratio_min_k) are a SINGLE cheap-wing-clip budget — fire only on near-zero/stale quotes, never on a real low-IV wing; iv_rv_sanity_max (high-side) is the only clip-free disjunct.",
     "iv_rv_max": 1.2,
     "otm_skew_max_volpts": 10.0,
     "rv_window_days": 252,
     "tenor_min_days": 180,
     "tenor_max_days": 365,
-    "target_moneyness": 0.25
+    "target_moneyness": 0.25,
+    "skew_abs_max_volpts": 100,
+    "iv_rv_sanity_max": 5.0,
+    "iv_floor_annualized": 0.03,
+    "wing_atm_ratio_min_k": 0.15
   },
   "convexity_exits": {
     "_comment": "Frozen L2 exit rules — PREREG_THEMATIC_CONVEXITY §6a. Deterministic, no LLM (the fast reflex, SPEC §3). profit_take_multiple: close when the mark reaches N× the entry premium. time_stop_dte: close when ≤ N calendar days to expiry (avoid the gamma/theta endgame). Otherwise hold to expiry (venture style → most expire worthless = −premium). profit_take_multiple RAISED 4.0→10.0 on 2026-06-01 (operator-authorized, calibration-cited — see PREREG §6a): 4× clipped the convex tail (p99 ~4.5× vs ~10× uncapped) at ~0 cost to the mean.",

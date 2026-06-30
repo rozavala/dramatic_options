@@ -27,6 +27,25 @@ FRESH_RV_FLOOR = 0.10    # §2.1.1 break-onset (mirrors discovery.MarkerParams.f
 FRESH_MOM_FLOOR = 0.20   # §2.1.1
 DEFAULT_STALENESS_LAG_DAYS = 20.0   # the §7.1 comparator (live 16.7d median / 23.7d max, run #337)
 DEFAULT_N_QUALIFY_FLOOR = 5          # §2.1.6 — no fire/hold verdict below this many qualifying breaks
+DEGEN_SUSTAINED_RUN = 2              # §2.1.8 — a SUSTAINED unreadable run (≥2, mirroring the §2.1.2 close) truncates
+
+# §2.1.8 degenerate_iv bounds — the operator-pinned defaults (mirror config.convexity_gate; pinned BLIND,
+# once, from physics + the live gate-pass distribution). The three clip-axis disjuncts (skew_abs_max,
+# iv_floor, wing_atm_ratio_min_k) are a SINGLE cheap-wing-clip budget; iv_rv_sanity_max (high-side) is the
+# only clip-free disjunct. Report-time MEASUREMENT only — these never touch the live gate (that is §2.4).
+DEFAULT_DEGEN_BOUNDS: dict[str, float] = {
+    "skew_abs_max_volpts": 100.0,
+    "iv_rv_sanity_max": 5.0,
+    "iv_floor_annualized": 0.03,
+    "wing_atm_ratio_min_k": 0.15,
+}
+
+
+def bounds_from_config(config: dict | None) -> dict[str, float]:
+    """The §2.1.8 degenerate bounds from ``config.convexity_gate`` (new keys), falling back to the pinned
+    defaults key-by-key (config-over-code; a partial/absent config still measures with the frozen pins)."""
+    gate = (config or {}).get("convexity_gate", {})
+    return {k: float(gate.get(k, v)) for k, v in DEFAULT_DEGEN_BOUNDS.items()}
 
 
 def _age_days(as_of: datetime, markers_asof: str | None) -> float | None:
@@ -121,27 +140,99 @@ def _record_one(conn, row, *, provider, gate, elig, rv_window, as_of, as_of_iso,
         )
 
 
+# ── §2.1.8 the degenerate_iv / unmeasurable classifier (None-safe; report-time MEASUREMENT only) ──
+
+
+def _degenerate_trip(row, bounds: dict[str, float]) -> tuple[str, float] | None:
+    """The §2.1.8.A per-session disjunction over the persisted raw IV columns. Returns the FIRST tripping
+    ``(which_bound, offending_value)`` or ``None`` (sane). None-safe per-disjunct — a stray ``None`` never
+    raises and never spuriously trips. Disjuncts (any → degenerate): ``|otm_skew| > skew_abs_max`` (a leg
+    diverges hard; absolute → both tails), ``iv_rv > iv_rv_sanity_max`` (ATM ≫ trailing RV; the only
+    clip-FREE disjunct), ``atm_iv < iv_floor`` OR ``wing_iv < iv_floor`` (either leg implausibly low),
+    ``wing_iv < k·atm_iv`` (wing implausibly low RELATIVE to ATM — the moderate seam, the load-bearing
+    catch for a clean-ATM / garbage-wing name whose skew sits below the |skew| ceiling)."""
+    atm_iv, wing_iv = row["atm_iv"], row["wing_iv"]
+    iv_rv, otm_skew = row["iv_rv"], row["otm_skew"]
+    skew_abs_max = bounds["skew_abs_max_volpts"]
+    iv_rv_max = bounds["iv_rv_sanity_max"]
+    iv_floor = bounds["iv_floor_annualized"]
+    k = bounds["wing_atm_ratio_min_k"]
+    if otm_skew is not None and abs(otm_skew) > skew_abs_max:
+        return ("otm_skew_abs", otm_skew)
+    if iv_rv is not None and iv_rv > iv_rv_max:          # the clip-free high-side disjunct
+        return ("iv_rv_sanity", iv_rv)
+    if atm_iv is not None and atm_iv < iv_floor:
+        return ("atm_iv_floor", atm_iv)
+    if wing_iv is not None and wing_iv < iv_floor:
+        return ("wing_iv_floor", wing_iv)
+    if wing_iv is not None and atm_iv is not None and wing_iv < k * atm_iv:
+        return ("wing_atm_ratio", wing_iv)
+    return None
+
+
+def _classify(row, bounds: dict[str, float]) -> str:
+    """One session → ``cheap`` / ``not_cheap`` / ``degenerate_iv`` / ``unmeasurable`` / ``no_structure``
+    (§2.1.8). None-safe, never raises. Order (load-bearing): the missing-input fail-close
+    (``cheap==0 ∧ iv_rv IS None``) is ``unmeasurable`` BEFORE the bound check (degenerate needs IVs
+    present); then a present-and-bound-tripping read is ``degenerate_iv`` (this re-routes a FALSE
+    ``cheap=1`` out of qualifying — the R2 verdict-corruptor); else map the gate boolean
+    ``1/0/None`` → ``cheap`` / ``not_cheap`` / ``no_structure``."""
+    cheap = row["cheap"]
+    if cheap == 0 and row["iv_rv"] is None:     # the missing-input fail-close (P2a) — distinct from rich
+        return "unmeasurable"
+    if _degenerate_trip(row, bounds) is not None:
+        return "degenerate_iv"
+    if cheap == 1:
+        return "cheap"
+    if cheap == 0:
+        return "not_cheap"
+    return "no_structure"                        # cheap IS None
+
+
 # ── the §2.1 state machine + the §7.1 JOINT trigger ──────────────────────────────────────────────
 
 
-def _window_len(rows: list, onset_i: int) -> int:
-    """Count of CHEAP sessions from onset until SUSTAINED close = 2 consecutive not-cheap (§2.1.2);
-    a 1-session not-cheap blip does NOT close it (the run resets on the next cheap session)."""
+def _window_len(rows: list, onset_i: int, bounds: dict[str, float]) -> tuple[int, str]:
+    """§2.1.8 three-input debounce → ``(cheap_window_days, end_reason)``. Inputs collapse to cheap /
+    not_cheap / ``unreadable`` (= ``degenerate_iv`` ∨ ``unmeasurable``; ``no_structure`` stays the
+    not_cheap column, as in the original 2-state machine). end_reason ∈ {``closed``, ``truncated``,
+    ``open_at_end``}:
+
+    - CLOSED = 2 consecutive not_cheap (the §2.1.2 sustained close) — an EXACT length.
+    - TRUNCATE = a SUSTAINED unreadable run (≥2, mirroring the §2.1.2 threshold) → lost visibility; the
+      window is right-censored at the last clean cheap (unreadable sessions never increment ``window``).
+    - an isolated unreadable BLIP is TRANSPARENT (neither advances nor resets the close-run).
+    - ``open_at_end`` = ran off the end still cheap / mid-close (right-censored; the COMMON recent-break case).
+    """
     window = 0
-    notcheap_run = 0
+    notcheap_run = 0   # 0 = IN_WINDOW, 1 = CLOSING (the §2.1.2 macro-state), 2 = CLOSED
+    degen_run = 0
     for j in range(onset_i, len(rows)):
-        if rows[j]["cheap"] == 1:
+        label = _classify(rows[j], bounds)
+        unreadable = label in ("degenerate_iv", "unmeasurable")
+        if unreadable:                       # transparent blip OR sustained-truncate; close-run untouched
+            degen_run += 1
+            if degen_run >= DEGEN_SUSTAINED_RUN:
+                return window, "truncated"
+            continue                          # window & notcheap_run unchanged (run transparent)
+        degen_run = 0                         # any cheap/not_cheap resets the unreadable run
+        if label == "cheap":
             window += 1
-            notcheap_run = 0
-        else:  # 0 (not cheap) or None (no structure) — both count toward the sustained-close run
+            notcheap_run = 0                  # IN_WINDOW (a cheap session clears a 1-session close blip)
+        else:                                 # not_cheap (or no_structure) — toward the sustained close
             notcheap_run += 1
             if notcheap_run >= 2:
-                break
-    return window
+                return window, "closed"       # CLOSED — finalize (the 2nd not_cheap is not counted)
+    return window, "open_at_end"             # ran to the end without a sustained close → right-censored
 
 
-def _detect_breaks(symbol: str, rows: list, fresh_rv: float, fresh_mom: float) -> list[dict]:
-    """One name's break events (§2.1.1 debounced onset → §2.1.2/.3 state). ``rows`` ordered by as_of."""
+def _detect_breaks(symbol: str, rows: list, fresh_rv: float, fresh_mom: float,
+                   bounds: dict[str, float]) -> list[dict]:
+    """One name's break events (§2.1.1 debounced onset → §2.1.2/.3/.8 state). ``rows`` ordered by as_of.
+
+    §2.1.8: the onset session is CLASSIFIED. ``degenerate_iv`` and ``unmeasurable`` are onset states
+    EXCLUDED from BOTH ``qualifying`` and ``never_cheap`` (parallel to ``no_structure``); ``_window_len``
+    is not called for them. The break is never hidden — only re-attributed off a mis-bucketed read."""
     breaks: list[dict] = []
     prev_fresh = False
     for i, r in enumerate(rows):
@@ -149,50 +240,77 @@ def _detect_breaks(symbol: str, rows: list, fresh_rv: float, fresh_mom: float) -
         is_fresh = (rvr is not None and rvr >= fresh_rv and mom is not None and abs(mom) >= fresh_mom)
         if is_fresh and not prev_fresh:  # break-onset (debounced: prior session was BELOW the fresh leg)
             age = r["marker_age_days"]
-            if r["cheap"] is None:        # no eligible structure at onset → unmeasurable, not a state
+            label = _classify(r, bounds)
+            if label in ("degenerate_iv", "unmeasurable"):  # §2.1.8 onset states — out of qualifying & never_cheap
+                breaks.append({"symbol": symbol, "state": label, "cheap_window_days": None,
+                               "marker_age_at_break": age, "end_reason": None, "row": r})
+            elif label == "no_structure":   # no eligible structure at onset → not a state
                 breaks.append({"symbol": symbol, "state": "no_structure",
-                               "cheap_window_days": None, "marker_age_at_break": age})
-            elif r["cheap"] == 0:         # not cheap AT onset → never_cheap (§2.1.3, distinct from ==0)
+                               "cheap_window_days": None, "marker_age_at_break": age, "end_reason": None})
+            elif label == "not_cheap":      # not cheap AT onset → never_cheap (§2.1.3, IV already popped)
                 breaks.append({"symbol": symbol, "state": "never_cheap",
-                               "cheap_window_days": None, "marker_age_at_break": age})
-            else:                          # cheap at onset → measure the window
-                breaks.append({"symbol": symbol, "state": "cheap_window",
-                               "cheap_window_days": _window_len(rows, i), "marker_age_at_break": age})
+                               "cheap_window_days": None, "marker_age_at_break": age, "end_reason": None})
+            else:                           # cheap at onset → measure the window (with the end-reason)
+                wlen, end_reason = _window_len(rows, i, bounds)
+                breaks.append({"symbol": symbol, "state": "cheap_window", "cheap_window_days": wlen,
+                               "marker_age_at_break": age, "end_reason": end_reason})
         prev_fresh = is_fresh
     return breaks
 
 
 def cheapness_report(conn, *, staleness_lag_days: float = DEFAULT_STALENESS_LAG_DAYS,
                      n_qualify_floor: int = DEFAULT_N_QUALIFY_FLOOR,
-                     fresh_rv: float = FRESH_RV_FLOOR, fresh_mom: float = FRESH_MOM_FLOOR) -> dict:
-    """The §7.1 JOINT trigger over the recorded history, with the N-floor (§2.1.6).
+                     fresh_rv: float = FRESH_RV_FLOOR, fresh_mom: float = FRESH_MOM_FLOOR,
+                     bounds: dict[str, float] | None = None) -> dict:
+    """The §7.1 JOINT trigger over the recorded history, with the N-floor (§2.1.6) and the §2.1.8
+    degenerate/unmeasurable reclassification + right-censoring.
 
     QUALIFYING = stale-markers (``marker_age_at_break ≥ staleness_lag``) ∧ catchable (a `cheap_window`
-    state) — the harm the persist would fix. Verdict ``insufficient_N`` below the floor (no decision off
-    noise); else ``fire`` iff the qualifying ``cheap_window_days`` median sits below the lag, else ``hold``.
-    ``never_cheap`` / ``no_structure`` / fresh-marker breaks are reported separately, never folded in."""
+    state). §2.1.8: a window that ended ``truncated``/``open_at_end`` is RIGHT-CENSORED — at ``V ≥ lag`` it
+    is a definitive HOLD vote (kept); at ``V < lag`` it is uninformative (``censored_short`` — excluded from
+    BOTH the verdict median AND the N-floor). Verdict ``insufficient_N`` below the floor (no decision off
+    noise); else ``fire`` iff the decision-set ``cheap_window_days`` median sits below the lag, else ``hold``.
+    ``degenerate_iv`` / ``unmeasurable`` / ``never_cheap`` / ``no_structure`` / fresh-marker breaks are
+    reported separately, never folded in. ``bounds`` defaults to the pinned §2.1.8 degenerate bounds."""
+    bounds = bounds or DEFAULT_DEGEN_BOUNDS
     by_sym: dict[str, list] = {}
     for r in conn.execute(
-        "SELECT symbol, as_of, cheap, rv_rising, mom_recent, marker_age_days "
+        "SELECT symbol, as_of, cheap, rv_rising, mom_recent, marker_age_days, "
+        "atm_iv, wing_iv, iv_rv, otm_skew "
         "FROM cheapness_watch ORDER BY symbol, as_of"
     ):
         by_sym.setdefault(r["symbol"], []).append(r)
 
     breaks: list[dict] = []
     for sym, rows in by_sym.items():
-        breaks.extend(_detect_breaks(sym, rows, fresh_rv, fresh_mom))
+        breaks.extend(_detect_breaks(sym, rows, fresh_rv, fresh_mom, bounds))
 
     never_cheap = [b for b in breaks if b["state"] == "never_cheap"]
     no_structure = [b for b in breaks if b["state"] == "no_structure"]
+    degenerate_iv = [b for b in breaks if b["state"] == "degenerate_iv"]
+    unmeasurable = [b for b in breaks if b["state"] == "unmeasurable"]
     catchable = [b for b in breaks if b["state"] == "cheap_window"]
     # the §7.1 SELECTION join: fresh-marker breaks are benign-by-construction (at_inflection saw them)
     fresh = [b for b in catchable if (b["marker_age_at_break"] or 0.0) < staleness_lag_days]
     qualifying = [b for b in catchable if (b["marker_age_at_break"] or 0.0) >= staleness_lag_days]
 
-    windows = sorted(b["cheap_window_days"] for b in qualifying)
+    # §2.1.8 right-censoring: a CLOSED window has an exact length; a truncated/open_at_end window's true
+    # length is ≥ V. V ≥ lag ⇒ a definitive HOLD vote (kept in the decision set, its V votes hold);
+    # V < lag ⇒ uninformative for median-vs-lag ⇒ OUT of both the median and the N-floor (censored_short).
+    decision_windows: list[int] = []
+    censored_short: list[dict] = []
+    for b in qualifying:
+        v = b["cheap_window_days"]
+        if b["end_reason"] == "closed" or v >= staleness_lag_days:
+            decision_windows.append(v)        # exact, or censored-but-already-past-the-lag (HOLD vote)
+        else:
+            censored_short.append(b)          # censored at V < lag — excluded from median AND N-floor
+    windows = sorted(decision_windows)
+
     # the RATE (§2.1.7) — the decision-relevant signal that reads in MONTHS, not the years-away window N≥5.
     # The persist's value = rate × value-per-catch; a near-zero qualifying rate de-prioritizes on the rate
     # alone. The operator's rate-close (spec §2.1.7) reads this against a materiality floor over T months.
+    # The rate counts ALL qualifying breaks (the harm OCCURRED even where the window is censored-short).
     all_asof = [r["as_of"] for rows in by_sym.values() for r in rows]
     observed_days = None
     if len(all_asof) >= 2:
@@ -202,7 +320,7 @@ def cheapness_report(conn, *, staleness_lag_days: float = DEFAULT_STALENESS_LAG_
         except (ValueError, TypeError):
             observed_days = None
     qualifying_per_quarter = (len(qualifying) / observed_days * 90.0) if observed_days else None
-    if len(qualifying) < n_qualify_floor:
+    if len(windows) < n_qualify_floor:        # the N-floor counts the DECISION set (censored_short excluded)
         verdict = "insufficient_N"
     else:
         median = windows[len(windows) // 2]
@@ -217,13 +335,40 @@ def cheapness_report(conn, *, staleness_lag_days: float = DEFAULT_STALENESS_LAG_
         "n_breaks": len(breaks),
         "n_never_cheap": len(never_cheap),
         "n_no_structure": len(no_structure),
+        "n_degenerate_iv": len(degenerate_iv),
+        "n_unmeasurable": len(unmeasurable),
         "n_fresh_marker": len(fresh),
         "n_qualifying": len(qualifying),
+        "n_censored_short": len(censored_short),
         "observed_days": observed_days,
         "qualifying_per_quarter": qualifying_per_quarter,
         "qualifying_windows": windows,
-        "note": "verdict gated by the N-floor; QUALIFYING = stale-markers ∧ catchable-cheap (the §7.1 "
-                "JOINT — what the persist would fix). fresh-marker breaks benign-by-construction; "
-                "never_cheap = catchability-not-the-race; insufficient_N is the EXPECTED long-term state "
-                "(conjunctive filters make qualifying breaks rare) — a sustained one is itself the finding.",
+        "reclassified_rows": _reclassified_rows(degenerate_iv, unmeasurable, bounds),
+        "note": "verdict gated by the N-floor over the DECISION set (§2.1.8 censored-short excluded); "
+                "QUALIFYING = stale-markers ∧ catchable-cheap (the §7.1 JOINT — what the persist would "
+                "fix). fresh-marker breaks benign-by-construction; never_cheap = catchability-not-the-race; "
+                "degenerate_iv/unmeasurable reclassified OUT of qualifying & never_cheap (the break is "
+                "re-attributed, never hidden); insufficient_N is the EXPECTED long-term state (conjunctive "
+                "filters make qualifying breaks rare) — a sustained one is itself the finding.",
     }
+
+
+def _reclassified_rows(degenerate_iv: list[dict], unmeasurable: list[dict],
+                       bounds: dict[str, float]) -> list[dict]:
+    """The §2.1.8 audit list — per reclassified ONSET row, the offending raw inputs + WHICH bound tripped
+    (load-bearing: a future false-positive must be DIAGNOSABLE, not just countable). ``unmeasurable`` rows
+    carry ``which_bound='missing_iv_rv'`` (the missing-input fail-close, no offending value)."""
+    out: list[dict] = []
+    for b in degenerate_iv:
+        r = b["row"]
+        trip = _degenerate_trip(r, bounds)
+        which, offending = trip if trip is not None else (None, None)
+        out.append({"symbol": b["symbol"], "as_of": r["as_of"], "state": "degenerate_iv",
+                    "iv_rv": r["iv_rv"], "otm_skew": r["otm_skew"], "atm_iv": r["atm_iv"],
+                    "wing_iv": r["wing_iv"], "which_bound": which, "offending_value": offending})
+    for b in unmeasurable:
+        r = b["row"]
+        out.append({"symbol": b["symbol"], "as_of": r["as_of"], "state": "unmeasurable",
+                    "iv_rv": r["iv_rv"], "otm_skew": r["otm_skew"], "atm_iv": r["atm_iv"],
+                    "wing_iv": r["wing_iv"], "which_bound": "missing_iv_rv", "offending_value": None})
+    return out

@@ -6,9 +6,12 @@ plus the marker state, so the §2.1 state machine (break-onset / sustained-close
 ``marker_age_at_break`` JOINT / the N-floor verdict) is computed at report time over the daily history.
 
 Read-only MEASUREMENT — never a trade, never wired into ``at_inflection`` (the hard seam). ``cheap`` is
-NULL when no structure is eligible / a fail-closed gate (distinct from cheap=0). ``marker_age_days`` is
-the staleness at the observation (``as_of − markers_asof``, the migration-0016 stamp); the onset row's
-value becomes ``marker_age_at_break``.
+NULL **only** when no eligible structure exists at all (``no_structure``). A fail-closed gate WITH a
+structure present writes ``0`` (not NULL): the missing-input fail-close (``GateVerdict(False, None, …)``)
+records ``cheap=0`` with ``iv_rv IS NULL`` — that pair is the ``unmeasurable`` marker the §2.1.8
+reclassification reads (distinct from a genuine ``cheap=0`` rich read, which carries a present ``iv_rv``).
+``marker_age_days`` is the staleness at the observation (``as_of − markers_asof``, the migration-0016
+stamp); the onset row's value becomes ``marker_age_at_break``.
 
 Idempotent: guard on the table's existence.
 """
@@ -32,7 +35,7 @@ def apply(conn: sqlite3.Connection) -> None:
             " contract_symbol TEXT,"
             " iv_rv REAL,"
             " otm_skew REAL,"
-            " cheap INTEGER,"            # the gate's cheap boolean (1/0); NULL = no structure / fail-closed
+            " cheap INTEGER,"            # the gate's cheap boolean (1/0); NULL = no_structure ONLY (cheap=0 ∧ iv_rv IS NULL = the missing-input fail-close = unmeasurable, §2.1.8)
             " atm_iv REAL,"
             " wing_iv REAL,"
             " rv REAL,"

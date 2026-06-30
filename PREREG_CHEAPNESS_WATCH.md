@@ -88,6 +88,114 @@ module is written, so the deciding measurement isn't defined after seeing data:
    curation-widened, a zero rate is **uninterpretable** (no break-capable names), not a clean negative —
    **the T-clock starts when the cohort is break-capable**, not at first observation.
 
+## §2.1.8 — the `degenerate_iv` + `unmeasurable` states (in force; amendment 2026-06-30)
+
+Report-time reclassification over the **already-persisted** raw IV columns (`atm_iv`, `wing_iv`, `iv_rv`,
+`otm_skew` — migration 0017). **No migration, no record-segmentation, no schema change** — the raw inputs
+are unchanged; only the interpretation changes, applied uniformly across all history (segmentation here
+would be *incorrect* — splitting a homogeneous dataset on a non-event). This is the instrument *under* the
+read, not a lever gated *on* it → **holds at zero additional trades**. (The companion live-gate fail-close
+on degenerate IV — which *changes what trades* — is the separate §2.4 stub, its own pre-registration, a
+precondition landing before the funnel first produces a council include.)
+
+**The finding.** The gate fails closed **only** on a *missing* IV. Two failure classes both launder into
+`never_cheap` ("IV already popped before we could catch it") when the truth is "we couldn't read it":
+(1) **present-but-degenerate IV** (e.g. CDE: `atm_iv ≈ 200%` → `iv_rv 3.7`, `skew −202vp`; the wing stayed
+positive so no fail-close fired → a confident false `cheap=0`); (2) the **missing-input fail-close** (a
+wing that passed eligibility but lacks an IV → `GateVerdict(False, None, …)` → `cheap=0, iv_rv=NULL`). The
+break is **never hidden, only reclassified** — onset detection is marker-based (`rv_rising`/`mom_recent`,
+independent of the gate IV), so a degenerate/missing session cannot suppress a break; `n_breaks` is
+invariant, only the attribution is corrected.
+
+**The `(cheap, iv_rv)` partition.** `(None, —)` = `no_structure`; **`(0, NULL)` = `unmeasurable`** (the
+missing-input fail-close); `(0, present-and-sane)` = `never_cheap`; **`(0/1, present-and-degenerate)` =
+`degenerate_iv`**; `(1, present-and-sane)` = `cheap_window`. `(1, NULL)` is impossible (a passing gate
+always computed `iv_rv`). The two NEW states sit **out of BOTH `qualifying` and `never_cheap`** (parallel to
+`no_structure`). (Doc-fix note: migration-0017's NULL is `no_structure` only — a fail-closed gate *with a
+structure present* writes `0`, not NULL.)
+
+**The verdict-corruption seam (the one that matters).** The gate's skew check is **one-sided** (it vetoes
+only a wing *richer* than ATM). So the dangerous case is the **clean-ATM / garbage-wing** name: ATM ~50%,
+rv ~45% → `iv_rv 1.11` (passes); a stale wing → large *negative* skew (passes the one-sided gate) → a
+false **`cheap=1`** into `qualifying`, the verdict-bearing set. (CDE only escaped into `never_cheap` because
+its *second* leg, the ~200% ATM, tripped `iv_rv`; a clean-ATM/garbage-wing name has no such backstop.)
+
+**A. The disjunction (per-leg, None-safe; any → `degenerate_iv`):**
+
+| Disjunct | Failure it guards | Note |
+|---|---|---|
+| `\|otm_skew\| > skew_abs_max` | a leg diverges hard (CDE-high −202; the garbage-low wing) | **absolute** → catches both tails; its NEGATIVE tail is on the clip axis |
+| `iv_rv > iv_rv_sanity_max` | ATM ≫ trailing RV (both-legs-high; skew small) | must be **≫ 1.2**; the **only** clip-free disjunct |
+| `atm_iv < iv_floor` **OR** `wing_iv < iv_floor` | **either leg** implausibly low (absolute) | **per-leg / disjunctive** — the single-low-WING seam, not "both low together" |
+| `wing_iv < k · atm_iv` | wing implausibly low **relative** to ATM (the *moderate* seam) | scales with ATM; the load-bearing catch for clean-ATM / garbage-wing |
+
+**⚠️ Three disjuncts share ONE clip axis — `skew_abs_max`, `iv_floor`, `k` are a single
+cheap-wing-clip budget.** The edge *is* a cheap wing, so low-wing-IV-relative-to-ATM is the **signal**;
+three disjuncts (including `|otm_skew|`'s NEGATIVE tail) fire on that same low-wing direction and can clip
+genuine signal. They are not independent defense-in-depth — the effective clip is whichever is tightest.
+Pin all three to fire **only** on near-zero/stale quotes (a wing at a few % annualized while ATM/RV run
+tens of %), never on a real low-IV wing. Only `iv_rv` (high-side) is genuinely clip-free.
+
+**B. The SCOPED invariance claim.** §2.1.8 reclassifies **bound-detectable** degeneracy out of
+`qualifying`/`never_cheap`. It does **not** protect the verdict against *all* degenerate-low input: the
+**moderate thin-wing band** (ATM 50%, wing 8–20% → skew −42…−30, above a generous ceiling, above a low
+floor) is an acknowledged residual (the common case on the anti-quietness cohort, not just CDE's −202
+extreme). The relative disjunct shrinks this band; it does not close it. "Protects the verdict against
+degenerate-low" unqualified is an overclaim, explicitly retracted.
+
+**The two consumption sites (both report-time; one shared `_classify(row, bounds)`, None-safe, never
+raises).** Both consume the rows from the **`by_sym` query** at the top of `cheapness_report` (the four IV
+columns added **there**, not a separate SELECT). **Site 1 — onset (`_detect_breaks`):** the onset session
+is classified; an `unmeasurable`/`degenerate_iv` onset gets that state (excluded from both `qualifying` and
+`never_cheap`); `_window_len` is not called for it. **Site 2 — mid-window (`_window_len`):** it reads
+`cheap` directly, so an onset-only fix leaves `cheap_window_days` (the verdict-bearing quantity) corrupted
+by mid-window degenerate sessions. It becomes a **three-input** machine; `degenerate_iv` and `unmeasurable`
+collapse to one **`unreadable`** input class (`no_structure` stays the `not_cheap` column, as in the
+original 2-state debounce):
+
+| macro-state ↓ \ session → | `cheap` | `not_cheap` | `unreadable` (degenerate ∨ missing) |
+|---|---|---|---|
+| **IN_WINDOW** (`notcheap_run=0`) | `window++`; `degen_run:=0`; stay | `notcheap_run:=1`; `degen_run:=0`; → CLOSING | `degen_run++`; if `≥2` → **TRUNCATE**; else stay (window & run unchanged) |
+| **CLOSING** (`notcheap_run=1`) | `window++`; `notcheap_run:=0`; `degen_run:=0`; → IN_WINDOW | `notcheap_run:=2`; → **CLOSED** (finalize) | `degen_run++`; if `≥2` → **TRUNCATE**; else stay CLOSING (run **transparent**) |
+
+`degen_run` resets on any `cheap`/`not_cheap`. **An isolated `unreadable` blip is transparent** (neither
+advances nor resets the close-run); **a sustained `unreadable` run (≥2, mirroring the §2.1.2 close
+threshold) TRUNCATES** at the last clean cheap. `_window_len` returns a per-window **end-reason**
+(`closed` / `truncated` / `open_at_end`).
+
+**Right-censoring (windows that don't feed the verdict at face value).** A window **CLOSED** by 2 genuine
+not-cheap sessions has an *exact* length. A window that ends `truncated` (lost visibility) or `open_at_end`
+(still cheap at the last observation — the COMMON recent-break case) is **right-censored** (true length ≥
+observed `V`). The verdict medians `cheap_window_days` and fires if median `< staleness_lag`, so a
+censored-*short* window read at face value biases toward **FIRE** — worst on the target cohort (thin
+under-narrated wings are where unreadable/recent breaks cluster). Rule:
+
+- censored at **`V ≥ lag`** → true length ≥ V ≥ lag → a **definitive HOLD vote** (kept; informative).
+- censored at **`V < lag`** → uninformative for median-vs-lag → **EXCLUDE from the decision set** (the
+  verdict median *and* the N-floor), reported separately as **`censored_short`**.
+
+This keeps `insufficient_N` longer when wings are flaky / breaks are fresh — the **honest** outcome (can't
+measure the window ⇒ can't decide), not a regression. (The `qualifying_per_quarter` RATE still counts all
+qualifying breaks — the harm *occurred* even where the window is censored-short.)
+
+**Make the blindness visible.** The report adds `n_degenerate_iv`, `n_unmeasurable`, `n_censored_short`,
+and a **reclassified-rows list** (`symbol / as_of / iv_rv / otm_skew / atm_iv / wing_iv / which-bound +
+offending value` — load-bearing: a future false-positive must be **diagnosable**, not just countable). The
+dashboard per-name panel surfaces the per-name **state** beside `iv_rv` so the row and the verdict agree.
+
+**Pin-once / apply-once.** Bounds pinned **once** from physics + the live gate-pass distribution, applied
+to history **once**, recorded **as-is**. A surprising reclassification is a **finding**, not a license to
+re-tune; the *build* iterates against synthetic fixtures with known answers, never the live verdict.
+
+**Bounds (pinned BLIND, in force) — `config.convexity_gate`:**
+
+```
+skew_abs_max_volpts  = 100    # vp a real far-OTM smile can sit from ATM; NEGATIVE tail is clip-axis
+iv_rv_sanity_max     = 5.0    # ATM-IV ÷ trailing-RV multiple certainly degenerate (>> 1.2); clip-free
+iv_floor_annualized  = 0.03   # per-leg annualized IV floor; clip-axis — fire only on near-zero
+wing_atm_ratio_min_k = 0.15   # wing/atm ratio floor; clip-axis, the delicate one
+```
+
 ## §3 — Two arms
 
 - **Live arm (market-gated):** the cohort's *actual* cheap-window on a real break. **Expect a long quiet
