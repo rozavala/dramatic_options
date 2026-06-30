@@ -52,6 +52,25 @@ def merge_theme(register: dict, key: str, entry: dict) -> dict:
     return out
 
 
+def insert_theme_text(base_text: str, key: str, entry: dict) -> str:
+    """Append ``{key: entry}`` as the LAST theme via a minimal TEXT splice — the rest of the file
+    (notably the hand-aligned ``windows.admitted`` one-liners) is preserved **byte-for-byte**, so the
+    diff shows ONLY the inserted theme. This is the executor's *auditability invariant*: a full
+    ``json.dumps`` re-serialize reformats the whole file (compact one-liners → multi-line), burying the
+    real change in reformat noise — which defeats the keyless/inert/eyeball-the-diff safety case for
+    automating this hop at all. The caller MUST validate the result deep-equals the intended dict.
+
+    Inserts at the themes-dict close (the ``},`` immediately before the top-level ``"windows"`` key),
+    indenting the new entry to the themes level (key at 4 spaces). Raises if that anchor is absent."""
+    block = json.dumps({key: entry}, indent=2, ensure_ascii=False)
+    inner = "\n".join("  " + ln for ln in block.split("\n")[1:-1])  # drop outer braces; re-indent to themes level
+    anchor = '\n  },\n  "windows"'  # themes-dict close immediately followed by the top-level windows key
+    if anchor not in base_text:
+        raise ValueError("register format unexpected: themes-close/windows anchor not found")
+    i = base_text.index(anchor)
+    return base_text[:i] + ",\n" + inner + base_text[i:]
+
+
 def _git(*args: str) -> str:
     return subprocess.run(["git", "-C", str(REPO), *args], check=True, capture_output=True, text=True).stdout
 
@@ -100,13 +119,20 @@ def main() -> int:
     # merge (+ dup-check) → only THEN branch + write, so new_text and the checked-out tree share one base.
     branch = f"curate-theme-{key}"
     _git("fetch", "origin", "main")
-    register = json.loads(_git("show", "origin/main:universe_register.json"))
+    base_text = _git("show", "origin/main:universe_register.json")
+    register = json.loads(base_text)
     try:
-        new_register = merge_theme(register, key, entry)
+        new_register = merge_theme(register, key, entry)   # additive-check + the intended dict
     except ValueError as e:
         print(f"  ✗ {e}")
         return 1
-    new_text = json.dumps(new_register, indent=2, ensure_ascii=False) + "\n"
+    # Minimal TEXT splice (NOT a full json.dumps re-serialize) so the diff shows ONLY the new theme —
+    # the auditability invariant (a re-serialize reformats the whole file). Validate the splice
+    # deep-equals the intended dict before writing: a mis-splice ABORTS, it can never corrupt the register.
+    new_text = insert_theme_text(base_text, key, entry)
+    if json.loads(new_text) != new_register:
+        print("  ✗ splice validation failed (result would not match the intended register) — aborting")
+        return 1
     _git("checkout", "-B", branch, "origin/main")
     REGISTER.write_text(new_text)
     _git("add", "universe_register.json")
