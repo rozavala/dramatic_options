@@ -367,3 +367,169 @@ young frame). **Honest scope:** the extension may itself confirm a negative — 
 AND a genuinely-sparse quiet∧optionable young cell (confound (d) as the real, deeper finding: quietness ⊥
 optionability). Either way it is the un-confounded test that yields the CORRECT verdict; recording REVISIT
 now would date the WRONG negative (mature-only, broken-label, artifact-contaminated).
+
+---
+
+## §16 — THE EXTENSION pre-reg (young-reaching metric) — FROZEN-CANDIDATE, for red-team + blind sign-off
+
+A **delta** on §1–§14 (the frozen machinery is inherited; only the metric + frame-history change, + 3 new
+diagnostics). Triggered by the frozen §3 age-dist condition (§14/§15), **orthogonal to the GATE-1 verdict**.
+Freeze = pin §16.6 blind + sign-off, BEFORE the extension runs. **ONE pre-committed run; a clean negative
+is accepted and the feed retired if it fails (a second extension WOULD be a rescue — not on the table).**
+
+### §16.0 — Why (the confound-(b) fix)
+GATE-1 (§15) is confounded: the frozen `qtr_yoy_accel` needs ~7q → the frame was **mature-biased by
+construction**, excluding 36% of in-band names (the young cohort that disproportionately holds the
+under-narrated target). The extension recovers that cohort with a younger-reaching metric on a **faithful** quiet label. **SCOPE
+(load-bearing):** the young-reaching metric is a growth **LEVEL**, not an acceleration (§16.1), so §16 tests
+a **NARROWER** claim than the frozen premise — *"does a fast-growth-level ∧ price-flat feed concentrate
+quiet-inflection on young names,"* **NOT** *"the un-confounded test of the inflection feed premise."* The
+inflection premise itself (fundamental ACCELERATION — the 06-23 second-derivative door) remains genuinely
+**UNCOMPUTABLE** on the young cohort with filed XBRL on this stack: an honest permanent limitation, not a
+question this run may close. It diagnoses whether the level-metric quiet cell is genuinely sparse (REVISIT)
+or exists-but-unoptionable (a structural ceiling, confound-(d)).
+
+### §16.1 — The metric (the ONE change to the surfacer; a red-team surface)
+**Primary = `qtr_yoy` (single-quarter revenue YoY LEVEL)** — the shipped line (`fundamentals.py:510`),
+needs **~5q** (latest + its year-ago) vs `qtr_yoy_accel`'s ~7q → reaches ~2q (~0.5yr) younger,
+seasonality-robust (YoY, not QoQ). **Disclosed relaxation:** this is a growth *level*, not an *acceleration*
+— for young names a genuine YoY-acceleration is uncomputable (~7q) and a true sequential (QoQ) accel is too
+seasonal at low history, so the accessible inflection proxy for the young cohort is "materially fast-growing
++ price-flat," with the §16.5 secular-driver eyeball backstopping "growing-fast-and-real" vs "growing-fast-
+blip." (§3 named "sequential-growth-accel" as the *concept*; grounding shows its faithful young-reaching
+realization is the `qtr_yoy` level — the red-team may prefer a 1q-lookback accel [~6q, marginal reach] or
+accept the QoQ-seasonality cost; contest here.) **feed-not-edge unchanged (§6): `qtr_yoy` is a surfacer rank,
+NEVER scored/ranked/IC'd against returns.**
+
+**The level→accel BRIDGE (measures what the substitution costs — nearly free; runs on the WARM GATE-1 cache,
+no re-scan).** On the MATURE cohort BOTH `qtr_yoy` (level) and `qtr_yoy_accel` (accel) are computable. Report
+the two mature feeds' agreement: quiet-density of `{qtr_yoy≥floor ∧ price-flat}` vs `{qtr_yoy_accel≥floor ∧
+price-flat}`, and their name overlap (Jaccard). **PINNED (blind):** the level is a defensible accel *proxy*
+iff **Jaccard ≥ 0.50 AND the two quiet-densities are within a factor of 1.5**. High agreement → a young-level
+null is informative about young-accel. Low agreement → the level is NOT an accel proxy → a young-level result
+says little about inflection (§16.5 BRIDGE GATING). **This runs BEFORE the full extension and gates whether
+§16 can earn anything about inflection-on-young.**
+
+### §16.2 — The frame (the SECOND change + the §15 correctness fix, done right)
+The §3 cap-band [$300M,$15B] optionable-proxy common-stock frame, but **qtr_yoy-computable (≥5q)** — which
+**includes the young cohort** the original excluded. **Clean common-stock filter** (the §15 fix, corrected):
+drop preferred/note/depositary/warrant tickers by TITLE markers + keep the **primary common per CIK** (NOT
+the §15 all-collision heuristic that over-removed legit dual-class commons). **Read SPLIT by age-cohort:
+young (5–6q) vs mature (7q+)** — the decisive comparison is whether the *young* cohort concentrates
+quiet-inflection where the mature one did not.
+
+### §16.3 — Inherited unchanged (§1–§14)
+price-flat (`momentum_12m ≤ +25% ∧ momentum_recent_3m ≤ +15%`, shoulder-once fallback); the 2×2 structure
+(now `qtr_yoy-level × price-flat`); the divergence-corpse line + no-catch-up (§6); the seam (§1); the blinded
+junk-tagged thesis-ability eyeball (§4); the effect-size-ceiling cohort (K=5); the three dated gates (§7);
+the ⊥cheapness check.
+
+### §16.4 — NEW diagnostics (the fixes for confounds c/d + the young-frame degeneracy)
+1. **IPO false-quiet guard (confound-c on the young frame):** a name public **< 4 quarters** (first XBRL
+   revenue < ~1yr) reads false-quiet by news-count (fresh IPO, not under-narrated — the seeded-gen prior)
+   → its quiet-label is **UNVERIFIED** (excluded from the quiet numerator; may surface, quiet-TBD).
+2. **Confound-(d) optionability diagnostic (REVISIT-vs-ceiling) — DECOMPOSED by WHY a name is unoptionable,
+   via the exact §11 chain check (not the ADV proxy).** For each non-tradeable young `{qtr_yoy≥floor ∧
+   price-flat ∧ quiet}` name, classify: **(i) NO chain listed** — a recency artifact (chains take months to
+   list post-IPO, INDEPENDENT of narration; optionable in 12–18mo → a **TIMING** finding, NOT a ceiling);
+   **(ii) chain listed but fails the §11 OTM-band/liquidity bar** — genuine illiquidity → supports the
+   ceiling. **STRUCTURAL CEILING fires ONLY if bucket (ii) dominates** the unoptionable set (thin-chain rate
+   ≥ a pinned threshold). Bucket (i) dominant → "chains haven't matured" = a TIMING/recency result, NOT
+   quietness ⊥ liquidity. Runs on the young cell alongside the exact §11 + ⊥cheapness follow-up.
+3. **Degeneracy re-check on the young cohort:** re-run the §10.4 rule (>50% at 90d-news ≤2) on the *young*
+   names specifically (thinner coverage). Degenerate → quietness shifts to GATE-2 (the frozen switch).
+4. **Young-band power floor (the inconclusive-vs-negative guard).** Report **|young computable-AND-guarded
+   band|** up front (names with 5–7q history clearing the IPO guard). **PINNED:** the young read is
+   *conclusive-for-negative* ONLY IF the band could have produced a BUILD-bar-clearing cell even at the
+   mature concentration rate — i.e. **|young band| ≥ BUILD_bar / mature-cell-rate ≈ 6 / ~0.05 ≈ 120.** Below
+   that, a thin young cell is **INCONCLUSIVE** ("inflection-on-young underpowered/untestable on this data"),
+   **NOT a negative.** A conclusive negative requires BOTH a non-concentrating cell AND an adequate band.
+
+### §16.5 — Decision rule (banded, BLIND; read SPLIT by age-cohort)
+- **BUILD:** the YOUNG `{qtr_yoy≥floor ∧ price-flat ∧ optionable}` cell has **≥6 quiet∧thesis-able** names
+  AND its quiet-density **> the mature cohort's AND > base** (young concentrates quiet-inflection where
+  mature didn't → the confound was real, the **level-metric** feed exists on young names).
+- **STRUCTURAL CEILING:** the young quiet-inflection cell is **populated pre-optionability** AND its
+  **thin-chain (§16.4-2 bucket-ii) rate dominates** the unoptionable set → quietness ⊥ optionability; the
+  cheap-convexity-on-quiet thesis is ceilinged (a deeper, sound negative). If instead **bucket-i
+  (no-chain-yet) dominates → NOT a ceiling:** a TIMING/recency finding (chains immature) → hold-and-revisit,
+  not thesis retirement.
+- **REVISIT / GRAVEYARD (the clean negative — SCOPED):** the young cohort ALSO fails to concentrate
+  quiet-inflection (density flat/anti-selecting, FAITHFUL IPO-guarded quiet label, genuinely-optionable
+  young names, **AND a conclusive band per §16.4-4**) → the **LEVEL-METRIC FEED** is retired; recorded,
+  accepted. This does **NOT** retire inflection-on-young (uncomputable). **BRIDGE GATING:** if the mature
+  level→accel bridge (§16.1) shows the level is NOT an accel proxy, this negative is scoped to "fast-growth-
+  level feeds don't work on young names" and says little about young INFLECTION — recorded as exactly that.
+- **INCONCLUSIVE (untestable, not a verdict):** the young computable-AND-guarded band is below the §16.4-4
+  power floor **OR** the §16.1 bridge shows the level is not an accel proxy → record *"inflection-on-young is
+  uncomputable / underpowered on filed XBRL on this stack"* — a legitimate, dateable finding in itself, NOT a
+  retirement of the feed or the thesis. (Possibly the correct outcome — not a failure of the run.)
+
+### §16.6 — The BLIND pins to sign off (proposed; freeze after sign-off, before the run)
+| pin | proposed BLIND value | rationale |
+|---|---|---|
+| **metric** | `qtr_yoy` LEVEL surfacer; **material-growth floor RE-PINNED (pre-freeze) on the `min_base`-floored YOUNG `qtr_yoy` distribution** (§14 discipline — +25% is NOT physics-scaled like the accel floor; post-IPO tiny bases make +25% YoY trivially common → pin to a meaningful percentile of the `revenue_qtr`-min_base-floored young distribution, not a carried round number); shoulder one tick below; top-quintile fallback if <20 clear | the level floor must be EARNED on the young distribution + the min_base base-effect guard — a +25% level ≠ a material accel |
+| **frame** | §3 cap-band optionable-proxy, CLEAN common-stock filter (title-markers + primary-common-per-CIK), qtr_yoy-computable (≥5q); age split young 5–6q / mature 7q+ | recovers the young cohort (confound-b); the §15 fix done right |
+| **IPO guard** | public **< 4 quarters** → quiet UNVERIFIED | fresh IPOs read false-quiet (confound-c) |
+| **confound-(d)** | **thin-chain (bucket-ii) rate ≥ [pin] of the unoptionable young cell → CEILING; no-chain (bucket-i) dominant → TIMING finding, not ceiling** | decomposes the two opposite causes of low optionability (§16.4-2) |
+| **degeneracy** | inherited §10.4 (>50% at ≤2), re-run on the young cohort | the young frame is thinner-covered |
+| **BUILD bar** | ≥6 quiet∧thesis-able optionable young names AND young-density > mature AND > base | the confound-real test |
+| **young-band power** | **\|young band\| ≥ BUILD_bar / mature-cell-rate ≈ 120 → conclusive; below → thin cell is INCONCLUSIVE, not negative** | prevents band-narrowness masquerading as a negative (§16.4-4) |
+| **bridge** | level is an accel proxy iff mature **Jaccard ≥ 0.50 AND quiet-densities within 1.5×** (§16.1) | gates whether a young-level result speaks to inflection |
+
+### §16.7 — Non-rescue (on the record, ref §15)
+The four grounds hold (§15): different metric on a different population the current test excluded by
+construction (larger scan REJECTED); frozen-§3 age-dist trigger, orthogonal to the verdict; first
+mechanization of the inflection leg (wrong reference class for the 5-negative quietness lineage). **Bounded:
+ONE run.** If it comes back a clean negative on a faithful quiet label over genuinely-optionable young names
+**(and a conclusive band, §16.4-4)**, the **LEVEL-METRIC feed** is retired and the negative dated. The
+anti-rescue guard binds re-running the SAME level metric — that would be a rescue. **It does NOT extend to
+closing inflection-on-young, which §16 structurally cannot test (the accel is uncomputable young); that
+stays an honest open limitation, not a thing this one run may retire.** No further extension of the level
+metric. The honest prior: the run may confirm the level-metric negative (confound-(d) as the deeper
+finding), OR return **INCONCLUSIVE** (§16.5) — "inflection-on-young is uncomputable/underpowered on this
+stack" — which is itself a legitimate, dateable finding, possibly the correct one after six rounds.
+
+---
+
+## §17 — The level→accel BRIDGE result (2026-07-01) — §16 gates to INCONCLUSIVE; the full extension is NOT run
+
+The §16.1 bridge (pinned pre-run: level is an accel proxy iff mature **Jaccard ≥ 0.50 ∧ quiet-densities
+within 1.5×**) RAN on the mature GATE-1 frame (clean common-stock n=231; `~/accel_bridge.py`, warm-cache
+re-parse — no re-scan). ACCEL feed `{qtr_yoy_accel≥+10pp ∧ price_flat}`: n=12, quiet-density 0.25.
+
+| level floor | level-feed n | overlap w/ accel-feed | **Jaccard** | level quiet-density |
+|---|---|---|---|---|
+| +10% | 38 | 6 | **0.14** | 0.34 |
+| +15% | 34 | 5 | 0.12 | 0.32 |
+| +20% | 29 | 5 | 0.14 | 0.34 |
+| +25% | 26 | 4 | 0.12 | 0.35 |
+| +30% | 20 | 3 | 0.10 | 0.35 |
+| +40% | 16 | 2 | **0.08** | 0.38 |
+
+**The level is NOT an accel proxy — decisively.** Jaccard **0.08–0.14** at every comparable-selectivity
+floor (≪ 0.50; robust — even a lenient 0.30 fails). Acceleration (2nd derivative, Δ growth-rate) and
+growth-level (1st derivative) select nearly **disjoint** names where both are computable (2–6 of ~12–38
+shared). So a young-**level** result cannot speak to young **INFLECTION** (§16.5 BRIDGE GATING).
+
+**⇒ §16 gates to INCONCLUSIVE; the full extension is NOT run.** Running it would test only the narrower
+"fast-growth-level young feed" question — which the mature read shows is ≈flat too (level quiet-density
+0.32–0.38 ≈ the 0.333 base; the level doesn't concentrate quiet either). Per the pre-committed criterion
+(run the level metric only if it tests something we want to know, not because it's the available thing), it
+is not worth the run and carries **no retirement stakes for inflection**. The redline's own pre-run bridge
+gate caught this **before** spending the scan — the discipline working as designed.
+
+**THE DATEABLE FINDING (the honest end-state):** *inflection-on-young is **uncomputable** on filed XBRL on
+this stack.* The 06-23 door (fundamental ACCELERATION) needs ~7q → it is **uncomputable on the young cohort
+that holds the under-narrated target**, and **confounded by maturity** where it IS computable (§15: on
+mature names accel anti-selects quiet — accel→coverage). The one §2-clean signal that targeted inflection
+directly is unreachable where it matters and mature-biased where it isn't. This is a clean, epistemically-
+honest conclusion — **NOT** a forced BUILD/REVISIT/GRAVEYARD, and **NOT** a retirement of the inflection
+thesis (never testable young): it settles the **FEED-BUILD** question (no buildable accel∧price-flat feed on
+this data) and leaves inflection-on-young a **named open limitation**, not a dated grave.
+
+**Net for the workstream:** the accel-feed door is now *precisely* characterized — not "tried and failed,"
+but "tried, and the one inflection signal is uncomputable on the cohort that matters, confounded on the one
+that isn't." The binding constraint returns to **manual curation throughput** (the standing conclusion),
+the inflection-feed lever closed with an honest limitation rather than a forced verdict. Sharper, and more
+useful, than a level-metric BUILD/REVISIT it could not have earned.
