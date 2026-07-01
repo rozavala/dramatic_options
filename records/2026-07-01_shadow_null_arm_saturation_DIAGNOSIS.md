@@ -103,9 +103,37 @@ dual-read rows).
   cost of cap-parity in the control arm. It does **NOT** authorize a cap change — any change to
   the null books' caps is a PREREG_FIXED_BASKET_NULL §4 amendment, operator-gated (§8).
 
-## §5 — Probe result (appended post-run)
+## §5 — Probe result (appended post-run; ran 2026-07-01 22:46 UTC, post-close)
 
-*(pending — appended below after the run)*
+Driver: `~/probe_shadow_stepwise.py` (ephemeral, read-only; one probe-side attribute typo —
+`GateVerdict.iv_rv` vs the real `iv_rv_ratio` — errored the first pass and was fixed before any
+result was read; the pins were untouched). Union = 37 (2 hand-seed + 35 sentinels); 7 open →
+skip; live OPRA gate provider.
+
+**Every pin held; the diagnosis is CONFIRMED, nothing reopens:**
+
+- **P1 ✅** — all **29** non-open sentinel candidates vetoed at the slot step
+  (`open_sentinels=6 ≥ max_slots=6`); **zero** sentinels reached eval.
+- **P2 ✅** — FCX `skip_open`; NVDA reached eval, `select_structure` **found** its OPRA wing
+  ($1,455) and the gate vetoed `not_cheap` at iv_rv **1.211** (> 1.2; the dual-read's 19:47
+  in-window read was 1.2075 — same verdict, post-close drift only).
+- **P3 ✅ (capacity counterfactual, slots hypothetically freed):**
+  **16 / 29 WOULD BOOK** — AG($158×6) PAAS($315×3) HL($113×8) [silver, headroom $2,000] ·
+  UUUU UEC NXE NNE CCJ SMR [nuclear, $2,000] · HBM($470×2) ERO TGB [copper, $1,138] ·
+  FLY RDW LUNR [space_smallcap, $1,170] · FRO($228×4) [freight, $2,000].
+  **9 cluster_cap** — VRT/AMSC/ATKR/GEV/ETN on ai_capex_power's **$311** headroom (pinned
+  arithmetic exact); RKLB($2,440)/IRDM($1,265) > space_smallcap's $1,170; LMT/KTOS >
+  space_defense's $442. **4 not_cheap** — NVDA, PWR(1.323), NOC(1.251) rich; CDE iv_rv 0.318
+  but **skew-vetoed** (the known 45-volpt wing). **1 no_structure** — UROY (the known
+  thin-tenor case; matches the dual-read's sole OPRA failure).
+
+**The capacity finding, quantified:** the control arm is structurally excluding 16 current
+gate-passers (incl. the entire silver/nuclear cheap cohort) via the slot reservation, plus 9
+more via cluster caps — 25 of 29 sentinel vetoes are CAP vetoes, not market vetoes. Per the §4
+pin this measures the cost of cap-parity; it authorizes nothing (§8 remains the operator's
+design decision). Also confirmed in passing: PAAS — never council-judged (rank truncation) —
+is a live WOULD_BOOK in the gate-only arm; the shadow book was precisely the instrument meant
+to catch names like it, and the slot cap is why it hasn't.
 
 ## §6 — Dated annotation for PREREG_FIXED_BASKET_NULL (factual; staged for operator merge)
 
