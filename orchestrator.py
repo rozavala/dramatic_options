@@ -144,6 +144,7 @@ def _stamp_council_health(conn, run_id: int, config: dict, router) -> None:
             hashlib.sha256(s.encode()).hexdigest()[:16]
             for s in (_agents._COMMON, _agents.ADVERSARY_SYSTEM, _agents.STRATEGIST_SYSTEM))
         mix["corpus"] = "fundamentals_v2"  # §9: pack-change record-segmentation (v2 = IFRS taxonomy + tag-recency + annual fallback; zero migration)
+        mix["coverage_meter"] = "analyst_v1"  # §19: coverage proxy = analyst-count (replaced news-count); pack-change record-segmentation, zero migration
         if health["called"]:
             log.info("Council proposer parse-health: %d/%d failed (%.0f%%)",
                      health["parse_failed"], health["called"], health["rate"] * 100)
@@ -163,22 +164,30 @@ def _stamp_council_health(conn, run_id: int, config: dict, router) -> None:
 
 
 def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
-    """(router, news, fundamentals) for the council. Demo → deterministic FakeRouter + synthetic
-    packs (news/fundamentals=None); live → the heterogeneous router + CURRENT-news grounding + the
-    §9 evidence-grounding corpus. Raises RouterError (fail-closed) when a mapped provider has no key
-    in live."""
+    """(router, news, fundamentals, analyst) for the council. Demo → deterministic FakeRouter +
+    synthetic packs (news/fundamentals/analyst=None); live → the heterogeneous router + CURRENT-news
+    grounding + the §9 evidence-grounding corpus + the §19 analyst-coverage meter. Raises RouterError
+    (fail-closed) when a mapped provider has no key in live."""
     council = config.get("council", {})
     cap = council.get("cost_cap_usd")
     if demo:
-        return FakeRouter(cap_usd=float(cap) if cap is not None else None), None, None
+        return FakeRouter(cap_usd=float(cap) if cap is not None else None), None, None, None
     router = build_router(config, config.get("llm_keys", {}))
     from datetime import timedelta
 
+    import requests
+
+    from data.analyst_coverage import AnalystCoverageData
     from data.news import NewsData
 
     now = clock.now()
     lookback = int(council.get("news_lookback_days", 90))
     news = NewsData(cache, client=client, fetch_start=now - timedelta(days=lookback), fetch_end=now)
+
+    # §19 analyst-coverage meter — the under-narration proxy that replaced news-count (record §19;
+    # free, no auth). An explicit session enables the live fetch; count_asof is fail-soft (any error
+    # → None → the pack degrades to the pre-§19 grounding line, never blocks the cycle).
+    analyst = AnalystCoverageData(cache, fetch_end=now, session=requests.Session())
 
     # §9 evidence-grounding corpus (council path: max_raw_age_days=7 + refetch-on-filing-event).
     # Fail-soft: no EDGAR_USER_AGENT or any setup error → fundamentals=None (the council degrades to
@@ -196,7 +205,7 @@ def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
     except Exception as e:  # noqa: BLE001 — corpus is enrichment; its absence must never block entries
         log.warning("§9 fundamentals corpus unavailable (non-fatal, pre-§9 grounding): %s", e)
         fundamentals = None
-    return router, news, fundamentals
+    return router, news, fundamentals, analyst
 
 
 def _build_framer_router(config: dict, *, demo: bool, disc: dict):
@@ -644,7 +653,7 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                         themes = []  # run_paper_cycle re-checks and halts; no entries
                     else:
                         try:
-                            router, news_dep, fund_dep = _build_council_io(
+                            router, news_dep, fund_dep, analyst_dep = _build_council_io(
                                 config, demo=demo, client=client, cache=chain_cache, clock=clock,
                             )
                             # Candidate set = hand-seed (themes.json, FIRST/protected) ⊕ ranked
@@ -657,8 +666,8 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             )
                             themes = council_to_themes(
                                 conn, candidates=candidates, router=router, config=config,
-                                clock=clock, news=news_dep, fundamentals=fund_dep, demo=demo,
-                                run_id=run_id,
+                                clock=clock, news=news_dep, fundamentals=fund_dep,
+                                analyst=analyst_dep, demo=demo, run_id=run_id,
                             )
                             log.info(router.ledger.summary())
                             _stamp_council_health(conn, run_id, config, router)

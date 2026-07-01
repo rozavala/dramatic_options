@@ -44,6 +44,7 @@ def propose(
     clock,
     news=None,
     fundamentals=None,
+    analyst=None,
     demo: bool = False,
     rng=None,
 ) -> list[CouncilProposal]:
@@ -68,7 +69,7 @@ def propose(
             synthetic_context_pack(candidate, as_of=as_of)
             if demo
             else build_context_pack(candidate, news=news, as_of=as_of, lookback_days=lookback,
-                                    fundamentals=fundamentals)
+                                    fundamentals=fundamentals, analyst=analyst)
         )
         try:
             proposals.append(run_candidate(candidate, pack, router, rng=rng))

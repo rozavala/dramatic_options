@@ -143,12 +143,13 @@ def test_fundamentals_present_boundary():
     assert not p([dict(GM, value=None)]).fundamentals_present  # value=None lines don't count
 
 
-# ── metric-aware rendering (the three shapes) + the new NEWS_COVERAGE format + never-raise ────────
+# ── metric-aware rendering (the three shapes) + the §19 ANALYST_COVERAGE line + never-raise ────────
 def test_render_three_shapes_and_counts():
     pack = ContextPack("FCX", "copper", "bullish", "thesis text", coverage_count=0, has_numeric=False,
-                       fundamentals=[REV, GM, ACCEL], news_7d=3, news_90d=12, origin="hand-seed")
+                       fundamentals=[REV, GM, ACCEL], analyst_count=4, origin="hand-seed")
     block = pack.as_prompt_block()
-    assert "NEWS_COVERAGE: 7d=3 90d=12 (free feed — sparse; low counts are weak evidence)" in block
+    assert "ANALYST_COVERAGE: 4 analyst(s) covering" in block  # §19: the under-narration proxy
+    assert "NEWS_COVERAGE" not in block                        # the news-count line is retired (§19)
     assert "- revenue ttm_yoy +12.3% ($1234.5M vs $1099.4M); period 2025-09-30, filed 2025-11-01" in block
     assert "- gross_margin delta_pts +2.3pts (45.2% vs 42.9% margin); period 2025-09-30, filed 2025-11-01" in block
     assert "- revenue qtr_yoy_accel +0.050; period 2025-09-30, filed 2025-11-01" in block
@@ -158,9 +159,48 @@ def test_render_never_raises_on_none_value():
     bad = {"concept": "revenue", "metric": "ttm_yoy", "value": None, "latest_musd": 1.0,
            "base_musd": 1.0, "period_end": "x", "filed": "y"}
     pack = ContextPack("S", "t", "bullish", "u", coverage_count=1, has_numeric=True,
-                       fundamentals=[bad, REV], news_7d=0, news_90d=0)
+                       fundamentals=[bad, REV], analyst_count=0)
     block = pack.as_prompt_block()  # must NOT raise
     assert "ttm_yoy +12.3%" in block and block.count("- revenue") == 1  # the None-value line skipped
+    assert "ANALYST_COVERAGE: 0 analyst(s)" in block  # a genuinely-uncovered name renders 0, not fallback
+
+
+# ── §19 analyst-coverage meter: threading, fail-soft fallback, citable token ──────────────────────
+class _FakeAnalyst:
+    def __init__(self, count):
+        self._count = count
+
+    def count_asof(self, symbol, as_of):
+        return self._count
+
+
+def test_build_context_pack_threads_analyst_count():
+    # The council path fetches the §19 count and renders ANALYST_COVERAGE (news headlines untouched).
+    pack = build_context_pack(_handseed(), news=_FakeNews([]), as_of=AS_OF, analyst=_FakeAnalyst(7))
+    assert pack.analyst_count == 7
+    assert "ANALYST_COVERAGE: 7 analyst(s) covering" in pack.as_prompt_block()
+
+
+def test_analyst_absent_falls_back_to_article_line():
+    # Fail-soft: no analyst provider → analyst_count None → the pre-§19 article-count line (framer path).
+    pack = build_context_pack(_handseed(), news=_FakeNews([]), as_of=AS_OF, analyst=None)
+    assert pack.analyst_count is None
+    block = pack.as_prompt_block()
+    assert "ANALYST_COVERAGE" not in block and "article(s)" in block
+
+
+def test_analyst_fetch_error_is_fail_soft():
+    class _Boom:
+        def count_asof(self, symbol, as_of):
+            raise RuntimeError("stockanalysis down")
+    pack = build_context_pack(_handseed(), news=_FakeNews([]), as_of=AS_OF, analyst=_Boom())
+    assert pack.analyst_count is None  # degraded to None, never raised into the cycle
+
+
+def test_analyst_count_is_a_citable_evidence_token():
+    from council.context import fundamental_evidence_tokens
+    pack = ContextPack("S", "t", "bullish", "u", analyst_count=4)
+    assert "4" in fundamental_evidence_tokens(pack)  # "4 analysts" is a legitimate citation
 
 
 # ── fail-soft: a corpus outage degrades to pre-§9 grounding, never raises ─────────────────────────
@@ -200,6 +240,22 @@ def test_council_to_themes_forwards_fundamentals(monkeypatch, convexity_db):
     council_to_themes(convexity_db, candidates=[], router=FakeRouter(), config={"council": {}},
                       clock=_Clock(), fundamentals=sentinel, run_id=None)
     assert captured["fundamentals"] is sentinel
+
+
+def test_council_to_themes_forwards_analyst(monkeypatch, convexity_db):
+    # §19: the analyst-coverage provider must reach propose → build_context_pack (else the council,
+    # and the 16-name re-score band, are coverage-blind and silently fall back to article counts).
+    captured = {}
+
+    def _spy(candidates, **kw):
+        captured["analyst"] = kw.get("analyst")
+        return []
+
+    monkeypatch.setattr("council.wiring.propose", _spy)
+    sentinel = object()
+    council_to_themes(convexity_db, candidates=[], router=FakeRouter(), config={"council": {}},
+                      clock=_Clock(), analyst=sentinel, run_id=None)
+    assert captured["analyst"] is sentinel
 
 
 def test_propose_threads_fundamentals_to_handseed_or_leg():
