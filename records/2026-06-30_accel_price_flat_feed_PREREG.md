@@ -533,3 +533,36 @@ but "tried, and the one inflection signal is uncomputable on the cohort that mat
 that isn't." The binding constraint returns to **manual curation throughput** (the standing conclusion),
 the inflection-feed lever closed with an honest limitation rather than a forced verdict. Sharper, and more
 useful, than a level-metric BUILD/REVISIT it could not have earned.
+
+---
+
+## §18 — Eyeball-agreement check (2026-07-01) — CORRECTS §17's "uncomputable" overreach → the finding is (b): revenue-acceleration is low-signal for SECULAR inflection
+
+Advisor red-team (correct): §17's *"inflection uncomputable"* OVERSTATES. The bridge measured estimator-
+**AGREEMENT** (level vs the accel estimator), not estimator-**VALIDITY** (either vs genuine inflection).
+Jaccard 0.08 is consistent with **(a)** level-invalid, **(b)** both-noise, or **(c)** both-valid-but-
+different — §17 asserted (a). The discriminator — each metric's enrichment in genuine SECULAR inflection
+(warm-cache first-pass, `~/accel_eyeball_agreement.py`) — resolves it to **(b)**, with OBJECTIVE support:
+
+- **ACCEL feed (12): half are decelerating DECLINES, not inflections.** 6/12 have `qtr_yoy < +5%` yet
+  `accel > +10%` — revenue DECLINING while the decline decelerates (RDN −31%/+61%, GATX −27%/+30%, SR
+  −12%/+12%, CVI −8%/+14%, BGC −8%/+11%), all mature cyclicals. **The 2nd derivative fires on cyclical-
+  trough mean-reversion as readily as on secular acceleration**, and on a cyclical-heavy optionable-mid-cap
+  frame the cyclical case DOMINATES. Genuine-secular rate ≈ base or below.
+- **LEVEL feed (26): high end is M&A / base-effect artifacts.** GOGO +835% (accel −124%), EBF +400%, BBT
+  +333%, VITL +564%, RGR +326%, IBCP +311% — huge YoY levels from acquisitions / tiny bases (the base-
+  effect confound). A few genuine secular growers (CSTL/TNDM/BSY/PRCT medtech-software) mid-range; the feed
+  ≈ the base rate (~15–20%).
+- **⇒ (b):** neither revenue estimator enriches genuine SECULAR inflection above base. Jaccard 0.08 = two
+  LOW-SIGNAL metrics disagreeing — NOT (a) or (c).
+
+**THE CORRECTED FINDING (supersedes §17's "uncomputable"):** *revenue-XBRL acceleration — the whole
+estimator family, level OR 2nd-derivative — is **low-signal for SECULAR inflection** on optionable mid-caps:
+it fires on cyclical-trough mean-reversion and M&A base-effects, not durable trend-changes.* So **no younger
+REVENUE estimator rescues it** — the problem is that revenue-motion ≠ secular-inflection on this population,
+NOT insufficient history. This is a **scoped** negative on the revenue-XBRL-inflection lever; it does NOT
+retire inflection-on-young in general. **XBRL-FREE inflection estimators** (analyst estimate-revision
+breadth, margin / operating-leverage inflection, guidance-change events) target inflection differently,
+carry no revenue-history dependence, and remain **genuinely untested** — a flagged strategic lever, not
+this workstream limping forward. (First-pass judgment; the decelerating-decline + base-effect evidence is
+OBJECTIVE; the operator's authoritative eyeball can refine the exact rate, not the direction.)
