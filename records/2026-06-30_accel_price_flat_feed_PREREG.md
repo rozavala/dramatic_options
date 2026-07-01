@@ -281,3 +281,42 @@ concrete = +10pp absolute; the probe only checks the fallback trigger and the de
 - **§12.3 must be a RULE, not look-then-choose** — the material-floor pin above is a pre-committed rule
   (absolute + fallback), applied to the distribution; the same discipline governs every §10 value derived
   from a probe.
+
+---
+
+## §14 — Post-freeze §10 completion (2026-07-01) — the two distribution-derived checks
+
+The frozen §13 rules (committed `4bebd2d` **before** this probe ran) applied to the pre-freeze probe
+(`~/accel_prefreeze_probe.py`, ephemeral, outside the repo; out `~/accel_prefreeze_out.json`). **Mechanical
+rule-application, NOT new decisions** — the GATE-1 2×2 / blinded-eyeball read is separate and unrun. The
+probe calls the SHIPPED `qtr_yoy_accel` (`fundamentals.corpus_asof`), not a re-implementation (the point of ①).
+
+**Frame (representative sample, not the full frame — the full frame is GATE-1's run):** 837 SEC filers
+probed (deterministic stride) → 562 priceable → **236 in-cap-band [$300M,$15B]** → **150 with
+`qtr_yoy_accel`**; **86 (36% of in-band) excluded for insufficient history** (the ~2yr / ≥6-quarter
+requirement — the young-name exclusion §3/§10.2 flagged; material — see the note). *Caveat: the sample is
+the tradable-in-band common-stock superset; OPTIONABILITY (chain existence) is applied downstream at GATE-1
+(it only removes names, so it does not affect the floor or degeneracy checks).*
+
+**(P1) accel material-floor — fallback does NOT trigger; the floor stands at +10pp.** `qtr_yoy_accel`
+distribution (n=150): p10 −0.163 · p25 −0.078 · **p50 +0.007** · p75 +0.081 · p90 +0.293 (min −2.38, max
++2.80). **Clear +10pp: 32; + `ttm_yoy>0` robustness: 25** (16.7% of the with-accel sample). 25 ≥ 20 on the
+sample alone; frame-wide (thousands of in-band names) the clearers ≫ 20 → **the top-quintile fallback does
+NOT fire → the frozen material floor is `qtr_yoy_accel ≥ +0.10 ∧ ttm_yoy > 0`.** (Note: +10pp lands ≈ the
+empirical top-quintile boundary here — the absolute floor and the fallback would select nearly the same
+names, so the floor is not mis-scaled; the two blind rules happen to agree on this data.)
+
+**(P2) news degeneracy — does NOT fire; the quiet-label SURVIVES at GATE-1.** 90d news-count (n=50): min 0
+· **median 9** · max 56; **≤2 headlines: 9/50 = 18%** (well under the 50% degeneracy threshold). → **NOT
+degenerate → the bottom-tercile quiet-label is meaningful; quietness is VERIFIED at GATE-1 (does NOT shift
+to GATE-2).** The §12.2 fork resolves to the normal path — GATE-1 tests the feed's quietness premise directly.
+
+**⇒ §10 is now fully concrete; the pre-reg is FROZEN and COMPLETE.** The next step is the **GATE-1
+diagnostic** (§7): the full-frame 2×2 (`accel × price-flat`) + the blinded junk-tagged eyeball + the
+effect-size-ceiling + the ⊥cheapness check → the §5 BUILD/accel-only/REVISIT/GRAVEYARD read. A separate run.
+
+**One GATE-1-relevant flag (NOT a re-pin — the metric is frozen):** the **36% young-name exclusion is
+material.** The frozen `qtr_yoy_accel` reaches ~64% of in-band names; ~1/3 are too young / annual-only for a
+≥6-quarter second-derivative. If GATE-1's cell-11 comes back thin, the pre-reg's already-named future
+extension (a younger sequential-growth-accel metric, §3) is the indicated fix — the age distribution now
+*evidences* that the exclusion bites (it was a hypothetical at freeze).
