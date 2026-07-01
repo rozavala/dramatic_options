@@ -194,7 +194,7 @@ def test_shadow_path_never_touches_the_broker(convexity_db, monkeypatch):
     # (1) no broker import — this module owns none (transitive imports by reused helpers are fine).
     assert not re.search(r"^\s*(from\s+broker\s+import|import\s+broker)\b", src, re.M)
     # (2) no submit / broker construction / order minting anywhere in the source.
-    for forbidden in ("submit_paper", "AlpacaPaperBroker", "PaperBroker",
+    for forbidden in ("submit_paper", "AlpacaPaperBroker", "AlpacaLiveBroker", "PaperBroker",
                       "make_client_order_id", "SELL_TO_CLOSE", ".submit("):
         assert forbidden not in src, f"shadow_book must not reference {forbidden!r}"
     # (3) no 'broker' parameter on any entry point — it structurally cannot be handed one.

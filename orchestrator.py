@@ -31,7 +31,7 @@ import sentinels
 import shadow_book
 import shares_basket
 import state
-from broker import AlpacaPaperBroker, PaperBroker
+from broker import AlpacaLiveBroker, AlpacaPaperBroker, PaperBroker
 from clock import Clock, FixedClock, LiveClock
 from config_loader import (
     ConfigError,
@@ -161,6 +161,18 @@ def _stamp_council_health(conn, run_id: int, config: dict, router) -> None:
                                         model_mix=json.dumps(mix))
     except Exception as e:  # noqa: BLE001 — health/paging is a control, must never break the trade cycle
         log.warning("council health stamp failed (non-fatal): %s", e)
+
+
+def _select_broker(config: dict, *, is_live: bool, api_key: str, secret_key: str,
+                   dry_run: bool, equity: float | None):
+    """Pick the order broker: the REAL-MONEY ``AlpacaLiveBroker`` ONLY when ``is_live`` (the
+    triple-gate ``config_loader.live_allowed`` result), else the paper endpoint. The live broker's
+    per-order notional ceiling comes from ``safety.live_max_order_notional`` (absent → the broker
+    rejects fail-closed). DRY_RUN gates transmission in both. PREREG_REAL_MONEY_BROKER §2/§3."""
+    if is_live:
+        return AlpacaLiveBroker(api_key, secret_key, dry_run=dry_run, equity=equity,
+                                max_order_notional=config.get("safety", {}).get("live_max_order_notional"))
+    return AlpacaPaperBroker(api_key, secret_key, dry_run=dry_run, equity=equity)
 
 
 def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
@@ -572,13 +584,16 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             shadow_gate_provider = AlpacaChainProvider(
                 client, equity_feed=equity_feed, option_feed=to_option_feed("indicative"))
             quote_provider = AlpacaQuoteProvider(client, option_feed=monitor_feed)
-            # Real paper-order broker; DRY_RUN (default) logs-and-simulates, never transmits.
-            broker = AlpacaPaperBroker(api_key, secret_key, dry_run=dry_run, equity=equity)
+            # Broker: REAL-MONEY only under the triple-gate; else the paper endpoint (DRY_RUN
+            # logs-and-simulates in BOTH). PREREG_REAL_MONEY_BROKER §2.
+            broker = _select_broker(config, is_live=is_live, api_key=api_key, secret_key=secret_key,
+                                    dry_run=dry_run, equity=equity)
             chain_cache = PointInTimeCache(config.get("cache", {}).get("dir", "data/cache"))
             run_id = record_run(conn, mode=mode, equity=equity, note="paper cycle",
                                 frame_version=compute_frame_version(config),
                                 data_feed=data_feed_stamp(config))
-            log.info("Execution: %s", "DRY_RUN (orders logged, not sent)" if dry_run else "LIVE PAPER SUBMIT")
+            log.info("Execution: %s", "DRY_RUN (orders logged, not sent)" if dry_run
+                     else ("LIVE REAL-MONEY SUBMIT" if is_live else "LIVE PAPER SUBMIT"))
 
         # Market state, checked ONCE per cycle, FAIL-CLOSED (PR2 R5). Gates both the monitor's
         # real submits (below) and the entry path (§2). Unknown/error ⇒ treated as closed.
