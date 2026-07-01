@@ -443,10 +443,13 @@ def run_discover(demo: bool = False) -> int:
                     config=config, conn=conn, clock=clock, provider=chain_provider, market=market,
                     benchmark=benchmark, params=params, run_id=run_id,
                 )
-                if fbr3b.booked or fbr3b.halted:
-                    log.info("No-gate(3B basket) book: booked=%d vetoed=%d skipped=%d errors=%d%s",
-                             fbr3b.booked, fbr3b.vetoed, fbr3b.skipped, fbr3b.errors,
-                             " HALTED" if fbr3b.halted else "")
+                log.info("No-gate(3B basket) book: booked=%d vetoed=%d %s skipped=%d errors=%d%s",
+                         fbr3b.booked, fbr3b.vetoed, dict(fbr3b.veto_reasons), fbr3b.skipped,
+                         fbr3b.errors, " HALTED" if fbr3b.halted else "")
+                if fbr3b.errors:
+                    notify.send("Fixed-basket 3B eval errors (non-fatal)",
+                                f"{fbr3b.errors} 3B name eval(s) threw this scan "
+                                f"(see journal WARNINGs) — the null arm may be degraded.")
             except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the scan
                 log.warning("no-gate 3B book pass failed (non-fatal): %s", e)
                 notify.send("Fixed-basket 3B failed (non-fatal)", str(e))
@@ -784,10 +787,15 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                         sbr = shadow_book.run_shadow_cycle(
                             config=config, conn=conn, clock=clock, provider=provider, run_id=run_id,
                         )
-                        if sbr.booked or sbr.halted:
-                            log.info("Shadow(null) book: booked=%d %s vetoed=%d skipped=%d%s",
-                                     sbr.booked, dict(sbr.by_origin), sbr.vetoed, sbr.skipped,
-                                     " HALTED" if sbr.halted else "")
+                        # ALWAYS log (no if-booked guard): a booked=0 cycle with reasons is a healthy
+                        # capped book; a booked=0 cycle with silence was 3 weeks of dead control arm.
+                        log.info("Shadow(null) book: booked=%d %s vetoed=%d %s skipped=%d errors=%d%s",
+                                 sbr.booked, dict(sbr.by_origin), sbr.vetoed, dict(sbr.veto_reasons),
+                                 sbr.skipped, sbr.errors, " HALTED" if sbr.halted else "")
+                        if sbr.errors:
+                            notify.send("Shadow book eval errors (non-fatal)",
+                                        f"{sbr.errors} shadow candidate eval(s) threw this cycle "
+                                        f"(see journal WARNINGs) — the null control arm may be degraded.")
                     except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the real cycle
                         log.warning("shadow book pass failed (non-fatal): %s", e)
                         notify.send("Shadow book entry failed (non-fatal)", str(e))
@@ -800,10 +808,13 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             fbr = fixed_basket.run_fixed_basket_3a_cycle(
                                 config=config, conn=conn, clock=clock, provider=provider, run_id=run_id,
                             )
-                            if fbr.booked or fbr.halted:
-                                log.info("No-gate(3A) book: booked=%d %s vetoed=%d skipped=%d%s",
-                                         fbr.booked, dict(fbr.by_origin), fbr.vetoed, fbr.skipped,
-                                         " HALTED" if fbr.halted else "")
+                            log.info("No-gate(3A) book: booked=%d %s vetoed=%d %s skipped=%d errors=%d%s",
+                                     fbr.booked, dict(fbr.by_origin), fbr.vetoed, dict(fbr.veto_reasons),
+                                     fbr.skipped, fbr.errors, " HALTED" if fbr.halted else "")
+                            if fbr.errors:
+                                notify.send("Fixed-basket 3A eval errors (non-fatal)",
+                                            f"{fbr.errors} 3A candidate eval(s) threw this cycle "
+                                            f"(see journal WARNINGs) — the null arm may be degraded.")
                         except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the real cycle
                             log.warning("no-gate 3A book pass failed (non-fatal): %s", e)
                             notify.send("Fixed-basket 3A entry failed (non-fatal)", str(e))

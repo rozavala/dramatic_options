@@ -56,6 +56,10 @@ class ShadowBookResult:
     errors: int = 0
     halted: bool = False
     by_origin: dict[str, int] = field(default_factory=dict)
+    # Per-reason veto counts ("sentinel_slots" | "no_structure" | "not_cheap" | "cluster_cap" |
+    # "sizing") — a booked=0 cycle is indistinguishable from a dead arm without them (the 2026-06/07
+    # three-week silent-zero window).
+    veto_reasons: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -136,34 +140,37 @@ def run_shadow_cycle(
         if (origin == "sentinel" and max_slots is not None
                 and state.count_open_shadow_sentinel_positions(conn) >= int(max_slots)):
             result.vetoed += 1
+            result.veto_reasons["sentinel_slots"] = result.veto_reasons.get("sentinel_slots", 0) + 1
             continue
         try:
-            booked = _eval_and_book(
+            reason = _eval_and_book(
                 theme, origin=origin, conn=conn, provider=provider, eligibility=_eligibility,
                 account_equity=account_equity, gate=gate, book=book, as_of=as_of,
                 as_of_iso=as_of_iso, rv_window=rv_window, run_id=run_id,
                 cluster_map=cluster_map, cluster_fraction=cluster_fraction,
             )
-        except Exception as e:  # noqa: BLE001 — per-candidate fail-soft: log, never break the pass
-            result.errors += 1
-            log.debug("shadow eval errored for %s: %s", theme.symbol, e)
+        except Exception as e:  # noqa: BLE001 — per-candidate fail-soft: never break the pass, but
+            result.errors += 1  # log LOUDLY (WARNING) — debug-level here hid a class of dead-arm failures
+            log.warning("shadow eval errored for %s: %s", theme.symbol, e)
             continue
-        if booked:
+        if reason == "booked":
             result.booked += 1
             result.by_origin[origin] = result.by_origin.get(origin, 0) + 1
             open_syms.add(theme.symbol)
         else:
             result.vetoed += 1
+            result.veto_reasons[reason] = result.veto_reasons.get(reason, 0) + 1
     return result
 
 
 def _eval_and_book(
     theme, *, origin, conn, provider, eligibility, account_equity, gate, book,
     as_of, as_of_iso, rv_window, run_id, cluster_map, cluster_fraction,
-) -> bool:
+) -> str:
     """Deterministic pipeline for one candidate; book a SIM position at the chain mid if it passes.
     No broker — the real book's paper sim-fill uses this same mid, so entry premia are
-    apples-to-apples. Returns True iff a position was booked."""
+    apples-to-apples. Returns "booked" iff a position was booked, else the veto reason
+    ("no_structure" | "not_cheap" | "cluster_cap" | "sizing")."""
     underlying_price = provider.underlying_price(theme.symbol)
     chain = provider.chain(theme.symbol)
     closes = provider.closes(theme.symbol, window=rv_window)
@@ -176,14 +183,14 @@ def _eval_and_book(
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
     )
     if structure is None:
-        return False
+        return "no_structure"
     verdict = is_cheap_convexity(
         chain, underlying_price=underlying_price, wing=structure.contract, rv=rv,
         iv_rv_max=float(gate.get("iv_rv_max", 1.2)),
         otm_skew_max_volpts=float(gate.get("otm_skew_max_volpts", 10.0)),
     )
     if not verdict.cheap:
-        return False
+        return "not_cheap"
     # The SAME deterministic cluster cap the real book applies (only the council selection differs).
     # Shadow books 'open' immediately (no broker → no 'pending'), so the open-only basis already counts
     # within-cycle cluster-mates — the real book's committed/pending fix (#12) isn't needed here.
@@ -193,7 +200,7 @@ def _eval_and_book(
         cluster_remaining = account_equity * cluster_fraction - state.shadow_cluster_open_premium(
             conn, clusters.members_of(cluster, cluster_map))
         if cluster_remaining < structure.entry_premium * CONTRACT_MULTIPLIER:
-            return False
+            return "cluster_cap"
     sizing = convexity_position_size(
         account_equity=account_equity,
         book_fraction=float(book.get("book_fraction", 0.10)),
@@ -205,7 +212,7 @@ def _eval_and_book(
         cluster_remaining=cluster_remaining,
     )
     if sizing.contracts < 1:
-        return False
+        return "sizing"
     entry_pc = structure.entry_premium * CONTRACT_MULTIPLIER
     state.record_shadow_position(
         conn, run_id=run_id, origin=origin, opened_at=as_of_iso, theme=theme.name,
@@ -215,7 +222,7 @@ def _eval_and_book(
         contracts=sizing.contracts, entry_premium_per_contract=entry_pc,
         total_premium=entry_pc * sizing.contracts, entry_spot=underlying_price,
     )
-    return True
+    return "booked"
 
 
 def _intrinsic_value(kind: str, strike: float, underlying_price: float | None) -> float:

@@ -56,6 +56,9 @@ class FixedBasketResult:
     errors: int = 0
     halted: bool = False
     by_origin: dict[str, int] = field(default_factory=dict)
+    # Per-reason veto counts (3A: "sentinel_slots" | "no_structure" | "cluster_cap" | "sizing";
+    # 3B: "no_structure" | "sizing") — mirrors ShadowBookResult.veto_reasons (dead-arm visibility).
+    veto_reasons: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -130,24 +133,26 @@ def run_fixed_basket_3a_cycle(
         if (origin == "sentinel" and max_slots is not None
                 and state.count_open_fixed_basket_sentinel_positions(conn, BOOK_UNION_NOGATE) >= int(max_slots)):
             result.vetoed += 1
+            result.veto_reasons["sentinel_slots"] = result.veto_reasons.get("sentinel_slots", 0) + 1
             continue
         try:
-            booked = _eval_and_book_nogate(
+            reason = _eval_and_book_nogate(
                 theme, origin=origin, conn=conn, provider=provider, eligibility=_eligibility,
                 account_equity=account_equity, gate=gate, book_cfg=book_cfg, as_of=as_of,
                 as_of_iso=as_of_iso, run_id=run_id,
                 cluster_map=cluster_map, cluster_fraction=cluster_fraction,
             )
-        except Exception as e:  # noqa: BLE001 — per-candidate fail-soft: log, never break the pass
-            result.errors += 1
-            log.debug("3A eval errored for %s: %s", theme.symbol, e)
+        except Exception as e:  # noqa: BLE001 — per-candidate fail-soft: never break the pass, but
+            result.errors += 1  # log LOUDLY (WARNING) — debug-level here hid a class of dead-arm failures
+            log.warning("3A eval errored for %s: %s", theme.symbol, e)
             continue
-        if booked:
+        if reason == "booked":
             result.booked += 1
             result.by_origin[origin] = result.by_origin.get(origin, 0) + 1
             open_syms.add(theme.symbol)
         else:
             result.vetoed += 1
+            result.veto_reasons[reason] = result.veto_reasons.get(reason, 0) + 1
     return result
 
 
@@ -158,7 +163,8 @@ def _eval_and_book_nogate(
     """The deterministic pipeline for one candidate **with the IV gate OFF** — book a SIM position at
     the chain mid if it clears eligibility + the (cap-ON) caps. The ONLY difference vs
     `shadow_book._eval_and_book` is the missing `is_cheap_convexity` veto (and the realized-vol it fed,
-    now unused). Returns True iff booked."""
+    now unused). Returns "booked" iff booked, else the veto reason ("no_structure" | "cluster_cap" |
+    "sizing")."""
     underlying_price = provider.underlying_price(theme.symbol)
     chain = provider.chain(theme.symbol)
 
@@ -169,7 +175,7 @@ def _eval_and_book_nogate(
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
     )
     if structure is None:
-        return False
+        return "no_structure"
     # >>> NO is_cheap_convexity here — that veto is exactly what 3A removes (the gate test). <<<
 
     # The SAME cap-ON cluster cap the real/shadow books apply (3A holds the full frame).
@@ -179,7 +185,7 @@ def _eval_and_book_nogate(
         cluster_remaining = account_equity * cluster_fraction - state.fixed_basket_cluster_open_premium(
             conn, clusters.members_of(cluster, cluster_map), BOOK_UNION_NOGATE)
         if cluster_remaining < structure.entry_premium * CONTRACT_MULTIPLIER:
-            return False
+            return "cluster_cap"
     sizing = convexity_position_size(
         account_equity=account_equity,
         book_fraction=float(book_cfg.get("book_fraction", 0.10)),
@@ -191,7 +197,7 @@ def _eval_and_book_nogate(
         cluster_remaining=cluster_remaining,
     )
     if sizing.contracts < 1:
-        return False
+        return "sizing"
     entry_pc = structure.entry_premium * CONTRACT_MULTIPLIER
     state.record_fixed_basket_position(
         conn, run_id=run_id, book=BOOK_UNION_NOGATE, origin=origin, opened_at=as_of_iso, theme=theme.name,
@@ -201,7 +207,7 @@ def _eval_and_book_nogate(
         contracts=sizing.contracts, entry_premium_per_contract=entry_pc,
         total_premium=entry_pc * sizing.contracts, entry_spot=underlying_price,
     )
-    return True
+    return "booked"
 
 
 def basket_symbols(config: dict) -> dict[str, str]:
@@ -251,29 +257,31 @@ def run_fixed_basket_3b_cycle(
             continue
         try:
             m = compute_markers(sym, as_of_dt, market=market, benchmark=benchmark, params=params, basket=basket)
-            booked = _eval_and_book_3b(
+            reason = _eval_and_book_3b(
                 sym=sym, basket=basket, direction=direction_of(m), conn=conn, provider=provider,
                 eligibility=_eligibility, account_equity=account_equity,
                 per_name_fraction=per_name_fraction, gate=gate, as_of=as_of, as_of_iso=as_of_iso, run_id=run_id,
             )
-        except Exception as e:  # noqa: BLE001 — per-name fail-soft: log, never break the pass
-            result.errors += 1
-            log.debug("3B eval errored for %s: %s", sym, e)
+        except Exception as e:  # noqa: BLE001 — per-name fail-soft: never break the pass, but
+            result.errors += 1  # log LOUDLY (WARNING) — debug-level here hid a class of dead-arm failures
+            log.warning("3B eval errored for %s: %s", sym, e)
             continue
-        if booked:
+        if reason == "booked":
             result.booked += 1
             result.by_origin["basket"] = result.by_origin.get("basket", 0) + 1
             open_syms.add(sym)
         else:
             result.vetoed += 1
+            result.veto_reasons[reason] = result.veto_reasons.get(reason, 0) + 1
     return result
 
 
 def _eval_and_book_3b(
     *, sym, basket, direction, conn, provider, eligibility, account_equity, per_name_fraction, gate,
     as_of, as_of_iso, run_id,
-) -> bool:
-    """Gate-off, EQUAL-WEIGHT booking for one basket name (no book/cluster/slot caps). True iff booked."""
+) -> str:
+    """Gate-off, EQUAL-WEIGHT booking for one basket name (no book/cluster/slot caps). Returns
+    "booked" iff booked, else the veto reason ("no_structure" | "sizing")."""
     underlying_price = provider.underlying_price(sym)
     chain = provider.chain(sym)
     structure, _ = select_structure(
@@ -282,11 +290,11 @@ def _eval_and_book_3b(
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
     )
     if structure is None:
-        return False
+        return "no_structure"
     n = equal_weight_contracts(account_equity=account_equity, per_name_fraction=per_name_fraction,
                                entry_premium_per_share=structure.entry_premium)
     if n < 1:
-        return False
+        return "sizing"
     entry_pc = structure.entry_premium * CONTRACT_MULTIPLIER
     state.record_fixed_basket_position(
         conn, run_id=run_id, book=BOOK_BASKET_NOGATE, origin="basket", opened_at=as_of_iso, theme=basket,
@@ -295,7 +303,7 @@ def _eval_and_book_3b(
         strike=structure.contract.strike, dte=structure.dte, moneyness=structure.moneyness,
         contracts=n, entry_premium_per_contract=entry_pc, total_premium=entry_pc * n, entry_spot=underlying_price,
     )
-    return True
+    return "booked"
 
 
 def _intrinsic_value(kind: str, strike: float, underlying_price: float | None) -> float:

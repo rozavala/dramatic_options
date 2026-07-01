@@ -66,6 +66,7 @@ def test_brain_off_books_every_gate_passer_and_vetoes_rich(convexity_db, monkeyp
                                Theme("hype", "NVDA", "bullish", "rich")], monkeypatch)
     assert res.booked == 1
     assert res.vetoed == 1
+    assert res.veto_reasons == {"not_cheap": 1}  # the veto is attributable, not a bare count
     rows = state.open_shadow_positions(convexity_db)
     assert len(rows) == 1 and rows[0]["symbol"] == "FCX"
     assert rows[0]["total_premium"] > 0
@@ -106,6 +107,31 @@ def test_sentinel_slot_reservation_caps_discovered_origin(convexity_db, monkeypa
     ], monkeypatch, config=cfg)
     assert state.count_open_shadow_sentinel_positions(convexity_db) == 1
     assert res.booked == 1
+    assert res.veto_reasons == {"sentinel_slots": 1}  # a slot-capped book is visible, not silent
+
+
+def test_eval_error_counted_and_logged_at_warning(convexity_db, monkeypatch, caplog):
+    # A per-candidate throw is fail-soft but LOUD: errors counted + WARNING (debug-level hid a
+    # class of dead-arm failures — the 2026-06/07 silent-zero window).
+    import logging
+
+    class BoomProvider:
+        def underlying_price(self, symbol):
+            raise RuntimeError("boom")
+
+        def chain(self, symbol):
+            raise RuntimeError("boom")
+
+        def closes(self, symbol, window=252):
+            raise RuntimeError("boom")
+
+    _no_kill(monkeypatch)
+    with caplog.at_level(logging.WARNING, logger="shadow_book"):
+        res = shadow_book.run_shadow_cycle(config=CONFIG, conn=convexity_db, clock=CLOCK,
+                                           provider=BoomProvider(),
+                                           candidates=[Theme("c", "FCX", "bullish", "x")])
+    assert res.errors == 1 and res.booked == 0
+    assert any("shadow eval errored" in r.message for r in caplog.records)
 
 
 def test_kill_switch_halts_shadow_booking(convexity_db, monkeypatch):

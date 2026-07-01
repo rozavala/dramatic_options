@@ -99,6 +99,7 @@ def test_3a_respects_the_cluster_cap(convexity_db, monkeypatch):
     _insert_fb(convexity_db, symbol="AAA", total_premium=1000.0)   # cluster already full in the 3A book
     res = _run_3a(convexity_db, [Theme("c", "FCX", "bullish", "cheap")], monkeypatch, config=cfg)
     assert res.booked == 0                                       # FCX cluster-capped (cap-ON like real/shadow)
+    assert res.veto_reasons == {"cluster_cap": 1}                # and the veto is attributable
     assert state.fixed_basket_open_symbols(convexity_db, BOOK) == {"AAA"}
 
 
@@ -109,6 +110,7 @@ def test_3a_respects_the_sentinel_slot_reservation(convexity_db, monkeypatch):
         Theme("t", "VRT", "bullish", "", source="sentinel", sentinel_id=2),
     ], monkeypatch, config=cfg)
     assert state.count_open_fixed_basket_sentinel_positions(convexity_db, BOOK) == 1 and res.booked == 1
+    assert res.veto_reasons == {"sentinel_slots": 1}
 
 
 def test_kill_switch_halts_3a(convexity_db, monkeypatch):
