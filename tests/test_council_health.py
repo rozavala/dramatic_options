@@ -112,6 +112,24 @@ def test_l1_health_floor_is_config_driven(convexity_db, monkeypatch):
     assert council_l1_health(convexity_db, run_id=rid, floor="LOW")["proposer"]["above_floor_proposals"] == 1
 
 
+def test_l1_health_page_rate_is_config_driven(convexity_db, monkeypatch):
+    # The PARSE_FAIL threshold must track config.council.parse_fail_page_rate (NOT a hardcoded 0.5) so the
+    # grader's verdict can never silently diverge from the orchestrator's live parse-fail page (the SAME key).
+    import config_loader
+    rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
+    state.update_run_council_health(convexity_db, rid, council_health="ok")  # NOT stamped parse_fail
+    _proposer_output(convexity_db, rid, "A", {"parse_error": True, "finish_reason": "MAX_TOKENS"})  # fails
+    _proposer_output(convexity_db, rid, "B", {"confidence": "NEUTRAL"})                              # parses
+    # rate = 1/2 = 0.5. page_rate 0.4 → 0.5 >= 0.4 → PARSE_FAIL
+    monkeypatch.setattr(config_loader, "load_config", lambda: {"council": {"parse_fail_page_rate": 0.4}})
+    assert council_l1_health(convexity_db, run_id=rid)["verdict"] == "PARSE_FAIL"
+    # loosen the threshold to 0.6 → 0.5 < 0.6 → NOT parse_fail (proposer-clean, no round-trip), NO caller change
+    monkeypatch.setattr(config_loader, "load_config", lambda: {"council": {"parse_fail_page_rate": 0.6}})
+    assert council_l1_health(convexity_db, run_id=rid)["verdict"] == "PROPOSER_CLEAN_NO_ROUNDTRIP"
+    # an explicit page_rate arg still wins over config
+    assert council_l1_health(convexity_db, run_id=rid, page_rate=0.9)["verdict"] == "PROPOSER_CLEAN_NO_ROUNDTRIP"
+
+
 def test_l1_health_confirmed_with_criteria_veto_surfaced(convexity_db):
     # A §10.7 criteria-veto is a DELIBERATED outcome (valid conviction, no parse_error): the
     # round-trip stays CONFIRMED and the veto is SURFACED (anomalous-but-non-degrading — the
