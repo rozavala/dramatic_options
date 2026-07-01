@@ -107,6 +107,17 @@ def _config_floor() -> str:
         return "MODERATE"
 
 
+def _config_page_rate() -> float:
+    """The parse-fail page-rate threshold (config-driven; the SAME ``council.parse_fail_page_rate`` key the
+    orchestrator pager reads at stamp time) so the grader's PARSE_FAIL verdict can never silently diverge
+    from the live page. Fail-soft to 0.5 (the historical default)."""
+    try:
+        from config_loader import load_config
+        return float((load_config().get("council", {}) or {}).get("parse_fail_page_rate", 0.5))
+    except Exception:  # noqa: BLE001 — a config-read hiccup must never crash the read-only grader
+        return 0.5
+
+
 def _marker_staleness(props) -> dict:
     """Marker-age of the SENTINEL proposals this run judged (finding #1 / PREREG_FRESH_INFLECTION_FUNNEL
     §7.1): age = ``as_of − markers_asof`` (both frozen on the row → non-corruptible). Surfaces the
@@ -132,17 +143,21 @@ def _marker_staleness(props) -> dict:
     return out
 
 
-def council_l1_health(conn, *, run_id: int | None = None, floor: str | None = None, page_rate: float = 0.5) -> dict:
+def council_l1_health(conn, *, run_id: int | None = None, floor: str | None = None,
+                      page_rate: float | None = None) -> dict:
     """Grade one council run against the checklist. ``run_id`` defaults to the latest council run.
 
-    ``floor`` defaults to config ``council.conviction_floor`` (NOT a hardcoded MODERATE) so the grade can
-    never silently diverge from the gate/dashboard funnel if the mandate floor is ever retightened (#37 class).
+    ``floor`` defaults to config ``council.conviction_floor`` and ``page_rate`` to config
+    ``council.parse_fail_page_rate`` (NOT hardcoded) so the grade can never silently diverge from the
+    gate/dashboard funnel or the orchestrator's parse-fail page if either is ever retuned (#37 class).
     """
     run_id = run_id if run_id is not None else latest_council_run(conn)
     if run_id is None:
         return {"run_id": None, "verdict": "NO_COUNCIL", "notes": ["no council run recorded"]}
     if floor is None:
         floor = _config_floor()
+    if page_rate is None:
+        page_rate = _config_page_rate()
 
     hr = conn.execute("SELECT council_health FROM runs WHERE id = ?", (run_id,)).fetchone()
     council_health = hr["council_health"] if hr else None
