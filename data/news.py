@@ -85,9 +85,18 @@ class NewsData:
         )
 
     def headlines_asof(self, symbol: str, as_of: datetime) -> list[dict[str, Any]]:
-        """All articles with ``created_at <= as_of``, ascending."""
+        """All articles with ``created_at <= as_of``, ascending.
+
+        In the live/forward loop the council's ``as_of`` is a strictly later ``clock.now()`` than
+        this provider's ``fetch_end`` (built a few calls earlier in the cycle), so a bare
+        ``cache.read(as_of)`` would ``CacheMiss`` on ``as_of > coverage_through`` and the caller
+        would SILENTLY lose every headline (the pack drops its news grounding). Clamp forward-drift
+        to ``fetch_end`` — we fetched only through ``fetch_end``, so that IS all the news there is.
+        Offline/backtest keeps the strict ``as_of`` so the "widen your fetch" tripwire still fires
+        (the cache.py contract — never silently truncate a point-in-time replay)."""
         self._ensure(symbol)
-        return self.cache.read(SOURCE, symbol, as_of)
+        read_at = as_of if self.cache.offline else min(to_utc(as_of), to_utc(self.fetch_end))
+        return self.cache.read(SOURCE, symbol, read_at)
 
     # ── coverage-density audit (plan §B4 / §A0) ────────────────────────────
     def coverage_by_year(self, symbol: str) -> dict[int, int]:
