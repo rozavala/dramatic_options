@@ -144,8 +144,8 @@ def test_3a_tail_report_surfaces_the_book(convexity_db):
 def test_fixed_basket_never_touches_the_broker(convexity_db, monkeypatch):
     src = Path(fixed_basket.__file__).read_text()
     assert not re.search(r"^\s*(from\s+broker\s+import|import\s+broker)\b", src, re.M)
-    for forbidden in ("submit_paper", "AlpacaPaperBroker", "PaperBroker", "make_client_order_id",
-                      "SELL_TO_CLOSE", ".submit("):
+    for forbidden in ("submit_paper", "AlpacaPaperBroker", "AlpacaLiveBroker", "PaperBroker",
+                      "make_client_order_id", "SELL_TO_CLOSE", ".submit("):
         assert forbidden not in src, f"fixed_basket must not reference {forbidden!r}"
     for fn in (fixed_basket.run_fixed_basket_3a_cycle, fixed_basket.mark_fixed_basket_positions,
                fixed_basket._eval_and_book_nogate):
