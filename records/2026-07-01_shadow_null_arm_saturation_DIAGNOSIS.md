@@ -1,0 +1,167 @@
+# 2026-07-01 — Null-arm zero-booking diagnosis: shadow + 3A saturated at the sentinel slot reservation (DESIGNED behavior), invisible for three weeks (OBSERVABILITY defect)
+
+**Status:** §1–§4 written + committed **BEFORE** the confirmatory probe ran (anti-HARK — the
+outcome→interpretation map in §4 is pinned first). §5 appended after. §6–§8 are the dated
+annotation + proposals this diagnosis licenses, **staged for operator review** (frozen-doc
+discipline: proposals live here, not in the frozen docs, until the operator pins + merges).
+
+---
+
+## §1 — The observation
+
+The brain-off shadow book (`shadow_positions`) booked **0 new positions after run 130
+(2026-06-10 19:45 UTC)** across 13 subsequent healthy L1s, with **no error, no page, and no log
+line** — while its monitor kept printing (`marked=7`) and the cheapness-watch kept reading
+`cheap=1` on the very names it wasn't booking. Discovered 2026-07-01 during the "shadow book as
+branch-3 instrument" scoping. Run 130 is also the first OPRA-gate L1 (`option_gate`
+indicative→opra flipped that day), which made feed breakage the natural first suspect.
+
+## §2 — The hypotheses (pinned in-session before the fact sweep)
+
+- **H_a (operator):** the IV gate fail-closes on missing/degenerate far-wing IV on the real
+  OPRA chain, while the watch scores a nearer/proxy wing that quotes fine.
+- **H_b (CC):** `contract_eligible` (spread >25% / OI) rejects real OPRA wings inside
+  `select_structure` → "cheap-because-untradeable".
+- **H_c:** per-candidate exceptions (format/parse) swallowed at `log.debug`.
+- **H_d (raised from the code read; the operator's discriminator-(ii) "cap-saturation,
+  designed behavior" one level up):** the `discovery.sentinel_max_slots` reservation saturated
+  at run 130 and vetoes every sentinel-origin candidate before eval.
+- **H_e (low prior):** the candidate union itself broke/emptied.
+
+## §3 — Static evidence chain (settles the verdict WITHOUT the probe)
+
+**Verdict: H_d CONFIRMED; H_a, H_b, H_c, H_e falsified.** Six read-only fact agents over the
+code, box config, live DB, and frozen docs (2026-07-01 ~20:30–20:45 UTC):
+
+1. **3A stalled at the same instant, 3B did not.** 3A (`book='union_nogate'`) booked at exactly
+   the same runs with exactly the same 7 symbols as the shadow book (37 / 92 / 130) and nothing
+   after, across the same 13 healthy L1s. 3B (`book='basket_nogate'`) kept booking at every
+   weekly L0 (runs 167, 253, 288 — 06-14/06-21/06-24) **through the same `select_structure` +
+   byte-identical `contract_eligible` eligibility on the same OPRA gate feed**
+   (`fixed_basket.py:242-246, 279-283`; the L0 3B provider is built with `option_feed=gate_feed`,
+   `orchestrator.py:439-441`). The structure/eligibility path is alive on OPRA → **H_b and H_e
+   dead** for the books' silence.
+2. **One provider object, shared.** `orchestrator.py:580` builds ONE `AlpacaChainProvider`
+   (OPRA post-flip) passed to the real cycle, the shadow booker, 3A, the dual-read record arm,
+   AND `record_cheapness`. The watch — same object, same eligibility, same gate — reads
+   structurable + `cheap=1` on 89/105 all-time observations; the dual-read OPRA arm structured
+   38/39 names on 2026-07-01 (sole failure: UROY `no_eligible_contract_in_tenor_window`, a
+   known thin-tenor case). **H_a dead** (no feed divergence to hide behind — the booker and the
+   instruments see the same chain, and it structures).
+3. **Nothing threw.** `errors=0` on every relevant result; no fail-soft pages ever fired for
+   the booking passes. **H_c dead** (the DEBUG-level concern was real as an observability hole,
+   but nothing was being thrown through it).
+4. **The saturation arithmetic closes exactly.** Live `discovery.sentinel_max_slots = 6`.
+   The shadow book holds exactly **6 open sentinel-origin** positions since run 130 (SMCI@37,
+   RTX/NEE/LHX@92, PL/FLNC@130); 3A independently holds 6 sentinel-origin + 1 hand-seed of the
+   same symbols (each book counts its OWN open sentinel rows — `shadow_book.py:136-139`,
+   `fixed_basket.py:130-132`). The hand-seed side of the union is **only the two EXAMPLE
+   placeholder themes** (`themes.json`: FCX — already open since run 37 → dedup-skip; NVDA —
+   gate-rich → not_cheap). With 0 resolutions ever (long-dated book, ~1 mo old), the slots can
+   never free. **Every candidate of every L1 since 06-10 is accounted for: skip (FCX), not_cheap
+   (NVDA), or slot-veto (every sentinel). booked=0, errors=0 — silent by the log guard.**
+5. **The 06-10 dating was a confound, not a cause.** Run 130 was BOTH the first OPRA L1 AND the
+   run that filled sentinel slots 5–6 in both books. The flip-day correlation that motivated
+   H_a/H_b is fully explained by H_d.
+6. **The pre-flip counterfactual ("they would have booked before the flip") was false for most
+   of the missing cohort:** AG/PAAS first surfaced as sentinels 2026-06-24; HBM/UEC/UUUU the
+   morning OF 06-10; only RKLB/VRT predate the flip (surfaced 06-03). PAAS has **never** reached
+   `council_proposals` at all (union rank-truncation at `council.max_candidates=12` — the known
+   2026-06-25 F3 finding) while reading `cheap=1` in the dual-read since 06-23.
+
+**Character of the finding:** the zero-booking is the frozen design working
+(PREREG_FIXED_BASKET_NULL §4 pins cap-inheritance deliberately: "the apparatus's caps *are*
+part of the apparatus"). The **defect** is observability: `orchestrator.py` logged the booking
+result only behind `if booked or halted`, `vetoed` was reason-blind, and per-candidate
+exceptions logged at DEBUG → a veto-saturated arm was indistinguishable from a dead one for
+three weeks. Fixed bug-agnostically in **PR #137** (per-reason veto counters + always-log +
+errors at WARNING + non-fatal error page), shipped independent of this diagnosis.
+
+## §4 — THE PINS (pre-probe; committed before the probe runs)
+
+The mechanism is settled by §3; the probe is **CONFIRMATORY + CAPACITY-QUANTIFYING**, not
+discriminating. Design: stepwise replicate `run_shadow_cycle` per union candidate on the live
+OPRA provider — union → active/dedup/origin → slot state → `select_structure` (+ reasons) →
+`is_cheap_convexity` → cluster headroom → sizing — **read-only** (ro DB, no booking, no writes,
+no broker import). Caveat pinned: it runs post-close (~21:00 UTC); quotes are the closing
+snapshot. In-window corroboration exists independently (the 19:47/19:48 UTC #389 watch +
+dual-read rows).
+
+**Pinned expectations, and what REOPENS the diagnosis:**
+
+- **P1:** every active sentinel candidate not already open is vetoed at the slot step, before
+  eval. **REOPEN if any sentinel-origin candidate reaches eval.**
+- **P2:** hand-seed FCX → dedup skip; NVDA → structure FOUND (OPRA), then gate `not_cheap`.
+  **REOPEN (H_b revives for hand-seeds) if NVDA fails at `select_structure`.**
+- **P3 (capacity counterfactual — slots hypothetically freed):** expected from cluster
+  arithmetic (cluster budget = 2% × $100k = $2,000 entry-premium): silver (AG/PAAS — cluster
+  empty) and nuclear (UEC/UUUU — cluster empty) book if structurable + cheap + sized; **VRT
+  likely `cluster_cap`** (ai_capex_power headroom $2,000 − NEE $984 − FLNC $705 = **$311**);
+  HBM books if its wing ≤ $1,138 (copper headroom after FCX $862); RKLB books if ≤ $1,170
+  (space_smallcap after PL $830). Falsifiable by the probe's live premiums.
+- **Pinned interpretation regardless of the counterfactual count:** it MEASURES the capacity
+  cost of cap-parity in the control arm. It does **NOT** authorize a cap change — any change to
+  the null books' caps is a PREREG_FIXED_BASKET_NULL §4 amendment, operator-gated (§8).
+
+## §5 — Probe result (appended post-run)
+
+*(pending — appended below after the run)*
+
+## §6 — Dated annotation for PREREG_FIXED_BASKET_NULL (factual; staged for operator merge)
+
+Proposed status-block note, verbatim:
+
+> **2026-07-01 (dated note):** the shadow (gate-ON) and 3A (gate-OFF) arms **saturated their
+> sentinel slot reservations at run 130 (2026-06-10)** — 6 open sentinel-origin positions each
+> vs `discovery.sentinel_max_slots=6`, with the hand-seed union side being the two EXAMPLE
+> placeholders — and have booked nothing since (designed cap-inheritance per §4, NOT a dead
+> arm; observability fixed in PR #137). Consequence for the §5 reads: both arms' compositions
+> are **frozen as of 2026-06-10** until closes free slots (earliest structural resolutions
+> ~Nov–Dec 2026 via the 21-DTE time-stop). `real − shadow` and `shadow − 3A` remain valid as
+> pinned — they measure the apparatus **including its caps** — but their cohorts are the
+> first-6-sentinels vintage, and any read should state that. 3B is unaffected (no caps).
+
+## §7 — PROPOSED posture-review backstop (operator pins the values; motivated by the F6 finding)
+
+**The gap, per the frozen letter:** PREREG_THEMATIC_CONVEXITY §6 halts on "the book **bleeds 9
+months** with zero payoff." *Bleeding presupposes premium at risk* — an EMPTY book never starts
+the clock. No other frozen text supplies a substitute trigger (grep-verified). The T4 conds
+(2)/(4) require resolved positions, so an indefinitely-empty book indefinitely blocks
+graduation **without violating anything**. The waiting posture is currently unfalsifiable — the
+operator's P1 (2026-07-01), confirmed at the letter of the frozen text.
+
+**Proposed dated amendment to PREREG_THEMATIC_CONVEXITY §6 (review-not-kill; values are
+PROPOSALS for the operator's blind pin):**
+
+> **Posture-review trigger (added 2026-07-01, before any outcome is visible; the null books are
+> blind — 0 resolved):** the entries-side clock anchors at **forward-loop go-live (2026-06-02)**,
+> not at first entry. If by **D = 2027-03-02** (9 months from go-live — symmetric with the
+> frozen 9-month bleed constant) the real book has had **zero entries ever**, a mandatory
+> operator **posture review** triggers: hold-with-re-dated-trigger, open the criteria-
+> reconsideration branch (IMPLEMENTATION_PLAN §T4 fork 3), or stand down. The review is a
+> decision point, NOT an automatic kill and NOT evidence the edge is absent (§7 discipline
+> unchanged). Optional soft checkpoint **2026-10-01** (dashboard/heartbeat line only, no
+> action).
+>
+> **Reachability honesty (pinned):** any conjunctive "0 resolved null positions" leg is
+> **vacuously true before ~Nov–Dec 2026** (earliest structural resolutions: 21-DTE time-stop on
+> Dec-2026–Jun-2027 expiries). Before that date the zero-entries leg ALONE carries the trigger;
+> a reader must not mistake the resolved-leg's silence for evidence.
+
+## §8 — Control-arm capacity: a design tension for the operator (no action taken)
+
+Cap-parity (§4, frozen, deliberate) vs control-arm coverage: in the REAL book the sentinel
+reservation protects hand-seed slots and, with 0 real sentinel positions, never binds; in the
+null books it binds **permanently** once 6 sentinels book and nothing resolves — so the control
+arms structurally cannot absorb a concentrated cheap cohort (the operator's discriminator-(ii)
+point, confirmed). Options, all operator-gated:
+
+- **(a) Keep parity as-is** — the arms measure "the apparatus incl. caps"; accept the frozen
+  first-6 vintage until closes free slots.
+- **(b) Null-books-only slot relief** (raise/remove `sentinel_max_slots` for shadow/3A) — a
+  dated PREREG_FIXED_BASKET_NULL §4 amendment; buys coverage, breaks strict parity, and
+  segments the arms' records at the change date.
+- **(c) Observability only** (PR #137, shipped) — saturation is loud from the next deploy
+  onward (`vetoed=N {sentinel_slots: …}` every L1).
+
+No recommendation is recorded here beyond (c), which is already done.
