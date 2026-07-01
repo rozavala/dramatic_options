@@ -89,7 +89,7 @@ for sym in UNIVERSE:
                             direction=discovery.direction_of(m), thesis="discovery hypothesis (markers-grounded)",
                             source="sentinel", markers=mk))
 
-router, _news, _fund = orchestrator._build_council_io(config, demo=False, client=client, cache=cache, clock=clock)
+router, _news, _fund, _analyst = orchestrator._build_council_io(config, demo=False, client=client, cache=cache, clock=clock)
 print("models:", {r: "/".join(router.provider_model(r)) for r in ("proposer", "adversary", "strategist")})
 print("§9 corpus:", "fundamentals_v1 (wired)" if _fund is not None else "NONE (no EDGAR_USER_AGENT)")
 print(f"scoring {len(candidates)} names (as_of {as_of.isoformat()}) ...\n")
@@ -97,7 +97,7 @@ print(f"scoring {len(candidates)} names (as_of {as_of.isoformat()}) ...\n")
 # §9: pass the corpus so the 16 SENTINELS see fundamentals (R2-#5 — drives build_context_pack →
 # sentinel_context_pack with the fetched corpus; without this the band would be fundamentals-blind).
 proposals = propose(candidates, router=router, config=config, clock=clock, news=None,
-                    fundamentals=_fund, demo=False)
+                    fundamentals=_fund, analyst=_analyst, demo=False)
 survivors = {id(p) for p in select_for_trade(proposals, floor=config["council"].get("conviction_floor", "MODERATE"))}
 
 print(f"{'sym':5} {'dir':5} {'conv':9} {'incl':5} {'s/f':10} {'u_narr':6} {'at_infl':7} "
@@ -152,7 +152,7 @@ else:
     _seeds = [t for t in load_themes(config.get("themes_path", "themes.json"))
               if t.symbol in ("FCX", "NVDA")]
     _hs = propose(_seeds, router=router, config=config, clock=clock, news=_news_dep,
-                  fundamentals=_fund, demo=False)
+                  fundamentals=_fund, analyst=_analyst, demo=False)
     for p in _hs:
         dropped = p.rationale.get("dropped")
         deliberated = dropped is None or "strategist" in p.rationale
