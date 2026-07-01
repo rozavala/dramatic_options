@@ -566,3 +566,78 @@ breadth, margin / operating-leverage inflection, guidance-change events) target 
 carry no revenue-history dependence, and remain **genuinely untested** — a flagged strategic lever, not
 this workstream limping forward. (First-pass judgment; the decelerating-decline + base-effect evidence is
 OBJECTIVE; the operator's authoritative eyeball can refine the exact rate, not the direction.)
+
+---
+
+# CLOSING RECORD (2026-07-01) — the accel∧price-flat feed / idea-supply-automation line
+
+Three dated entries closing the arc, scoped deliberately (what was shown, what was NOT, what stays a named
+open limitation — not a dated grave). Two of this arc's load-bearing negatives were later found to be
+instrument/population artifacts, so these are worded narrowly on purpose. Converged over the full relayed
+red-team; the final matched lift-A/B was **not run** — it was rigged to null by construction (control
+matched so tightly to the screen that the lift was defined out of the experiment), and the composition
+already answers the question.
+
+## §19 — KEEPER: the analyst-coverage quietness meter
+**Finding.** A per-name analyst-coverage count is available **free, on the existing stack** — from the
+`stockanalysis.com` source already scraped for `etf_constituents`, one call, no auth (spot-check AAPL 47,
+GATX 4, RVLV 15). It is a materially better attention axis than news-count: analyst-quiet and news-quiet
+overlap only **Jaccard ~0.46** (they disagree on ~half the names). **Action: wire it** and replace
+news-count as the coverage/under-narration input everywhere it's read (the §9 council coverage proxy;
+discovery-layer inputs; any future feed test). Reusable asset, independent of any feed verdict.
+**Scope caveat (do not over-read):** analyst-count measures **attention** (is there sell-side coverage),
+NOT the thesis target **under-narrated-at-inflection**. GATX at 4 analysts is genuinely low-attention but
+**boring-quiet** (mature cyclical, no story), not inflecting-quiet. The attribution "quiet because early"
+vs "quiet because boring" is not an attention question and **no attention meter resolves it** (no
+non-circular label: human-label concedes the point; forward-outcome is the forbidden edge/IC test).
+**Meta-lesson:** the "quietness is human-only" doctrine that governed eight rounds rode on a BROKEN meter
+while the free gold-standard sat one API call away — an instrument artifact, never earned.
+
+## §20 — confound-(d), read honestly: NEGATIVE (not positive, not a structural ceiling)
+**The pre-registered, thrice-skipped question:** does `{inflecting ∧ quiet}` populate before the
+optionability filter? — "quiet inflections don't exist" (clean negative) vs "exist but not tradeable"
+(structural ceiling). **Result on the analyst-quiet meter:** `{accel ∧ analyst-quiet}` populates (10) and
+is ~90% optionable → *alone* reads "door open." **The honest read (correcting that):** the cell is
+**cyclical- and artifact-heavy** — cyclicals (RJET/CVEO/BGC/GATX/GVA/SCSC) + 2 artifacts (KKRS note, RHLD
+spinoff) + ~2 plausibly-real (PRM, DAKT). So NOT a positive and NOT a ceiling — **worse than a ceiling**
+(a ceiling would mean the inflections *exist*): the cell populates with the **wrong names**, ~2 real of 10
+— "the door opens onto the same empty room." Must **not** enter memory as a positive confound-(d).
+**Mechanism:** revenue-acceleration fires on cyclical-trough mean-reversion as readily as secular
+acceleration, and the optionable-mid-cap frame is cyclical-heavy by construction (the matched control drew
+cyclical mid-caps too — Matson/Brunswick/Cal-Maine/Conagra/Gray). `{accel ∧ quiet ∧ optionable}` on this
+universe is effectively a **cyclical-mid-cap detector** — the population is the confound, not just the metric.
+
+## §21 — LINE CLOSED: the accel-feed / idea-supply-automation line (properly scoped)
+**Status.** The accel∧price-flat feed line is **closed** — a mechanism-backed negative, not a forced
+BUILD/REVISIT/GRAVEYARD. Also closes the broader idea-supply-automation line (divergence, FSSD, seeded
+generator, EDGAR funnel, federal-awards, accel-feed).
+**The banked conclusion — narrow and true (NOT the overclaim):** *on this data stack and this universe
+(optionable mid-caps), no cheap automated signal substituted for the human's decorrelation judgment.* This
+is **not** "human judgment is provably irreducible," because two reasons prior rounds believed that were
+artifacts: **(i) broken instrument** — the quietness axis was news-count (broken); the fix was one API call
+(§19); **(ii) wrong population** — optionable mid-caps are cyclical-heavy, and the thesis-target (small,
+quiet, sub-optionable names) was filtered out by the optionability gate before every test; the thesis was
+never tested on the pond it was about. So the standing conclusion (binding constraint = manual curation
+throughput; human decorrelation is the input) is **operationally intact** (still no automated substitute in
+hand) but **epistemically weaker** than eight rounds implied.
+**Named open limitations (NOT to-dos — deliberate future lines, each on its own standalone thesis):**
+(i) inflection on the genuinely-small/quiet/sub-optionable population was never cleanly tested; (ii)
+XBRL-free inflection estimators (margin/operating-leverage inflection, guidance-change, estimate-revision
+breadth) are untested as secular-vs-cyclical discriminators — open **only** if the standalone thesis can be
+stated with conviction, not as a reflexive next hop.
+**Durable methodological lessons (the real asset of the arc):**
+1. **The discipline worked.** Freeze-before-data, pre-registration, clean-negative acceptance, the blinded
+   eyeball, and the relayed red-team caught **every** false positive — a negative nearly dated on
+   artifact-contaminated numbers (§15), an "uncomputable" doctrine nearly hardened from an
+   agreement-vs-validity confusion (§17→§18), and a final A/B rigged to null by construction. Output
+   "nothing buildable, and we can trust that" = the instrument working, not failing.
+2. **The recurring failure mode: metabolizing nulls as "one fix away."** Repeatedly a null-ish result was
+   converted into a reason to continue rather than a result to accept — and it was the red-team catching it,
+   not the proposer. **Corrected default: a null is a null; what it licenses is a DECISION, not the next signal.**
+3. **Scope negatives narrowly.** Two load-bearing negatives here were instrument/population artifacts. A
+   negative means "this configuration, on this data, didn't work" — resist generalizing to "the class is
+   impossible" until instrument and population are confirmed clean.
+**Forward.** Bank the meter (§19), record confound-(d) honestly (§20); the highest-leverage next work is
+**operating and hardening the live paper book toward T4** (council, gates, risk frame) with the better
+meter wired in — not more idea-supply R&D. The front door has been interrogated thoroughly; the leverage is
+in running the house.
