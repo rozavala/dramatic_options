@@ -320,3 +320,50 @@ material.** The frozen `qtr_yoy_accel` reaches ~64% of in-band names; ~1/3 are t
 ≥6-quarter second-derivative. If GATE-1's cell-11 comes back thin, the pre-reg's already-named future
 extension (a younger sequential-growth-accel metric, §3) is the indicated fix — the age distribution now
 *evidences* that the exclusion bites (it was a hypothetical at freeze).
+
+---
+
+## §15 — GATE-1 mechanical result (2026-07-01) — CONFOUNDED; the pre-registered extension is triggered (NOT a clean REVISIT)
+
+GATE-1 ran (frame n=250, probed 1395; ephemeral `~/accel_gate1_probe.py`). The raw 2×2 quiet∧novel-density
+read **FLAT** (00 .36 / 01 .39 / 10 .40 / **11 .40**), which CC first read as REVISIT. On the advisor's
+red-team that read does **not** hold — the result is CONFOUNDED (MECE by type):
+
+- **(a) correctness BUG — preferred-stock artifacts in the decisive cells.** Preferreds/notes inherit the
+  parent CIK → parent revenue accel (false `accel_pass`) + bond-flatness (`price_flat`) + news-0 (`quiet`)
+  → they land in **cell-11** and inflate its quiet∧novel. **RAN the fix** (drop multi-ticker-per-CIK +
+  preferred-title): cell-11 density **0.40 → 0.25, now BELOW the 0.333 base** (n=12; ~2 real quiet∧novel;
+  2 optionable). The feed **ANTI-selects** quiet∧novel on the mature frame — NOT flat. (CC's pre-fix
+  "doesn't flip" was asserted; it flipped. Caveat: the CIK-collision filter over-removes a few legit
+  dual-class commons — a cleaner common-stock filter is a follow-up, but the direction is unambiguous.)
+- **(b) spec-limit CONFOUNDED with the finding — the 36% young-name exclusion (§14).** `qtr_yoy_accel`
+  needs ~2yr → the frame is **mature-biased by construction**; the feed's target (under-narrated) skews
+  young. "Accel skews mature" is partly circular — the metric can only see mature names.
+- **(c) the news-count QUIET LABEL is the ENTIRE signal, and it's broken for mature names.** Novelty is
+  trivial (67-name register vs ~2000 frame → **quiet∧novel ≡ quiet** in the data), so the whole read is
+  the quiet label; and news-count-quiet ≠ under-narrated for mature names (GATX news-5 reads "quiet" yet
+  is fully covered — the obscurity-null salience-coupling lesson).
+- **(d) structural — optionability skews mature.** ADV≥$3M excludes thin young names → the deep
+  unresolved question: is `{quiet ∧ inflecting ∧ optionable}` sparse because quiet inflections don't exist
+  (REVISIT) **or** because the quiet ones aren't optionable (a **structural ceiling** on the cheap-
+  convexity-on-quiet thesis itself)? The current read cannot distinguish them — opposite implications.
+
+**DECISION: NOT REVISIT — the pre-registered extension is triggered.** By CC's OWN §14 criterion (thin
+cell-11 + age-exclusion bites → the extension) AND the frozen **§3 condition** (sequential-growth-accel
+extension "iff the age dist shows young-name exclusion bites" — MET at 36%, judged in §14), the extension
+is the indicated next step. **This is NOT a rescue:** (i) a **different metric on a different (young)
+population** the current test excluded by construction — not more-replicates (the larger-scan / more-
+replicates move is explicitly REJECTED); (ii) triggered by the frozen §3 age-dist condition, **orthogonal
+to the 2×2 verdict** (it would fire even on a BUILD — pre-committed at freeze); (iii) **bounded** — one
+contingency, a pre-committed read, a clean negative accepted if it fails; (iv) first mechanization of the
+**inflection** leg (the 06-23 door), so the five-negative *quietness*-leg lineage is the wrong reference
+class. The larger scan is rejected (the density is a stable rate; it makes the wrong finding precise).
+
+**The extension requires (before it runs):** its OWN blind pre-registration (params unpinned — §3 named
+only the concept) + **(1) a confound-(d) diagnostic** (the optionability RATE of young quiet inflections —
+distinguishes REVISIT from the structural ceiling) + **(2) an IPO false-quiet guard** (fresh IPOs read
+false-quiet — the seeded-gen prior; `already-public ≥ N quarters`, else confound (c) resurfaces on the
+young frame). **Honest scope:** the extension may itself confirm a negative — mature-accel-skews-narrated
+AND a genuinely-sparse quiet∧optionable young cell (confound (d) as the real, deeper finding: quietness ⊥
+optionability). Either way it is the un-confounded test that yields the CORRECT verdict; recording REVISIT
+now would date the WRONG negative (mature-only, broken-label, artifact-contaminated).
