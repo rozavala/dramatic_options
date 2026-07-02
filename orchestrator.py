@@ -145,6 +145,9 @@ def _stamp_council_health(conn, run_id: int, config: dict, router) -> None:
             for s in (_agents._COMMON, _agents.ADVERSARY_SYSTEM, _agents.STRATEGIST_SYSTEM))
         mix["corpus"] = "fundamentals_v2"  # §9: pack-change record-segmentation (v2 = IFRS taxonomy + tag-recency + annual fallback; zero migration)
         mix["coverage_meter"] = "analyst_v1"  # §19: coverage proxy = analyst-count (replaced news-count); pack-change record-segmentation, zero migration
+        if int(config.get("council", {}).get("cheap_reserve_slots", 0) or 0) > 0:
+            # PREREG gate_cheap_reserve §6: judged-set composition change — record-segmenting from deploy.
+            mix["union_rank"] = "cheap_reserve_v1"
         if health["called"]:
             log.info("Council proposer parse-health: %d/%d failed (%.0f%%)",
                      health["parse_failed"], health["called"], health["rate"] * 100)

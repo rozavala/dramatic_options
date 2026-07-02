@@ -853,6 +853,89 @@ def council_parse_health(conn: sqlite3.Connection, run_id: int) -> dict:
     return {"called": called, "parse_failed": failed, "rate": (failed / called) if called else 0.0}
 
 
+def _weekday_age(d0, d1) -> int:
+    """Weekdays strictly after ``d0`` up to and including ``d1`` (dates). Holiday-blind by design:
+    a holiday inflates the count, which can only EXPIRE a read early — the fail-closed direction
+    for the reserve's staleness gate (PREREG gate_cheap_reserve §3)."""
+    from datetime import timedelta
+    if d1 <= d0:
+        return 0
+    age, cur = 0, d0
+    for _ in range((d1 - d0).days):
+        cur += timedelta(days=1)
+        if cur.weekday() < 5:
+            age += 1
+    return age
+
+
+def _iso_date(value):
+    """Date part of a persisted ISO timestamp cell (fail-soft → None)."""
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date()
+    except Exception:  # noqa: BLE001 — an unparseable cell is simply not fresh
+        return None
+
+
+def gate_cheap_reads(conn: sqlite3.Connection, *, now, max_age_td: int = 5) -> dict[str, float]:
+    """The reserve's §3 data contract: the most recent GATE-OF-RECORD cheap read per symbol, aged
+    ≤ ``max_age_td`` weekdays. Returns ``{SYMBOL: iv_rv}`` for eligible names only (fail-closed:
+    no qualifying read ⇒ absent ⇒ not reserve-eligible — the reserve never infers cheapness).
+
+    Primary = ``cheapness_watch`` (the real tradeable structure); a symbol's LATEST watch row is
+    the verdict of record — fresh ∧ cheap=1 ⇒ eligible; fresh ∧ cheap=0 ⇒ NOT eligible and the
+    fallback is NOT consulted (the fallback covers coverage gaps, never disagreement). Only
+    symbols with NO fresh primary row fall back to the latest ``gate_dualread`` opra row
+    (fresh ∧ cheap=1). Both sources are written AFTER the council each cycle, so the read is
+    necessarily prior-cycle (staleness ≥ 1 trading day, pinned honestly in the pre-reg)."""
+    today = now.date() if hasattr(now, "date") else now
+    out: dict[str, float] = {}
+    blocked: set[str] = set()   # fresh primary said NOT cheap — fallback must not overrule
+    seen: set[str] = set()
+    for r in conn.execute(
+        "SELECT symbol, iv_rv, cheap, as_of FROM cheapness_watch ORDER BY as_of DESC, id DESC"
+    ):
+        sym = str(r["symbol"]).upper()
+        if sym in seen:
+            continue
+        seen.add(sym)
+        d = _iso_date(r["as_of"])
+        if d is None or _weekday_age(d, today) > max_age_td:
+            continue  # stale primary → the symbol may still qualify via the fallback
+        if int(r["cheap"] or 0) == 1 and r["iv_rv"] is not None:
+            out[sym] = float(r["iv_rv"])
+        else:
+            blocked.add(sym)
+    seen_fb: set[str] = set()
+    for r in conn.execute(
+        "SELECT symbol, iv_rv, cheap, evaluated_at FROM gate_dualread WHERE feed='opra' "
+        "ORDER BY evaluated_at DESC, id DESC"
+    ):
+        sym = str(r["symbol"]).upper()
+        if sym in seen_fb or sym in out or sym in blocked:
+            continue
+        seen_fb.add(sym)
+        d = _iso_date(r["evaluated_at"])
+        if d is None or _weekday_age(d, today) > max_age_td:
+            continue
+        if int(r["cheap"] or 0) == 1 and r["iv_rv"] is not None:
+            out[sym] = float(r["iv_rv"])
+    return out
+
+
+def council_last_judged(conn: sqlite3.Connection) -> dict[str, str]:
+    """{SYMBOL: most recent council ``as_of``} over ALL recorded proposals (any council row —
+    including drops and parse errors — consumed a judged slot; never-judged names are simply
+    absent, and the reserve's §4 rank sorts them FIRST)."""
+    return {
+        str(r["symbol"]).upper(): r["last"]
+        for r in conn.execute(
+            "SELECT symbol, MAX(as_of) AS last FROM council_proposals GROUP BY symbol"
+        )
+        if r["last"]
+    }
+
+
 def _json_or_none(raw):
     """Parse a persisted JSON cell (``rationale`` / ``raw``) → dict, or None. Fail-soft (never raises)."""
     if not raw:

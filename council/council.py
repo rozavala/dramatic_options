@@ -26,6 +26,60 @@ from risk import kill_switch_active
 log = logging.getLogger("council")
 
 
+def compose_judged_set(candidates, *, max_candidates: int, reserve_k: int,
+                       cheap_eligible: dict, last_judged: dict):
+    """The gate-cheap RESERVE composition (PREREG gate_cheap_reserve, FROZEN 2026-07-02 §2/§4).
+
+    Replaces the plain ``[:max_candidates]`` union truncation with a reserved composition, same
+    total (zero marginal LLM cost): hand-seeds (protected, first, unchanged) + top-(slots−K)
+    sentinels by the existing ``inflection_score`` order + K RESERVE slots for gate-cheap union
+    sentinels that the motion rank would truncate out. Membership-only — prompts, gates, sizing,
+    and every candidate object are untouched (the §10 seam guard).
+
+    ``cheap_eligible``: {SYMBOL: iv_rv} for names with a fresh gate-of-record cheap read (§3 —
+    built by ``state.gate_cheap_reads``; fail-closed: absent ⇒ not reserve-eligible).
+    ``last_judged``: {SYMBOL: last council as_of ISO} (§4 — never-judged sorts FIRST).
+
+    Within-reserve rank (§4): least-recently-judged → lowest iv_rv → symbol asc.
+    Fewer than K eligible ⇒ the unfilled slots FAIL CLOSED to the motion rank (backfill in
+    inflection order — the pre-change composition), so ``reserve_k=0`` or an empty
+    ``cheap_eligible`` reproduces the old ``[:max_candidates]`` slice byte-for-byte.
+
+    Returns ``(selected, selection, displaced)`` where ``selection`` maps
+    ``(SYMBOL, direction)`` → ``"reserve" | "rank"`` (per-proposal provenance, §6) and
+    ``displaced`` lists the motion-ranked sentinel symbols that yielded their slots (§5 — the
+    displacement is observable, never silent).
+    """
+    cands = list(candidates)
+    hand = [c for c in cands if getattr(c, "sentinel_id", None) is None][:max_candidates]
+    sent = [c for c in cands if getattr(c, "sentinel_id", None) is not None]
+    slots = max_candidates - len(hand)
+    k = min(max(int(reserve_k), 0), slots)
+    motion_n = slots - k
+    top_motion = sent[:motion_n]
+    rest = sent[motion_n:]
+
+    def _rkey(c):
+        sym = c.symbol.upper()
+        # never-judged ⇒ "" sorts before any ISO timestamp = least-recently-judged FIRST
+        return (last_judged.get(sym, ""), float(cheap_eligible[sym]), sym)
+
+    eligible = sorted((c for c in rest if c.symbol.upper() in cheap_eligible), key=_rkey)
+    reserve = eligible[:k]
+    reserve_ids = {id(c) for c in reserve}
+    backfill = [c for c in rest if id(c) not in reserve_ids][: k - len(reserve)]
+
+    selected = hand + top_motion + reserve + backfill
+    selected_ids = {id(c) for c in selected}
+    displaced = [c.symbol for c in (hand + sent[:slots]) if id(c) not in selected_ids]
+    selection = {
+        (c.symbol.upper(), str(getattr(c, "direction", "")).lower()):
+            ("reserve" if id(c) in reserve_ids else "rank")
+        for c in selected
+    }
+    return selected, selection, displaced
+
+
 def _error_proposal(candidate, *, reason: str, model_mix: dict) -> CouncilProposal:
     return CouncilProposal(
         theme=candidate.name, symbol=candidate.symbol, direction=candidate.direction,
