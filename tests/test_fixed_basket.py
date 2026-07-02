@@ -125,6 +125,39 @@ def test_3a_real_book_slot_key_does_not_cap(convexity_db, monkeypatch):
     assert state.count_open_fixed_basket_sentinel_positions(convexity_db, BOOK) == 2
 
 
+def test_3a_null_book_fraction_knob_relieves_the_null_book_cap(convexity_db, monkeypatch):
+    # Symmetric with the shadow book (the shadow−3A contrast stays clean).
+    _insert_fb(convexity_db, symbol="AAA", total_premium=9900.0)  # $9,900 of the $10k cap
+    cand = [Theme("t", "CCJ", "bullish", "", source="sentinel", sentinel_id=1)]
+    res = _run_3a(convexity_db, cand, monkeypatch)
+    assert res.booked == 0 and res.veto_reasons == {"sizing": 1}
+    cfg = {**CONFIG, "discovery": {"null_book_fraction": 1.0}}
+    res2 = _run_3a(convexity_db, cand, monkeypatch, config=cfg)
+    assert res2.booked == 1
+
+
+def test_3a_null_cluster_fraction_zero_disables_the_null_cluster_cap(convexity_db, monkeypatch):
+    cfg = _cfg_cluster(0.01, ["FCX", "AAA"])
+    _insert_fb(convexity_db, symbol="AAA", total_premium=1000.0)  # cluster full in the 3A book
+    res = _run_3a(convexity_db, [Theme("c", "FCX", "bullish", "cheap")], monkeypatch, config=cfg)
+    assert res.booked == 0 and res.veto_reasons == {"cluster_cap": 1}
+    cfg2 = {**cfg, "discovery": {"null_cluster_fraction": 0}}
+    res2 = _run_3a(convexity_db, [Theme("c", "FCX", "bullish", "cheap")], monkeypatch, config=cfg2)
+    assert res2.booked == 1
+
+
+def test_3a_null_max_open_positions_knob_relieves_the_count_ceiling(convexity_db, monkeypatch):
+    # Symmetric with the shadow book — the third cap layer.
+    cfg = {**CONFIG, "convexity_book": {**CONFIG["convexity_book"], "max_open_positions": 1}}
+    _insert_fb(convexity_db, symbol="AAA", total_premium=500.0)  # 1 open → count ceiling reached
+    cand = [Theme("t", "CCJ", "bullish", "", source="sentinel", sentinel_id=1)]
+    res = _run_3a(convexity_db, cand, monkeypatch, config=cfg)
+    assert res.booked == 0 and res.veto_reasons == {"sizing": 1}
+    cfg2 = {**cfg, "discovery": {"null_max_open_positions": 5}}
+    res2 = _run_3a(convexity_db, cand, monkeypatch, config=cfg2)
+    assert res2.booked == 1
+
+
 def test_kill_switch_halts_3a(convexity_db, monkeypatch):
     monkeypatch.setenv("KILL", "1")
     res = fixed_basket.run_fixed_basket_3a_cycle(config=CONFIG, conn=convexity_db, clock=CLOCK,

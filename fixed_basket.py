@@ -113,12 +113,21 @@ def run_fixed_basket_3a_cycle(
     gate = config.get("convexity_gate", {})
     elig = config.get("eligibility", {}).get("live", {})
     account_equity = float(book_cfg.get("account_equity") or 0.0)
-    cluster_fraction = float(book_cfg.get("cluster_fraction") or 0.0)
+    # Null-book cap knobs (2026-07-02, BEHAVIOR-NEUTRAL by default) — symmetric with
+    # shadow_book.run_shadow_cycle so the shadow−3A contrast stays clean; see the comment there.
+    disc = config.get("discovery", {})
+    if disc.get("null_book_fraction") is not None:
+        book_cfg = {**book_cfg, "book_fraction": float(disc["null_book_fraction"])}
+    if disc.get("null_max_open_positions") is not None:
+        book_cfg = {**book_cfg, "max_open_positions": int(disc["null_max_open_positions"])}
+    if disc.get("null_cluster_fraction") is not None:
+        cluster_fraction = float(disc["null_cluster_fraction"])
+    else:
+        cluster_fraction = float(book_cfg.get("cluster_fraction") or 0.0)
     cluster_map = clusters.load_cluster_map(config) if cluster_fraction > 0 else {}
     # FBN §4 amendment (2026-07-02): slot relief, symmetric with the shadow book (see
-    # shadow_book.run_shadow_cycle) — the shadow−3A contrast stays clean. Cluster/book/per-name
-    # caps unchanged.
-    max_slots = config.get("discovery", {}).get("null_sentinel_max_slots")
+    # shadow_book.run_shadow_cycle) — the shadow−3A contrast stays clean.
+    max_slots = disc.get("null_sentinel_max_slots")
     open_syms = state.fixed_basket_open_symbols(conn, BOOK_UNION_NOGATE)
 
     def _eligibility(c):

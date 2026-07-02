@@ -129,6 +129,57 @@ book; 25/29 sentinel vetoes were cap vetoes, not market vetoes.)
 - **Anti-HARK property:** decided with 0 resolutions anywhere — provably not outcome-motivated;
   this property expires at the first resolution (~Nov 2026), which is why it is decided now.
 
+> **Ownership addendum (2026-07-02, after the merge — provenance made explicit).** Option (b)
+> was recommended by the advisor and transmitted by the operator as a merge directive ("take
+> option (b), symmetric slot relief, decided now while the books are still blind"); the merge
+> executed that directive. To close the gap between merge-as-ratification and explicit
+> ownership: **RATIFIED 2026-07-02 by the operator's explicit instruction** ("go ahead …
+> let's merge", given after the selection and its scope were laid out line-item) — ownership
+> of the §8(b) selection and its scope (slots-only, symmetric shadow+3A, real book and all
+> other caps byte-unchanged, vintage boundary 2 at the relief deploy) is the operator's,
+> exercised on that date.
+
+**§4 activation addendum — (iii)-COMPLETE cap relief for the null books (dated 2026-07-02,
+activated by this merge).**
+
+*Why the slot relief was not enough:* the first post-relief L1 (#406, 2026-07-02 19:45 UTC)
+booked 5 in each cap-ON arm and landed the shadow book at **$9,951 of its $10,000 cap** — the
+arm RE-CENSORS one mechanism up (book cap), exactly as pinned pre-run and graded CONFIRMED
+(modal hit) in `records/2026-07-02_burst_prediction_PINNED.md`. The censoring recurses through
+the cap stack: slots → book → count (`max_open_positions=15`, found during the fork pick) →
+cluster. Partial relief provably strands the quietest cheap names (PAAS misses under book-only
+AND book+cluster relief — the addendum's sequential arithmetic).
+
+*The pick (made PRE-BURST, composition-blind; operator-delegated 2026-07-02):*
+**(iii)-COMPLETE — book + cluster + count relief for shadow AND 3A, symmetric; the per-name
+$1k cap RETAINED** (it is the per-position sizing normalizer the §5 per-position-multiple
+metric needs for comparability). Config (this merge): `discovery.null_book_fraction = 1.0`,
+`discovery.null_cluster_fraction = 0` (cluster caps OFF in the null books),
+`discovery.null_max_open_positions = 100`.
+
+*Scope:* the two SIMULATED cap-ON arms only. The REAL book's frozen frame (PREREG §5 incl.
+the cluster amendment) is byte-untouched; 3B and shares (uncensored by construction) are
+untouched. For the null books only, this is a dated supersession of the 2026-07-02 scope line
+above ("cluster caps, per-name, book fraction, `max_open` … stay as frozen") — per-name stays.
+The §2 reads segment accordingly: `shadow − 3A` stays a clean one-variable gate contrast (both
+arms change identically); `real − shadow` becomes cap-regime-bundled from vintage 2b onward
+(the real book keeps the frozen caps, the shadow book does not) — a known, dated property of
+the read, carried alongside the vintage split rather than discovered later.
+
+*Vintage boundary:* **vintage 2a** = the 2026-07-02 burst cohort (L1 #406, cap-ON, 5 names,
+salience-skewed by the pinned composition-bias note); **vintage 2b** opens at the first
+post-activation L1 (Fri 2026-07-03) — separable by `opened_at`/`run_id`. Pinned expectation
+(pre-activation): the remaining cheap union names book at that L1 (~11, incl. PAAS), after
+which the arm's binding constraint is the market (cheapness itself) — the intended steady
+state for a control arm. *[Dated correction, 2026-07-02 pre-observation: Fri 2026-07-03 is a
+full market holiday (July 4 observed — verified live on the broker calendar; Juneteenth run
+250 = the precedent for tomorrow's expected no-op L1) — the first post-activation L1 on an
+OPEN market is **Mon 2026-07-06 19:45 UTC**; expectation content unchanged, only the date.
+See `records/2026-07-02_vintage2b_holiday_redating.md`.]*
+
+*Anti-HARK:* the pick predates the burst (composition-blind at pick time); **0 positions are
+resolved in ANY book at activation** (outcome-blind; earliest resolutions ~Nov 2026).
+
 ## 5. The metric + the read (the HARKing surface — pinned now, blind)
 
 **Unit of comparison: the per-position realized-multiple TAIL** (reuse `shadow_book.tail_summary` /

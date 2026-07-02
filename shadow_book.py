@@ -116,14 +116,27 @@ def run_shadow_cycle(
     gate = config.get("convexity_gate", {})
     elig = config.get("eligibility", {}).get("live", {})
     account_equity = float(book.get("account_equity") or 0.0)
-    cluster_fraction = float(book.get("cluster_fraction") or 0.0)
+    # Null-book cap knobs (2026-07-02, BEHAVIOR-NEUTRAL by default — absent keys INHERIT the
+    # frozen frame unchanged). They exist so the operator's pin of the book-cap re-censor fork
+    # (records/2026-07-02_burst_prediction_PINNED.md addendum: keep / book-relief /
+    # book+cluster-relief) is a config line + dated FBN amendment, not a code deploy. Null
+    # books only; the real frame (paper_loop.py) is untouched.
+    disc = config.get("discovery", {})
+    if disc.get("null_book_fraction") is not None:
+        book = {**book, "book_fraction": float(disc["null_book_fraction"])}
+    if disc.get("null_max_open_positions") is not None:
+        book = {**book, "max_open_positions": int(disc["null_max_open_positions"])}
+    if disc.get("null_cluster_fraction") is not None:
+        cluster_fraction = float(disc["null_cluster_fraction"])
+    else:
+        cluster_fraction = float(book.get("cluster_fraction") or 0.0)
     cluster_map = clusters.load_cluster_map(config) if cluster_fraction > 0 else {}
     # FBN §4 amendment (2026-07-02): the null books do NOT apply the real book's sentinel slot
     # reservation — cap-parity broke parity-of-OBSERVATION (the arm censored to week-one
     # gate-passers while the empty real book kept free slots). `null_sentinel_max_slots`
     # re-enables a null-book-only reservation if ever needed. The real book's reservation
     # (paper_loop.py, `sentinel_max_slots`) is untouched.
-    max_slots = config.get("discovery", {}).get("null_sentinel_max_slots")
+    max_slots = disc.get("null_sentinel_max_slots")
     rv_window = int(gate.get("rv_window_days", 252))
     open_syms = state.shadow_open_symbols(conn)
 
