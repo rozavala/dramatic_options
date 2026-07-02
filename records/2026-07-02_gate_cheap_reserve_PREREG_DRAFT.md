@@ -14,8 +14,17 @@ rank-truncated out of council judgment EVERY cycle — roughly two-thirds of the
 union is never judged.** 25 distinct names; **13 truncated on 14/14 L1s** (CCJ, SMR, NNE, NEE,
 GEV, KTOS, AMSC, RDW, FLY, SMCI, LUNR, ATKR, LMT); the admitted quiet cohort — PAAS, HL, FRO —
 on 7 L1s each. PAAS has **never** appeared in `council_proposals` while reading gate-cheap on
-the real OPRA chain since 06-23. (Query: 2026-07-02, `gate_dualread` opra-arm `cheap=1` ∩
-ever-surfaced sentinels − `council_proposals` per run.)
+the real OPRA chain since 06-23.
+
+**Measurement provenance (source disclosure — red-team point 4):** query executed
+**2026-07-02 ~00:05 UTC** over runs 130–389 (L1s of 2026-06-10 → 2026-07-01). The cheap
+signal for the ENTIRE measurement was `gate_dualread` **opra-arm** `cheap=1` ∩ ever-surfaced
+sentinels − `council_proposals`, per run — NOT `cheapness_watch`, which only exists since
+06-29 (migration 0017) and covers only the active-sentinel watch cohort. Known approximations,
+carried into §3's design: the dual-read sweep's direction is momentum-derived (may differ from
+the sentinel's persisted direction for names whose 253d momentum disagrees), and "ever-surfaced
+sentinels" over-approximates per-night union membership (TTL-inactive names could inflate a
+night's count; the 14/14-persistent names are demonstrably active — they are the watch cohort).
 
 **Mechanism:** `council.propose` truncates the union at `[:max_candidates]` (=12,
 `council/council.py:67`); the union is ordered hand-seed-first then sentinels by
@@ -60,12 +69,15 @@ random (non-reproducible).
 
 ## §5 — Anti-manufacture guards (pinned BLIND, before any outcome)
 
-- **The success metric is COVERAGE, not includes:** rolling-7-L1 fraction of gate-cheap union
-  names judged ≥1× (current ~⅓ → target ~1.0). **Pinned expectation: most reserve names read
-  `at_inflection=False` (post-move or catalyst-absent) → 0 includes remains the likely
-  outcome.** The value claimed is that the record can say "judged and rejected on leg X"
-  instead of "never judged," and that the first-entry channel is no longer starved by the
-  salience rank.
+- **The success metric is COVERAGE, not includes — and it is C-RELATIVE (red-team point 2):**
+  rolling-7-L1 fraction of gate-cheap union names judged ≥1×, target **≥ min(1, 7K/C)** where
+  **C = the count of gate-cheap union names in that window, recorded per review window** (C is
+  a market variable — at C≈20, K=3 the target is ~1.0; if cheap windows widen to C=30 the
+  reachable target is 0.7 and the metric must measure the ROTATION, not the market). **Pinned
+  expectation: most reserve names read `at_inflection=False` (post-move or catalyst-absent) →
+  0 includes remains the likely outcome.** The value claimed is that the record can say
+  "judged and rejected on leg X" instead of "never judged," and that the first-entry channel
+  is no longer starved by the salience rank.
 - An include arriving via the reserve is the COUNCIL's include, forward-scored (Brier) like
   any other — it does not validate the reserve, and the reserve is never tuned toward it.
 - Displaced names (the bottom-K motion-ranked sentinels that yield their slots) are logged
@@ -90,23 +102,40 @@ random (non-reproducible).
   reservation still binds any resulting real trade at the trade path — unchanged.
 - **Direction:** the reserve uses the sentinel's persisted direction (the same one the watch
   structured); no re-derivation.
+- **⭐ The hand-seed slots GATE the freeze (red-team point 3).** The K arithmetic assumes 2
+  hand-seeds consuming 2 of the 12 protected slots — but both are the EXAMPLE placeholders
+  (`copper_electrification`/FCX "EXAMPLE — replace"; `EXAMPLE_rich_theme_delete_me`/NVDA,
+  which exists to demonstrate the veto path). Curating them is the operator's by-hand
+  prerogative (no pre-reg needed — the hard seam assigns hand-seeds to the operator) and
+  changes the sentinel-slot count K is pinned against (12 − hand_seeds). **§9's K is
+  therefore pinned ONLY AFTER the operator decides the placeholders** — deactivate NVDA
+  (frees a judged slot; the union loses its standing gate-rich demonstrator), keep/replace
+  FCX (deactivating the theme does NOT close the open shadow position; it removes the name
+  from the union), or keep both as-is. Freeze order: placeholder decision → K pinned → sign-off.
 
 ## §8 — Review (dated, blind)
 
-After **4 weeks** of L1s from deploy: (a) coverage metric vs target; (b) council health
-unchanged (parse rate, cost/cycle — expected flat: same 12 calls); (c) the displaced-names log
-reviewed for any systematic harm (a motion-ranked name that would have been judged and
-included — assessable because displaced names remain in the union and rotate back). No include
-expectation is part of the review (§5).
+After **4 weeks** of L1s from deploy: (a) coverage metric vs the C-relative target; (b)
+council health unchanged (parse rate, cost/cycle — expected flat: same 12 calls); (c) the
+displaced-names log reviewed for systematic harm. **Corrected claim (red-team point 1):
+displacement is rank-determined, NOT rotating** — the reserve permanently claims the bottom-K
+motion slots, so a sentinel persistently ranked in that band is displaced every cycle and may
+be displaced **indefinitely** unless its motion rank drifts naturally. That displaced set
+(moderate-motion ∧ not-gate-cheap) is plausibly the least interesting on both axes — but the
+harm assessment rests on the **displacement log alone** (which names, how persistently, and
+their subsequent motion/cheapness evolution), not on any rotation guarantee the design does
+not enforce. A secondary rotation over the displaced set was considered and REJECTED as scope
+creep; the red-team may overrule. No include expectation is part of the review (§5).
 
 ## §9 — The BLIND values to red-team (freeze = pin these + sign-off)
 
 | # | knob | proposed | note |
 |---|---|---|---|
-| 1 | K (reserve slots) | **3** of the 10 sentinel slots (12 total − 2 hand-seeds) | ⌈20/3⌉ ≈ 7-L1 full rotation |
+| 0 | **hand-seed placeholders** | **operator decides FIRST** (keep / deactivate NVDA / replace FCX) | gates K — the sentinel-slot count is 12 − hand_seeds (§7) |
+| 1 | K (reserve slots) | **3** of the (12 − hand_seeds) sentinel slots | pinned AFTER knob 0; at C≈20, K=3 → ~7-L1 full rotation |
 | 2 | S (cheap-read staleness) | **5 trading days** | prior-cycle by construction; fail-closed past S |
 | 3 | within-reserve rank | least-recently-judged → lowest iv_rv → symbol | coverage rotation, §4 |
-| 4 | coverage target | rolling-7-L1 judged-fraction ≈ 1.0 | the success metric, §5 |
+| 4 | coverage target | rolling-7-L1 judged-fraction **≥ min(1, 7K/C)**, C recorded per window | C-relative — measures the rotation, not the market (§5) |
 | 5 | review horizon | 4 weeks | §8 |
 | 6 | stamps | `union_rank:cheap_reserve_v1` + `selection` field | §6 |
 
