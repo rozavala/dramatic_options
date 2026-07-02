@@ -118,6 +118,8 @@ def run_fixed_basket_3a_cycle(
     disc = config.get("discovery", {})
     if disc.get("null_book_fraction") is not None:
         book_cfg = {**book_cfg, "book_fraction": float(disc["null_book_fraction"])}
+    if disc.get("null_max_open_positions") is not None:
+        book_cfg = {**book_cfg, "max_open_positions": int(disc["null_max_open_positions"])}
     if disc.get("null_cluster_fraction") is not None:
         cluster_fraction = float(disc["null_cluster_fraction"])
     else:

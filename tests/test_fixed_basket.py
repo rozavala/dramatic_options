@@ -146,6 +146,18 @@ def test_3a_null_cluster_fraction_zero_disables_the_null_cluster_cap(convexity_d
     assert res2.booked == 1
 
 
+def test_3a_null_max_open_positions_knob_relieves_the_count_ceiling(convexity_db, monkeypatch):
+    # Symmetric with the shadow book — the third cap layer.
+    cfg = {**CONFIG, "convexity_book": {**CONFIG["convexity_book"], "max_open_positions": 1}}
+    _insert_fb(convexity_db, symbol="AAA", total_premium=500.0)  # 1 open → count ceiling reached
+    cand = [Theme("t", "CCJ", "bullish", "", source="sentinel", sentinel_id=1)]
+    res = _run_3a(convexity_db, cand, monkeypatch, config=cfg)
+    assert res.booked == 0 and res.veto_reasons == {"sizing": 1}
+    cfg2 = {**cfg, "discovery": {"null_max_open_positions": 5}}
+    res2 = _run_3a(convexity_db, cand, monkeypatch, config=cfg2)
+    assert res2.booked == 1
+
+
 def test_kill_switch_halts_3a(convexity_db, monkeypatch):
     monkeypatch.setenv("KILL", "1")
     res = fixed_basket.run_fixed_basket_3a_cycle(config=CONFIG, conn=convexity_db, clock=CLOCK,

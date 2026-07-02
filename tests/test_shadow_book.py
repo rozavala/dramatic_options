@@ -148,6 +148,19 @@ def test_null_cluster_fraction_zero_disables_the_null_cluster_cap(convexity_db, 
     assert res2.booked == 1
 
 
+def test_null_max_open_positions_knob_relieves_the_count_ceiling(convexity_db, monkeypatch):
+    # The THIRD cap layer (convexity_sizing.py: open_positions_count >= max_open_positions → 0):
+    # default inherits the real frame's count ceiling; the knob relieves the null book only.
+    cfg = {**CONFIG, "convexity_book": {**CONFIG["convexity_book"], "max_open_positions": 1}}
+    _insert_shadow(convexity_db)  # 1 open → count ceiling reached
+    cand = [Theme("t", "CCJ", "bullish", "", source="sentinel", sentinel_id=1)]
+    res = _book(convexity_db, cand, monkeypatch, config=cfg)
+    assert res.booked == 0 and res.veto_reasons == {"sizing": 1}
+    cfg2 = {**cfg, "discovery": {"null_max_open_positions": 5}}
+    res2 = _book(convexity_db, cand, monkeypatch, config=cfg2)
+    assert res2.booked == 1
+
+
 def test_eval_error_counted_and_logged_at_warning(convexity_db, monkeypatch, caplog):
     # A per-candidate throw is fail-soft but LOUD: errors counted + WARNING (debug-level hid a
     # class of dead-arm failures — the 2026-06/07 silent-zero window).
