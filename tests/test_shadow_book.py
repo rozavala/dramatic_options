@@ -122,6 +122,45 @@ def test_real_book_slot_key_does_not_cap_the_shadow_book(convexity_db, monkeypat
     assert state.count_open_shadow_sentinel_positions(convexity_db) == 2
 
 
+def test_null_book_fraction_knob_relieves_the_null_book_cap(convexity_db, monkeypatch):
+    # Behavior-neutral default: the null book INHERITS the real frame's book cap — a nearly-full
+    # book vetoes on sizing. The knob (the operator's pin of the book-cap re-censor fork,
+    # 2026-07-02) relieves the NULL book only.
+    _insert_shadow(convexity_db, entry_pc=3300.0, contracts=3)  # $9,900 of the $10k book cap
+    cand = [Theme("t", "CCJ", "bullish", "", source="sentinel", sentinel_id=1)]
+    res = _book(convexity_db, cand, monkeypatch)
+    assert res.booked == 0 and res.veto_reasons == {"sizing": 1}
+    cfg = {**CONFIG, "discovery": {"null_book_fraction": 1.0}}
+    res2 = _book(convexity_db, cand, monkeypatch, config=cfg)
+    assert res2.booked == 1
+
+
+def test_null_cluster_fraction_zero_disables_the_null_cluster_cap(convexity_db, monkeypatch):
+    # Default: the null book inherits the cluster cap (binds); null_cluster_fraction=0 disables
+    # it for the null book only (the operator's option-(iii) knob).
+    cfg = {**CONFIG, "convexity_book": {**CONFIG["convexity_book"], "cluster_fraction": 0.01,
+                                        "clusters": {"c": ["FCX", "AAA"]}}}
+    _insert_shadow(convexity_db, symbol="AAA", entry_pc=1000.0, contracts=1)  # cluster full
+    res = _book(convexity_db, [Theme("c", "FCX", "bullish", "cheap")], monkeypatch, config=cfg)
+    assert res.booked == 0 and res.veto_reasons == {"cluster_cap": 1}
+    cfg2 = {**cfg, "discovery": {"null_cluster_fraction": 0}}
+    res2 = _book(convexity_db, [Theme("c", "FCX", "bullish", "cheap")], monkeypatch, config=cfg2)
+    assert res2.booked == 1
+
+
+def test_null_max_open_positions_knob_relieves_the_count_ceiling(convexity_db, monkeypatch):
+    # The THIRD cap layer (convexity_sizing.py: open_positions_count >= max_open_positions → 0):
+    # default inherits the real frame's count ceiling; the knob relieves the null book only.
+    cfg = {**CONFIG, "convexity_book": {**CONFIG["convexity_book"], "max_open_positions": 1}}
+    _insert_shadow(convexity_db)  # 1 open → count ceiling reached
+    cand = [Theme("t", "CCJ", "bullish", "", source="sentinel", sentinel_id=1)]
+    res = _book(convexity_db, cand, monkeypatch, config=cfg)
+    assert res.booked == 0 and res.veto_reasons == {"sizing": 1}
+    cfg2 = {**cfg, "discovery": {"null_max_open_positions": 5}}
+    res2 = _book(convexity_db, cand, monkeypatch, config=cfg2)
+    assert res2.booked == 1
+
+
 def test_eval_error_counted_and_logged_at_warning(convexity_db, monkeypatch, caplog):
     # A per-candidate throw is fail-soft but LOUD: errors counted + WARNING (debug-level hid a
     # class of dead-arm failures — the 2026-06/07 silent-zero window).
