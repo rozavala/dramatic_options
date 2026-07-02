@@ -88,3 +88,27 @@ before the first resolution retains the essential blindness. Implementation stag
 behavior-neutral (`null_book_fraction` / `null_cluster_fraction` knobs, default = inherit the
 frozen frame): **the operator's config pin + amendment merge selects (i)/(ii)/(iii) — nothing
 changes until they do.**
+
+---
+
+## Fork PICKED (2026-07-02, PRE-BURST; operator-delegated)
+
+The operator delegated the choice explicitly ("go ahead with whatever you feel is correct").
+**Pick: (iii)-COMPLETE — book + cluster + COUNT relief for the null books; the per-name cap
+($1k) is RETAINED** (it is the per-position sizing normalizer the FBN §5 per-position metric
+needs for comparability).
+
+**Correction discovered during the pick, before observation:** `max_open_positions=15` is a
+THIRD cap layer (`convexity_sizing.py:54` — a hard count check). Option (iii) as previously
+written (book+cluster only) would still stop at 8 new bookings (15 total) and **still miss
+PAAS** — the censoring recurses a third time (slots → book → count). The (iii) description
+above is superseded; the full representative gate-passer sample requires all three reliefs. A
+third behavior-neutral knob (`null_max_open_positions`, same inherit-by-default pattern +
+tests) ships with this note.
+
+**Activation (unchanged):** the three config keys are applied AFTER tonight's graded burst,
+with the dated FBN §4 activation note. Tonight's bands above remain the graded prediction.
+Post-activation expectation (pinned now): the remaining cheap union names book at the next L1
+(~11 more incl. PAAS/CDE-if-cheap/UEC/NNE/CCJ/SMR/ERO/RDW/TGB/LUNR-class, per-name-capped),
+after which the arm's binding constraint is the market (cheapness itself) — the intended
+steady state for a control arm.
