@@ -230,10 +230,13 @@ the waiting posture itself had no pre-registered falsifier (found 2026-07-01,
 > proposed by the advisor with the choice explicitly left to the operator ("your pin either
 > way") and was included by CC's judgment, flagged in-session but not operator-worded.
 > Merge-as-ratification is a named failure mode in this project, distinct from explicit
-> operator ownership. **The operator's merge of THIS addendum constitutes the explicit,
-> dated, after-the-fact ownership of all three values — D = 2027-03-02, the 2026-11-02
-> interim checkpoint, and the go-live clock anchor** (to strike the checkpoint instead,
-> say so and this addendum will be amended before merge).
+> operator ownership. **RATIFIED 2026-07-02 by the operator's explicit instruction** — the
+> operator was presented all three values with keep-or-strike offered on the checkpoint, and
+> answered "go ahead with whatever you feel is correct, so let's merge": explicit,
+> informed authorization with the keep/strike choice DELEGATED to CC, which retained the
+> **2026-11-02 interim checkpoint** per its standing recommendation. Ownership of
+> **D = 2027-03-02**, the checkpoint, and the go-live clock anchor is the operator's,
+> exercised in that delegated form on that date.
 
 ## 6a. Exit rules (frozen) — the L2 reflex, deterministic, no LLM
 
