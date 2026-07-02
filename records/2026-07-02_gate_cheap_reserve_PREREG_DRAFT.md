@@ -154,3 +154,14 @@ sign-off (the freeze).** Expected build after freeze: one PR (the `council/counc
 selection + the wiring stamp + tests incl. a seam-guard: reserve can alter only membership of
 the judged set, never a prompt byte, a gate value, or a sizing input). Kill-before-spend,
 fail-closed, and the cost ledger unchanged.
+
+**FROZEN 2026-07-02.** The freeze conditions are met in order: red-team convergence (4 rounds
+folded in above) → §9 pinned (knob-0 resolved by PR #144 the same evening; K = 3 of 11) →
+**operator sign-off, in its true form:** the operator's explicit instruction of 2026-07-02,
+given with an external advisor's full review in hand — *"At least let's merge 139"* — an
+informed, direct instruction naming this PR, not merge-as-ratification and not a relayed
+advisor lean (the advisor separately flagged that its own endorsement could not constitute
+the sign; the operator's own words did). Merge of this PR = the freeze taking effect. The
+build follows as its own PR per the paragraph above, targeted to deploy before the Mon
+2026-07-06 L1 (the first open-market cycle post-null-fork-activation), with the reserve's
+first-cycle expected-vs-actual bands pinned BLIND before that run.
