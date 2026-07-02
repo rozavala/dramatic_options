@@ -171,7 +171,11 @@ salience-skewed by the pinned composition-bias note); **vintage 2b** opens at th
 post-activation L1 (Fri 2026-07-03) — separable by `opened_at`/`run_id`. Pinned expectation
 (pre-activation): the remaining cheap union names book at that L1 (~11, incl. PAAS), after
 which the arm's binding constraint is the market (cheapness itself) — the intended steady
-state for a control arm.
+state for a control arm. *[Dated correction, 2026-07-02 pre-observation: Fri 2026-07-03 is a
+full market holiday (July 4 observed — verified live on the broker calendar; Juneteenth run
+250 = the precedent for tomorrow's expected no-op L1) — the first post-activation L1 on an
+OPEN market is **Mon 2026-07-06 19:45 UTC**; expectation content unchanged, only the date.
+See `records/2026-07-02_vintage2b_holiday_redating.md`.]*
 
 *Anti-HARK:* the pick predates the burst (composition-blind at pick time); **0 positions are
 resolved in ANY book at activation** (outcome-blind; earliest resolutions ~Nov 2026).
