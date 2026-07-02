@@ -101,6 +101,9 @@
     "gemini": {"thinking_level": "minimal", "json_mode": true},
     "openai": {"json_mode": true},
     "max_candidates": 12,
+    "_comment_cheap_reserve": "PREREG gate_cheap_reserve (FROZEN 2026-07-02, operator-signed; records/2026-07-02_gate_cheap_reserve_PREREG_DRAFT.md §9): K=3 of the 11 sentinel slots are RESERVED for gate-cheap union names the inflection_score salience rank would truncate out of council judgment (the 4th anti-quietness bias point — PAAS class). Composition-only: prompts/gates/sizing untouched (seam-guard tests); eligibility = the prior-cycle gate-of-record cheap read (cheapness_watch primary, gate_dualread-opra fallback) aged <= cheap_reserve_staleness_td WEEKDAYS, fail-closed; within-reserve rank = least-recently-judged -> lowest iv_rv -> symbol. 0 = OFF (byte-identical old slice). Stamped union_rank:cheap_reserve_v1 in runs.model_mix from deploy.",
+    "cheap_reserve_slots": 3,
+    "cheap_reserve_staleness_td": 5,
     "news_lookback_days": 90,
     "prices_per_mtok": {
       "gemini-3.5-flash": {"in": 1.5, "out": 9.0},
