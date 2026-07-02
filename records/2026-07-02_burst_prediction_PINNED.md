@@ -112,3 +112,53 @@ Post-activation expectation (pinned now): the remaining cheap union names book a
 (~11 more incl. PAAS/CDE-if-cheap/UEC/NNE/CCJ/SMR/ERO/RDW/TGB/LUNR-class, per-name-capped),
 after which the arm's binding constraint is the market (cheapness itself) — the intended
 steady state for a control arm.
+
+---
+
+## ACTUAL (appended 2026-07-02 post-run — L1 #406, 19:45:09→19:48:49 UTC)
+
+**Verdict: CONFIRMED — modal hit.** Both HARD falsifiers pass; every band holds; the shadow
+composition is the exact modal prediction. The 2026-07-01 diagnostic chain (slot mechanism,
+cluster arithmetic, the sequential-cap correction) is validated against the live computation.
+
+Verbatim journal lines (run #406):
+
+```
+19:48:19 Shadow(null) book: booked=5 {'sentinel': 5} vetoed=25 {'not_cheap': 5, 'cluster_cap': 13, 'sizing': 7} skipped=7 errors=0
+19:48:30 No-gate(3A) book:  booked=5 {'sentinel': 5} vetoed=25 {'sizing': 8, 'cluster_cap': 17} skipped=7 errors=0
+```
+
+| pin | predicted | actual | grade |
+|---|---|---|---|
+| HARD: `sentinel_slots` vetoes | 0 | **0** (no such key in either book's counters) | ✅ |
+| HARD: shadow booked ≥ 1 | ≥1 | **5** | ✅ |
+| shadow booked | 4–7, modal 5 | **5** | ✅ modal |
+| shadow composition | UUUU/NXE/HBM/AG/HL | **UUUU/NXE/HBM/AG/HL** (nuclear C×2, copper C, silver P×2) | ✅ exact |
+| shadow new premium | ≈ $4.0–4.5k | **$4,431.50** | ✅ |
+| shadow book after | ~$9.9k of $10k (re-censors) | **$9,951 open (12 positions)** | ✅ to the dollar |
+| residual vetoes | `sizing` + `cluster_cap` dominant | cluster_cap 13, sizing 7 | ✅ |
+| `not_cheap` | ≈ 3–5 | **5** | ✅ (upper edge) |
+| `skip_open` | 7 | **7** | ✅ |
+| 3A booked | 3–7 | **5** (identical composition, $4,431.50; book at $9,929) | ✅ |
+| errors | — | **0 / 0** | ✅ |
+
+**Deviations recorded (composition-level, inside the pinned quote-drift tolerance — recorded,
+not explained away):**
+1. **UROY's pinned `no_structure` veto did not appear** in either counter set. Its terminal
+   reason tonight is not individually visible at INFO (aggregate per-reason counters). A
+   consistent mechanism: nuclear cluster closed at UUUU+NXE ($1,929.50 of $2,000) before UROY's
+   turn → `cluster_cap` precedes structure selection — but this is inference, not observation.
+2. **CDE did not book in 3A** (the band text expected it gate-off). 3A's book remainder after
+   the 5 bookings was ~$71 < CDE's ~$120 premium → `sizing`. Consistent with 3A's counters
+   being shadow's with `not_cheap` redistributed (+4 cluster_cap, +1 sizing; both books
+   vetoed 25).
+3. Per-name contract counts/premiums drifted from the pinned table (NXE 9×$107.50 vs 7×$130;
+   HBM 2×$340 vs 2×$470; HL 8×$111.50 uncut vs "book-remainder-clipped") — the pinned
+   tolerance anticipated exactly this; totals landed in-band regardless.
+
+**Context:** L1 #406 graded `ROUNDTRIP_CONFIRMED` (0/12 proposer parse-fail, 9 roundtrips,
+6 reasoned strategist abstentions, $0.198); real cycle evaluated=0 opened=0 — the real book
+stays (correctly) empty. **Vintage 2a = tonight's 5-name cohort in both cap-ON books.** As
+pinned, the arm now RE-CENSORS at the book cap ($49 shadow headroom) — the (iii)-COMPLETE
+relief (picked pre-burst, above) activates after this grade; vintage 2b opens at the Fri
+2026-07-03 L1, expected to book the remaining cheap union names incl. PAAS.
