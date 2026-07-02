@@ -5,14 +5,14 @@
       "name": "copper_electrification",
       "symbol": "FCX",
       "direction": "bullish",
-      "thesis": "EXAMPLE — replace. Electrification + grid/datacenter buildout copper demand against constrained mine supply; hypothesis is an unloved industrial tailwind whose long-dated call IV has not yet priced the structural deficit ('copper-not-rockets').",
-      "active": true
+      "thesis": "EXAMPLE — replace. Electrification + grid/datacenter buildout copper demand against constrained mine supply; hypothesis is an unloved industrial tailwind whose long-dated call IV has not yet priced the structural deficit ('copper-not-rockets'). DEACTIVATED 2026-07-02 (knob-0): a placeholder consuming a protected judged slot every cycle buys nothing; FCX still reaches the union as a sentinel whenever discovery surfaces it, and the open FCX shadow position is unaffected (positions are independent of themes).",
+      "active": false
     },
     {
-      "name": "EXAMPLE_rich_theme_delete_me",
+      "name": "gate_rich_canary",
       "symbol": "NVDA",
       "direction": "bullish",
-      "thesis": "EXAMPLE — illustrates the IV-gate VETO path: a crowded, richly-priced theme. The --demo synthetic gives this symbol rich IV so the cheap-convexity gate rejects it. Replace or delete.",
+      "thesis": "CANARY, not a thesis (relabeled 2026-07-02, knob-0; was EXAMPLE_rich_theme_delete_me). A standing gate-rich name that predictably structures on the real chain and reaches council deliberation guarantees one full-path roundtrip per L1 — the deterministic discriminator between an inert apparatus and a genuinely all-NEUTRAL cycle (the #37 ambiguity class). It is EXPECTED to be IV-gate-vetoed every cycle (iv_rv ~1.2+); were the council ever to include it, the proposal faces the gates like any other. The --demo synthetic gives this symbol rich IV so the veto path is always exercised offline too.",
       "active": true
     }
   ]
