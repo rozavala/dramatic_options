@@ -92,6 +92,43 @@ pre-reg date for a literally-fixed 3B-absolute.)
 The per-position-multiple metric (§5) neutralizes the resulting book-size difference, so the tail
 comparison stays valid across books of very different N.
 
+**§4 amendment — sentinel-slot relief for the null books (dated 2026-07-02, operator-authorized;
+pinned BLIND — 0 positions resolved in ANY book at pin time).**
+
+*What happened:* both cap-ON arms (shadow + 3A) saturated their `sentinel_max_slots=6`
+reservations at run 130 (2026-06-10) and booked nothing for three weeks — **CENSORED, not
+dead**: the bookers ran healthily every cycle, applied the frozen frame correctly, and vetoed
+on slots by design; the monitors marked correctly throughout. The defect was *invisibility*
+(fixed, PR #137), not function. **The first-6 cohort (booked 06-03→06-10) is a VALID sample of
+week-one gate-passers — its rows are not suspect** and stay in every read as the first vintage.
+Full diagnosis (hypotheses pinned before the confirmatory probe; every pin held):
+`records/2026-07-01_shadow_null_arm_saturation_DIAGNOSIS.md`.
+
+*Why relief rather than parity:* cap-parity was frozen so `real − shadow` isolates the council
+("only the selection differs") — but parity-of-caps does not produce parity-of-OBSERVATION.
+Because shadow lacks the council's veto it fills its six slots in week one and goes blind,
+while the (empty) real book keeps free slots and keeps judging every cycle. The arms do not
+face the same opportunity set; the null sample censors to whatever was cheap in week one — a
+selection bias in the control, not a controlled comparison. The capital-risk rationale for the
+slot reservation does not bind a simulated book that deploys nothing. **Relief RESTORES the
+isolation parity was meant to buy.** (Probe quantification: 16/29 slot-vetoed sentinels would
+book; 25/29 sentinel vetoes were cap vetoes, not market vetoes.)
+
+*Scope (tight):*
+- **Slots only, symmetric across shadow AND 3A** (the `shadow − 3A` contrast stays clean —
+  both arms change identically). The null books no longer apply the real book's
+  `discovery.sentinel_max_slots`; an explicit `discovery.null_sentinel_max_slots` re-enables a
+  null-book-only reservation if ever needed.
+- **Everything else byte-unchanged:** cluster caps, per-name, book fraction, `max_open`, and
+  the eligibility/gate pipeline stay as frozen (the book cap still bounds total simulated
+  exposure); the REAL book's reservation (`paper_loop.py`) is untouched; 3B (already
+  uncensored, no caps) is untouched — it remains the whole-basket read on concentrated cohorts.
+- **Vintage boundary:** the relief deploy (the merge of PR #138, 2026-07-02) is a SECOND
+  vintage boundary; per-position `opened_at`/`run_id` make the vintages separable in every
+  read. Vintage 1 = the first-6 week-one cohort (06-03→06-10); vintage 2 = post-relief.
+- **Anti-HARK property:** decided with 0 resolutions anywhere — provably not outcome-motivated;
+  this property expires at the first resolution (~Nov 2026), which is why it is decided now.
+
 ## 5. The metric + the read (the HARKing surface — pinned now, blind)
 
 **Unit of comparison: the per-position realized-multiple TAIL** (reuse `shadow_book.tail_summary` /

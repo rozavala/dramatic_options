@@ -1,9 +1,11 @@
 # 2026-07-01 — Null-arm zero-booking diagnosis: shadow + 3A saturated at the sentinel slot reservation (DESIGNED behavior), invisible for three weeks (OBSERVABILITY defect)
 
 **Status:** §1–§4 written + committed **BEFORE** the confirmatory probe ran (anti-HARK — the
-outcome→interpretation map in §4 is pinned first). §5 appended after. §6–§8 are the dated
-annotation + proposals this diagnosis licenses, **staged for operator review** (frozen-doc
-discipline: proposals live here, not in the frozen docs, until the operator pins + merges).
+outcome→interpretation map in §4 is pinned first). §5 appended after. **§6–§8 DECIDED +
+APPLIED 2026-07-02 (operator directive, while blind — 0 resolutions anywhere):** §6 the
+censored-not-dead annotation + §8(b) symmetric slot relief → `PREREG_FIXED_BASKET_NULL.md` §4
+dated amendment + code; §7 the posture-review backstop → `PREREG_THEMATIC_CONVEXITY.md` §6
+dated amendment (D=2027-03-02 + interim checkpoint 2026-11-02).
 
 ---
 
@@ -135,21 +137,26 @@ design decision). Also confirmed in passing: PAAS — never council-judged (rank
 is a live WOULD_BOOK in the gate-only arm; the shadow book was precisely the instrument meant
 to catch names like it, and the slot cap is why it hasn't.
 
-## §6 — Dated annotation for PREREG_FIXED_BASKET_NULL (factual; staged for operator merge)
+## §6 — Dated annotation for PREREG_FIXED_BASKET_NULL — **APPLIED 2026-07-02 (operator-authorized)**
 
-Proposed status-block note, verbatim:
+Applied inside the §4 amendment in `PREREG_FIXED_BASKET_NULL.md` (this PR — the final text
+lives there). **Framing corrected before freezing (operator's P2, 2026-07-02): the arm was
+CENSORED, not dead.** The bookers ran healthily every cycle, applied the frozen frame
+correctly, and vetoed on slots by design; the monitors marked correctly throughout. The defect
+was *invisibility* (fixed, PR #137), not function. **The first-6 cohort (booked 06-03→06-10)
+is a VALID sample of week-one gate-passers — its rows are not suspect** and stay in every read
+as vintage 1. The session language that escalated to "dead control arm" is retracted on the
+record here.
 
-> **2026-07-01 (dated note):** the shadow (gate-ON) and 3A (gate-OFF) arms **saturated their
-> sentinel slot reservations at run 130 (2026-06-10)** — 6 open sentinel-origin positions each
-> vs `discovery.sentinel_max_slots=6`, with the hand-seed union side being the two EXAMPLE
-> placeholders — and have booked nothing since (designed cap-inheritance per §4, NOT a dead
-> arm; observability fixed in PR #137). Consequence for the §5 reads: both arms' compositions
-> are **frozen as of 2026-06-10** until closes free slots (earliest structural resolutions
-> ~Nov–Dec 2026 via the 21-DTE time-stop). `real − shadow` and `shadow − 3A` remain valid as
-> pinned — they measure the apparatus **including its caps** — but their cohorts are the
-> first-6-sentinels vintage, and any read should state that. 3B is unaffected (no caps).
+## §7 — Posture-review backstop — **PINNED 2026-07-02 (operator-authorized, blind)**
 
-## §7 — PROPOSED posture-review backstop (operator pins the values; motivated by the F6 finding)
+**Applied as a dated amendment to `PREREG_THEMATIC_CONVEXITY.md` §6 (this PR — final text
+there).** Pinned: entries-clock anchored at go-live **2026-06-02**; **interim checkpoint
+2026-11-02** (added per the advisor's reachability point — placed at the opening of the first
+structural resolution window, so a censored-but-healthy-looking state cannot accumulate unseen
+for the full window: the exact lesson of this diagnosis); **review trigger D = 2027-03-02**;
+review-not-kill; both legs' reachability pinned honestly. The original motivation text follows
+for lineage:
 
 **The gap, per the frozen letter:** PREREG_THEMATIC_CONVEXITY §6 halts on "the book **bleeds 9
 months** with zero payoff." *Bleeding presupposes premium at risk* — an EMPTY book never starts
@@ -176,20 +183,23 @@ PROPOSALS for the operator's blind pin):**
 > Dec-2026–Jun-2027 expiries). Before that date the zero-entries leg ALONE carries the trigger;
 > a reader must not mistake the resolved-leg's silence for evidence.
 
-## §8 — Control-arm capacity: a design tension for the operator (no action taken)
+## §8 — Control-arm capacity — **DECIDED 2026-07-02: option (b), symmetric slot relief (operator-authorized, blind)**
 
-Cap-parity (§4, frozen, deliberate) vs control-arm coverage: in the REAL book the sentinel
-reservation protects hand-seed slots and, with 0 real sentinel positions, never binds; in the
-null books it binds **permanently** once 6 sentinels book and nothing resolves — so the control
-arms structurally cannot absorb a concentrated cheap cohort (the operator's discriminator-(ii)
-point, confirmed). Options, all operator-gated:
+**Decision + rationale (the operator's, recorded):** cap parity was frozen so `real − shadow`
+isolates the council, but **parity-of-caps does not produce parity-of-OBSERVATION** — because
+shadow lacks the council's veto it saturates its six slots in week one and goes blind, while
+the (empty) real book keeps free slots and keeps judging every cycle. The arms do not face the
+same opportunity set; the null sample censors to week-one cheapness — a selection bias in the
+control, not a controlled comparison. The capital-risk rationale for slot caps does not bind a
+simulated book that deploys nothing. **Relief RESTORES the isolation parity was meant to buy.**
+Decided while blind (0 resolutions anywhere — the anti-HARK property expires at the first
+resolution, ~Nov 2026; hence decided now). Scope: **slots only, symmetric shadow+3A** (the
+`shadow − 3A` contrast stays clean), cluster/book/per-name caps and the REAL book
+byte-unchanged, 3B untouched (already the uncensored whole-basket read). Applied in this PR:
+the `PREREG_FIXED_BASKET_NULL.md` §4 dated amendment + code (`discovery.null_sentinel_max_slots`
+explicit re-enable knob; the null books no longer read the real book's `sentinel_max_slots`;
+`paper_loop.py` untouched) + tests both ways. **The relief deploy = vintage boundary 2.**
 
-- **(a) Keep parity as-is** — the arms measure "the apparatus incl. caps"; accept the frozen
-  first-6 vintage until closes free slots.
-- **(b) Null-books-only slot relief** (raise/remove `sentinel_max_slots` for shadow/3A) — a
-  dated PREREG_FIXED_BASKET_NULL §4 amendment; buys coverage, breaks strict parity, and
-  segments the arms' records at the change date.
-- **(c) Observability only** (PR #137, shipped) — saturation is loud from the next deploy
-  onward (`vetoed=N {sentinel_slots: …}` every L1).
-
-No recommendation is recorded here beyond (c), which is already done.
+Original options for lineage — (a) keep parity (leaves the branch-3 measurement channel
+censored ~5 months for no capital-safety benefit); **(b) slot relief — SELECTED**; (c)
+observability only (PR #137, shipped, kept regardless).

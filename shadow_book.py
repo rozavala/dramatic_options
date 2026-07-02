@@ -3,9 +3,10 @@
 A parallel, **simulated-only** book that runs the SAME deterministic pipeline the real book uses
 (eligibility → IV/cheap-convexity gate → defined-risk structure → sizing → exits) over the SAME
 candidate union the council sees (hand-seed ∪ active sentinels), but **BRAIN-OFF**: it books EVERY
-gate-passer — no council include/exclude, no framer drop. Every deterministic gate, cap, and the
-sentinel slot reservation are held IDENTICAL to the real book; the ONLY difference is the brain-off
-selection. So the gap between this book's forward payoff **tail** (per origin) and the real book's is
+gate-passer — no council include/exclude, no framer drop. Every deterministic gate and cap is held
+IDENTICAL to the real book — EXCEPT the sentinel slot reservation, relieved for the null books by
+the FBN §4 dated amendment (2026-07-02): cap-parity broke parity-of-observation (the arm censored
+to week-one gate-passers). The ONLY other difference is the brain-off selection. So the gap between this book's forward payoff **tail** (per origin) and the real book's is
 exactly the council/framer's marginal contribution — the forward analog of the FSSD null≈signal test,
 at the book level (guardrail §6: validated forward, never backtested).
 
@@ -117,7 +118,12 @@ def run_shadow_cycle(
     account_equity = float(book.get("account_equity") or 0.0)
     cluster_fraction = float(book.get("cluster_fraction") or 0.0)
     cluster_map = clusters.load_cluster_map(config) if cluster_fraction > 0 else {}
-    max_slots = config.get("discovery", {}).get("sentinel_max_slots")
+    # FBN §4 amendment (2026-07-02): the null books do NOT apply the real book's sentinel slot
+    # reservation — cap-parity broke parity-of-OBSERVATION (the arm censored to week-one
+    # gate-passers while the empty real book kept free slots). `null_sentinel_max_slots`
+    # re-enables a null-book-only reservation if ever needed. The real book's reservation
+    # (paper_loop.py, `sentinel_max_slots`) is untouched.
+    max_slots = config.get("discovery", {}).get("null_sentinel_max_slots")
     rv_window = int(gate.get("rv_window_days", 252))
     open_syms = state.shadow_open_symbols(conn)
 
@@ -135,8 +141,9 @@ def run_shadow_cycle(
             result.skipped += 1
             continue
         origin = _origin_of(theme)
-        # The SAME slot reservation the real book applies (a deterministic cap, held fixed; only the
-        # council include/exclude is removed): a sentinel-origin candidate cannot exceed sentinel_max_slots.
+        # Null-book slot reservation (FBN §4 amendment 2026-07-02): applies ONLY when
+        # discovery.null_sentinel_max_slots is set — the real book's sentinel_max_slots no
+        # longer caps the null books (parity-of-observation over parity-of-caps).
         if (origin == "sentinel" and max_slots is not None
                 and state.count_open_shadow_sentinel_positions(conn) >= int(max_slots)):
             result.vetoed += 1

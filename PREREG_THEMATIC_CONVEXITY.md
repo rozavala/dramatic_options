@@ -203,6 +203,26 @@ Plus the always-on `KILL` file / env switch, checked every cycle (fail-closed). 
 positions are not force-closed by the kill rule; it stops *new* risk pending review.
 Thresholds in `config.json:kill_rule`.
 
+**Posture-review trigger (dated amendment 2026-07-02, operator-authorized; pinned BLIND — 0
+positions resolved anywhere at pin time).** The two clauses above both presuppose premium at
+risk ("draws down", "bleeds") — on a book with **zero entries ever**, neither clock starts, so
+the waiting posture itself had no pre-registered falsifier (found 2026-07-01,
+`records/2026-07-01_shadow_null_arm_saturation_DIAGNOSIS.md` §7). Amendment:
+
+- **The entries-side clock anchors at forward-loop go-live (2026-06-02)**, not at first entry.
+- **Interim checkpoint — 2026-11-02** (the opening of the first structural resolution window
+  for the June-2026 null vintage): a scheduled posture LOOK (dashboard/record note, no
+  automatic action) — placed so a censored-but-healthy-looking state cannot accumulate unseen
+  for the full window (the 2026-06/07 lesson).
+- **Review trigger — D = 2027-03-02** (9 months from go-live, symmetric with the frozen
+  9-month bleed constant): if the real book has had **zero entries ever** by D, a mandatory
+  operator **posture review** triggers — hold-with-re-dated-trigger, open the
+  criteria-reconsideration branch (IMPLEMENTATION_PLAN §T4 fork 3), or stand down.
+- **Review-not-kill:** the trigger is a decision point, NOT an automatic halt and NOT evidence
+  the edge is absent (§7 discipline unchanged). **Reachability pinned honestly:** any
+  "0 resolved null positions" reading is vacuously true before ~Nov–Dec 2026; before then the
+  zero-entries leg alone carries the trigger.
+
 ## 6a. Exit rules (frozen) — the L2 reflex, deterministic, no LLM
 
 Open positions are marked to the current option mid each cycle and exited by **deterministic,
