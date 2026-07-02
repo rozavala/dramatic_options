@@ -97,10 +97,10 @@ def test_inactive_candidate_skipped(convexity_db, monkeypatch):
     assert res.booked == 0
 
 
-def test_sentinel_slot_reservation_caps_discovered_origin(convexity_db, monkeypatch):
-    # The SAME deterministic cap the real book applies (only the council include/exclude is removed):
-    # at most sentinel_max_slots discovered positions.
-    cfg = {**CONFIG, "discovery": {"sentinel_max_slots": 1}}
+def test_null_slot_reservation_caps_discovered_origin_when_set(convexity_db, monkeypatch):
+    # FBN §4 amendment (2026-07-02): the null-book reservation applies ONLY via the explicit
+    # discovery.null_sentinel_max_slots knob.
+    cfg = {**CONFIG, "discovery": {"null_sentinel_max_slots": 1}}
     res = _book(convexity_db, [
         Theme("t", "CCJ", "bullish", "", source="sentinel", sentinel_id=1),
         Theme("t", "VRT", "bullish", "", source="sentinel", sentinel_id=2),
@@ -108,6 +108,18 @@ def test_sentinel_slot_reservation_caps_discovered_origin(convexity_db, monkeypa
     assert state.count_open_shadow_sentinel_positions(convexity_db) == 1
     assert res.booked == 1
     assert res.veto_reasons == {"sentinel_slots": 1}  # a slot-capped book is visible, not silent
+
+
+def test_real_book_slot_key_does_not_cap_the_shadow_book(convexity_db, monkeypatch):
+    # FBN §4 amendment (2026-07-02): the REAL book's sentinel_max_slots no longer censors the
+    # null control arm (parity-of-observation over parity-of-caps — the 2026-06/07 saturation).
+    cfg = {**CONFIG, "discovery": {"sentinel_max_slots": 1}}
+    res = _book(convexity_db, [
+        Theme("t", "CCJ", "bullish", "", source="sentinel", sentinel_id=1),
+        Theme("t", "VRT", "bullish", "", source="sentinel", sentinel_id=2),
+    ], monkeypatch, config=cfg)
+    assert res.booked == 2 and res.veto_reasons == {}
+    assert state.count_open_shadow_sentinel_positions(convexity_db) == 2
 
 
 def test_eval_error_counted_and_logged_at_warning(convexity_db, monkeypatch, caplog):

@@ -6,8 +6,10 @@ only when convexity is *cheap*." If a book that trades the **same names with the
 same realized-multiple **tail** as the gate-ON shadow, cheapness is not an edge over eligibility.
 
 This module ships **PR2a — book 3A** (`book='union_nogate'`): gate-OFF over the SAME candidate union
-the shadow book sees (hand-seed ∪ active sentinels), **cap-ON** (the full frozen frame, incl. the
-cluster cap), so it is a clean one-variable step from the shadow book — only the gate differs. (PR2b
+the shadow book sees (hand-seed ∪ active sentinels), **cap-ON** (the frozen frame, incl. the cluster
+cap — EXCEPT the sentinel slot reservation, relieved symmetrically with the shadow book by the FBN
+§4 dated amendment 2026-07-02), so it is a clean one-variable step from the shadow book — only the
+gate differs. (PR2b
 adds `basket_nogate` = the whole basket, equal-weight, + the shares null.)
 
 Reuses the real book's PURE decision functions (`select_structure` — confirmed gate-INDEPENDENT —
@@ -113,7 +115,10 @@ def run_fixed_basket_3a_cycle(
     account_equity = float(book_cfg.get("account_equity") or 0.0)
     cluster_fraction = float(book_cfg.get("cluster_fraction") or 0.0)
     cluster_map = clusters.load_cluster_map(config) if cluster_fraction > 0 else {}
-    max_slots = config.get("discovery", {}).get("sentinel_max_slots")
+    # FBN §4 amendment (2026-07-02): slot relief, symmetric with the shadow book (see
+    # shadow_book.run_shadow_cycle) — the shadow−3A contrast stays clean. Cluster/book/per-name
+    # caps unchanged.
+    max_slots = config.get("discovery", {}).get("null_sentinel_max_slots")
     open_syms = state.fixed_basket_open_symbols(conn, BOOK_UNION_NOGATE)
 
     def _eligibility(c):
@@ -129,7 +134,8 @@ def run_fixed_basket_3a_cycle(
                 result.skipped += 1
             continue
         origin = _origin_of(theme)
-        # The SAME cap-ON slot reservation the real/shadow books apply (3A holds the full frame).
+        # Null-book slot reservation (FBN §4 amendment 2026-07-02): only when
+        # discovery.null_sentinel_max_slots is set — symmetric with the shadow book.
         if (origin == "sentinel" and max_slots is not None
                 and state.count_open_fixed_basket_sentinel_positions(conn, BOOK_UNION_NOGATE) >= int(max_slots)):
             result.vetoed += 1

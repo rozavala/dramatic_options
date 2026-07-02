@@ -103,14 +103,26 @@ def test_3a_respects_the_cluster_cap(convexity_db, monkeypatch):
     assert state.fixed_basket_open_symbols(convexity_db, BOOK) == {"AAA"}
 
 
-def test_3a_respects_the_sentinel_slot_reservation(convexity_db, monkeypatch):
-    cfg = {**CONFIG, "discovery": {"sentinel_max_slots": 1}}
+def test_3a_null_slot_reservation_applies_when_set(convexity_db, monkeypatch):
+    # FBN §4 amendment (2026-07-02): the null-book knob, symmetric with the shadow book.
+    cfg = {**CONFIG, "discovery": {"null_sentinel_max_slots": 1}}
     res = _run_3a(convexity_db, [
         Theme("t", "CCJ", "bullish", "", source="sentinel", sentinel_id=1),
         Theme("t", "VRT", "bullish", "", source="sentinel", sentinel_id=2),
     ], monkeypatch, config=cfg)
     assert state.count_open_fixed_basket_sentinel_positions(convexity_db, BOOK) == 1 and res.booked == 1
     assert res.veto_reasons == {"sentinel_slots": 1}
+
+
+def test_3a_real_book_slot_key_does_not_cap(convexity_db, monkeypatch):
+    # FBN §4 amendment (2026-07-02): symmetric relief — sentinel_max_slots no longer censors 3A.
+    cfg = {**CONFIG, "discovery": {"sentinel_max_slots": 1}}
+    res = _run_3a(convexity_db, [
+        Theme("t", "CCJ", "bullish", "", source="sentinel", sentinel_id=1),
+        Theme("t", "VRT", "bullish", "", source="sentinel", sentinel_id=2),
+    ], monkeypatch, config=cfg)
+    assert res.booked == 2 and res.veto_reasons == {}
+    assert state.count_open_fixed_basket_sentinel_positions(convexity_db, BOOK) == 2
 
 
 def test_kill_switch_halts_3a(convexity_db, monkeypatch):
