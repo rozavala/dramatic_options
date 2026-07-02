@@ -113,6 +113,14 @@ random (non-reproducible).
   FCX (deactivating the theme does NOT close the open shadow position; it removes the name
   from the union), or keep both as-is. Freeze order: placeholder decision → K pinned → sign-off.
 
+  > **RESOLVED 2026-07-02 (PR #144 merged, operator-delegated):** FCX/`copper_electrification`
+  > DEACTIVATED (the placeholder consumed a protected judged slot every cycle; the open FCX
+  > shadow position is unaffected — positions are independent of themes); NVDA KEPT, relabeled
+  > `gate_rich_canary` (a standing full-path roundtrip discriminator — the #37 ambiguity
+  > class — expected IV-gate-vetoed every cycle). Active hand-seeds: 2 → **1** → the
+  > sentinel-slot count K pins against is **12 − 1 = 11**. §9 knobs 0/1 updated accordingly;
+  > the freeze now needs only the red-team convergence + the operator's sign-off.
+
 ## §8 — Review (dated, blind)
 
 After **4 weeks** of L1s from deploy: (a) coverage metric vs the C-relative target; (b)
@@ -131,8 +139,8 @@ creep; the red-team may overrule. No include expectation is part of the review (
 
 | # | knob | proposed | note |
 |---|---|---|---|
-| 0 | **hand-seed placeholders** | **operator decides FIRST** (keep / deactivate NVDA / replace FCX) | gates K — the sentinel-slot count is 12 − hand_seeds (§7) |
-| 1 | K (reserve slots) | **3** of the (12 − hand_seeds) sentinel slots | pinned AFTER knob 0; at C≈20, K=3 → ~7-L1 full rotation |
+| 0 | **hand-seed placeholders** | **RESOLVED 2026-07-02** (PR #144: FCX deactivated; NVDA kept as `gate_rich_canary`) → active hand_seeds = 1 | was "operator decides FIRST"; see the §7 resolution note |
+| 1 | K (reserve slots) | **3** of the **11** (= 12 − 1) sentinel slots | at C≈20, K=3 → ~7-L1 full rotation; 8 motion slots remain |
 | 2 | S (cheap-read staleness) | **5 trading days** | prior-cycle by construction; fail-closed past S |
 | 3 | within-reserve rank | least-recently-judged → lowest iv_rv → symbol | coverage rotation, §4 |
 | 4 | coverage target | rolling-7-L1 judged-fraction **≥ min(1, 7K/C)**, C recorded per window | C-relative — measures the rotation, not the market (§5) |
