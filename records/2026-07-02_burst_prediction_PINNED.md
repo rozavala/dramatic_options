@@ -45,3 +45,46 @@ Walking the probe's own premiums sequentially (with cluster caps at $2,000 entry
 **Material deviation** (outside every band, esp. the HARD lines, or booked ≈ 16 — which would
 mean the sequential-cap model itself is wrong) = **the diagnosis missed something; say so and
 reopen** rather than explain post-hoc.
+
+---
+
+## Addendum (2026-07-02, pre-run — the advisor's P1/P2, pinned before observation)
+
+**1. PAAS misses tonight — FORESEEN, not discovered.** The booker walks the union in
+`inflection_score` DESC order, so the $4,481 is spent on the **highest-motion** cheap names
+first; PAAS (union rank ~31) sits below the exhaustion point. **Composition-bias note:** the
+control arm allocates its scarce budget by salience — the anti-quietness bias operating inside
+the very instrument built to catch what salience-ranking starves. Vintage 2a is therefore not
+just small but **skewed toward the least quiet of the cheap cohort.** AG/HL make the cut
+(partial, not total).
+
+**2. The relief RE-CENSORS tonight — pinned as a LIVE decision, not a discovery-in-waiting.**
+By this record's own arithmetic the burst lands the shadow book at ~$9.9k of its $10k cap:
+slots freed → **book cap binds tomorrow** → nothing resolves until ~Nov → the arm re-censors
+one mechanism up. The §8(b) decision was scoped to slots; the book cap was not in that fork.
+**The follow-on fork (decision owner: the OPERATOR; the advisor leans extend — a lean is not a
+pin):**
+- **(i) KEEP** — vintage 2 is a one-burst ~5-name cohort **by recorded design** (this
+  addendum), not by silence.
+- **(ii) BOOK-relief only (the advisor's lean)** — sequential arithmetic says this buys
+  **~4 more names (FLY/FRO/RDW/TGB, ~$2.2k)** before the **CLUSTER caps** bind (nuclear full
+  at UUUU+NXE; silver at AG+HL; copper at HBM+TGB) → the arm goes cluster-static, and **PAAS
+  still misses (`cluster_cap`: silver $148 remaining < $315)**. The claim "if relief extends,
+  everything cheap books" is **falsified by the cluster layer** — (ii) is a bounded
+  half-measure, stated plainly before it is chosen.
+- **(iii) BOOK+CLUSTER relief (per-name cap only)** — the full representative gate-passer
+  sample (~16 names, ~$14k notional-premium, per-name $1k intact). This is what FBN §5's
+  per-position p95 metric actually wants (a representative sample, not budget parity); it is
+  also the largest departure from cap-parity and further segments the record.
+- Under EVERY option, **PAAS's only channel is the #139 judgment reserve** — the null books
+  cannot reach it while cluster caps stand (and cluster relief beyond (iii) was excluded by
+  everyone).
+
+**Sequencing pin:** tonight runs under the CURRENT regime regardless (the bands above stay
+gradeable); any chosen relief deploys AFTER tonight's grade → vintage 2a (tonight's burst) /
+vintage 2b (post-choice) are separable by `opened_at`. The anti-HARK cost of deciding tomorrow
+instead of today is composition-knowledge only (outcomes stay blind until ~Nov); deciding
+before the first resolution retains the essential blindness. Implementation staged
+behavior-neutral (`null_book_fraction` / `null_cluster_fraction` knobs, default = inherit the
+frozen frame): **the operator's config pin + amendment merge selects (i)/(ii)/(iii) — nothing
+changes until they do.**
