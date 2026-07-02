@@ -223,6 +223,18 @@ the waiting posture itself had no pre-registered falsifier (found 2026-07-01,
   "0 resolved null positions" reading is vacuously true before ~Nov–Dec 2026; before then the
   zero-entries leg alone carries the trigger.
 
+> **Ownership addendum (2026-07-02, after the merge — provenance made explicit).** The merge of
+> the amendment above was executed on the operator's transmitted directive, but the line-item
+> values were not each explicitly operator-pinned at merge time: **D = 2027-03-02** was proposed
+> by CC (2026-07-01) and endorsed by the advisor; the **interim checkpoint 2026-11-02** was
+> proposed by the advisor with the choice explicitly left to the operator ("your pin either
+> way") and was included by CC's judgment, flagged in-session but not operator-worded.
+> Merge-as-ratification is a named failure mode in this project, distinct from explicit
+> operator ownership. **The operator's merge of THIS addendum constitutes the explicit,
+> dated, after-the-fact ownership of all three values — D = 2027-03-02, the 2026-11-02
+> interim checkpoint, and the go-live clock anchor** (to strike the checkpoint instead,
+> say so and this addendum will be amended before merge).
+
 ## 6a. Exit rules (frozen) — the L2 reflex, deterministic, no LLM
 
 Open positions are marked to the current option mid each cycle and exited by **deterministic,

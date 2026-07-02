@@ -129,6 +129,14 @@ book; 25/29 sentinel vetoes were cap vetoes, not market vetoes.)
 - **Anti-HARK property:** decided with 0 resolutions anywhere — provably not outcome-motivated;
   this property expires at the first resolution (~Nov 2026), which is why it is decided now.
 
+> **Ownership addendum (2026-07-02, after the merge — provenance made explicit).** Option (b)
+> was recommended by the advisor and transmitted by the operator as a merge directive ("take
+> option (b), symmetric slot relief, decided now while the books are still blind"); the merge
+> executed that directive. To close the gap between merge-as-ratification and explicit
+> ownership: **the operator's merge of THIS addendum constitutes the explicit, dated ownership
+> of the §8(b) selection and its scope** (slots-only, symmetric shadow+3A, real book and all
+> other caps byte-unchanged, vintage boundary 2 at the relief deploy).
+
 ## 5. The metric + the read (the HARKing surface — pinned now, blind)
 
 **Unit of comparison: the per-position realized-multiple TAIL** (reuse `shadow_book.tail_summary` /
