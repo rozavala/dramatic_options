@@ -63,6 +63,16 @@ def load_config() -> dict[str, Any]:
         default=bool(safety.get("live_trading_enabled", False)),
     )
     safety["dry_run"] = _as_bool(os.getenv("DRY_RUN"), default=bool(safety.get("dry_run", True)))
+    # The live broker's hard per-order notional ceiling (PREREG_REAL_MONEY_BROKER §3 — absent ⇒
+    # the live class rejects ALL orders, fail-closed). Env path exists so the §5 smoke can arm the
+    # ceiling AT SESSION TIME and unset it after: config.json is git-tracked and a box-local edit
+    # is clobbered by the next deploy's reset (the 2026-07-02 lesson) — a live-money knob should
+    # not have to live in git to be usable. An unparseable value is ignored (stays fail-closed).
+    if os.getenv("LIVE_MAX_ORDER_NOTIONAL"):
+        try:
+            safety["live_max_order_notional"] = float(os.getenv("LIVE_MAX_ORDER_NOTIONAL"))
+        except ValueError:
+            pass
 
     # Data-feed roles (the data-feed upgrade). config.json is the source of truth — there is NO env
     # override (the old flat DATA_FEED knob was dead: read into safety.data_feed but never wired to a

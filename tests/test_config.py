@@ -156,6 +156,21 @@ def test_env_overrides_gates(monkeypatch):
     config_loader.load_config.cache_clear()
 
 
+def test_live_notional_ceiling_env_path(monkeypatch):
+    # PREREG_REAL_MONEY_BROKER §3/§5: the smoke arms the ceiling AT SESSION TIME via env (a
+    # box-local config.json edit is clobbered by deploy's reset — the 2026-07-02 lesson); absent
+    # or unparseable stays fail-closed (the live broker rejects all without a ceiling).
+    config_loader.load_config.cache_clear()
+    assert "live_max_order_notional" not in config_loader.load_config()["safety"]
+    monkeypatch.setenv("LIVE_MAX_ORDER_NOTIONAL", "250")
+    config_loader.load_config.cache_clear()
+    assert config_loader.load_config()["safety"]["live_max_order_notional"] == 250.0
+    monkeypatch.setenv("LIVE_MAX_ORDER_NOTIONAL", "not-a-number")
+    config_loader.load_config.cache_clear()
+    assert "live_max_order_notional" not in config_loader.load_config()["safety"]
+    config_loader.load_config.cache_clear()
+
+
 def test_forward_enabled_defaults_false(monkeypatch, tmp_path):
     """FORWARD_ENABLED is top-level and defaults False — an env trades only when it opts in."""
     monkeypatch.setattr(config_loader, "ENV_PATH", tmp_path / "absent.env")
