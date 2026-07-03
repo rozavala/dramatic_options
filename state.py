@@ -459,6 +459,33 @@ def cluster_open_directions(conn: sqlite3.Connection, symbols) -> set[str]:
 # SHADOW book's OWN occupancy, so the only difference vs the real book is the brain-off selection.
 
 
+def record_null_attempt(
+    conn: sqlite3.Connection,
+    *,
+    run_id: int | None,
+    book: str,
+    attempt_idx: int,
+    symbol: str,
+    direction: str | None,
+    origin: str | None,
+    outcome: str,
+    entry_premium_per_contract: float | None,
+    as_of: str | None,
+) -> None:
+    """One per-name booking-attempt row for a capped null book (migration 0018) — the replay
+    substrate for the cap-regime-bundled ``real − shadow`` read (per-name terminal outcome +
+    walk order + premium-at-attempt; the UROY/aggregate-counters lesson, 2026-07-02). Telemetry
+    only: callers wrap this fail-soft — a failed write must never block the booking pass."""
+    conn.execute(
+        "INSERT INTO null_book_attempts (run_id, book, attempt_idx, symbol, direction, origin,"
+        " outcome, entry_premium_per_contract, as_of, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+        (run_id, book, attempt_idx, symbol, direction, origin, outcome,
+         entry_premium_per_contract, as_of),
+    )
+    conn.commit()
+
+
 def record_shadow_position(
     conn: sqlite3.Connection,
     *,
