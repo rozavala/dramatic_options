@@ -147,13 +147,31 @@ def run_shadow_cycle(
             min_oi=elig.get("min_option_open_interest"),
         )
 
+    # Per-name attempt telemetry (migration 0018) — the replay substrate for the cap-bundled
+    # real−shadow read (walk order + terminal outcome + premium-at-attempt). Fail-soft: a
+    # telemetry write failure logs WARNING and never blocks the booking pass.
+    attempt_idx = 0
+
+    def _note(theme, origin, outcome, premium=None):
+        nonlocal attempt_idx
+        try:
+            state.record_null_attempt(
+                conn, run_id=run_id, book="shadow", attempt_idx=attempt_idx,
+                symbol=theme.symbol, direction=theme.direction, origin=origin,
+                outcome=outcome, entry_premium_per_contract=premium, as_of=as_of_iso,
+            )
+        except Exception as e:  # noqa: BLE001 — telemetry never breaks the pass
+            log.warning("shadow attempt-telemetry write failed for %s: %s", theme.symbol, e)
+        attempt_idx += 1
+
     for theme in candidates:
         if not theme.active:
             continue
+        origin = _origin_of(theme)
         if theme.symbol in open_syms:
             result.skipped += 1
+            _note(theme, origin, "skip_open")
             continue
-        origin = _origin_of(theme)
         # Null-book slot reservation (FBN §4 amendment 2026-07-02): applies ONLY when
         # discovery.null_sentinel_max_slots is set — the real book's sentinel_max_slots no
         # longer caps the null books (parity-of-observation over parity-of-caps).
@@ -161,9 +179,10 @@ def run_shadow_cycle(
                 and state.count_open_shadow_sentinel_positions(conn) >= int(max_slots)):
             result.vetoed += 1
             result.veto_reasons["sentinel_slots"] = result.veto_reasons.get("sentinel_slots", 0) + 1
+            _note(theme, origin, "sentinel_slots")
             continue
         try:
-            reason = _eval_and_book(
+            reason, premium_pc = _eval_and_book(
                 theme, origin=origin, conn=conn, provider=provider, eligibility=_eligibility,
                 account_equity=account_equity, gate=gate, book=book, as_of=as_of,
                 as_of_iso=as_of_iso, rv_window=rv_window, run_id=run_id,
@@ -172,7 +191,9 @@ def run_shadow_cycle(
         except Exception as e:  # noqa: BLE001 — per-candidate fail-soft: never break the pass, but
             result.errors += 1  # log LOUDLY (WARNING) — debug-level here hid a class of dead-arm failures
             log.warning("shadow eval errored for %s: %s", theme.symbol, e)
+            _note(theme, origin, "error")
             continue
+        _note(theme, origin, reason, premium_pc)
         if reason == "booked":
             result.booked += 1
             result.by_origin[origin] = result.by_origin.get(origin, 0) + 1
@@ -189,8 +210,10 @@ def _eval_and_book(
 ) -> str:
     """Deterministic pipeline for one candidate; book a SIM position at the chain mid if it passes.
     No broker — the real book's paper sim-fill uses this same mid, so entry premia are
-    apples-to-apples. Returns "booked" iff a position was booked, else the veto reason
-    ("no_structure" | "not_cheap" | "cluster_cap" | "sizing")."""
+    apples-to-apples. Returns ``(reason, premium_per_contract)`` — reason is "booked" iff a
+    position was booked, else the veto ("no_structure" | "not_cheap" | "cluster_cap" |
+    "sizing"); premium is the selected structure's per-contract entry premium at attempt time
+    (None before structure selection) — the migration-0018 replay substrate."""
     underlying_price = provider.underlying_price(theme.symbol)
     chain = provider.chain(theme.symbol)
     closes = provider.closes(theme.symbol, window=rv_window)
@@ -203,14 +226,15 @@ def _eval_and_book(
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
     )
     if structure is None:
-        return "no_structure"
+        return "no_structure", None
+    premium_pc = structure.entry_premium * CONTRACT_MULTIPLIER
     verdict = is_cheap_convexity(
         chain, underlying_price=underlying_price, wing=structure.contract, rv=rv,
         iv_rv_max=float(gate.get("iv_rv_max", 1.2)),
         otm_skew_max_volpts=float(gate.get("otm_skew_max_volpts", 10.0)),
     )
     if not verdict.cheap:
-        return "not_cheap"
+        return "not_cheap", premium_pc
     # The SAME deterministic cluster cap the real book applies (only the council selection differs).
     # Shadow books 'open' immediately (no broker → no 'pending'), so the open-only basis already counts
     # within-cycle cluster-mates — the real book's committed/pending fix (#12) isn't needed here.
@@ -219,8 +243,8 @@ def _eval_and_book(
     if cluster is not None:
         cluster_remaining = account_equity * cluster_fraction - state.shadow_cluster_open_premium(
             conn, clusters.members_of(cluster, cluster_map))
-        if cluster_remaining < structure.entry_premium * CONTRACT_MULTIPLIER:
-            return "cluster_cap"
+        if cluster_remaining < premium_pc:
+            return "cluster_cap", premium_pc
     sizing = convexity_position_size(
         account_equity=account_equity,
         book_fraction=float(book.get("book_fraction", 0.10)),
@@ -232,17 +256,16 @@ def _eval_and_book(
         cluster_remaining=cluster_remaining,
     )
     if sizing.contracts < 1:
-        return "sizing"
-    entry_pc = structure.entry_premium * CONTRACT_MULTIPLIER
+        return "sizing", premium_pc
     state.record_shadow_position(
         conn, run_id=run_id, origin=origin, opened_at=as_of_iso, theme=theme.name,
         symbol=theme.symbol, direction=theme.direction, structure_kind=structure.kind,
         contract_symbol=structure.contract.symbol, expiry=structure.contract.expiry.isoformat(),
         strike=structure.contract.strike, dte=structure.dte, moneyness=structure.moneyness,
-        contracts=sizing.contracts, entry_premium_per_contract=entry_pc,
-        total_premium=entry_pc * sizing.contracts, entry_spot=underlying_price,
+        contracts=sizing.contracts, entry_premium_per_contract=premium_pc,
+        total_premium=premium_pc * sizing.contracts, entry_spot=underlying_price,
     )
-    return "booked"
+    return "booked", premium_pc
 
 
 def _intrinsic_value(kind: str, strike: float, underlying_price: float | None) -> float:

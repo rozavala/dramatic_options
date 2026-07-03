@@ -137,21 +137,40 @@ def run_fixed_basket_3a_cycle(
             min_oi=elig.get("min_option_open_interest"),
         )
 
+    # Per-name attempt telemetry (migration 0018) — symmetric with the shadow book; see
+    # shadow_book.run_shadow_cycle. Fail-soft: a write failure never blocks the pass.
+    attempt_idx = 0
+
+    def _note(theme, origin, outcome, premium=None):
+        nonlocal attempt_idx
+        try:
+            state.record_null_attempt(
+                conn, run_id=run_id, book="3A", attempt_idx=attempt_idx,
+                symbol=theme.symbol, direction=theme.direction, origin=origin,
+                outcome=outcome, entry_premium_per_contract=premium, as_of=as_of_iso,
+            )
+        except Exception as e:  # noqa: BLE001 — telemetry never breaks the pass
+            log.warning("3A attempt-telemetry write failed for %s: %s", theme.symbol, e)
+        attempt_idx += 1
+
     for theme in candidates:
-        if not theme.active or theme.symbol in open_syms:
-            if theme.active:
-                result.skipped += 1
+        if not theme.active:
             continue
         origin = _origin_of(theme)
+        if theme.symbol in open_syms:
+            result.skipped += 1
+            _note(theme, origin, "skip_open")
+            continue
         # Null-book slot reservation (FBN §4 amendment 2026-07-02): only when
         # discovery.null_sentinel_max_slots is set — symmetric with the shadow book.
         if (origin == "sentinel" and max_slots is not None
                 and state.count_open_fixed_basket_sentinel_positions(conn, BOOK_UNION_NOGATE) >= int(max_slots)):
             result.vetoed += 1
             result.veto_reasons["sentinel_slots"] = result.veto_reasons.get("sentinel_slots", 0) + 1
+            _note(theme, origin, "sentinel_slots")
             continue
         try:
-            reason = _eval_and_book_nogate(
+            reason, premium_pc = _eval_and_book_nogate(
                 theme, origin=origin, conn=conn, provider=provider, eligibility=_eligibility,
                 account_equity=account_equity, gate=gate, book_cfg=book_cfg, as_of=as_of,
                 as_of_iso=as_of_iso, run_id=run_id,
@@ -160,7 +179,9 @@ def run_fixed_basket_3a_cycle(
         except Exception as e:  # noqa: BLE001 — per-candidate fail-soft: never break the pass, but
             result.errors += 1  # log LOUDLY (WARNING) — debug-level here hid a class of dead-arm failures
             log.warning("3A eval errored for %s: %s", theme.symbol, e)
+            _note(theme, origin, "error")
             continue
+        _note(theme, origin, reason, premium_pc)
         if reason == "booked":
             result.booked += 1
             result.by_origin[origin] = result.by_origin.get(origin, 0) + 1
@@ -174,12 +195,14 @@ def run_fixed_basket_3a_cycle(
 def _eval_and_book_nogate(
     theme, *, origin, conn, provider, eligibility, account_equity, gate, book_cfg,
     as_of, as_of_iso, run_id, cluster_map, cluster_fraction,
-) -> bool:
+):
     """The deterministic pipeline for one candidate **with the IV gate OFF** — book a SIM position at
     the chain mid if it clears eligibility + the (cap-ON) caps. The ONLY difference vs
     `shadow_book._eval_and_book` is the missing `is_cheap_convexity` veto (and the realized-vol it fed,
-    now unused). Returns "booked" iff booked, else the veto reason ("no_structure" | "cluster_cap" |
-    "sizing")."""
+    now unused). Returns ``(reason, premium_per_contract)`` — reason is "booked" iff booked, else
+    the veto ("no_structure" | "cluster_cap" | "sizing"); premium is the selected structure's
+    per-contract entry premium at attempt time (None before structure selection) — the
+    migration-0018 replay substrate, symmetric with the shadow book."""
     underlying_price = provider.underlying_price(theme.symbol)
     chain = provider.chain(theme.symbol)
 
@@ -190,7 +213,8 @@ def _eval_and_book_nogate(
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
     )
     if structure is None:
-        return "no_structure"
+        return "no_structure", None
+    premium_pc = structure.entry_premium * CONTRACT_MULTIPLIER
     # >>> NO is_cheap_convexity here — that veto is exactly what 3A removes (the gate test). <<<
 
     # The SAME cap-ON cluster cap the real/shadow books apply (3A holds the full frame).
@@ -199,8 +223,8 @@ def _eval_and_book_nogate(
     if cluster is not None:
         cluster_remaining = account_equity * cluster_fraction - state.fixed_basket_cluster_open_premium(
             conn, clusters.members_of(cluster, cluster_map), BOOK_UNION_NOGATE)
-        if cluster_remaining < structure.entry_premium * CONTRACT_MULTIPLIER:
-            return "cluster_cap"
+        if cluster_remaining < premium_pc:
+            return "cluster_cap", premium_pc
     sizing = convexity_position_size(
         account_equity=account_equity,
         book_fraction=float(book_cfg.get("book_fraction", 0.10)),
@@ -212,17 +236,16 @@ def _eval_and_book_nogate(
         cluster_remaining=cluster_remaining,
     )
     if sizing.contracts < 1:
-        return "sizing"
-    entry_pc = structure.entry_premium * CONTRACT_MULTIPLIER
+        return "sizing", premium_pc
     state.record_fixed_basket_position(
         conn, run_id=run_id, book=BOOK_UNION_NOGATE, origin=origin, opened_at=as_of_iso, theme=theme.name,
         symbol=theme.symbol, direction=theme.direction, structure_kind=structure.kind,
         contract_symbol=structure.contract.symbol, expiry=structure.contract.expiry.isoformat(),
         strike=structure.contract.strike, dte=structure.dte, moneyness=structure.moneyness,
-        contracts=sizing.contracts, entry_premium_per_contract=entry_pc,
-        total_premium=entry_pc * sizing.contracts, entry_spot=underlying_price,
+        contracts=sizing.contracts, entry_premium_per_contract=premium_pc,
+        total_premium=premium_pc * sizing.contracts, entry_spot=underlying_price,
     )
-    return "booked"
+    return "booked", premium_pc
 
 
 def basket_symbols(config: dict) -> dict[str, str]:
