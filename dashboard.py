@@ -77,6 +77,8 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "dualread": dd.safe(dd.gate_dualread_report, conn, config),
             "dualread_runtime": dd.safe(dd.dualread_runtime_panel, conn, config),
             "cheapness": dd.safe(dd.cheapness_watch_panel, conn, config),
+            "null_attempts": dd.safe(dd.null_attempts_panel, conn),
+            "reserve": dd.safe(dd.reserve_panel, conn),
             "curation": dd.safe(dd.curation_panel, conn, config, market),
             "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir),
         }
@@ -297,6 +299,39 @@ def _render_nulls(snap) -> None:
         st.dataframe(_ci_rows(step["arms"]), width="stretch",
                      column_config={"p95": st.column_config.NumberColumn("p95", format="%.2f×")})
     st.caption(nulls["note"])
+
+
+def _render_null_attempts(snap) -> None:
+    st.subheader("Null-book attempts (per-name, walk order — migration 0018)")
+    st.caption("The replay substrate for the cap-regime-bundled real−shadow read: every candidate the "
+               "capped books touched last cycle, in order, with its terminal outcome + premium-at-attempt. "
+               "Empty before the first post-0018 booking cycle (Mon 2026-07-06).")
+    na = snap["null_attempts"]
+    if not _show(na, "null attempts"):
+        return
+    if not na.get("books"):
+        st.caption(na.get("note", "no rows"))
+        return
+    st.markdown(f"run **#{na['run_id']}**")
+    for book, b in sorted(na["books"].items()):
+        counts = " · ".join(f"{k} {v}" for k, v in sorted(b["counts"].items()))
+        st.markdown(f"**{book}** — {counts}")
+        st.dataframe(b["rows"], width="stretch")
+
+
+def _render_reserve(snap) -> None:
+    st.subheader("Gate-cheap reserve (judged-set provenance)")
+    st.caption("PREREG gate_cheap_reserve §6: which judged names came via the RESERVE (gate-cheap, "
+               "salience-truncated) vs the motion RANK. Stamp absent + all-unlabeled = reserve OFF or a "
+               "pre-deploy run. The reserve changes WHO is judged, never HOW — includes are the council's.")
+    rp = snap["reserve"]
+    if not _show(rp, "reserve"):
+        return
+    stamp = rp.get("stamp") or "—"
+    st.markdown(f"run **#{rp['run_id']}** · stamp `{stamp}` · reserve {len(rp['reserve'])} · "
+                f"rank {len(rp['rank'])} · unlabeled {len(rp['unlabeled'])}")
+    if rp["reserve"]:
+        st.dataframe(rp["reserve"], width="stretch")
 
 
 def _render_cheapness(snap) -> None:
@@ -668,12 +703,14 @@ def main() -> None:
         _render_performance(snap)
     with tabs[2]:
         _render_nulls(snap)
+        _render_null_attempts(snap)
     with tabs[3]:
         _render_market(snap)
     with tabs[4]:
         _render_attribution(snap)
     with tabs[5]:
         _render_funnel(snap)
+        _render_reserve(snap)
     with tabs[6]:
         _render_scanning(snap)
         _render_cheapness(snap)
