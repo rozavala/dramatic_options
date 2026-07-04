@@ -38,7 +38,8 @@ from config_loader import load_config  # noqa: E402
 PANEL_KEYS: tuple[str, ...] = (
     "header", "t4", "risk", "account", "regime", "sentinels", "positions", "council", "deliberation",
     "performance", "nulls", "attribution", "funnel", "council_stage", "gate_reasons", "cap_flow",
-    "cost", "market_ctx", "dualread", "dualread_runtime", "cheapness", "curation", "data_gathered",
+    "cost", "market_ctx", "dualread", "dualread_runtime", "cheapness", "null_attempts", "reserve",
+    "curation", "data_gathered",
 )
 
 
@@ -104,6 +105,8 @@ def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
             "dualread": dd.safe(dd.gate_dualread_report, conn, config),
             "dualread_runtime": dd.safe(dd.dualread_runtime_panel, conn, config),
             "cheapness": dd.safe(dd.cheapness_watch_panel, conn),
+            "null_attempts": dd.safe(dd.null_attempts_panel, conn),
+            "reserve": dd.safe(dd.reserve_panel, conn),
             "curation": dd.safe(dd.curation_panel, conn, config, market),
             "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir),
         }

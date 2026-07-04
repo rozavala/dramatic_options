@@ -578,6 +578,67 @@ def cheapness_watch_panel(conn, config: dict | None = None) -> dict:
     return rep
 
 
+def null_attempts_panel(conn, run_id: int | None = None) -> dict:
+    """Per-name booking-attempt telemetry for the capped null books (migration 0018) — the
+    replay/grade surface for the cap-regime-bundled real−shadow read. Read-only: the latest
+    (or given) run's walk, in attempt order, per book, plus per-reason counts. Empty before the
+    first post-0018 booking cycle (deployed 2026-07-03; the first live rows arrive Mon 07-06)."""
+    if run_id is None:
+        row = conn.execute("SELECT MAX(run_id) AS r FROM null_book_attempts").fetchone()
+        run_id = row["r"] if row and row["r"] is not None else None
+    if run_id is None:
+        return {"run_id": None, "books": {}, "note": "no attempt rows yet (pre-0018 or no booking cycle)"}
+    books: dict[str, dict] = {}
+    for r in _rows(
+        conn,
+        "SELECT book, attempt_idx, symbol, direction, origin, outcome, "
+        "entry_premium_per_contract FROM null_book_attempts WHERE run_id = ? "
+        "ORDER BY book, attempt_idx",
+        (run_id,),
+    ):
+        b = books.setdefault(r["book"], {"rows": [], "counts": {}})
+        b["rows"].append(r)
+        b["counts"][r["outcome"]] = b["counts"].get(r["outcome"], 0) + 1
+    return {"run_id": run_id, "books": books}
+
+
+def reserve_panel(conn, run_id: int | None = None) -> dict:
+    """The gate-cheap reserve's per-cycle provenance (PREREG gate_cheap_reserve §6, read-only):
+    which judged names were RESERVE- vs RANK-selected (from the persisted rationale JSON) and
+    whether the run carries the ``union_rank:cheap_reserve_v1`` stamp. Empty selection lists +
+    absent stamp = the reserve was OFF (or the run pre-dates the deploy)."""
+    if run_id is None:
+        row = conn.execute("SELECT MAX(run_id) AS r FROM council_proposals").fetchone()
+        run_id = row["r"] if row and row["r"] is not None else None
+    if run_id is None:
+        return {"run_id": None, "stamp": None, "reserve": [], "rank": [], "unlabeled": []}
+    def _parse(raw):
+        if isinstance(raw, dict):
+            return raw
+        try:
+            d = json.loads(raw) if raw else {}
+            return d if isinstance(d, dict) else {}
+        except Exception:  # noqa: BLE001 — an unreadable cell renders as unlabeled, never raises
+            return {}
+
+    stamp = None
+    run = conn.execute("SELECT model_mix FROM runs WHERE id = ?", (run_id,)).fetchone()
+    if run and run["model_mix"]:
+        stamp = _parse(run["model_mix"]).get("union_rank")
+    reserve, rank, unlabeled = [], [], []
+    for r in _rows(
+        conn,
+        "SELECT symbol, conviction, status, rationale FROM council_proposals WHERE run_id = ? "
+        "ORDER BY id",
+        (run_id,),
+    ):
+        sel = _parse(r["rationale"]).get("selection")
+        entry = {"symbol": r["symbol"], "conviction": r["conviction"], "status": r["status"]}
+        (reserve if sel == "reserve" else rank if sel == "rank" else unlabeled).append(entry)
+    return {"run_id": run_id, "stamp": stamp, "reserve": reserve, "rank": rank,
+            "unlabeled": unlabeled}
+
+
 # ── curation tools (the keyless dashboard panel — DRAFTS only, never fetches/writes) ──────────────
 
 _TICKER_RE = re.compile(r"^[A-Z][A-Z.]{0,6}$")

@@ -53,6 +53,39 @@ DEPLOY_LOCK="/tmp/${SERVICE_PREFIX}-deploy.lock"
 echo "$$" > "$DEPLOY_LOCK"
 trap "rm -f '$DEPLOY_LOCK'" EXIT
 
+# --- Timer-tick collision guard (2026-07-04) --------------------------------
+# A deploy's stop_units SIGTERMs an in-flight oneshot: the 2026-07-02 19:59:59 deploy killed
+# the 20:00 L2 mid-marks (benign for a mark-only unit, NOT guaranteed benign for L1). The
+# L1/L2 ticks are :00/:30 13:00-20:30 UTC plus 19:45. If a deploy starts within 60s BEFORE a
+# tick (the unit is about to start) or 90s AFTER one (a oneshot is likely mid-run), WAIT until
+# the window clears (bounded; timers-inert hours skip instantly).
+wait_clear_of_ticks() {
+    local now h m s tick_s dist after
+    for _ in $(seq 1 12); do  # bounded: at most ~9 min of waiting, then proceed regardless
+        now=$(date -u +%H:%M:%S); h=${now:0:2}; m=${now:3:2}; s=${now:6:2}
+        # active timer hours only (13:00-20:30 UTC incl. the 19:45 L1)
+        if (( 10#$h < 12 || 10#$h > 20 )); then return 0; fi
+        local secs=$(( 10#$h*3600 + 10#$m*60 + 10#$s ))
+        local danger=0
+        # L2 ticks (:00/:30): the monitor finishes in ~15-25s → +90s after-window.
+        for tick_s in $(seq $((13*3600)) 1800 $((20*3600+1800))); do
+            dist=$(( secs - tick_s ))
+            if (( dist >= -60 && dist <= 90 )); then danger=1; break; fi
+        done
+        # The 19:45 L1 runs ~3-5 min (council round-trips) → +360s after-window: a deploy at
+        # 19:47 would SIGTERM a council MID-FLIGHT — the worst case, not the benign one.
+        if (( danger == 0 )); then
+            dist=$(( secs - (19*3600 + 45*60) ))
+            if (( dist >= -60 && dist <= 360 )); then danger=1; fi
+        fi
+        if (( danger == 0 )); then return 0; fi
+        echo "deploy: within a timer-tick window (UTC $now) — waiting 45s to avoid SIGTERMing an in-flight cycle"
+        sleep 45
+    done
+    return 0  # never block a deploy indefinitely
+}
+wait_clear_of_ticks
+
 # =========================================================================
 # STEP 0: Capture rollback point BEFORE any changes
 # =========================================================================
