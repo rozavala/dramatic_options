@@ -271,3 +271,28 @@ def test_unclustered_name_eval_keeps_the_plain_list_shape(convexity_db, monkeypa
     assert res.opened == 1
     row = convexity_db.execute("SELECT reasons FROM convexity_eval WHERE decision='open'").fetchone()
     assert isinstance(json.loads(row["reasons"]), list)
+
+
+def test_entry_pages(convexity_db, monkeypatch):
+    # A real-book ENTRY is the rarest healthy event — it must page (the 07-01 PL entry went
+    # unnoticed for three days; records/2026-07-04_first_real_entry_ERRATUM.md §3.2).
+    import notify
+
+    _no_kill(monkeypatch)
+    sent = []
+    monkeypatch.setattr(notify, "send", lambda title, body: sent.append((title, body)))
+    res = run_paper_cycle(config=CONFIG, conn=convexity_db, clock=CLOCK, provider=_provider(),
+                          broker=PaperBroker(100_000.0), themes=THEMES, run_id=None)
+    assert res.opened == 1
+    assert len(sent) == 1 and sent[0][0] == "REAL-BOOK ENTRY"
+
+
+def test_no_entry_no_page(convexity_db, monkeypatch):
+    import notify
+
+    _no_kill(monkeypatch)
+    sent = []
+    monkeypatch.setattr(notify, "send", lambda title, body: sent.append((title, body)))
+    res = run_paper_cycle(config=CONFIG, conn=convexity_db, clock=CLOCK, provider=_provider(),
+                          broker=PaperBroker(100_000.0), themes=[], run_id=None)
+    assert res.opened == 0 and sent == []
