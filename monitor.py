@@ -327,6 +327,17 @@ def reconcile_pending(*, conn, broker, clock: Clock, config: dict) -> int:
             )
             n += 1
             log.info("FILLED (reconciled) #%d %s @ %.2f", pos["id"], pos["contract_symbol"], price)
+            # The fill is the moment a real-book position becomes REAL — page it (the 07-01 PL
+            # fill reconciled silently and went unnoticed for three days;
+            # records/2026-07-04_first_real_entry_ERRATUM.md §3.2). Never breaks the reconcile.
+            try:
+                import notify
+
+                notify.send("REAL-BOOK FILL",
+                            f"#{pos['id']} {pos['contract_symbol']} filled @ {price:.2f} "
+                            f"({pos['contracts']}x, ${per_contract * int(pos['contracts']):,.0f}).")
+            except Exception:  # noqa: BLE001 — paging must never break the reconcile
+                log.warning("fill page failed to send")
         elif st in ("canceled", "cancelled", "expired", "rejected"):
             state.drop_convexity_position(conn, int(pos["id"]), reason=f"order_{st}")
             n += 1

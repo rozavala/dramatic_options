@@ -214,6 +214,21 @@ def run_paper_cycle(
         "Paper cycle: evaluated=%d opened=%d vetoed=%d skipped=%d errors=%d",
         result.evaluated, result.opened, result.vetoed, result.skipped, result.errors,
     )
+    # A REAL-BOOK ENTRY is the rarest healthy event the system produces — page it (the 2026-07-01
+    # PL entry went unnoticed for THREE DAYS because only failures paged;
+    # records/2026-07-04_first_real_entry_ERRATUM.md §3.2). Entries are rare-by-design, so the
+    # page cost is ~zero; paging must never break the cycle.
+    if result.opened > 0:
+        try:
+            import notify
+
+            notify.send(
+                "REAL-BOOK ENTRY",
+                f"{result.opened} position(s) submitted/opened this cycle "
+                f"(ids {result.opened_ids}) — run #{run_id}.",
+            )
+        except Exception:  # noqa: BLE001 — paging must never break the cycle
+            log.warning("entry page failed to send")
     return result
 
 

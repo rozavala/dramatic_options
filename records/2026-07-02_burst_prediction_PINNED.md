@@ -158,7 +158,11 @@ not explained away):**
 
 **Context:** L1 #406 graded `ROUNDTRIP_CONFIRMED` (0/12 proposer parse-fail, 9 roundtrips,
 6 reasoned strategist abstentions, $0.198); real cycle evaluated=0 opened=0 — the real book
-stays (correctly) empty. **Vintage 2a = tonight's 5-name cohort in both cap-ON books.** As
+stays (correctly) empty. *[ERRATUM 2026-07-04: the "stays empty" clause was FALSE at write
+time — the real book's first-ever position (PL, L1 #389) had been open since 2026-07-01
+20:00 UTC; #406's evaluated=0/opened=0 was true of that cycle only. See
+`records/2026-07-04_first_real_entry_ERRATUM.md`.]* **Vintage 2a = tonight's 5-name cohort
+in both cap-ON books.** As
 pinned, the arm now RE-CENSORS at the book cap ($49 shadow headroom) — the (iii)-COMPLETE
 relief (picked pre-burst, above) activates after this grade; vintage 2b opens at the Fri
 2026-07-03 L1, expected to book the remaining cheap union names incl. PAAS.
