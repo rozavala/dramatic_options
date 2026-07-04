@@ -58,7 +58,7 @@ def pick_contract(chain, *, underlying_price: float, budget: float,
             continue
         if ask * CONTRACT_MULTIPLIER > budget:
             continue
-        if best is None or ask < float(getattr(best, "ask")):
+        if best is None or ask < float(best.ask):
             best = c
     return best
 
@@ -96,8 +96,9 @@ def run_roundtrip(broker, *, contract_symbol: str, buy_limit: float, sell_limit:
             broker.cancel_order(fill.order_id)
         return None
 
-    from broker import make_client_order_id
     import datetime as _dt
+
+    from broker import make_client_order_id
     today = _dt.date.today().isoformat()
 
     buy_px = _await_fill(
