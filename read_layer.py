@@ -258,7 +258,7 @@ def mandate_ledger(conn: sqlite3.Connection, *, match_td: int = MATCH_TD) -> dic
                                        m["exit_reason"]))
             else:
                 acc["unresolved"] += 1
-    for v, acc in variants.items():
+    for acc in variants.values():
         n_set = len(acc["set"])
         n_matched = acc["matched_by_vintage"]["v1_2a"] + acc["matched_by_vintage"]["v2b"]
         acc["n_set"] = n_set
