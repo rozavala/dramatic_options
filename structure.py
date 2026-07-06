@@ -69,6 +69,15 @@ def contract_eligible(
     return (not reasons, tuple(reasons))
 
 
+def occ_root(contract_symbol: str) -> str:
+    """The OCC option root: everything before the fixed 15-char tail (YYMMDD + C/P + 8-digit
+    strike). A root that differs from the underlying ticker (e.g. ``CDE2``) is a
+    corporate-action-ADJUSTED class: non-standard deliverables (a different payoff object —
+    calibration finding #3) and unquotable on the loop's underlying-keyed endpoints (the
+    2026-07-06 3A/CDE2 mark failure)."""
+    return str(contract_symbol)[:-15].upper()
+
+
 def select_structure(
     chain: list[Contract],
     *,
@@ -79,9 +88,16 @@ def select_structure(
     tenor_max_days: int,
     target_moneyness: float,
     eligibility: Callable[[Contract], tuple[bool, tuple[str, ...]]],
+    underlying_symbol: str | None = None,
 ) -> tuple[Structure | None, tuple[str, ...]]:
     """Pick the defined-risk long option closest to the target OTM strike within the tenor
-    window, among eligible contracts. Returns (Structure, ()) or (None, reasons)."""
+    window, among eligible contracts. Returns (Structure, ()) or (None, reasons).
+
+    ``underlying_symbol`` (pass it everywhere a symbol is known): contracts whose OCC root ≠
+    the underlying ticker are EXCLUDED — adjusted classes carry non-standard deliverables (the
+    gate/sizing math would price the wrong payoff object) and fail downstream quote lookups.
+    Booked 3A/CDE2 on 2026-07-06 before this guard existed; real-book-relevant (an adjusted
+    class must never reach a real order)."""
     kind = DIRECTION_KIND.get(direction)
     if kind is None:
         return None, (f"bad_direction:{direction}",)
@@ -98,6 +114,8 @@ def select_structure(
     for c in chain:
         if c.kind != kind:
             continue
+        if underlying_symbol and occ_root(c.symbol) != underlying_symbol.upper():
+            continue  # adjusted class (root ≠ ticker) — wrong payoff object, never selectable
         dte = (c.expiry - as_of).days
         if dte < tenor_min_days or dte > tenor_max_days:
             continue

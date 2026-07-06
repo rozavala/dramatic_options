@@ -172,7 +172,14 @@ def monitor_positions(
             continue
 
         # 2. Mark to current mid.
-        mid = quote_provider.option_mid(pos["contract_symbol"])
+        try:
+            mid = quote_provider.option_mid(pos["contract_symbol"])
+        except Exception as e:  # noqa: BLE001 — per-POSITION fail-soft (the 2026-07-06 CDE2
+            # lesson, applied to the REAL book too): one unquotable row must not abort the
+            # monitor pass over every other real position.
+            log.warning("mark failed for #%d %s: %s", pid, pos["contract_symbol"], e)
+            res.unmarked += 1
+            continue
         if mid is None:
             res.unmarked += 1
             log.warning("no quote to mark #%d %s — left unmarked", pid, pos["contract_symbol"])

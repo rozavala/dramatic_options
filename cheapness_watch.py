@@ -120,6 +120,7 @@ def _record_one(conn, row, *, provider, gate, elig, rv_window, as_of, as_of_iso,
 
     structure, _reasons = select_structure(
         chain, direction=row["direction"], as_of=as_of.date(), underlying_price=underlying_price,
+        underlying_symbol=symbol,
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)),
