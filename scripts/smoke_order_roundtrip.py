@@ -187,10 +187,14 @@ def main(argv=None) -> int:
             return 2
         from config_loader import require_alpaca_credentials
         from convexity_data import AlpacaChainProvider
+        from data.alpaca_client import AlpacaClient
+        from feeds import to_equity_feed, to_option_feed
         api_key, secret_key = require_alpaca_credentials(config)
+        df = config.get("data_feed", {})
         provider = AlpacaChainProvider(
-            api_key, secret_key,
-            option_feed=config.get("data_feed", {}).get("option_gate", "indicative"))
+            AlpacaClient(api_key, secret_key, paper=True),
+            equity_feed=to_equity_feed(df.get("equity_bars", "iex")),
+            option_feed=to_option_feed(df.get("option_gate", "indicative")))
         px = provider.underlying_price(args.symbol)
         c = pick_contract(provider.chain(args.symbol), underlying_price=px, budget=budget)
         if c is None:
