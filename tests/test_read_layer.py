@@ -10,7 +10,6 @@ import pytest
 import read_layer as rl
 import state
 
-
 # ── §1 leg-aware band ────────────────────────────────────────────────────────────────────────────
 
 
