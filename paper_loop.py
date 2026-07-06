@@ -296,6 +296,7 @@ def _process_theme(
         direction=theme.direction,
         as_of=as_of,
         underlying_price=underlying_price,
+        underlying_symbol=theme.symbol,
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)),

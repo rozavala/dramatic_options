@@ -224,6 +224,7 @@ def _eval_and_book(
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
+        underlying_symbol=theme.symbol,
     )
     if structure is None:
         return "no_structure", None
@@ -311,7 +312,14 @@ def mark_shadow_positions(
             continue
 
         # 2. Mark to current mid.
-        mid = quote_provider.option_mid(pos["contract_symbol"])
+        try:
+            mid = quote_provider.option_mid(pos["contract_symbol"])
+        except Exception as e:  # noqa: BLE001 — per-POSITION fail-soft (the 2026-07-06 CDE2
+            # lesson): one unquotable row must not abort the pass tail or page every cycle.
+            log.warning("shadow mark failed for %s (%s): %s", pos["symbol"],
+                        pos["contract_symbol"], e)
+            res.unmarked += 1
+            continue
         if mid is None:
             res.unmarked += 1
             continue

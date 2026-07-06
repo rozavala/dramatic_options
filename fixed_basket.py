@@ -211,6 +211,7 @@ def _eval_and_book_nogate(
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
+        underlying_symbol=theme.symbol,
     )
     if structure is None:
         return "no_structure", None
@@ -326,6 +327,7 @@ def _eval_and_book_3b(
         chain, direction=direction, as_of=as_of, underlying_price=underlying_price,
         tenor_min_days=int(gate.get("tenor_min_days", 180)), tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
+        underlying_symbol=sym,
     )
     if structure is None:
         return "no_structure"
@@ -384,7 +386,14 @@ def mark_fixed_basket_positions(
             res.closed += 1
             continue
 
-        mid = quote_provider.option_mid(pos["contract_symbol"])
+        try:
+            mid = quote_provider.option_mid(pos["contract_symbol"])
+        except Exception as e:  # noqa: BLE001 — per-POSITION fail-soft: one unquotable row (the
+            # 2026-07-06 CDE2 adjusted-class defect) must not abort the pass tail or page every L2.
+            log.warning("3A/3B mark failed for %s (%s): %s", pos["symbol"],
+                        pos["contract_symbol"], e)
+            res.unmarked += 1
+            continue
         if mid is None:
             res.unmarked += 1
             continue

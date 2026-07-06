@@ -47,6 +47,7 @@ def shadow_gate_eval(provider, *, symbol: str, direction: str, rv, underlying_pr
     s, why = select_structure(
         chain, direction=direction, as_of=datetime.now().astimezone().date(),
         underlying_price=underlying_price,
+        underlying_symbol=symbol,
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)),
