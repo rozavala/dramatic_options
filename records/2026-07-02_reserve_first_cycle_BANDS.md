@@ -65,3 +65,42 @@ the reserve rotates by least-recently-judged, the §4 steady state.
    (~11 incl. PAAS — PAAS *books* Monday even though it isn't *judged* until ~Tuesday; booking
    and judgment are different channels by design).
 2. **The reserve's first cycle** (this record): HARD falsifiers + the modal cohort above.
+
+---
+
+## ACTUAL (appended 2026-07-06 post-run — L1 #441, 19:45:15→19:48:15 UTC)
+
+**Verdict: CONFIRMED on every layer — the third consecutive exact-modal composition hit.**
+
+**[1] The reserve's first cycle — all four HARD falsifiers PASS, modal cohort EXACT:**
+- `Cheap-reserve` fired, judged set = **12**, `union_rank: cheap_reserve_v1` stamped, the three
+  prompt-shas byte-identical (d96f18…/dc3d21…/ecbf36…), `selection` on every proposal
+  (0 unlabeled).
+- Reserve cohort = **IRDM / FRO / RDW** — the modal trio exactly (the Sun L0 did not reshuffle,
+  as re-verified pre-run). Displacement per the pinned arithmetic.
+- **Includes = 0 (band 0–1, healthy).** The §5 value claim realized on cycle 1: **IRDM — the
+  cheapest gate read in the pool (iv/rv 0.589) — received a full deliberation and was rejected
+  legibly**: LOW, include=False, `under_narrated=False ∧ at_inflection=False`, weakest-point
+  quoting DECELERATING fundamentals (TTM +4.0%, Q/Q +1.9%, accel −0.047) — "cheap for a
+  reason," on the record, instead of never judged. FRO/RDW deliberated NEUTRAL.
+- Cost $0.14, 0/12 parse-fail, `ROUNDTRIP_CONFIRMED`.
+
+**[2] Vintage 2b (the re-dated FBN §4 expectation: ~11 more bookings incl. PAAS):**
+- Shadow booked **13** (≈ the ~11 modal; the Sun L0 refresh + quote drift account for the
+  spread): UEC AMSC ERO NNE FLY ATKR FRO KTOS RDW TGB LUNR **PAAS** SMR — **PAAS booked at
+  attempt #32, $308/contract**, individually visible in the migration-0018 telemetry on its
+  first live outing. 3A booked the same 13 **+ CDE** (the gate-off extra, exactly the expected
+  class). Shadow book now 25 open / $21,150 — beyond the old $10k cap, per the activated
+  (iii)-COMPLETE relief; residual vetoes are per-name-cap `sizing` (6) and `not_cheap` (5,
+  gate-arm only) — **the arm's binding constraint is now the market, the intended steady
+  state.**
+- **UROY's veto is now attributable observation, not inference**: attempt #34,
+  `no_structure`, premium NULL — closing the exact gap the 2026-07-02 grade recorded honestly.
+
+**[3] PL/council:** PL open, marked $660.50 (−4.3%), 198 DTE; judged NEUTRAL again tonight
+(rank-selected); no new includes (`above_floor=0`).
+
+**Standing after tonight:** the anti-quietness bias's 4th point is CLOSED operationally — every
+gate-cheap union name now either books (null arms) or rotates through judgment (the reserve;
+HL/ATKR/PAAS expected ~cycle 2). The prediction-grading streak (burst modal-5 exact → holiday
+no-op exact → reserve trio exact) is the diagnostic chain compounding.
