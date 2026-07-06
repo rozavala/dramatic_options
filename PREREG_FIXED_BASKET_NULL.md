@@ -182,6 +182,12 @@ resolved in ANY book at activation** (outcome-blind; earliest resolutions ~Nov 2
 
 ## 5. The metric + the read (the HARKing surface — pinned now, blind)
 
+> *[Dated pointer, 2026-07-06: the frozen READ-LAYER pins
+> (`records/2026-07-04_read_layer_pins_PREREG_DRAFT.md`, FROZEN 2026-07-04 v3, implemented in
+> `read_layer.py`) COMPOSE with this section: the §1 leg-aware fill-realism band, the §2
+> cluster-blocked bootstrap CIs, the §3 resolution calendar + minimum-n floor, and the §4
+> counterfactual-mandate ledger. Nothing below is edited.]*
+
 **Unit of comparison: the per-position realized-multiple TAIL** (reuse `shadow_book.tail_summary` /
 `tail_report`), per book and per origin (hand_seed / sentinel). The **tail**, not the mean — a convex
 book's value is in the tail; the mean reads negative while the book works (most expire worthless).
