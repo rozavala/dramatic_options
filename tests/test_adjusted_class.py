@@ -6,6 +6,12 @@ sizing math would misprice, and unquotable on underlying-keyed endpoints (every 
 then failed + paged). Two fixes under test: ``select_structure`` excludes adjusted roots when
 ``underlying_symbol`` is passed (all seven library call sites pass it, including the REAL
 book's), and one unquotable row can no longer abort a mark pass.
+
+2026-07-07 residual (the dual-read material-flip page, run #458): the gate's ATM estimator was
+the remaining unfiltered chain reader — ``atm_iv`` picked ``CDE1270115C00017000`` (iv 2.74,
+nearest CDE's 16.04 spot) over the standard ``CDE270115C00015000`` (iv 0.70), reading iv_rv
+4.00 / skew −222vp on a clean ~0.98 name. ``atm_iv``/``is_cheap_convexity`` now restrict the
+ATM peer to the wing's own OCC class.
 """
 
 from __future__ import annotations
@@ -19,6 +25,7 @@ import risk
 import shadow_book
 import state
 from clock import FixedClock
+from convexity_gate import atm_iv, is_cheap_convexity
 from structure import contract_eligible, occ_root, select_structure
 
 AS_OF = date(2026, 7, 6)
@@ -63,6 +70,46 @@ def test_adjusted_class_never_selected_even_when_nearest():
                              tenor_min_days=180, tenor_max_days=365, target_moneyness=0.25,
                              eligibility=_elig)
     assert s3 is not None and s3.contract.symbol == "CDE2270115P00012000"
+
+
+class _IvC(_C):
+    def __init__(self, symbol, kind, expiry, strike, iv):
+        super().__init__(symbol, kind, expiry, strike, bid=1.0, ask=1.1)
+        self.iv = iv
+
+
+def _cde_chain():
+    """The live-confirmed 2026-07-07 CDE shape: an adjusted-class call NEAREST the 16.04 spot
+    with a garbage 274% IV, the clean standard-class ATM one strike further out at 70%."""
+    exp = date(2027, 1, 15)
+    return [
+        _IvC("CDE1270115C00017000", "C", exp, 17.0, 2.7433),  # adjusted, nearest spot
+        _IvC("CDE270115C00015000", "C", exp, 15.0, 0.7014),   # standard ATM-of-record
+        _IvC("CDE270115C00020000", "C", exp, 20.0, 0.5197),   # the wing
+    ]
+
+
+def test_atm_iv_root_filter_excludes_adjusted_class():
+    chain = _cde_chain()
+    exp = date(2027, 1, 15)
+    # Root-filtered: the standard 15C wins even though the adjusted 17C is nearer the money.
+    assert atm_iv(chain, 16.04, "C", exp, root="CDE") == pytest.approx(0.7014)
+    # Unfiltered (root=None) reproduces the defect — pinned so the contrast stays visible.
+    assert atm_iv(chain, 16.04, "C", exp) == pytest.approx(2.7433)
+    # Only adjusted contracts at the expiry → fail-closed None, not a cross-class read.
+    assert atm_iv(chain[:1], 16.04, "C", exp, root="CDE") is None
+
+
+def test_gate_uses_wing_class_for_atm():
+    # End-to-end on the live-confirmed numbers: with the polluted contract in the chain the
+    # gate must still read the CLEAN iv_rv/skew (ATM restricted to the wing's own class).
+    chain = _cde_chain()
+    wing = chain[2]  # CDE270115C00020000, standard class
+    v = is_cheap_convexity(chain, underlying_price=16.04, wing=wing, rv=0.6858,
+                           iv_rv_max=1.2, otm_skew_max_volpts=10.0)
+    assert v.atm_iv == pytest.approx(0.7014)                 # not 2.7433
+    assert v.iv_rv_ratio == pytest.approx(1.0228, abs=1e-3)  # not 4.00
+    assert v.otm_skew_volpts == pytest.approx(-18.17, abs=0.1)  # not -222
 
 
 def test_mark_pass_survives_one_unquotable_row(convexity_db, monkeypatch):

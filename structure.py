@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 
-from convexity_gate import Contract
+from convexity_gate import Contract, occ_root
 from options_tradability import spread_pct
 
 DIRECTION_KIND = {"bullish": "C", "bearish": "P"}
@@ -69,13 +69,9 @@ def contract_eligible(
     return (not reasons, tuple(reasons))
 
 
-def occ_root(contract_symbol: str) -> str:
-    """The OCC option root: everything before the fixed 15-char tail (YYMMDD + C/P + 8-digit
-    strike). A root that differs from the underlying ticker (e.g. ``CDE2``) is a
-    corporate-action-ADJUSTED class: non-standard deliverables (a different payoff object —
-    calibration finding #3) and unquotable on the loop's underlying-keyed endpoints (the
-    2026-07-06 3A/CDE2 mark failure)."""
-    return str(contract_symbol)[:-15].upper()
+# occ_root moved to convexity_gate (this module imports from it; the gate's ATM estimator needs
+# the root filter too — the 2026-07-07 CDE1/CDE2 ATM-pollution fix). Re-exported via the import
+# above for the existing structure.occ_root callers.
 
 
 def select_structure(
