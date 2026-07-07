@@ -35,3 +35,42 @@ if it still qualifies).
 nearest-to-target wing happened to be an adjusted class would have produced a REAL order on a
 non-standard deliverable. The null book found the landmine first — the control arms doing
 exactly their job.
+
+---
+
+## 2026-07-07 residual — the gate's ATM estimator was the remaining unfiltered chain reader
+
+**Found by the dual-read flip wire, not by chance:** the 19:45 UTC L1 (#458) post-entries sweep
+paged `material cheap-flip` on CDE — OPRA read iv_rv **4.0005** / otm_skew **−222.4vp**
+(cheap=0) while INDICATIVE read **0.9756** / **−1.4vp** (cheap=1) on the same wing
+(`CDE270115C00020000`). Live chain forensics (after close, quotes present, roots inspectable):
+the CDE chain carries **three OCC roots — CDE (536), CDE2 (160), CDE1 (14)** — and at the wing
+expiry the nearest-the-money call to the 16.04 spot is **`CDE1270115C00017000` iv=2.7433
+(274%)**, an adjusted class, vs the standard `CDE270115C00015000` iv=0.7014. `convexity_gate.
+atm_iv()` scanned the raw chain (no root filter), so the OPRA arm's ATM-of-record was the CDE1
+garbage IV: 2.7433/RV 0.686 = **iv_rv 4.0005 exactly**, skew (0.52−2.74)×100 ≈ **−222vp
+exactly**. The INDICATIVE feed carried no IV for that contract → its nearest-with-IV was the
+standard class → the clean 0.976 read → the disagreement → the page. (#160 guarded
+`select_structure`; the ATM estimator reads the chain independently and was missed.)
+
+**Pollution is bidirectional and touched a second surface:** the same run's cheapness-watch row
+for CDE (put side, spot 16.04) read **iv_rv 0.403 / atm_iv 0.2946** against RV 0.73 — an
+adjusted-class put with an implausibly LOW IV won the nearest-the-money scan, halving the
+recorded iv_rv. That row feeds `state.gate_cheap_reads` = the reserve's §4 ranking substrate
+(CDE stayed out of the reserve pool only because the +40.8vp skew leg — itself an artifact of
+the same polluted ATM — read cheap=0). Both directions happened to fail closed here; neither is
+guaranteed to (a mid-range polluted ATM could pass both legs).
+
+**Fix (same-night, the #160 idiom):** `occ_root` moved into `convexity_gate` (import direction;
+`structure` re-exports it) and `atm_iv()` gains a `root` filter, threaded by
+`is_cheap_convexity` as the WING's own OCC class — zero call-site changes, so every consumer
+(real gate `paper_loop`, shadow, dual-read sweep, cheapness watch, probe scripts) inherits the
+clean read. Regression tests pin the live-confirmed numbers (unfiltered read reproduces 2.7433;
+filtered reads 0.7014 / iv_rv 1.023 / skew −18.2vp). 846 tests.
+
+**Verification watch (post-deploy):** the next sweeps (Wed 07-08 L2/L1) should show CDE's two
+arms re-agreeing near iv_rv ≈ 0.98–1.0 and the flip wire quiet; the cheapness-watch CDE row
+should read atm_iv ≈ 0.70-class, not 0.29. **Bearing on the 2026-07-10 dual-read lapse:
+none against lapsing** — this flip class was a code artifact one arm happened to expose, not
+feed-quality divergence; the wire's job here (surface a bad read before anything trades on it)
+is exactly what it did, and the guard now removes the class at the source.
