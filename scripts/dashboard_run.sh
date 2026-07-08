@@ -23,5 +23,8 @@ for _ in $(seq 1 12); do                       # ~60s (12 × 5s)
 done
 [ -n "$ADDR" ] || { echo "dashboard_run: no Tailscale IPv4 after ~60s — refusing to bind (no wildcard fallback)" >&2; exit 1; }
 
-exec venv/bin/streamlit run dashboard.py \
+# ABSOLUTE app path: the sibling real_options deploy runs `pkill -f "streamlit run dashboard.py"`, which
+# matches any repo's relative-path invocation (observed collateral kill 2026-07-08). With the absolute path
+# our cmdline no longer contains that substring, so an unqualified sibling pattern cannot hit this process.
+exec venv/bin/streamlit run "$PWD/dashboard.py" \
     --server.address "$ADDR" --server.port 8601 --server.headless true
