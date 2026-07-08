@@ -111,7 +111,9 @@ def test_dashboard_service_is_a_keyless_longrunning_render_template():
     text = path.read_text()
     assert cp["Service"]["Type"] == "simple"  # long-running, NOT oneshot
     assert cp["Service"]["ExecStart"] == "__REPO_ROOT__/scripts/dashboard_run.sh"
-    assert cp["Service"]["Restart"] == "on-failure"
+    # `always`: an external SIGTERM (sibling deploy pkill, 2026-07-08) is an exit-0 → on-failure left it
+    # dead; `always` self-heals external kills while an explicit `systemctl stop` stays respected.
+    assert cp["Service"]["Restart"] == "always"
     # StartLimit lives in [Unit] (modern systemd); tuned so a persistent failure trips to `failed`.
     assert cp["Unit"]["StartLimitIntervalSec"] == "900"
     assert cp["Unit"]["StartLimitBurst"] == "5"
@@ -128,6 +130,9 @@ def test_dashboard_wrapper_is_tailnet_failclosed_on_8601():
     assert os.access(WRAPPER, os.X_OK), "dashboard_run.sh must be committed executable"
     w = WRAPPER.read_text()
     assert "--server.port 8601" in w  # our 86xx block (real_options holds 85xx: 8501 Streamlit / 8502 console)
+    # ABSOLUTE app path — the cmdline must not contain the substring `streamlit run dashboard.py`, which the
+    # sibling real_options deploy pkills unqualified (the 2026-07-08 collateral kill).
+    assert 'streamlit run "$PWD/dashboard.py"' in w
     assert "tailscale" in w and "ip -4" in w  # resolves the per-box tailnet IP at start
     assert "0.0.0.0" not in w  # fail-closed: never a public-interface fallback
     assert "exit 1" in w  # fail-closed when no tailnet IP

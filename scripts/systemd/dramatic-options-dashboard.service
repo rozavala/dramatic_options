@@ -26,7 +26,10 @@ WorkingDirectory=__REPO_ROOT__
 Environment=PYTHONUNBUFFERED=1
 Environment=DRAMATIC_SKIP_DOTENV=1
 ExecStart=__REPO_ROOT__/scripts/dashboard_run.sh
-Restart=on-failure
+# `always`, not `on-failure`: Streamlit exits 0 on an external SIGTERM (graceful shutdown), so on-failure
+# left the unit DEAD after a sibling deploy's broad pkill (observed 2026-07-08). `always` self-heals any
+# external kill; an operator `systemctl stop` is still respected (systemd never auto-restarts an explicit stop).
+Restart=always
 RestartSec=10
 
 [Install]
