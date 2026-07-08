@@ -74,3 +74,22 @@ should read atm_iv ≈ 0.70-class, not 0.29. **Bearing on the 2026-07-10 dual-re
 none against lapsing** — this flip class was a code artifact one arm happened to expose, not
 feed-quality divergence; the wire's job here (surface a bad read before anything trades on it)
 is exactly what it did, and the guard now removes the class at the source.
+
+## 2026-07-08 verification — CONFIRMED at L1 #475 (watch CLOSED)
+
+Both predictions landed exactly. **Dual-read CDE:** opra iv_rv **0.9787** / indicative
+**0.9711**, both cheap=1 on the same standard-class wing `CDE270115C00020000`, skews
+−0.29/−0.01vp — arms re-agreeing, flip wire quiet, no page. **Cheapness-watch CDE:** contract
+`CDE270115P00012500`, **atm_iv 0.708** (vs 0.2946 polluted at #458 / 0.2704 CDE2-selected at
+#441), iv_rv 0.969, cheap=1 — the 0.70-class read the regression fixture pinned.
+
+**Consequence, not just quiet:** with the true read, the CDE Jan-27 12.5 put entered the
+brain-off shadow book same-run (6 × $152.50, origin=sentinel) — pre-fix, the polluted ATM had
+been silently gate-blocking CDE from the null books. The three-run cheapness-watch progression
+(0.372 CDE2-contract → 0.403 polluted-ATM → 0.969 clean) is the defect's full arc on one
+surface. **2026-07-10 lapse bearing unchanged: LET IT LAPSE.**
+
+Logged for completeness (unrelated class): VRT's first-ever boundary straddle — opra 1.2004
+(cheap=0) vs indicative 1.1865 (cheap=1), |Δ|=0.014 at the 1.2 threshold, first flip in its
+last 5 runs. OPRA-is-record disposes (not cheap → no entry either book); the rolling-5
+materiality wire owns recurrence.
