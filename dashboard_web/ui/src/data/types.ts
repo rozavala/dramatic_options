@@ -103,11 +103,29 @@ export interface Snapshot {
   cost?: { l0_framer_usd: number; l1_council_usd: number; cumulative_usd: number };
   deliberation?: DeliberationRow[];
   cap_flow?: { cluster_cap_rejections_of_passing: number; tightening_note: string };
+  reserve?: ReservePanel;
+  null_attempts?: NullAttempts;
   regime?: unknown;
   curation?: unknown;
   cheapness?: CheapnessPanel;
   _fatal?: string;
 }
+
+// reserve_panel: judged-set provenance (PREREG gate_cheap_reserve §6) — which judged names came via the
+// RESERVE (gate-cheap, salience-truncated) vs the motion RANK. Stamp absent + all-unlabeled = reserve OFF
+// or a pre-deploy run: the UI renders "off", it never invents provenance.
+export interface ReserveSlot { symbol: string; conviction: string | null; status: string | null }
+export interface ReservePanel {
+  run_id: number | null; stamp: string | null;
+  reserve: ReserveSlot[]; rank: ReserveSlot[]; unlabeled: ReserveSlot[];
+}
+// null_attempts_panel (migration 0018): every candidate each capped null book touched last cycle, in walk
+// order, with the terminal outcome + premium-at-attempt — the per-name attribution surface.
+export interface NullAttemptRow {
+  book: string; attempt_idx: number; symbol: string; direction: string | null;
+  origin: string | null; outcome: string | null; entry_premium_per_contract: number | null;
+}
+export interface NullAttempts { run_id: number | null; books: Record<string, { rows: NullAttemptRow[] }> }
 
 // cheapness-watch (finding #1): the §7.1 verdict + counts + per-name latest cheap state (PREREG_CHEAPNESS_WATCH).
 export interface CheapnessPanel {
@@ -182,6 +200,10 @@ export interface DualReadRuntimeVM {
   paging: string[]; suppressed: string[];   // debounce split across the debounced classes (name (class))
 }
 export interface DeliberationVM { runId: number | null; rows: { symbol: string; dir: string | null; adversary: string | null; conviction: string | null }[] }
+export interface ReserveSlotVM { symbol: string; conviction: string; status: string; via: "reserve" | "rank" | "unlabeled" }
+export interface ReserveVM { runId: number | null; stamp: string | null; slots: ReserveSlotVM[] }
+export interface AttemptRowVM { idx: number; symbol: string; origin: string; outcome: string; premium: number | null }
+export interface AttemptsVM { runId: number | null; books: { book: string; rows: AttemptRowVM[] }[] }
 
 export interface ViewModel {
   asOf: string; level: Level; headline: string; sub: string;
@@ -203,6 +225,8 @@ export interface ViewModel {
   dualreadRuntime: DualReadRuntimeVM;  // #72 — the §5 dual-read runtime view (per-class verdict + revert latch)
   nulls: NullStepVM[];                 // C — the null hierarchy contrasts
   deliberation: DeliberationVM;        // C — latest run's per-name reasoning
+  reserve: ReserveVM;                  // C — judged-set provenance (the gate-cheap reserve)
+  attempts: AttemptsVM;                // C — the null-book entry walk (migration 0018)
   capFlow: { rejected: number; note: string };  // C — cluster-cap rejections of otherwise-passing
   clusters: ClusterVM[];
   perf: {
