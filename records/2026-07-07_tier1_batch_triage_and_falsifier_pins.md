@@ -128,3 +128,30 @@ council judgment (reserve/rank) and the meter re-reads each cycle; no forced act
 3. Gemini proposer JSON-malformation rate: 2 in ~30 calls today (RKLB at L1 #458, KMT probe call 1)
    — both failed closed correctly; if Wed's L1 degrades further the parse-fail page owns it.
 4. TROX/CLFD/TITN re-score triggers as pinned above — print-anchored, not calendar-forced.
+
+## 2026-07-08 mid-session re-screen (19:49 UTC, market open) — watch #1 discharged
+
+Live-quote answers to the after-hours provisional reads:
+
+- **TROX — band-fit answered NO (the read that mattered).** One contract fits the cap ($320)
+  but the eligible wing is the $3 strike at **−49.9% achieved OTM** (deep-ITM fallback) — the
+  15–35% band stays CLOSED with live quotes. TROX stays STAGED on its print-anchored falsifiers
+  (F-a/b/c unchanged); no §3 off-cycle path exists today (the window-#2 warrant needs in-band
+  cap-fit ∧ council under_narrated — both legs currently fail). Expression currently dead.
+- **CLFD, TITN, LNN, HTLD, MRTN, CNR — `no_eligible_contract_in_tenor_window` MID-SESSION →
+  the provisional expression fails are FINAL.** CLFD ("best profile in batch") and TITN join
+  KRO in expression-dead: thesis staged, falsifiers pinned, no chain to express in.
+- **ADTN — full PASS live: $192/contract, +24.6% achieved OTM in-band, cluster-fittable.** The
+  BEAD basket's expression leg is ADTN, not CLFD — staging order inverts on expressibility
+  (the fifth bias measured within one basket: the 4-analyst name has no eligible chain; the
+  9-analyst name does).
+- **KMT — the after-hours read REVERSED against it live:** $1,370 > the $1,000 cap and −39.4%
+  ITM fallback (call-side probe; the put side would need its own pull). Parked on the channel
+  wall regardless — but the instrument lesson generalizes: **the after-hours caveat is
+  BIDIRECTIONAL** (thin-chain off-hours reads can be optimistic as well as pessimistic; KMT's
+  07-07 "$400 fits, +4.9% below band" was the optimistic direction).
+- WNC fits but −39.6% ITM (band fail) — moot; the currency kill stands (watch #2 still open,
+  cosmetic). PTSI: no underlying price even live — dead, FINAL.
+
+Watch #3 note: L1 #475 (same session) ran `council_health='ok'` — 12/12 parsed, zero
+malformations; the watch stays monitor-only.
