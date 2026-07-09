@@ -1,11 +1,19 @@
 # PREREG — Forward-Catalyst Grounding Channel
 
-**STATUS: DRAFT v3 (2026-07-09) — NOT FROZEN. This document binds nothing.** Held open for the
-operator's per-section word (TRUE-form ratification; merge = freeze; build separately gated on a
-fresh go after freeze).
+**STATUS: DRAFT v3.1 (2026-07-09) — NOT FROZEN. This document binds nothing.** Held open for
+the operator's per-section word (TRUE-form ratification; merge = freeze; build separately gated
+on a fresh go after freeze).
 
 ## §0.5 Revision log
 
+- **v3.1 (2026-07-09):** advisor round 4 closed with **zero P1s and zero P2s** ("ratification-
+  ready"); the three optional P3s folded in pre-freeze since one touches the pinned rule:
+  (iii)-pins-the-floor clause (a lone flip never vetoes a strong cited-not-now signal — the
+  operator may open the (ii) pre-registration discretionarily, dated, even under (iii));
+  `reverse_conversion_n` counter (the one channel-HARM signature — deliberation→abstention —
+  now visible in telemetry, no rule effect); cite-token distinctiveness pinned as a build
+  requirement (full ISO dates / multi-digit figures, bare years excluded — a false-positive
+  cite misroute is bounded by (ii) being operator-gated, but the build must not invite it).
 - **v3 (2026-07-09):** advisor red-team round 3 — a surgical §8 pass (the advisor ratified
   §0–§7 and §9–§10 as stable across two rounds; only §8 + one §9.5 clause changed). The blocker:
   v2's flip definition (at_inflection value change only) and disposition semantics collided with
@@ -144,7 +152,9 @@ candidate, each dated per the §2 schema. Stamp `corpus:forward_catalyst_v1` int
 register candidates only**; sentinel grounding stays byte-unchanged (the §6 framer leash holds).
 
 **Anti-silent-dormancy counters (the event-leg precedent):** per cycle, `rendered_n / expired_n
-/ malformed_n / stale_flagged_n` for the block, stamped into `runs.note` telemetry. A
+/ malformed_n / stale_flagged_n / reverse_conversion_n` for the block, stamped into `runs.note`
+telemetry (`reverse_conversion_n` — §8's flip detector, reverse direction — is telemetry only,
+never a rule input). A
 "channel-grounded judgment" for any denominator in this document means **the block actually
 rendered** — configured-but-withheld never counts.
 
@@ -223,7 +233,17 @@ and:**
 - **cite** := ≥1 **block-derived token** present in the rationale text — the item's dates and
   figures, detected by the same tokenizer the §3 authenticity-filter extension carries. This ONE
   detector serves both F-a's cite-count and F-c's "includes citing the dated catalysts" — two
-  informal rationale-checks would drift apart; one definition cannot.
+  informal rationale-checks would drift apart; one definition cannot. **Build requirement
+  (token distinctiveness):** the cite set uses distinctive tokens only — full ISO dates and
+  multi-digit figures; bare years ("2026") and small integers are EXCLUDED (a false-positive
+  cite on an (a)/(c) pair would misroute (i)→(ii); the consequence is bounded — (ii) is
+  operator-gated with its own red-team — but the build must not invite it).
+
+**Completeness note (telemetry only):** the flip detector is one-directional by design; the
+reverse conversion — deliberation in the no-channel arm ∧ abstention in the CHANNEL arm (the
+block confusing rather than grounding a proposer) — is the one channel-HARM signature a flip
+count can't see. It is counted (`reverse_conversion_n`, §4) so the F-a record is complete in
+both directions; it changes no rule.
 
 **F-a (adjudicability), instrument = §6 paired-contrast flip-rate over the first M=8 eligible
 pairs. The decision rule at M is MECHANICAL (pinned now, no texture-reading after the data):**
@@ -231,7 +251,13 @@ pairs. The decision rule at M is MECHANICAL (pinned now, no texture-reading afte
 - **flips ≥ 1 → (iii) continue** — the channel is earning its keep (adjudicability). Stated
   honestly: each arm is one LLM sample, so a lone flip in 8 pairs can be sampling noise —
   flips ≥ 1 is a **survival** read (F-a screens for inertness), corrected downstream by the
-  segmented Brier/outcome record; it is not evidence of value;
+  segmented Brier/outcome record; it is not evidence of value. **(iii) pins the FLOOR, not a
+  ceiling:** the dispositions are mutually exclusive by precedence but the underlying states
+  are not — the channel can be earning its keep while the mandate is a wall for the
+  forward-dated subset (e.g. 1 flip + 6 cited-not-now (a)/(c) pairs). On a high cited-not-now
+  (a)/(c) count under (iii), the operator MAY open the (ii) pre-registration as a
+  discretionary, dated act; the mechanical rule never blocks that door — it only guarantees
+  the floor disposition fires without interpretation;
 - **flips = 0 ∧ cites ≥ 1 on (a)/(c) pairs → (ii) mandate escalation** — rationales cite a
   forward-dated catalyst yet read not-now under the sha-pinned wording ("the change is
   happening NOW"): the wall is the **mandate** and the channel *worked* as evidence delivery.
