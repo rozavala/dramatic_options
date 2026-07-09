@@ -3,6 +3,8 @@
 import json
 import random
 
+import pytest
+
 from council import agents
 from council.context import synthetic_context_pack
 from council.debate import run_candidate
@@ -19,6 +21,52 @@ BEAR = Theme("legacy_rollover", "XYZ", "bearish", "secular demand rollover not y
 def test_extract_json_handles_fences_and_prose():
     assert agents.extract_json('```json\n{"a": 1}\n```') == {"a": 1}
     assert agents.extract_json('Sure! {"a": {"b": 2}} done') == {"a": {"b": 2}}
+
+
+# ── extract_json bracket tail-repair (the gemini JSON-mode tail-mangling family, live
+#    runs #458/#491 2026-07-07/09: finish=STOP with the final '}' dropped, or a stray ']') ──
+
+def test_tail_repair_missing_final_brace():
+    # Run #491 (RKLB, AMSC): the complete object minus its closing '}' — natural STOP.
+    damaged = ('{\n  "confidence": "LOW",\n  "evidence_cited": [\n'
+               '    "momentum_12m +1.944",\n    "17 analyst(s) covering"\n  ]')
+    assert agents.extract_json(damaged) == {
+        "confidence": "LOW",
+        "evidence_cited": ["momentum_12m +1.944", "17 analyst(s) covering"],
+    }
+
+
+def test_tail_repair_stray_duplicate_closer():
+    # Run #458 (RKLB): a doubled ']' before the final '}' — braces balance, json.loads chokes.
+    damaged = '{\n  "confidence": "LOW",\n  "evidence_cited": [\n    "capex qtr_yoy -5.6%"\n  ]\n]\n}\n'
+    assert agents.extract_json(damaged) == {
+        "confidence": "LOW",
+        "evidence_cited": ["capex qtr_yoy -5.6%"],
+    }
+
+
+def test_tail_repair_never_touches_strings_and_valid_json_unchanged():
+    # Brackets/braces INSIDE strings are content, not structure — no repair path may alter them.
+    ok = '{"a": "closer } and ] inside", "b": [1, 2]}'
+    assert agents.extract_json(ok) == {"a": "closer } and ] inside", "b": [1, 2]}
+    # A damaged tail whose strings contain brackets still repairs on structure alone.
+    damaged = '{"a": "text with ] and } chars", "b": [1, 2]'
+    assert agents.extract_json(damaged) == {"a": "text with ] and } chars", "b": [1, 2]}
+
+
+def test_tail_repair_stays_bounded_and_fails_closed():
+    # Garbage is still garbage — the repair must not become a lenient parser.
+    with pytest.raises(ValueError):
+        agents.extract_json("no json here at all")
+    # An unterminated STRING is content damage, not bracket damage → original error re-raised.
+    with pytest.raises(ValueError, match="unbalanced"):
+        agents.extract_json('{"a": "never closed')
+    # More than 3 stray closers → beyond the bounded repair → the ORIGINAL error surfaces.
+    with pytest.raises(ValueError):
+        agents.extract_json('{"a": [1]]]]]')
+    # More than 4 missing closers → beyond the bounded repair.
+    with pytest.raises(ValueError, match="unbalanced"):
+        agents.extract_json('{"a": {"b": {"c": {"d": {"e": 1')
 
 
 def test_parsers_coerce_and_fail_closed():
