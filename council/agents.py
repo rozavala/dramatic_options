@@ -15,8 +15,11 @@ failure resolves to NEUTRAL (fail-closed — the candidate is dropped, never tra
 from __future__ import annotations
 
 import json
+import logging
 
 from council.proposal import normalize_conviction
+
+log = logging.getLogger(__name__)
 
 OPPOSITE = {"bullish": "bearish", "bearish": "bullish"}
 
@@ -71,34 +74,94 @@ STRATEGIST_SYSTEM = (
 
 
 def extract_json(text: str) -> dict:
-    """Pull the first balanced JSON object out of an LLM response. Raises ValueError on failure."""
+    """Pull the first balanced JSON object out of an LLM response. Raises ValueError on failure.
+
+    On a structurally damaged tail, one bounded bracket-level repair is attempted (see
+    ``_repair_tail``) — the gemini JSON-mode tail-mangling family observed live 2026-07-07/09
+    (runs #458/#491: a natural STOP with the final ``}`` dropped, or a stray duplicate ``]``).
+    A repaired object still passes through the caller's post-parse schema validation, so a bad
+    repair fails closed exactly like a parse failure."""
     if not text:
         raise ValueError("empty response")
     start = text.find("{")
     if start < 0:
         raise ValueError("no JSON object found")
-    depth = 0
+    try:
+        depth = 0
+        in_str = False
+        esc = False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+            else:
+                if ch == '"':
+                    in_str = True
+                elif ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return json.loads(text[start : i + 1])
+        raise ValueError("unbalanced JSON object")
+    except ValueError as err:  # json.JSONDecodeError subclasses ValueError
+        try:
+            obj = _repair_tail(text, start)
+        except ValueError:
+            raise err from None
+        log.warning("extract_json: bracket tail-repair succeeded (original error: %s)", err)
+        return obj
+
+
+def _repair_tail(text: str, start: int) -> dict:
+    """Bounded structural second chance for a bracket-damaged JSON tail.
+
+    Bracket-level ONLY: characters inside strings are never altered; at most 3 stray closing
+    brackets are dropped and at most 4 missing closers appended. Anything beyond that — or a
+    result ``json.loads`` still rejects — raises ValueError (the caller re-raises the ORIGINAL
+    error, so forensics keep the true signature)."""
+    out: list[str] = []
+    stack: list[str] = []
     in_str = False
     esc = False
-    for i in range(start, len(text)):
-        ch = text[i]
+    dropped = 0
+    for ch in text[start:]:
         if in_str:
+            out.append(ch)
             if esc:
                 esc = False
             elif ch == "\\":
                 esc = True
             elif ch == '"':
                 in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+            out.append(ch)
+        elif ch in "{[":
+            stack.append(ch)
+            out.append(ch)
+        elif ch in "}]":
+            if stack and stack[-1] == ("{" if ch == "}" else "["):
+                stack.pop()
+                out.append(ch)
+                if not stack:
+                    return json.loads("".join(out))
+            else:
+                dropped += 1  # stray closer (the doubled-']' shape) — drop it
+                if dropped > 3:
+                    raise ValueError("unrepairable: too many stray closers")
         else:
-            if ch == '"':
-                in_str = True
-            elif ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    return json.loads(text[start : i + 1])
-    raise ValueError("unbalanced JSON object")
+            out.append(ch)
+    if in_str or not stack or len(stack) > 4:
+        raise ValueError("unrepairable: tail damage exceeds the bounded repair")
+    out.extend("}" if b == "{" else "]" for b in reversed(stack))
+    return json.loads("".join(out))
 
 
 # ── Prompt builders ─────────────────────────────────────────────────────────────────────────
