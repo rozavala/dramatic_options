@@ -1,11 +1,24 @@
 # PREREG — Forward-Catalyst Grounding Channel
 
-**STATUS: DRAFT v2 (2026-07-09) — NOT FROZEN. This document binds nothing.** Held open for the
+**STATUS: DRAFT v3 (2026-07-09) — NOT FROZEN. This document binds nothing.** Held open for the
 operator's per-section word (TRUE-form ratification; merge = freeze; build separately gated on a
 fresh go after freeze).
 
 ## §0.5 Revision log
 
+- **v3 (2026-07-09):** advisor red-team round 3 — a surgical §8 pass (the advisor ratified
+  §0–§7 and §9–§10 as stable across two rounds; only §8 + one §9.5 clause changed). The blocker:
+  v2's flip definition (at_inflection value change only) and disposition semantics collided with
+  the round-2 eligibility split — the KMT-class pair (abstention → deliberation) could never
+  register as a flip, and a class-(d) cites-but-False pair misrouted to the mandate escalation
+  (a cost shock IS "now"; a False read on it is the council answering, not a mandate wall).
+  Fixed: flip := at_inflection value change ∨ abstention→deliberation conversion; disposition
+  (ii) restricted to (a)/(c) pairs. Also: "cites" OPERATIONALIZED (block-derived token present
+  in rationale, the §3 tokenizer — ONE detector shared by F-a and F-c, closing the drift);
+  class-(d) eligibility restated as "rendered" (freshness is enforced upstream by §3 expiry —
+  the v2 wording was a tautology); the single-sample-noise honesty line added (flips≥1 is a
+  survival read, value is proven downstream); §9.5 given an owner and a date (the operator
+  verifies the public-source iff as part of the freeze act).
 - **v2 (2026-07-09):** advisor red-team round 2. The one blocker was a **v1-introduced
   regression**: v1's horizon-eligibility rule (event_date inside the forward tenor) structurally
   blinded F-a to class (d) — the KMT case §0 leads with has no forward event date (the shock
@@ -194,24 +207,46 @@ and:**
   near-dated catalyst is the most at-inflection-now case the channel can carry (v1's "inside
   180–365d" wrongly excluded it). A catalyst beyond the horizon correctly read as not-now is
   out-of-sample — the council working is not channel failure.
-- **Class (d) (current-state):** eligible iff the item is **fresh** — unexpired at judgment
-  time. A published cost shock is by definition "now"; class (d) carries no forward date
-  (§2 schema), and freshness is its whole temporal test. (Without this split, F-a would be
-  structurally blind to the KMT case — face #3, the one §0 leads with.)
+- **Class (d) (current-state):** eligible iff **rendered** — freshness is enforced upstream by
+  §3 expiry (an expired item never renders), so a rendered class-(d) item is fresh by
+  construction; there is no separate eligibility filter to hunt for. A published cost shock is
+  by definition "now"; class (d) carries no forward date (§2 schema). (Without this split, F-a
+  would be structurally blind to the KMT case — face #3, the one §0 leads with.)
+
+**The two pinned detectors (both mechanical — no textual judgment at resolution):**
+
+- **flip** := (`at_inflection` changes value between the arms) **∨** (**proposer abstention in
+  the no-channel arm ∧ a deliberated tri-criteria judgment in the channel arm**). The second
+  disjunct is F-a's own name: converting an unadjudicable name into an adjudicated one IS
+  adjudicability, regardless of the verdict's sign — the KMT-class contrast (abstention →
+  deliberation) registers here, not as a boolean change.
+- **cite** := ≥1 **block-derived token** present in the rationale text — the item's dates and
+  figures, detected by the same tokenizer the §3 authenticity-filter extension carries. This ONE
+  detector serves both F-a's cite-count and F-c's "includes citing the dated catalysts" — two
+  informal rationale-checks would drift apart; one definition cannot.
 
 **F-a (adjudicability), instrument = §6 paired-contrast flip-rate over the first M=8 eligible
 pairs. The decision rule at M is MECHANICAL (pinned now, no texture-reading after the data):**
 
-- **flips ≥ 1 → (iii) continue** — the channel is earning its keep (adjudicability);
-- **flips = 0 ∧ cites ≥ 1 → (ii) mandate escalation** — rationales cite the catalyst yet read
-  not-now under the sha-pinned wording ("the change is happening NOW"): the wall is the
-  **mandate** and the channel *worked* as evidence delivery. Pre-registered escalation (so this
-  result is never misread as "forward catalysts are worthless" and buried): a
+- **flips ≥ 1 → (iii) continue** — the channel is earning its keep (adjudicability). Stated
+  honestly: each arm is one LLM sample, so a lone flip in 8 pairs can be sampling noise —
+  flips ≥ 1 is a **survival** read (F-a screens for inertness), corrected downstream by the
+  segmented Brier/outcome record; it is not evidence of value;
+- **flips = 0 ∧ cites ≥ 1 on (a)/(c) pairs → (ii) mandate escalation** — rationales cite a
+  forward-dated catalyst yet read not-now under the sha-pinned wording ("the change is
+  happening NOW"): the wall is the **mandate** and the channel *worked* as evidence delivery.
+  **Disposition (ii) is restricted to classes (a)/(c)** — the cites-but-not-now diagnosis
+  requires a forward `event_date` for the wording to conflict with; a class-(d) cost shock IS
+  happening now, so a cited-but-False class-(d) pair is the council answering the question, not
+  a mandate wall (those pairs accrue to the denominator as judgments; abstention-conversions
+  among them already count as flips under the first detector). Pre-registered escalation (so
+  this result is never misread as "forward catalysts are worthless" and buried): a
   **mandate-amendment pre-registration** — its own document, its own red-team, operator-gated,
   with the CGS §10.7 at_inflection wording as the object. Not retirement, and not a quiet
   prompt edit;
-- **flips = 0 ∧ cites = 0 → (i) retire** — the channel failed as evidence delivery (dated
-  record).
+- **flips = 0 ∧ no (a)/(c) pair with cites ≥ 1 → (i) retire** — the channel failed as evidence
+  delivery (dated record). This is also the honest read when the sample is all class-(d)
+  judgments with zero flips of either kind.
 
 **F-a(iii) proves causation, not value — the profitability handoff:** channel-flipped judgments
 are graded on the segmented forward record (Brier + realized outcome), segmented by the
@@ -224,7 +259,8 @@ record before re-arm. The §6 catalyst-claim accuracy feed + the §3 staleness f
 standing monitors.
 
 **F-c (leniency leak):** include-rate rises without the includes citing the dated catalysts
-(rationale check) → halt. The channel is grounding, not permission; a diffuse leniency shift is
+(the pinned **cite** detector above — the same tokenizer, never a second informal check) →
+halt. The channel is grounding, not permission; a diffuse leniency shift is
 the §5 failure mode — and the monitor for §5's visibility honesty (leakage into
 under_narrated/structural adjudication). **Stated plainly: F-c is near-dormant under the v0
 scope** — ephemeral probes (which dominate the M sample) cannot produce includes, and active
@@ -245,7 +281,10 @@ operator's word.
 On freeze, §2(d) **amends the 2026-07-07 KMT re-entry pin** (record #162: "margin compression
 appears in a filed print"): the park converts to a channel-grounded re-score candidate, dated —
 **iff** a class-(d)-qualifying public source for the input exists at pin time (§2(d)'s
-fail-closed rule). Absent that source, the original filed-print trigger stands unamended. No
+fail-closed rule). **The iff has an owner and a date: the OPERATOR performs that verification
+as part of the freeze act** (does a genuinely public APT proxy series exist — e.g.
+customs/export statistics — yes or no, recorded with the freeze), so it resolves at freeze,
+never lazily later. Absent that source, the original filed-print trigger stands unamended. No
 other standing pin is touched.
 
 ## §10 Freeze & build process, and the open numbers
