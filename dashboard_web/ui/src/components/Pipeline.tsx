@@ -119,6 +119,63 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
         </div>
       )}
 
+      {/* judged-set provenance — the gate-cheap reserve (changes WHO is judged, never HOW) */}
+      <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px", marginTop: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
+          Judged-set provenance — the gate-cheap reserve{" "}
+          <span style={{ color: "#6a7280", fontWeight: 400 }}>· run #{vm.reserve.runId ?? "—"} · {vm.reserve.stamp ?? "no stamp"}</span>
+        </div>
+        <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 12 }}>
+          Which judged names came via the reserve (gate-cheap, salience-truncated) vs the motion rank. The reserve
+          changes <em>who</em> is judged, never <em>how</em> — includes stay the council's.
+        </div>
+        {vm.reserve.stamp == null ? (
+          <div style={{ fontSize: 12, color: "#6a7280" }}>No provenance recorded — reserve OFF or a pre-deploy run.</div>
+        ) : (
+          <div className="flex flex-wrap" style={{ gap: 8 }}>
+            {vm.reserve.slots.map((s, i) => {
+              const lv = s.via === "reserve" ? signal.acc : signal.mute;
+              return (
+                <span key={i} className="font-mono" style={{ fontSize: 12, padding: "4px 9px", borderRadius: 7, background: lv.bg, border: `1px solid ${lv.border}`, color: lv.text }}>
+                  <span style={{ fontWeight: 500 }}>{s.symbol}</span>
+                  <span style={{ opacity: 0.75 }}> · {s.via} · {s.conviction}{s.status === "booked" ? " · booked" : ""}</span>
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* the null-book entry walk (migration 0018) — the per-name attribution surface */}
+      {vm.attempts.books.length > 0 && (
+        <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px", marginTop: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
+            Null-book entry walk <span style={{ color: "#6a7280", fontWeight: 400 }}>· run #{vm.attempts.runId ?? "—"} · walk order · terminal outcome · premium-at-attempt</span>
+          </div>
+          <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 12 }}>
+            Every candidate each capped null book touched last cycle — why a name is (or isn't) in a control book.
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {vm.attempts.books.map((b) => (
+              <div key={b.book}>
+                <div style={{ fontSize: 11, color: "#6a7280", textTransform: "uppercase", letterSpacing: ".6px", fontWeight: 500, marginBottom: 4 }}>book {b.book}</div>
+                <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                  {b.rows.map((r, i) => (
+                    <div key={i} className="flex items-center font-mono" style={{ gap: 10, padding: "6px 2px", borderTop: "1px solid #f6f8fa", fontSize: 12 }}>
+                      <span style={{ color: "#6a7280", width: 22, textAlign: "right" }}>{r.idx}</span>
+                      <span style={{ fontWeight: 500, color: "#141b28", width: 52 }}>{r.symbol}</span>
+                      <span style={{ color: "#6a7280", width: 76 }}>{r.origin}</span>
+                      <span style={{ color: r.outcome === "booked" ? signal.ok.text : "#414956", flex: 1 }}>{r.outcome}</span>
+                      <span style={{ color: "#414956" }}>{r.premium == null ? "—" : `$${Math.round(r.premium).toLocaleString("en-US")}`}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ marginTop: 16 }}><CheapnessWatch data={vm.cheapness} /></div>
     </>
   );

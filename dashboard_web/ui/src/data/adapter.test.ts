@@ -121,6 +121,24 @@ function synthetic(): Snapshot {
       { run_id: 287, symbol: "ACME", proposer_direction: "bullish", adversary_stance: "agree", strategist_conviction: "MODERATE" },
     ],
     cap_flow: { cluster_cap_rejections_of_passing: 3, tightening_note: "x" },
+    reserve: {
+      run_id: 287, stamp: "cheap_reserve_v1",
+      reserve: [{ symbol: "QUIET", conviction: "NEUTRAL", status: "dropped" }],
+      rank: [{ symbol: "ACME", conviction: "MODERATE", status: "booked" }],
+      unlabeled: [],
+    },
+    null_attempts: {
+      run_id: 287,
+      books: {
+        "3A": { rows: [
+          { book: "3A", attempt_idx: 0, symbol: "ACME", direction: "bullish", origin: "hand_seed", outcome: "booked", entry_premium_per_contract: 620 },
+          { book: "3A", attempt_idx: 1, symbol: "QUIET", direction: "bullish", origin: "sentinel", outcome: "skip_open", entry_premium_per_contract: null },
+        ] },
+        shadow: { rows: [
+          { book: "shadow", attempt_idx: 0, symbol: "ACME", direction: "bullish", origin: "hand_seed", outcome: "sizing", entry_premium_per_contract: 1487.5 },
+        ] },
+      },
+    },
   };
 }
 
@@ -265,6 +283,30 @@ describe("fromBackend", () => {
   it("returns no view-model fields as undefined for the rendered surface", () => {
     expect(vm.data).toHaveLength(3);
     expect(vm.universe.n).toBe(54);
+  });
+
+  it("maps judged-set provenance (reserve vs rank), and renders OFF when the stamp is absent (C)", () => {
+    expect(vm.reserve.runId).toBe(287);
+    expect(vm.reserve.stamp).toBe("cheap_reserve_v1");
+    expect(vm.reserve.slots.map((s) => `${s.symbol}:${s.via}`)).toEqual(["QUIET:reserve", "ACME:rank"]);
+    // stamp absent (reserve OFF / pre-deploy) → provenance stays null; the UI must render OFF, never invent it
+    const off = fromBackend({ ...synthetic(), reserve: { run_id: 100, stamp: null, reserve: [], rank: [], unlabeled: [{ symbol: "OLD", conviction: null, status: null }] } } as Snapshot);
+    expect(off.reserve.stamp).toBeNull();
+    expect(off.reserve.slots).toEqual([{ symbol: "OLD", conviction: "—", status: "—", via: "unlabeled" }]);
+    const bad = fromBackend({ ...synthetic(), reserve: { error: "no such table" } } as unknown as Snapshot);
+    expect(bad.reserve.stamp).toBeNull();
+    expect(bad.degraded).toContain("reserve");
+  });
+
+  it("maps the null-book entry walk per book, in walk order (migration 0018) (C)", () => {
+    expect(vm.attempts.runId).toBe(287);
+    expect(vm.attempts.books.map((b) => b.book)).toEqual(["3A", "shadow"]);
+    const a3 = vm.attempts.books[0];
+    expect(a3.rows[0]).toEqual({ idx: 0, symbol: "ACME", origin: "hand_seed", outcome: "booked", premium: 620 });
+    expect(a3.rows[1].premium).toBeNull();
+    const bad = fromBackend({ ...synthetic(), null_attempts: { error: "boom" } } as unknown as Snapshot);
+    expect(bad.attempts.books).toEqual([]);
+    expect(bad.degraded).toContain("null_attempts");
   });
 
   it("maps the cheapness panel through; an {error} panel → null + degraded (finding #1 on :8602)", () => {

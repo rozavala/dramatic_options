@@ -8,8 +8,8 @@
 //   #4 sentinel `note` ("rv-slope · 4d") is composed (trigger + age) — not a raw column; best-effort here.
 
 import type {
-  DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM, NullStepVM, PositionVM, ProviderVM,
-  SentinelVM, Snapshot, ViewModel,
+  AttemptsVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM, NullStepVM, PositionVM,
+  ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, Snapshot, ViewModel,
 } from "./types";
 import { levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
@@ -111,7 +111,8 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["council_stage", P.council_stage], ["gate_reasons", P.gate_reasons], ["positions", P.positions],
       ["sentinels", P.sentinels], ["market_ctx", P.market_ctx], ["t4", P.t4], ["nulls", P.nulls],
       ["dualread", P.dualread], ["dualread_runtime", P.dualread_runtime], ["cost", P.cost],
-      ["deliberation", P.deliberation], ["cap_flow", P.cap_flow],
+      ["deliberation", P.deliberation], ["cap_flow", P.cap_flow], ["reserve", P.reserve],
+      ["null_attempts", P.null_attempts],
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
     ] as [string, unknown][]
   )
@@ -197,6 +198,33 @@ export function fromBackend(P: Snapshot): ViewModel {
     provider, calls: v.calls ?? 0, parseError: v.parse_error ?? 0, rate: v.parse_error_rate ?? null,
   }));
 
+  // C: judged-set provenance — the gate-cheap reserve vs the motion rank. Stamp absent = reserve OFF or a
+  // pre-deploy run; the panel then emits `unlabeled` rows and we render OFF — never invent provenance.
+  const rvP = panelError(P.reserve) ? null : P.reserve;
+  const slotVM = (via: ReserveSlotVM["via"]) => (s: { symbol: string; conviction: string | null; status: string | null }): ReserveSlotVM =>
+    ({ symbol: s.symbol, conviction: s.conviction ?? DASH, status: s.status ?? DASH, via });
+  const reserve: ReserveVM = {
+    runId: rvP?.run_id ?? null, stamp: rvP?.stamp ?? null,
+    slots: [
+      ...(rvP?.reserve ?? []).map(slotVM("reserve")),
+      ...(rvP?.rank ?? []).map(slotVM("rank")),
+      ...(rvP?.unlabeled ?? []).map(slotVM("unlabeled")),
+    ],
+  };
+
+  // C: the null-book entry walk (migration 0018) — per capped book, walk order, terminal outcome + premium.
+  const naP = panelError(P.null_attempts) ? null : P.null_attempts;
+  const attempts: AttemptsVM = {
+    runId: naP?.run_id ?? null,
+    books: Object.entries(naP?.books ?? {}).map(([book, b]) => ({
+      book,
+      rows: (b?.rows ?? []).map((r) => ({
+        idx: r.attempt_idx, symbol: r.symbol, origin: r.origin ?? DASH, outcome: r.outcome ?? DASH,
+        premium: r.entry_premium_per_contract ?? null,
+      })),
+    })),
+  };
+
   const cf = P.cap_flow;
   const delta = acc.delta_vs_frame ?? 0;
   const edgeN = ci(ciP.real).n;
@@ -234,7 +262,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       cost: usd(ch.cost_usd), streak: councilStreak(P.council?.recent), models: modelMixSummary(P.council?.model_mix ?? null),
       byProvider,
     },
-    cost, dualread, dualreadRuntime, nulls, deliberation,
+    cost, dualread, dualreadRuntime, nulls, deliberation, reserve, attempts,
     capFlow: { rejected: cf?.cluster_cap_rejections_of_passing ?? 0, note: cf?.tightening_note ?? "" },
     clusters: (rk.clusters ?? []).map((c) => ({ name: c.cluster, premium: c.premium, cap: c.cap, dirs: (c.directions ?? []).join(", ") || "—" })),
     perf: {
