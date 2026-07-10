@@ -1,0 +1,33 @@
+{
+  "_comment": "PROBE-ONLY themes file (channel prereg §0 option (a) — the PR #173 --themes vehicle). NEVER read by the live loop: presence here is NOT admission, these names stay STAGED per records 2026-07-07/08; the live candidate path reads themes.json only. Used exclusively via: PYTHONPATH=. venv/bin/python scripts/probe_paired_contrast.py --themes probe_themes.json. Theses are the operator's staged drafts condensed from the triage records; operator-ratified 2026-07-10 ('Ok, should we commit this?' after review of the draft — informed sign-off on the presented text).",
+  "themes": [
+    {
+      "name": "bead_fiber_buildout",
+      "symbol": "ADTN",
+      "direction": "bullish",
+      "thesis": "BEAD fiber buildout flow-through: 54/56 state final proposals approved, grant agreements executing; state construction starts land H2-2026 into 2027 and order/backlog inflection follows in vendor commentary. Staged 2026-07-07; ADTN is the basket's expression leg (CLFD chain-dead).",
+      "active": true
+    },
+    {
+      "name": "bead_fiber_buildout",
+      "symbol": "CLFD",
+      "direction": "bullish",
+      "thesis": "Same BEAD buildout thesis as ADTN — best-profile-in-batch judgment target (4 analysts, beta 2.11, -27% 1y); expression-dead (no eligible chain in tenor), so any pair is judgment-layer M fuel only.",
+      "active": true
+    },
+    {
+      "name": "carbide_cost_shock",
+      "symbol": "KMT",
+      "direction": "bearish",
+      "thesis": "Carbide input-cost shock: APT ran ~9x while KMT +37% 1y — the shock is not marked in; margin compression flows through unless pass-through works. Parked on the channel wall 2026-07-07 (input-commodity price outside the grounding corpus — the class-(d) motivating case).",
+      "active": true
+    },
+    {
+      "name": "tio2_trough",
+      "symbol": "TROX",
+      "direction": "bullish",
+      "thesis": "TiO2 trough with structural Western capacity removal; realized pigment price/mix recovery lands in filed quarterlies (print-anchored at_inflection). Staged 2026-07-07.",
+      "active": true
+    }
+  ]
+}
