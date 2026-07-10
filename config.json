@@ -83,6 +83,14 @@
     "book_drawdown_halt": 0.20,
     "dry_months_halt": 9
   },
+  "forward_catalysts": {
+    "_comment": "PREREG_FORWARD_CATALYST_GROUNDING (FROZEN 2026-07-09) — the forward-catalyst grounding channel, §1 ground-never-permission: dated public forward evidence enriches hand-seed ContextPacks; it never scores/gates/admits/sizes. Items are operator-pinned in forward_catalysts.json (ships EMPTY — the channel is live-inert until the operator pins an item). §10 pins: max_items=K=3 per pack; staleness_days=N=30 (re-verification flag, item still renders); max_block_chars enforces the §7 ≤400-token pack bound (~4 chars/token). Origin scope v0: hand-seed packs only — sentinel grounding byte-unchanged (§5-read safety). §4 counters stamp into runs.note; the forward_catalyst_v1 capability stamp rides runs.model_mix (record-segmenting from deploy).",
+    "enabled": true,
+    "path": "forward_catalysts.json",
+    "max_items": 3,
+    "staleness_days": 30,
+    "max_block_chars": 1600
+  },
   "council": {
     "_comment": "T2 — the LLM theme-judgment council (SPEC §5, PREREG §2 hard seam). The council only PROPOSES themes; the deterministic gates below still DISPOSE. Conviction is recorded + forward-scored ONLY — it NEVER sizes a position and NEVER overrides a veto. The three roles run across DISTINCT providers for decorrelated debate. Provider SDKs are lazy-imported; `orchestrator.py --demo` (and all tests) use a deterministic FakeRouter needing no keys. enabled=false falls back to the T1 hand-seeded loop (themes.json consumed directly). cost_cap_usd is a GENEROUS PROVISIONAL fail-closed cap while per-cycle cost is being measured — the real ceiling + run cadence are an operator decision AFTER seeing the printed per-cycle ledger. MODEL IDs + prices_per_mtok ($ per million tokens) verified against provider docs 2026-06-01 (Balanced tier); models/prices move fast — re-verify periodically (a stale model id fails closed: SDK error → RouterError → 0 entries). prices_per_mtok keys not currently mapped are kept so the ledger stays accurate if a role is remapped.",
     "enabled": true,

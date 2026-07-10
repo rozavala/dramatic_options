@@ -127,11 +127,13 @@ def _print_book_summary(conn, config: dict) -> None:
         log.info("  cluster %-16s $%.0f / $%.0f (%.0f%%)", cname, prem, cap_val, pct)
 
 
-def _stamp_council_health(conn, run_id: int, config: dict, router) -> None:
+def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=None) -> None:
     """Page + stamp the cycle's proposer parse-health. A high parse-fail rate means the council was
     INERT for a BUG reason (a model/SDK regression), not deliberate abstention — the #37 trap, which
     looks identical to fail-closed selectivity and otherwise trips no page. Also stamps the resolved
-    per-role model_mix (a record-segmentation key). Best-effort: never raises into the trade cycle."""
+    per-role model_mix (a record-segmentation key) + the forward-catalyst §4 counters into
+    ``runs.note`` (anti-silent-dormancy — 'ON, 0 rendered' must never be indistinguishable from a
+    broken channel). Best-effort: never raises into the trade cycle."""
     try:
         health = state.council_parse_health(conn, run_id)
         mix = {role: "/".join(router.provider_model(role)) for role in ("proposer", "adversary", "strategist")}
@@ -148,6 +150,20 @@ def _stamp_council_health(conn, run_id: int, config: dict, router) -> None:
         if int(config.get("council", {}).get("cheap_reserve_slots", 0) or 0) > 0:
             # PREREG gate_cheap_reserve §6: judged-set composition change — record-segmenting from deploy.
             mix["union_rank"] = "cheap_reserve_v1"
+        if (config.get("forward_catalysts", {}) or {}).get("enabled", False):
+            # Channel prereg §4: pack-shape capability stamp — record-segmenting from deploy,
+            # zero migration (stamped when the channel is CONFIGURED on, item count irrelevant;
+            # the runs.note counters below carry rendered-vs-empty).
+            mix["forward_catalysts"] = "forward_catalyst_v1"
+        if catalysts is not None:
+            # §4 anti-silent-dormancy counters (the event-leg precedent — journald rotates, the
+            # runs row doesn't). reverse_conversion_n is a §6 paired-contrast property and joins
+            # from the probe harness (absent ≠ zero — never stamped as a hardcoded 0 here).
+            c = catalysts.counters()
+            state.append_run_note(
+                conn, run_id,
+                f"fwd_catalysts: rendered={c['rendered_n']} expired={c['expired_n']} "
+                f"malformed={c['malformed_n']} stale_flagged={c['stale_flagged_n']}")
         if health["called"]:
             log.info("Council proposer parse-health: %d/%d failed (%.0f%%)",
                      health["parse_failed"], health["called"], health["rate"] * 100)
@@ -179,14 +195,15 @@ def _select_broker(config: dict, *, is_live: bool, api_key: str, secret_key: str
 
 
 def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
-    """(router, news, fundamentals, analyst) for the council. Demo → deterministic FakeRouter +
-    synthetic packs (news/fundamentals/analyst=None); live → the heterogeneous router + CURRENT-news
-    grounding + the §9 evidence-grounding corpus + the §19 analyst-coverage meter. Raises RouterError
+    """(router, news, fundamentals, analyst, catalysts) for the council. Demo → deterministic
+    FakeRouter + synthetic packs (news/fundamentals/analyst/catalysts=None); live → the
+    heterogeneous router + CURRENT-news grounding + the §9 evidence-grounding corpus + the §19
+    analyst-coverage meter + the forward-catalyst channel (frozen prereg §4). Raises RouterError
     (fail-closed) when a mapped provider has no key in live."""
     council = config.get("council", {})
     cap = council.get("cost_cap_usd")
     if demo:
-        return FakeRouter(cap_usd=float(cap) if cap is not None else None), None, None, None
+        return FakeRouter(cap_usd=float(cap) if cap is not None else None), None, None, None, None
     router = build_router(config, config.get("llm_keys", {}))
     from datetime import timedelta
 
@@ -220,7 +237,25 @@ def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
     except Exception as e:  # noqa: BLE001 — corpus is enrichment; its absence must never block entries
         log.warning("§9 fundamentals corpus unavailable (non-fatal, pre-§9 grounding): %s", e)
         fundamentals = None
-    return router, news, fundamentals, analyst
+
+    # Forward-catalyst channel (PREREG_FORWARD_CATALYST_GROUNDING §4 — ground-never-permission).
+    # Fail-soft: any construction error → catalysts=None (the block degrades to absent, never
+    # blocks a cycle). A fresh provider per cycle so the §4 counters are per-cycle by construction.
+    catalysts = None
+    try:
+        fc_cfg = config.get("forward_catalysts", {}) or {}
+        if fc_cfg.get("enabled", False):
+            from data.forward_catalysts import ForwardCatalysts
+            catalysts = ForwardCatalysts(
+                fc_cfg.get("path", "forward_catalysts.json"),
+                max_items=int(fc_cfg.get("max_items", 3)),
+                staleness_days=int(fc_cfg.get("staleness_days", 30)),
+                max_block_chars=int(fc_cfg.get("max_block_chars", 1600)),
+            )
+    except Exception as e:  # noqa: BLE001 — channel is enrichment; absence never blocks entries
+        log.warning("forward-catalyst channel unavailable (non-fatal, block absent): %s", e)
+        catalysts = None
+    return router, news, fundamentals, analyst, catalysts
 
 
 def _build_framer_router(config: dict, *, demo: bool, disc: dict):
@@ -674,7 +709,7 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                         themes = []  # run_paper_cycle re-checks and halts; no entries
                     else:
                         try:
-                            router, news_dep, fund_dep, analyst_dep = _build_council_io(
+                            router, news_dep, fund_dep, analyst_dep, catalysts_dep = _build_council_io(
                                 config, demo=demo, client=client, cache=chain_cache, clock=clock,
                             )
                             # Candidate set = hand-seed (themes.json, FIRST/protected) ⊕ ranked
@@ -688,10 +723,12 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             themes = council_to_themes(
                                 conn, candidates=candidates, router=router, config=config,
                                 clock=clock, news=news_dep, fundamentals=fund_dep,
-                                analyst=analyst_dep, demo=demo, run_id=run_id,
+                                analyst=analyst_dep, catalysts=catalysts_dep, demo=demo,
+                                run_id=run_id,
                             )
                             log.info(router.ledger.summary())
-                            _stamp_council_health(conn, run_id, config, router)
+                            _stamp_council_health(conn, run_id, config, router,
+                                                  catalysts=catalysts_dep)
                         except BudgetExceeded as e:
                             # Soft, exit-0 condition: OnFailure can't catch it → page in-app (PR2 R-C).
                             log.error("Council cost cap hit (%s) — fail-closed: NO entries this cycle.", e)

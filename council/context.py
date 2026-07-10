@@ -54,6 +54,12 @@ class ContextPack:
     # §19 analyst-coverage proxy — None = "not fetched" (framer / feed outage); int (even 0) = fetched
     analyst_count: int | None = None
     origin: str = "hand-seed"                  # "hand-seed" | "sentinel" — gates the grounded OR-leg
+    # Forward-catalyst channel (PREREG_FORWARD_CATALYST_GROUNDING, frozen 2026-07-09) — dated
+    # public forward evidence, §1 ground-never-permission: renders as a conditional block, NEVER
+    # touches `grounded` (a grounded-flip would be permission — the fundamentals OR-leg was that
+    # prereg's one behavior change; this channel's is at_inflection-informing EVIDENCE only).
+    # Default-empty ⇒ byte-identical render (framer/sentinel packs carry none — the §5 leash).
+    forward_catalysts: list[dict] = field(default_factory=list)
 
     @property
     def fundamentals_present(self) -> bool:
@@ -96,6 +102,13 @@ class ContextPack:
         if rendered:
             lines.append("FUNDAMENTALS:")
             lines.extend(rendered)
+        # FORWARD_CATALYSTS (channel prereg §4) — after FUNDAMENTALS, conditional (absent block =
+        # byte-identical pack). Full ISO dates render on purpose: the date IS the load-bearing
+        # figure (§3 named deviation) and the §8 cite token.
+        cat_lines = [r for r in (_fmt_catalyst_line(it) for it in self.forward_catalysts) if r]
+        if cat_lines:
+            lines.append("FORWARD_CATALYSTS (dated public evidence, operator-pinned):")
+            lines.extend(cat_lines)
         if not self.grounded:
             lines.append("GROUNDING: INSUFFICIENT (no numeric evidence) — return NEUTRAL.")
         return "\n".join(lines)
@@ -124,6 +137,29 @@ def _fmt_fundamental_line(ln: dict) -> str | None:
         paren = f" (${latest}M vs ${base}M)" if base is not None else f" (${latest}M)"
     cadence = " (annual)" if metric == "rev_annual_yoy" else ""
     return f"- {concept} {metric} {vtxt}{paren}; period {ln.get('period_end')}{cadence}, filed {ln.get('filed')}"
+
+
+def _fmt_catalyst_line(it: dict) -> str | None:
+    """Render one §2 forward-catalyst item — NEVER raises (the render runs inside
+    ``run_candidate``; the §9 fail-soft lesson). Classes (a)/(c) lead with the ISO
+    ``event_date`` (the load-bearing figure); class (d) is a current-state print with no
+    forward date (§2). ``as_of`` (pin date) rides every line for citation-checking."""
+    try:
+        claim, source = it.get("claim"), it.get("source")
+        if not claim or not source:
+            return None
+        cls = it.get("class")
+        if cls in ("a", "c"):
+            ed = it.get("event_date")
+            if not ed:
+                return None
+            kind = "statutory event" if cls == "a" else "program milestone"
+            return f"- [{kind}; event date {ed}] {claim} (source: {source}; pinned {it.get('as_of')})"
+        if cls == "d":
+            return f"- [input-price print] {claim} (source: {source}; pinned {it.get('as_of')})"
+        return None
+    except Exception:  # noqa: BLE001 — a malformed item degrades to absent, never crashes a cycle
+        return None
 
 
 def _fmt_value(ln: dict) -> str | None:
@@ -264,17 +300,25 @@ def build_context_pack(
     max_headlines: int = 12,
     fundamentals=None,
     analyst=None,
+    catalysts=None,
 ) -> ContextPack:
     """Assemble current grounding for one candidate. ``news`` is a duck-typed object exposing
     ``headlines_asof(symbol, as_of) -> list[{'headline': str, 'ts': str, ...}]``
     (``data/news.py:NewsData``); ``fundamentals`` is a ``data/fundamentals.py:FundamentalsData``
     (None = pre-§9); ``analyst`` is a ``data/analyst_coverage.py:AnalystCoverageData`` exposing
-    ``count_asof`` (None = pre-§19). Fail-soft: any provider error → degrades grounding, never raises.
+    ``count_asof`` (None = pre-§19); ``catalysts`` is a
+    ``data/forward_catalysts.py:ForwardCatalysts`` exposing ``items_asof`` (None = channel off).
+    Fail-soft: any provider error → degrades grounding, never raises.
 
     **§9/§19:** fetches the corpus + the analyst-coverage count and forwards them to BOTH origin
     branches — the SENTINEL branch must forward them too (else the council's live sentinels, and the
     gated 16-sentinel re-score, are enrichment-blind). ``force_refresh`` on a fresh filing event
-    (markers.has_event — sentinels only; the None-guard makes it False for markerless hand-seeds)."""
+    (markers.has_event — sentinels only; the None-guard makes it False for markerless hand-seeds).
+
+    **Forward-catalyst channel (frozen prereg §4, origin scope v0): HAND-SEED ONLY** — the
+    sentinel branch never receives the block (sentinel grounding byte-unchanged; the §5-read
+    safety assertion + the §6 framer leash both depend on this line staying origin-scoped).
+    Sentinel expansion is held until after the §5 read closes — a dated act, not a default."""
     force_refresh = bool((getattr(candidate, "markers", None) or {}).get("has_event"))
     fund_lines, fund_status = _fundamentals_corpus(fundamentals, candidate.symbol, as_of,
                                                    force_refresh=force_refresh)
@@ -306,6 +350,15 @@ def build_context_pack(
     except Exception as e:  # noqa: BLE001 — grounding is best-effort; absent evidence → NEUTRAL
         notes.append(f"news error: {e}")
 
+    # Channel fetch sits AFTER the sentinel early-return by construction — a sentinel symbol
+    # never reaches the provider, so the §4 counters count hand-seed renders only.
+    fwd: list[dict] = []
+    if catalysts is not None:
+        try:
+            fwd = list(catalysts.items_asof(candidate.symbol, as_of))
+        except Exception as e:  # noqa: BLE001 — §7 fail-soft: the block degrades to absent
+            notes.append(f"forward_catalysts error: {e}")
+
     return ContextPack(
         symbol=candidate.symbol, theme=candidate.name, direction=candidate.direction,
         operator_thesis=candidate.thesis, headlines=headlines,
@@ -313,6 +366,7 @@ def build_context_pack(
         as_of=as_of, notes=notes,
         fundamentals=fund_lines, fundamentals_status=fund_status,
         analyst_count=analyst_count, origin="hand-seed",
+        forward_catalysts=fwd,
     )
 
 
