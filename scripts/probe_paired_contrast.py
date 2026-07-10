@@ -12,8 +12,19 @@ the CSV append (pass --dry-run to skip even that). Kill-before-spend honored. §
 the sanctioned 2× deliberation; cost prints per pair.
 
 Run from the repo root with the worktree venv:
-    PYTHONPATH=. venv/bin/python scripts/probe_paired_contrast.py [--symbol SYM ...] [--dry-run]
-Default: every symbol that has ≥1 renderable pinned item AND a hand-seed theme. TEE THE OUTPUT.
+    PYTHONPATH=. venv/bin/python scripts/probe_paired_contrast.py \
+        [--symbol SYM ...] [--themes FILE] [--render-only | --dry-run]
+Default: every symbol that has ≥1 renderable pinned item AND a hand-seed theme.
+
+**--themes FILE (the §0 option-(a) vehicle):** STAGED names are deliberately NOT in the live
+themes.json — adding them there would be admission (the live L1 would judge them, and a flip
+could walk to a paper entry as a side-effect of measurement). A probe-only themes file gives
+them hand-seed-ORIGIN packs (all the §4 origin scope requires) without ever touching the live
+candidate path.
+
+**--render-only:** the true zero-spend preflight (--dry-run still runs BOTH LLM arms; it only
+skips the ledger append). Prints the rendered block, §8 eligibility, and cite tokens. Use it
+after every pin, before the first paid pair. TEE THE OUTPUT.
 """
 from __future__ import annotations
 
@@ -40,14 +51,63 @@ LEDGER = "records/forward_catalyst_pairs.csv"
 parser = argparse.ArgumentParser()
 parser.add_argument("--symbol", action="append", default=None,
                     help="probe only these symbols (repeatable); default = all pinned hand-seeds")
-parser.add_argument("--dry-run", action="store_true", help="print verdicts, skip the CSV append")
+parser.add_argument("--dry-run", action="store_true",
+                    help="run both arms (LIVE LLM SPEND) but skip the CSV append")
+parser.add_argument("--render-only", action="store_true",
+                    help="ZERO-spend preflight: build the channel-arm pack and print the "
+                         "rendered FORWARD_CATALYSTS block + eligibility + cite tokens — no "
+                         "router, no arms, no ledger")
+parser.add_argument("--themes", default=None, metavar="FILE",
+                    help="probe-only themes file (the §0 option-(a) vehicle for STAGED names: "
+                         "candidates probed here never enter the live L1 candidate path — "
+                         "presence in the LIVE themes.json is admission, this flag is not). "
+                         "Default: the live themes_path.")
 args = parser.parse_args()
 
-if kill_switch_active():
+if not args.render_only and kill_switch_active():
     print("KILL switch engaged — no LLM spend.")
     sys.exit(0)
 
 config = load_config()
+
+if args.render_only:
+    # Preflight without the router OR the broker: the channel provider + packs only — no keys,
+    # no LLM, no quotes. Confirms §2 validation, §3 expiry/staleness, the §7 char bound, §8
+    # eligibility + cite tokens — for $0.00.
+    from datetime import datetime  # noqa: E402
+
+    from council.context import build_context_pack, catalyst_cite_tokens  # noqa: E402
+    from council.paired_contrast import eligible_classes  # noqa: E402
+    from data.forward_catalysts import ForwardCatalysts  # noqa: E402
+    as_of = datetime.now()
+    fc_cfg = config.get("forward_catalysts", {}) or {}
+    catalysts = ForwardCatalysts(fc_cfg.get("path", "forward_catalysts.json"),
+                                 max_items=int(fc_cfg.get("max_items", 3)),
+                                 staleness_days=int(fc_cfg.get("staleness_days", 30)),
+                                 max_block_chars=int(fc_cfg.get("max_block_chars", 1600)))
+    themes_path = args.themes or config.get("themes_path", "themes.json")
+    cands = {t.symbol.upper(): t for t in active_themes(load_themes(themes_path))
+             if getattr(t, "sentinel_id", None) is None}
+    want = {s.upper() for s in args.symbol} if args.symbol else None
+    shown = 0
+    for sym, theme in sorted(cands.items()):
+        if want is not None and sym not in want:
+            continue
+        # Items read off the PACK (one items_asof call — the counters print true).
+        pack = build_context_pack(theme, news=None, as_of=as_of, catalysts=catalysts)
+        items = pack.forward_catalysts
+        if not items:
+            continue
+        print(f"\n=== {sym} ({theme.direction}) — render-only preflight ===")
+        print(f"eligible_classes: {eligible_classes(items, as_of)}")
+        print(f"cite_tokens: {sorted(set(catalyst_cite_tokens(items)))}")
+        block = pack.as_prompt_block()
+        start = block.find("FORWARD_CATALYSTS")
+        print(block[start:] if start >= 0 else "(block did NOT render — check origin/items)")
+        shown += 1
+    print(f"\n{shown} name(s) rendered. counters: {catalysts.counters()}  ($0.00 spent)")
+    sys.exit(0)
+
 api_key, secret_key = require_alpaca_credentials(config)
 client = AlpacaClient(api_key, secret_key, paper=config["alpaca"]["paper"])
 clock = LiveClock(client)
@@ -60,7 +120,10 @@ if catalysts is None:
     print("forward-catalyst channel disabled/unavailable — nothing to pair.")
     sys.exit(0)
 
-themes = {t.symbol.upper(): t for t in active_themes(load_themes(config.get("themes_path", "themes.json")))
+themes_path = args.themes or config.get("themes_path", "themes.json")
+if args.themes:
+    print(f"probe-only themes file: {args.themes} (staged names — never the live candidate path)")
+themes = {t.symbol.upper(): t for t in active_themes(load_themes(themes_path))
           if getattr(t, "sentinel_id", None) is None}
 want = {s.upper() for s in args.symbol} if args.symbol else None
 
