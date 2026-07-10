@@ -63,6 +63,16 @@
         "BOAT constituent file (SonicShares Global Shipping ETF, stockanalysis.com/etf/boat/holdings, fetched 2026-06-22)"
       ],
       "cluster_default": "seaborne_freight"
+    },
+    "refrigerant_transition": {
+      "provenance": "operator",
+      "added": "2026-07-10 (window #3 off-cycle)",
+      "thesis": "Statutory refrigerant transition (AIM Act HFC quota step-downs) forces adoption of low-GWP refrigerants; CC's Opteon franchise is the quiet structural beneficiary while the equity sits at disillusionment lows under the PFAS overhang; TiO2 (CC's largest segment) supplies a second trough leg. Inflection leg = RPO/capex re-acceleration in the filed quarterlies (the operator's 2026-07-07 watch trigger).",
+      "falsifier": "No RPO or capex re-acceleration in any filed quarterly through the FY-2026 report (filed ~Feb-2027) — the turn never forms, theme dies. (Draft-dated under the operator's admission delegation — the 2026-07-07 falsifier-pin precedent.)",
+      "sources": [
+        "operator-named: CC (Rule-3 tagged — no pure-play ETF source exists for the theme; the NNE channel)"
+      ],
+      "cluster_default": "chem_transition"
     }
   },
   "windows": {
@@ -122,6 +132,20 @@
       },
       "excluded_no_structure": ["AMPH (pharma-reshoring — no listed options chain; pharma_reshoring basket NOT created)"],
       "notes": "OFF-CYCLE admission. The generator's OWN theses were NOT admitted — 8/9 of its cap-fittable names were already in the universe AND the council reads them narrated (the generator framing did not move under_narrated; gen_rescore 0/17). The silver/freight SURVIVORS (parallel-research, 2026-06-22) are the genuine quiet+fittable candidates: FRO/CDE read under_narrated=True, all admitted are cheap on the IV gate + cap-fittable. Two NEW clusters (silver_deficit, seaborne_freight). Stales the §5 four-scan DISCOVERY baseline (a measurement, not a safety gate; re-measurable from a fresh window) — operator-accepted, to position quiet candidates ahead of their at_inflection break."
+    },
+    "3-offcycle": {
+      "date": "2026-07-10",
+      "kind": "OFF-CYCLE (§10 deploy-warrant: cap-fittable ∩ council-confirmed under_narrated — the window-#2 precedent)",
+      "admitted": {
+        "CC": {
+          "screen": "$195/contract · 24.6% achieved OTM · floors ok (mid-session 2026-07-10 16:2x UTC; records/2026-07-10_window3_neighbor_screen_raw.txt)",
+          "warrant": "council under_narrated=TRUE 2026-07-07 (two-slates triage; died at_inflection on RPO −36%/capex −41.7% with a defined re-accel watch trigger)",
+          "rule5": "PASSED 2026-07-10 — mechanism current (revenue ttm +0.5% / qtr +0.9% / accel +1.8%; gross margin −1.9pts; RPO/capex still contracting = trough intact, inflection pending — the Q1-2026 print, filed 2026-05-05); quiet (16 headlines/90d, maintenance-grade sell-side); PFAS NOTED ($450M DOJ settlement 2026-06-24 quantifies part of the overhang; NY AG suit 2026-07-09 adds — the standing weakest_point, not a premise inversion)",
+          "operator": "'Sure, let's admit off cycle now on CC.' (2026-07-10, after the flag in records/2026-07-10_window3_prep.md)"
+        }
+      },
+      "vetoed": {},
+      "notes": "One name, one NEW cluster (chem_transition). CC enters the discovery scan baskets only (universe.themes) — the hand-seed watchlist (themes.json) is untouched; the nightly funnel and the council re-judge it from here, gates and caps dispose."
     }
   }
 }
