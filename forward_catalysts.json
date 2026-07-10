@@ -1,4 +1,15 @@
 {
   "_comment": "PREREG_FORWARD_CATALYST_GROUNDING §2/§3 — operator-pinned forward-catalyst items. Classes: a=statutory dated event (event_date REQUIRED) · c=dated program/procurement milestone (event_date REQUIRED) · d=published input-commodity price (event_date MUST be null; public-source fail-closed per input — subscription series do NOT qualify). Class b (filed forward commitments) is EXCLUDED by §2 — one home: the fundamentals corpus. provenance must be 'operator' ('generated' is reserved; F-b). Every item: {symbol, class, claim, event_date, source, as_of, expires, provenance}. Expiry defaults at pin time (§10): a/c = event_date + 5 trading days; d = as_of + 7 days.",
-  "items": []
+  "items": [
+    {
+      "symbol": "KMT",
+      "class": "d",
+      "claim": "US customs import unit value for tungstates (HS 284180) doubled: $29.34/kg 2025 average to $64.32/kg March 2026 (latest published month; Jan 2026 $32.16/kg, Feb 2026 $31.55/kg) — the APT cost shock is visible in the US import record. Caveats: HS 284180 covers all tungstate salts (not APT-pure; single-month mix-shift possible); customs publication lags ~2-3 months.",
+      "event_date": null,
+      "source": "UN Comtrade public database, US imports of HS 284180 (comtradeapi.un.org public preview API, keyless; reporterCode=842, cmdCode=284180, flowCode=M; verified 2026-07-10)",
+      "as_of": "2026-07-10",
+      "expires": "2026-07-17",
+      "provenance": "operator"
+    }
+  ]
 }
