@@ -89,7 +89,9 @@ for sym in UNIVERSE:
                             direction=discovery.direction_of(m), thesis="discovery hypothesis (markers-grounded)",
                             source="sentinel", markers=mk))
 
-router, _news, _fund, _analyst = orchestrator._build_council_io(config, demo=False, client=client, cache=cache, clock=clock)
+# _catalysts deliberately unused — this probe stays channel-blind; the §6 paired-contrast
+# probe harness (its own PR) owns channel-grounded re-scores.
+router, _news, _fund, _analyst, _catalysts = orchestrator._build_council_io(config, demo=False, client=client, cache=cache, clock=clock)
 print("models:", {r: "/".join(router.provider_model(r)) for r in ("proposer", "adversary", "strategist")})
 print("§9 corpus:", "fundamentals_v1 (wired)" if _fund is not None else "NONE (no EDGAR_USER_AGENT)")
 print(f"scoring {len(candidates)} names (as_of {as_of.isoformat()}) ...\n")

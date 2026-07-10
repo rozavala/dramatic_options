@@ -1,8 +1,11 @@
 # PREREG — Forward-Catalyst Grounding Channel
 
-**STATUS: DRAFT v3.1 (2026-07-09) — NOT FROZEN. This document binds nothing.** Held open for
-the operator's per-section word (TRUE-form ratification; merge = freeze; build separately gated
-on a fresh go after freeze).
+**STATUS: FROZEN v3.1 (2026-07-09, PR #167 merge = the freeze act).** Ratification (informed
+delegation, TRUE form) + the §9.5 verification (outcome: NO qualifying public APT series — the
+KMT filed-print pin stands) are recorded in `records/2026-07-09_channel_prereg_freeze.md`.
+Changes from here are dated §-amendments only. The build was separately authorized by the
+operator's fresh go 2026-07-09 (this correction rides the first build PR — administrative
+status-line fix only; no §-content change).
 
 ## §0.5 Revision log
 
