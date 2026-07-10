@@ -282,6 +282,58 @@ def test_stamp_omits_capability_when_channel_disabled(convexity_db):
     assert "forward_catalysts" not in json.loads(row["model_mix"])
 
 
+# ── PR2: the §8 shared tokenizer + the §3 authenticity-filter extension ───────
+
+def test_cite_tokens_iso_dates_and_distinctive_figures():
+    from council.context import catalyst_cite_tokens
+    toks = catalyst_cite_tokens([_item(
+        claim="APT hit RMB 720k/t, EU $2,900-3,180/mtu; up 9.5% since 2026; 45Z unaffected",
+        event_date="2026-09-15")])
+    # Hand-checked: full ISO dates (event_date, as_of, the source's inline date) are tokens.
+    assert "2026-09-15" in toks and "2026-07-01" in toks and "2026-06-20" in toks
+    # Multi-digit figures kept, comma-normalized; decimals kept.
+    assert "720" in toks and "2900" in toks and "3180" in toks and "9.5" in toks
+    # §8 distinctiveness: bare years and small integers EXCLUDED (the (i)→(ii) misroute guard).
+    assert "2026" not in toks and "45" not in toks and "15" not in toks
+
+
+def test_cite_tokens_bare_year_vs_large_number_boundary():
+    from council.context import catalyst_cite_tokens
+    toks = catalyst_cite_tokens([_item(claim="capacity 2100 MW by 2099, floor 1900 units",
+                                       source="src")])
+    # 2100 is NOT a plausible year (>2099) → kept; 2099 and 1900 are bare years → excluded.
+    assert "2100" in toks and "2099" not in toks and "1900" not in toks
+
+
+def test_cite_tokens_malformed_item_yields_nothing():
+    from council.context import catalyst_cite_tokens
+    assert catalyst_cite_tokens([{"claim": None}, {}, {"claim": 42}]) == []
+
+
+def test_filter_supports_block_citations():
+    from council.filters import apply_filter
+    p = _pack(forward_catalysts=[_item(
+        claim="APT print RMB 720k/t confirmed", event_date="2026-09-15")])
+    # A strategist citing the event date + a claim figure + a quoted claim span must NOT flag.
+    conf, res = apply_filter(
+        ['inflection dated 2026-09-15; the "APT print RMB 720k/t confirmed" evidence holds'],
+        p, confidence="HIGH")
+    assert conf == "HIGH" and res.flagged == 0
+
+
+def test_filter_still_flags_fabrications_with_block_present():
+    from council.filters import apply_filter
+    p = _pack(forward_catalysts=[_item()])
+    conf, res = apply_filter(["margins will hit 87.5% on the catalyst"], p, confidence="HIGH")
+    assert conf == "MODERATE" and res.flagged == 1  # 87.5 appears nowhere in the evidence
+
+
+def test_evidence_text_unchanged_without_catalysts():
+    from council.filters import evidence_text
+    # Empty channel ⇒ the pre-channel evidence pool byte-for-byte (framer/sentinel packs safe).
+    assert evidence_text(_pack()) == evidence_text(_pack(forward_catalysts=[]))
+
+
 # ── the frozen-prompt seam (§1: the channel rides the pack, never the prompt) ─
 
 def test_council_prompts_unchanged_by_this_pr():

@@ -31,6 +31,7 @@ order pinned in the tests; the anti-HARK purpose [a fixed, stamped order] is pre
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -195,6 +196,53 @@ def fundamental_evidence_tokens(pack) -> list[str]:
     if ac is not None:
         toks.append(str(ac))
     return toks
+
+
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_FIGURE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def catalyst_cite_tokens(items: list[dict]) -> list[str]:
+    """The §8 cite-token set for rendered forward-catalyst items — the ONE tokenizer the frozen
+    channel prereg pins for BOTH consumers: the §3 authenticity-filter evidence pool (a real
+    citation of the block never flags/dampens) and the §8 flip/cite detectors (the paired-contrast
+    probe harness searches the rationale for these same tokens). Two informal checks would drift;
+    one definition cannot.
+
+    **Distinctiveness (§8 build requirement):** full ISO dates + multi-digit figures ONLY — bare
+    years ("2026") and small integers are EXCLUDED (a false-positive cite on an (a)/(c) pair
+    would misroute F-a disposition (i)→(ii); (ii) is operator-gated so the consequence is
+    bounded, but the tokenizer must not invite it). Figures are comma-normalized ("2,900" →
+    "2900") so both consumers match one canonical form.
+
+    **§3 named deviation (pinned in the prereg — do not symmetry-"fix"):** the fundamentals
+    tokenizer (``fundamental_evidence_tokens``) deliberately EXCLUDES dates as digit-noise; here
+    the date IS the load-bearing figure, so ISO dates are first-class tokens."""
+    toks: list[str] = []
+    for it in items:
+        try:
+            texts = [str(it.get(k) or "") for k in ("claim", "source", "event_date", "as_of")]
+            joined = " ".join(texts)
+            toks.extend(_ISO_DATE.findall(joined))
+            # Figures scan runs with ISO dates stripped so a date never sheds year/day fragments.
+            for m in _FIGURE.findall(_ISO_DATE.sub(" ", joined)):
+                tok = m.replace(",", "")
+                digits = tok.replace(".", "")
+                bare_year = len(digits) == 4 and "." not in tok and 1900 <= int(digits) <= 2099
+                if ("." in tok or len(digits) >= 3) and not bare_year:
+                    toks.append(tok)
+        except Exception:  # noqa: BLE001 — a malformed item yields no tokens, never a crash
+            continue
+    return toks
+
+
+def catalyst_evidence_strings(pack) -> list[str]:
+    """What the authenticity filter pools for the FORWARD_CATALYSTS block: the claim/source prose
+    (so a quoted span from the block passes the quote check, like headlines) + the §8 cite tokens
+    (so ISO-date and figure citations pass the numeric check as rendered)."""
+    items = getattr(pack, "forward_catalysts", None) or []
+    prose = [s for it in items for s in (it.get("claim"), it.get("source")) if s]
+    return [*prose, *catalyst_cite_tokens(items)]
 
 
 def _has_numeric(texts: list[str]) -> bool:
