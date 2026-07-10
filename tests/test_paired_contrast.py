@@ -84,6 +84,14 @@ def test_eligibility_class_d_rendered_is_eligible():
     assert eligible_classes([_item(cls="d", event_date=None)], AS_OF) == ["d"]
 
 
+def test_eligibility_accepts_tz_aware_as_of():
+    # The LIVE clock is tz-aware; item dates are naive calendar dates. Found by the first live
+    # probe run (2026-07-10): the naive/aware comparison raised TypeError.
+    from datetime import UTC
+    aware = AS_OF.replace(tzinfo=UTC)
+    assert eligible_classes([_item(event_date="2026-09-15")], aware) == ["c"]
+
+
 def test_eligibility_unparseable_event_date_not_eligible():
     assert eligible_classes([_item(event_date="soon")], AS_OF) == []
 

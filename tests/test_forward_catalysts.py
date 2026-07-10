@@ -138,6 +138,16 @@ def test_char_bound_truncates_trailing_items(tmp_path):
     assert len(fc.items_asof("ADTN", AS_OF)) == 1  # item 2 would breach 1600 → truncated
 
 
+def test_items_asof_accepts_tz_aware_as_of(tmp_path):
+    # The LIVE clock hands an aware datetime (the first live probe run raised TypeError on the
+    # naive/aware comparison). Expiry/staleness/PIT must all evaluate identically.
+    from datetime import UTC
+    fc = ForwardCatalysts(_write(tmp_path, [_item()]))
+    assert len(fc.items_asof("ADTN", AS_OF.replace(tzinfo=UTC))) == 1
+    fc2 = ForwardCatalysts(_write(tmp_path, [_item(expires="2026-07-10")]))
+    assert fc2.items_asof("ADTN", AS_OF.replace(tzinfo=UTC)) == [] and fc2.counters()["expired_n"] == 1
+
+
 def test_symbol_scoping_and_counter_accumulation(tmp_path):
     fc = ForwardCatalysts(_write(tmp_path, [
         _item(), _item(symbol="KMT", **{"class": "d"}, event_date=None, expires="2026-07-20",
