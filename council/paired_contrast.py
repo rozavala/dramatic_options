@@ -36,6 +36,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from council.context import catalyst_cite_tokens
+from data.forward_catalysts import naive_utc
 
 ELIGIBLE_HORIZON_DAYS = 365  # §8 (a)/(c) upper bound; lower bound is ZERO (exclusive)
 
@@ -79,6 +80,7 @@ def eligible_classes(items: list[dict], as_of: datetime) -> list[str]:
     (a)/(c): ``0 < event_date − as_of ≤ 365d`` (both bounds pinned; lower bound ZERO exclusive —
     a same-day event has no forward runway; near-dated stays in, v1's regression stays fixed)."""
     out: set[str] = set()
+    as_of = naive_utc(as_of)  # the live clock is tz-aware; event_dates are naive calendar dates
     for it in items:
         cls = it.get("class")
         if cls == "d":

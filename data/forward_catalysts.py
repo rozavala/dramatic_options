@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -49,6 +49,20 @@ def _parse_date(v) -> datetime | None:
         return datetime.fromisoformat(v)
     except ValueError:
         return None
+
+
+def naive_utc(dt: datetime) -> datetime:
+    """Normalize a render-time ``as_of`` for comparison against pinned item dates.
+
+    Item dates are naive calendar dates (UTC-midnight by convention); the LIVE clock hands an
+    AWARE datetime — comparing them raises TypeError (found by the first live probe run,
+    2026-07-10; the L1 path would have degraded fail-soft to an absent block, silently). Aware →
+    convert to UTC and strip; naive → unchanged. Hours-level drift is immaterial against the
+    7-day class-(d) expiry and the 365-day eligibility window. Shared with
+    ``council.paired_contrast`` — one normalization, two comparison sites, zero drift."""
+    if dt.tzinfo is not None:
+        return dt.astimezone(UTC).replace(tzinfo=None)
+    return dt
 
 
 class ForwardCatalysts:
@@ -132,6 +146,7 @@ class ForwardCatalysts:
         past, not yet expired). Deterministic order: (a)/(c) by nearest ``event_date``, then (d)
         by most recent ``as_of``. Counters accumulate; §7 char bound enforced by truncation."""
         sym = symbol.upper()
+        as_of = naive_utc(as_of)  # the live clock is tz-aware; item dates are naive calendar dates
         live: list[dict] = []
         for it in self._items:
             if str(it.get("symbol", "")).upper() != sym:
