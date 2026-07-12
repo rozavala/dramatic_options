@@ -149,6 +149,10 @@ for sym, theme in sorted(themes.items()):
     row = pair_verdict(channel[0], nochannel[0], items, as_of)
     for k in LEDGER_FIELDS:
         print(f"  {k}: {row[k]}")
+    # The strategist's actual words, per arm — proposals are ephemeral (never persisted), so
+    # this print is the only surface where the operator can read WHY the arms agreed/differed.
+    print(f"  channel strategist:   {(channel[0].strategist_summary or '(none)')[:300]}")
+    print(f"  nochannel strategist: {(nochannel[0].strategist_summary or '(none)')[:300]}")
     if not args.dry_run:
         append_pair_row(LEDGER, row)
         print(f"  → appended to {LEDGER}")
