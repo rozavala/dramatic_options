@@ -176,6 +176,41 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
         </div>
       )}
 
+      {/* the forward-catalyst channel (frozen prereg §4/§6/§8) — record only, never a verdict */}
+      <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px", marginTop: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
+          Forward-catalyst channel{" "}
+          <span style={{ color: "#6a7280", fontWeight: 400 }}>
+            · {vm.catalysts.stamp ?? "no stamp"}{vm.catalysts.countersRunId != null ? ` · run #${vm.catalysts.countersRunId}` : ""}
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 12 }}>
+          Dated public forward evidence in the council pack — grounding, never permission. The M=8 disposition
+          read stays the operator's; this card renders the record.
+        </div>
+        <div className="font-mono" style={{ fontSize: 12, color: "#414956", marginBottom: 10 }}>
+          {vm.catalysts.countersLine ?? "no cycle counters yet — the stamp/counters appear from the first post-deploy L1"}
+        </div>
+        {vm.catalysts.pinsFileMissing ? (
+          <div style={{ fontSize: 12, color: "#6a7280", marginBottom: 10 }}>pin file missing on this checkout</div>
+        ) : vm.catalysts.pins.length === 0 ? (
+          <div style={{ fontSize: 12, color: "#6a7280", marginBottom: 10 }}>no items pinned — the channel is live-inert</div>
+        ) : (
+          <div className="flex flex-wrap" style={{ gap: 8, marginBottom: 10 }}>
+            {vm.catalysts.pins.map((p, i) => (
+              <span key={i} className="font-mono" style={{ fontSize: 12, padding: "4px 9px", borderRadius: 7, background: signal.acc.bg, border: `1px solid ${signal.acc.border}`, color: signal.acc.text }}>
+                <span style={{ fontWeight: 500 }}>{p.symbol}</span>
+                <span style={{ opacity: 0.75 }}> · class {p.cls}{p.eventDate ? ` · event ${p.eventDate}` : ""} · pinned {p.asOf} · expires {p.expires}</span>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="font-mono" style={{ fontSize: 12, color: "#141b28" }}>
+          {vm.catalysts.ledgerLine ?? "no pairs ledger yet — rows accrue via the paired-contrast probe"}
+          {vm.catalysts.bySymbol ? <span style={{ color: "#6a7280" }}>  ({vm.catalysts.bySymbol})</span> : null}
+        </div>
+      </div>
+
       <div style={{ marginTop: 16 }}><CheapnessWatch data={vm.cheapness} /></div>
     </>
   );

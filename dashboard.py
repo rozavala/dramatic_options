@@ -81,6 +81,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "reserve": dd.safe(dd.reserve_panel, conn),
             "curation": dd.safe(dd.curation_panel, conn, config, market),
             "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir),
+            "forward_catalysts": dd.safe(dd.forward_catalyst_panel, conn, config),
         }
     finally:
         conn.close()

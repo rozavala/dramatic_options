@@ -127,6 +127,16 @@ function synthetic(): Snapshot {
       rank: [{ symbol: "ACME", conviction: "MODERATE", status: "booked" }],
       unlabeled: [],
     },
+    forward_catalysts: {
+      stamp: "forward_catalyst_v1",
+      counters: { rendered: 1, expired: 0, malformed: 0, stale_flagged: 1 },
+      counters_run_id: 287,
+      pins: [{ symbol: "KMT", class: "d", event_date: null, as_of: "2026-07-12", expires: "2026-07-19" }],
+      pins_file_missing: false,
+      ledger: { rows: 2, eligible: 2, void: 0, flips: 0, cites: 2, reverse_conversions: 0,
+                last_as_of: "2026-07-12T21:30:12+00:00", by_symbol: { KMT: 2 } },
+      ledger_missing: false, m_target: 8,
+    },
     null_attempts: {
       run_id: 287,
       books: {
@@ -296,6 +306,23 @@ describe("fromBackend", () => {
     const bad = fromBackend({ ...synthetic(), reserve: { error: "no such table" } } as unknown as Snapshot);
     expect(bad.reserve.stamp).toBeNull();
     expect(bad.degraded).toContain("reserve");
+  });
+
+  it("maps the forward-catalyst channel — record only, never a verdict", () => {
+    expect(vm.catalysts.stamp).toBe("forward_catalyst_v1");
+    expect(vm.catalysts.countersLine).toBe("rendered 1 · expired 0 · malformed 0 · stale 1");
+    expect(vm.catalysts.countersRunId).toBe(287);
+    expect(vm.catalysts.pins).toEqual([{ symbol: "KMT", cls: "d", eventDate: null, asOf: "2026-07-12", expires: "2026-07-19" }]);
+    expect(vm.catalysts.ledgerLine).toBe("2/8 eligible pairs · flips 0 · cites 2 · voids 0 · reverse 0");
+    expect(vm.catalysts.bySymbol).toBe("KMT 2");
+    // absent panel → nulls + inert render, never invented numbers
+    const off = fromBackend({ ...synthetic(), forward_catalysts: undefined } as Snapshot);
+    expect(off.catalysts.stamp).toBeNull();
+    expect(off.catalysts.countersLine).toBeNull();
+    expect(off.catalysts.ledgerLine).toBeNull();
+    // {error} → degraded
+    const bad = fromBackend({ ...synthetic(), forward_catalysts: { error: "boom" } } as unknown as Snapshot);
+    expect(bad.degraded).toContain("forward_catalysts");
   });
 
   it("maps the null-book entry walk per book, in walk order (migration 0018) (C)", () => {
