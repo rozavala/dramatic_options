@@ -105,6 +105,7 @@ export interface Snapshot {
   cap_flow?: { cluster_cap_rejections_of_passing: number; tightening_note: string };
   reserve?: ReservePanel;
   null_attempts?: NullAttempts;
+  forward_catalysts?: ForwardCatalystPanel;
   regime?: unknown;
   curation?: unknown;
   cheapness?: CheapnessPanel;
@@ -118,6 +119,24 @@ export interface ReserveSlot { symbol: string; conviction: string | null; status
 export interface ReservePanel {
   run_id: number | null; stamp: string | null;
   reserve: ReserveSlot[]; rank: ReserveSlot[]; unlabeled: ReserveSlot[];
+}
+// forward_catalyst_panel: the channel's observability (frozen prereg §4/§6/§8) — the capability stamp +
+// the latest cycle's anti-silent-dormancy counters, the operator's pinned items, and the M-sample ledger
+// tally. Renders the record only; the M=8 disposition read stays the operator's (no verdict computed).
+export interface ForwardCatalystPin {
+  symbol: string | null; class: string | null; event_date: string | null;
+  as_of: string | null; expires: string | null;
+}
+export interface ForwardCatalystLedger {
+  rows: number; eligible: number; void: number; flips: number; cites: number;
+  reverse_conversions: number; last_as_of: string | null; by_symbol: Record<string, number>;
+}
+export interface ForwardCatalystPanel {
+  stamp: string | null;
+  counters: { rendered: number; expired: number; malformed: number; stale_flagged: number } | null;
+  counters_run_id: number | null;
+  pins: ForwardCatalystPin[]; pins_file_missing: boolean;
+  ledger: ForwardCatalystLedger | null; ledger_missing: boolean; m_target: number;
 }
 // null_attempts_panel (migration 0018): every candidate each capped null book touched last cycle, in walk
 // order, with the terminal outcome + premium-at-attempt — the per-name attribution surface.
@@ -204,6 +223,12 @@ export interface ReserveSlotVM { symbol: string; conviction: string; status: str
 export interface ReserveVM { runId: number | null; stamp: string | null; slots: ReserveSlotVM[] }
 export interface AttemptRowVM { idx: number; symbol: string; origin: string; outcome: string; premium: number | null }
 export interface AttemptsVM { runId: number | null; books: { book: string; rows: AttemptRowVM[] }[] }
+export interface CatalystPinVM { symbol: string; cls: string; eventDate: string | null; asOf: string; expires: string }
+export interface CatalystVM {
+  stamp: string | null; countersLine: string | null; countersRunId: number | null;
+  pins: CatalystPinVM[]; pinsFileMissing: boolean;
+  ledgerLine: string | null; bySymbol: string | null; mTarget: number;
+}
 
 export interface ViewModel {
   asOf: string; level: Level; headline: string; sub: string;
@@ -227,6 +252,7 @@ export interface ViewModel {
   deliberation: DeliberationVM;        // C — latest run's per-name reasoning
   reserve: ReserveVM;                  // C — judged-set provenance (the gate-cheap reserve)
   attempts: AttemptsVM;                // C — the null-book entry walk (migration 0018)
+  catalysts: CatalystVM;               // the forward-catalyst channel (frozen prereg §4/§6/§8)
   capFlow: { rejected: number; note: string };  // C — cluster-cap rejections of otherwise-passing
   clusters: ClusterVM[];
   perf: {

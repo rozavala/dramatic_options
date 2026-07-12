@@ -9,7 +9,7 @@
 
 import type {
   AttemptsVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM, NullStepVM, PositionVM,
-  ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, Snapshot, ViewModel,
+  CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, Snapshot, ViewModel,
 } from "./types";
 import { levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
@@ -112,6 +112,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["sentinels", P.sentinels], ["market_ctx", P.market_ctx], ["t4", P.t4], ["nulls", P.nulls],
       ["dualread", P.dualread], ["dualread_runtime", P.dualread_runtime], ["cost", P.cost],
       ["deliberation", P.deliberation], ["cap_flow", P.cap_flow], ["reserve", P.reserve],
+      ["forward_catalysts", P.forward_catalysts],
       ["null_attempts", P.null_attempts],
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
     ] as [string, unknown][]
@@ -225,6 +226,28 @@ export function fromBackend(P: Snapshot): ViewModel {
     })),
   };
 
+  // The forward-catalyst channel — render the record, never a verdict (the M=8 read is the operator's).
+  const fcP = panelError(P.forward_catalysts) ? null : P.forward_catalysts;
+  const fcC = fcP?.counters ?? null;
+  const fcL = fcP?.ledger ?? null;
+  const catalysts: CatalystVM = {
+    stamp: fcP?.stamp ?? null,
+    countersLine: fcC
+      ? `rendered ${fcC.rendered} · expired ${fcC.expired} · malformed ${fcC.malformed} · stale ${fcC.stale_flagged}`
+      : null,
+    countersRunId: fcP?.counters_run_id ?? null,
+    pins: (fcP?.pins ?? []).map((p) => ({
+      symbol: p.symbol ?? DASH, cls: p.class ?? DASH, eventDate: p.event_date ?? null,
+      asOf: p.as_of ?? DASH, expires: p.expires ?? DASH,
+    })),
+    pinsFileMissing: fcP?.pins_file_missing ?? false,
+    ledgerLine: fcL
+      ? `${fcL.eligible}/${fcP?.m_target ?? 8} eligible pairs · flips ${fcL.flips} · cites ${fcL.cites} · voids ${fcL.void} · reverse ${fcL.reverse_conversions}`
+      : null,
+    bySymbol: fcL ? Object.entries(fcL.by_symbol).map(([k, v]) => `${k} ${v}`).join(" · ") : null,
+    mTarget: fcP?.m_target ?? 8,
+  };
+
   const cf = P.cap_flow;
   const delta = acc.delta_vs_frame ?? 0;
   const edgeN = ci(ciP.real).n;
@@ -262,7 +285,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       cost: usd(ch.cost_usd), streak: councilStreak(P.council?.recent), models: modelMixSummary(P.council?.model_mix ?? null),
       byProvider,
     },
-    cost, dualread, dualreadRuntime, nulls, deliberation, reserve, attempts,
+    cost, dualread, dualreadRuntime, nulls, deliberation, reserve, attempts, catalysts,
     capFlow: { rejected: cf?.cluster_cap_rejections_of_passing ?? 0, note: cf?.tightening_note ?? "" },
     clusters: (rk.clusters ?? []).map((c) => ({ name: c.cluster, premium: c.premium, cap: c.cap, dirs: (c.directions ?? []).join(", ") || "—" })),
     perf: {

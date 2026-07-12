@@ -1105,6 +1105,79 @@ def data_gathered_panel(cache_dir: str | Path) -> dict:
     return out
 
 
+_FWD_NOTE_RE = re.compile(
+    r"fwd_catalysts: rendered=(\d+) expired=(\d+) malformed=(\d+) stale_flagged=(\d+)")
+FWD_M_TARGET = 8  # PREREG_FORWARD_CATALYST_GROUNDING §8 — M=8 eligible pairs (frozen, not config)
+
+
+def forward_catalyst_panel(conn, config: dict | None = None,
+                           pairs_csv: str | Path = "records/forward_catalyst_pairs.csv") -> dict:
+    """The forward-catalyst channel's observability (frozen prereg §4/§6/§8, read-only):
+    the capability stamp + the latest cycle's anti-silent-dormancy counters (parsed from
+    ``runs.note`` — journald rotates, the runs row doesn't), the operator's pinned items
+    (local pin-file read, NO-FETCH), and the M-sample ledger tally (the git-tracked pairs CSV).
+    Renders the record; the M=8 disposition read stays the OPERATOR's — no verdict computed here."""
+    out: dict[str, Any] = {"stamp": None, "counters": None, "counters_run_id": None,
+                           "pins": [], "pins_file_missing": False,
+                           "ledger": None, "ledger_missing": False, "m_target": FWD_M_TARGET}
+    row = conn.execute(
+        "SELECT id, note, model_mix FROM runs WHERE note LIKE '%fwd_catalysts:%' "
+        "ORDER BY id DESC LIMIT 1").fetchone()
+    if row:
+        m = _FWD_NOTE_RE.search(row["note"] or "")
+        if m:
+            out["counters"] = {"rendered": int(m.group(1)), "expired": int(m.group(2)),
+                               "malformed": int(m.group(3)), "stale_flagged": int(m.group(4))}
+            out["counters_run_id"] = row["id"]
+        try:
+            mix = json.loads(row["model_mix"]) if row["model_mix"] else {}
+            out["stamp"] = mix.get("forward_catalysts")
+        except Exception:  # noqa: BLE001 — an unreadable stamp renders None, never raises
+            out["stamp"] = None
+
+    fc_cfg = (config or {}).get("forward_catalysts", {}) or {}
+    pin_path = Path(fc_cfg.get("path", "forward_catalysts.json"))
+    if pin_path.exists():
+        try:
+            items = (json.loads(pin_path.read_text()) or {}).get("items", [])
+            out["pins"] = [{"symbol": i.get("symbol"), "class": i.get("class"),
+                            "event_date": i.get("event_date"), "as_of": i.get("as_of"),
+                            "expires": i.get("expires")} for i in items if isinstance(i, dict)]
+        except Exception:  # noqa: BLE001 — a bad pin file renders empty pins (file present)
+            out["pins"] = []
+    else:
+        out["pins_file_missing"] = True
+
+    csv_path = Path(pairs_csv)
+    if not csv_path.exists():
+        out["ledger_missing"] = True
+        return out
+    try:
+        import csv as _csv
+        rows = list(_csv.DictReader(csv_path.open()))
+    except Exception:  # noqa: BLE001
+        out["ledger_missing"] = True
+        return out
+
+    def _t(v) -> bool:
+        return str(v).strip().lower() == "true"
+
+    by_symbol: dict[str, int] = {}
+    for r in rows:
+        by_symbol[r.get("symbol", "?")] = by_symbol.get(r.get("symbol", "?"), 0) + 1
+    out["ledger"] = {
+        "rows": len(rows),
+        "eligible": sum(1 for r in rows if _t(r.get("eligible"))),
+        "void": sum(1 for r in rows if _t(r.get("void"))),
+        "flips": sum(1 for r in rows if _t(r.get("flip"))),
+        "cites": sum(1 for r in rows if _t(r.get("cite"))),
+        "reverse_conversions": sum(1 for r in rows if _t(r.get("reverse_conversion"))),
+        "last_as_of": rows[-1].get("as_of") if rows else None,
+        "by_symbol": by_symbol,
+    }
+    return out
+
+
 # ── the T4-readiness scoreboard (the spine) ─────────────────────────────────────────────────────
 def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N) -> dict:
     """Map the pre-committed unlock conditions → live state. ASYMMETRY IS STRUCTURAL: only (1),(3),(5) can be
