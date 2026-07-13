@@ -79,6 +79,26 @@ class EventCounters:
         return self.cik_resolved == 0
 
 
+def event_status_line(ev_hash: str, counters: EventCounters,
+                      active_lineage: set[str] | None = None) -> str:
+    """The per-scan status/note stamp (PREREG_EVENT_LEG §4; additive amendment dated 2026-07-13).
+
+    Byte-identical to the historical format when nothing is blocked. ``active_lineage`` is the
+    live-sentinel symbol set the SAME scan's novelty dedup excludes: a fresh-event name in it is
+    detected-but-unjudgeable (its active lineage blocks re-surfacing, so the filing refreshes
+    nothing — the LUNR 13D/A gap, records/2026-07-13_lunr_event_lineage_judgment_gap.md) and is
+    stamped ``fresh_on_active_lineage=…`` so that state is loud at detection time. Detection-layer
+    visibility ONLY — surfacing/judgment mechanics are untouched.
+    """
+    s = f"events:ON ev={ev_hash} {counters.status()}"
+    if counters.fresh_names:
+        s += " fresh_names=" + ",".join(sorted(counters.fresh_names))
+        blocked = sorted(set(counters.fresh_names) & {x.upper() for x in (active_lineage or ())})
+        if blocked:
+            s += " fresh_on_active_lineage=" + ",".join(blocked)
+    return s
+
+
 class EdgarEventProvider:
     """``discovery.EventProvider`` over ``FilingsData`` — exact-membership forms, closed lookback.
 

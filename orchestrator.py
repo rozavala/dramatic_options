@@ -409,7 +409,8 @@ def run_discover(demo: bool = False) -> int:
             return 0
 
         # Novelty/dedup: never re-surface a hand-seed name, an open position, or a live sentinel.
-        exclude = set(state.open_position_symbols(conn)) | state.active_sentinel_symbols(conn)
+        sentinel_syms = state.active_sentinel_symbols(conn)
+        exclude = set(state.open_position_symbols(conn)) | sentinel_syms
         try:
             exclude |= {t.symbol for t in active_themes(load_themes(config.get("themes_path", "themes.json")))}
         except Exception as e:  # noqa: BLE001 — a missing themes.json must not break a scan
@@ -425,12 +426,14 @@ def run_discover(demo: bool = False) -> int:
         # BEFORE the scan, so the counters need this post-scan write; journald rotates, the runs
         # row doesn't). 'ON, 0 fresh' must never be indistinguishable from a broken leg.
         if event_provider is not None:
-            from data.structural_events import form_set_hash
+            from data.structural_events import event_status_line, form_set_hash
             ctr = event_provider.counters
-            ev_status = (f"events:ON ev={form_set_hash((disc.get('events', {}) or {}).get('forms', []))} "
-                         f"{ctr.status()}")
-            if ctr.fresh_names:
-                ev_status += " fresh_names=" + ",".join(sorted(ctr.fresh_names))
+            # `sentinel_syms` is the SAME pre-scan snapshot the novelty dedup used — a fresh-event
+            # name in it was blocked from surfacing THIS scan (detected-but-unjudgeable, stamped
+            # `fresh_on_active_lineage=` — the 2026-07-13 LUNR gap record).
+            ev_status = event_status_line(
+                form_set_hash((disc.get('events', {}) or {}).get('forms', [])), ctr,
+                active_lineage=sentinel_syms)
             if ctr.systemic_failure():
                 log.warning("Event leg SYSTEMIC failure — %s", ev_status)
                 notify.send("Discovery event leg failing", ev_status)
