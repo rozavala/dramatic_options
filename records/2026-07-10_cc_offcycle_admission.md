@@ -49,3 +49,23 @@ The Rule-5 pull initially read "empty fundamentals / no analyst count" — a **s
 naive-`as_of` error (the §9 corpus expects the live clock's tz-AWARE datetimes; the channel
 module expects naive — two conventions, each correct on its own live path). The live loop is
 unaffected; the probe convention is documented here so the next ad-hoc pull doesn't repeat it.
+
+## Dated addendum 2026-07-13 — this admission RE-STALED the §5 four-scan read (operator ruling: conservative restart)
+
+Named after the fact (the admission record above did not carry this consequence — recorded now,
+not silently): admitting CC mid-clock changed the L0 scan universe 38→39 between scans #2 and
+#3 of the post-funnel four-scan sequence (stamps: `fresh_v2` 06-28 and 07-05 on 38 names;
+07-12 on 39) — exactly the event the window-#2 precedent treated as staling.
+
+**Operator ruling (2026-07-13, TRUE form):** presented both options — (a) conservative restart
+(recommended: ~2 weeks' cost, clean measurement, no de-minimis threshold precedent) vs (b) a
+dated de-minimis ruling (+1 name, 2.6%) — the operator answered *"Sure, let's follow your
+recommendation"* = **(a) conservative restart**, an informed delegation on the presented choice.
+
+**Effect:** the §5 four-scan clock re-anchors at the 2026-07-12 L0 (scan #1 of the fresh
+sequence, run on the 39-name universe). Scans: 07-12 · 07-19 · 07-26 · **08-02 — the read
+closes after the 2026-08-02 scan** (was ~07-19 pre-staling). Held behind it, unchanged: the
+§11 window-#3 MAIN curation window (off-cycle carve-outs per the window-#2 rationale remain
+available) and the forward-catalyst channel's SENTINEL expansion (hand-seed probes continue
+accruing the M-sample meanwhile). A further curation act before 08-02 re-stales again — the
+clock counts only scans on a stable universe + funnel configuration.
