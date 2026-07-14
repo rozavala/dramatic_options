@@ -1,0 +1,20 @@
+{
+  "_comment": "OPERATOR-EDITABLE (reach-channels charter, records/2026-07-14_reach_channels_charter_DRAFT.md). Which feeds/lists are IN is the operator's curation act (pond-naming). No feed may be added that requires ranking to be useful. trade_press URLs verified live 2026-07-14 (curl -> HTTP 200, parseable RSS 2.0): Utility Dive, Fierce Network (the successor brand of Fierce Telecom -- fiercetelecom.com itself now 403s behind Cloudflare), FreightWaves, Chemical & Engineering News.",
+  "trade_press": [
+    {"source": "Utility Dive", "url": "https://www.utilitydive.com/feeds/news/"},
+    {"source": "Fierce Network", "url": "https://www.fierce-network.com/rss/xml"},
+    {"source": "FreightWaves", "url": "https://www.freightwaves.com/news/feed"},
+    {"source": "Chemical & Engineering News", "url": "https://cen.acs.org/feeds/rss/latestnews.xml"}
+  ],
+  "agency": {
+    "federal_register_agencies": [
+      "national-telecommunications-and-information-administration",
+      "nuclear-regulatory-commission",
+      "internal-revenue-service"
+    ],
+    "rss": []
+  },
+  "orphan_watch": {"ipo_age_months_min": 12, "ipo_age_months_max": 24, "cohort_limit": 40},
+  "caps": {"trade_press": 15, "agency": 15, "orphan_watch": 20},
+  "lookback_days": 8
+}
