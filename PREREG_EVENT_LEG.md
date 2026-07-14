@@ -84,6 +84,15 @@ failures degrade that name only (the existing `compute_markers` brace + the prov
 The factory reads the EXISTING `config.edgar.user_agent` seam (config_loader.py:96–98 maps
 `EDGAR_USER_AGENT`; already present in the live `.env`) — never `os.environ` directly.
 
+**Additive amendment (dated 2026-07-13):** the status stamp MAY append
+`fresh_on_active_lineage=<names>` — the subset of `fresh_names` whose surfacing the SAME scan's
+novelty dedup blocked via a live sentinel lineage. Without it, detected-but-unjudgeable (the
+active lineage blocks re-surfacing, so the fresh filing refreshes neither score nor markers and
+typically ages out of the 14d lookback before the lineage's TTL restores novelty eligibility)
+reads byte-identically to detected-and-riding — the LUNR 13D/A case,
+`records/2026-07-13_lunr_event_lineage_judgment_gap.md`. Detection-layer visibility ONLY: no
+surfacing, ranking, or judgment mechanics change under this amendment.
+
 ## 5. The pinned falsifiable (blind, directional, maturity-gated) + its persistence artifact
 
 **Prediction, committed before any data exists:** among SURFACED sentinels,

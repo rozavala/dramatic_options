@@ -8,6 +8,7 @@ from data.structural_events import (
     EdgarEventProvider,
     allowed_forms,
     build_event_provider,
+    event_status_line,
     form_set_hash,
 )
 
@@ -145,3 +146,39 @@ def test_append_run_note_is_post_scan_durable(convexity_db):
     state.append_run_note(convexity_db, run_id, "events:ON ev=abc123 checked=33 fresh=2 err=0")
     note = convexity_db.execute("SELECT note FROM runs WHERE id=?", (run_id,)).fetchone()[0]
     assert note == "weekly scan · events:ON ev=abc123 checked=33 fresh=2 err=0"
+
+
+# ── the status line + the fresh-on-active-lineage stamp (2026-07-13 additive amendment) ────────
+
+def _counters(fresh_names=()):
+    from data.structural_events import EventCounters
+    c = EventCounters(checked=33, cik_resolved=31, no_cik=2, fresh=len(fresh_names), errors=0)
+    c.fresh_names = list(fresh_names)
+    return c
+
+
+def test_event_status_line_byte_identical_without_blocked():
+    """The historical format is untouched when no fresh name sits on an active lineage."""
+    line = event_status_line("abc123", _counters(["LUNR"]), active_lineage={"PL", "FLNC"})
+    assert line == "events:ON ev=abc123 checked=33 cik=31 no_cik=2 fresh=1 err=0 fresh_names=LUNR"
+    # and with no fresh names at all, no fresh_names field either
+    assert event_status_line("abc123", _counters()) == (
+        "events:ON ev=abc123 checked=33 cik=31 no_cik=2 fresh=0 err=0")
+
+
+def test_event_status_line_stamps_fresh_on_active_lineage():
+    """A fresh-event name the SAME scan's novelty dedup excludes (live lineage) is stamped —
+    detected-but-unjudgeable must never read byte-identically to detected-and-riding (the LUNR
+    13D/A gap)."""
+    line = event_status_line("abc123", _counters(["LUNR", "CC"]), active_lineage={"LUNR", "PL"})
+    assert "fresh_names=CC,LUNR" in line
+    assert line.endswith("fresh_on_active_lineage=LUNR")
+
+
+def test_event_status_line_blocked_requires_fresh():
+    """An active-lineage name with NO fresh event is not stamped (the field is the intersection)."""
+    line = event_status_line("abc123", _counters(["CC"]), active_lineage={"LUNR", "PL"})
+    assert "fresh_on_active_lineage" not in line
+    # case-insensitive on the lineage side (DB symbols are upper, but don't depend on it)
+    line2 = event_status_line("abc123", _counters(["LUNR"]), active_lineage={"lunr"})
+    assert line2.endswith("fresh_on_active_lineage=LUNR")
