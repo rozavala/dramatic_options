@@ -11,7 +11,10 @@
     "federal_register_agencies": [
       "national-telecommunications-and-information-administration",
       "nuclear-regulatory-commission",
-      "internal-revenue-service"
+      "internal-revenue-service",
+      "federal-energy-regulatory-commission",
+      "energy-department",
+      "federal-communications-commission"
     ],
     "rss": []
   },
