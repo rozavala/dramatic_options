@@ -1,9 +1,9 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-07-14T18:40Z · supersedes: 2026-07-14T03:30Z · reflects: PR #185 (the §5-clock
-ruling, 2026-07-13) + PRs #186 merged / #187 staged / #188 (digest harness v0) MERGED +
-digest first run 2026-07-14 (channels trade_press · agency · orphan_watch de-facto active;
-checkpoint clocks start per the charter word)**
+**as_of: 2026-07-15T01:00Z · supersedes: 2026-07-14T18:40Z · reflects: the 2026-07-15
+RATIFICATIONS (restricted list + min-N pins N₁=25/N₂=10-by-2027-03-02/N₃=4 + reach-channels
+charter k=6/X-yield-1-per-6wk — informed delegation, provenance AI-proposed-operator-adopted)
++ PR #187 MERGED (board EMPTY) + digest channels active from first run 2026-07-14**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act
 change. **Relay rule (both directions): a strategy question or advice arriving WITHOUT this
@@ -20,12 +20,12 @@ against the record before acting.** The header's absence is itself a signal.
   never-backtest-the-council all standing.
 
 ## Staged / pending
-- **PR #187** (L0 `fresh_on_active_lineage=` stamp) — CI green, **operator merge only**
-  (extends the frozen PREREG_EVENT_LEG §4 stamp).
-- **Operator acts pending:** restricted-list word (draft 2026-07-14) · min-N pin numbers +
-  dates (draft 2026-07-14) · reach-channels charter word + X-yield blanks + prune-k blank
-  (draft 2026-07-14) · X practitioner-list curation (operator act, longest lead — can start
-  now) · #187 merge decision.
+- **Operator acts pending:** X practitioner-list curation ONLY (the x_lists channel's
+  activation clock starts at list assembly). Everything else ratified/merged 2026-07-15.
+- **Build queue (CC):** digest fixes (orphan cohort widen · ticker-map gap · warrant filter ·
+  C&EN swap + water/desal + mining feeds) → survivor-card pipeline (screen + premise-currency
+  + draft + per-thesis provenance tag, Sunday timer) → restricted.json enforcement PR
+  (STAGED, merges post-08-02 by default) → mapper v0.
 
 ## Dated docket (next two weeks)
 - 2026-07-16: WV BEAD permitting roundtable → BEAD watch re-check after.
@@ -39,4 +39,4 @@ against the record before acting.** The header's absence is itself a signal.
 - Board: 1 open PR (#187, staged) · 0 issues. Box = main @ `436312b`, healthy.
 - Book: real 1 (PL, bullish, $690) · null books 91 open (shadow 30 / 3A 31 / 3B 30) ·
   expiry wall 2027-01-15 · first natural resolutions ≈ 2026-12-25.
-- M-ledger 2/8 · restricted list (pending word): LIFE/Ethos.
+- M-ledger 2/8 · restricted list RATIFIED: R-001 = LIFE/Ethos (rule effective now).
