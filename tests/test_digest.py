@@ -22,6 +22,7 @@ from digest import (
     assemble,
     federal_register_items,
     fetch_rss,
+    is_warrant_or_unit,
     iso_week_stamp,
     last_closed_quarter_end,
     load_snapshot,
@@ -30,6 +31,7 @@ from digest import (
     orphan_new_listings,
     parse_feed,
     save_snapshot,
+    submissions_ticker_fallback,
 )
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
@@ -292,6 +294,132 @@ def test_orphan_cohort_cap_drops_oldest_with_note(tmp_path):
     )
     assert [c["symbol"] for c in cohort] == ["QWTR"]  # chronological truncation: oldest dropped
     assert any("capped at 1; 1 older issuers dropped" in n for n in notes)
+
+
+def test_orphan_cohort_fallback_recovers_missing_ciks(tmp_path):
+    notes: list[str] = []
+    asked: list[list[str]] = []
+
+    def fallback(ciks):
+        asked.append(ciks)
+        return {"0000444444": "NTKR"}
+
+    cohort = orphan_cohort(
+        _b4_index(tmp_path), **_WINDOW, limit=40, ticker_map=TICKER_MAP,
+        notes=notes, fallback_lookup=fallback,
+    )
+    assert asked == [["0000444444"]]  # ONLY the missing CIKs are ever passed, deduped
+    assert [c["symbol"] for c in cohort] == ["NWLR", "QWTR", "NTKR"]  # chronological
+    assert cohort[2]["cik"] == "0000444444"
+    assert any("1 ticker(s) resolved via SEC submissions fallback" in n for n in notes)
+    assert not any("no current ticker mapping" in n for n in notes)  # nothing left unmapped
+
+
+def test_orphan_cohort_fallback_no_ticker_is_signal_not_failure(tmp_path):
+    # The fallback KNOWS the CIK has no current ticker (delisted/withdrawn — expected
+    # for aged IPOs): counted in its own note, distinct from an unresolved mapping.
+    notes: list[str] = []
+    cohort = orphan_cohort(
+        _b4_index(tmp_path), **_WINDOW, limit=40, ticker_map=TICKER_MAP,
+        notes=notes, fallback_lookup=lambda ciks: {"0000444444": None},
+    )
+    assert [c["symbol"] for c in cohort] == ["NWLR", "QWTR"]
+    assert any("1 424B4 filer(s) with no current ticker (delisted/withdrawn) skipped" in n
+               for n in notes)
+    assert not any("no current ticker mapping" in n for n in notes)
+
+
+def test_orphan_cohort_fallback_fetch_failure_stays_unmapped(tmp_path):
+    # A CIK the fallback OMITTED (fetch failed) stays counted as unmapped — the
+    # fallback's own errors list carries why; it is re-tried next run.
+    notes: list[str] = []
+    cohort = orphan_cohort(
+        _b4_index(tmp_path), **_WINDOW, limit=40, ticker_map=TICKER_MAP,
+        notes=notes, fallback_lookup=lambda ciks: {},
+    )
+    assert [c["symbol"] for c in cohort] == ["NWLR", "QWTR"]
+    assert any("no current ticker mapping skipped" in n for n in notes)
+
+
+def test_submissions_fallback_resolves_caches_and_fails_soft(tmp_path, monkeypatch):
+    calls: list[str] = []
+
+    def fake(url, **kw):
+        calls.append(url)
+        if "CIK0000444444" in url:
+            return json.dumps({"tickers": ["ntkr", "NTKR-WT"]}).encode()  # first symbol wins
+        if "CIK0000555555" in url:
+            return json.dumps({"tickers": []}).encode()  # delisted: legitimately no ticker
+        raise OSError("503")
+
+    monkeypatch.setattr(digest, "_http_get", fake)
+    errors: list[str] = []
+    out = submissions_ticker_fallback(
+        ["444444", "0000555555", "0000666666"], "ops test@example.com",
+        cache_dir=tmp_path, rate_limit_per_sec=0, errors=errors,
+    )
+    # resolved → upcased ticker; known-no-ticker → None; failed fetch → OMITTED + counted
+    assert out == {"0000444444": "NTKR", "0000555555": None}
+    assert len(errors) == 1 and "0000666666" in errors[0]
+    assert calls[0] == "https://data.sec.gov/submissions/CIK0000444444.json"  # zero-padded
+
+    # repeat week: resolved lookups (INCLUDING the no-ticker one) come from the cache —
+    # network-free; only the previously-FAILED CIK is re-tried.
+    calls.clear()
+    errors2: list[str] = []
+    out2 = submissions_ticker_fallback(
+        ["0000444444", "0000555555", "0000666666"], "ops test@example.com",
+        cache_dir=tmp_path, rate_limit_per_sec=0, errors=errors2,
+    )
+    assert out2 == out
+    assert calls == ["https://data.sec.gov/submissions/CIK0000666666.json"]
+    assert len(errors2) == 1
+
+
+def test_submissions_fallback_throttles_between_fetches(tmp_path, monkeypatch):
+    sleeps: list[float] = []
+    monkeypatch.setattr(digest.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr(
+        digest, "_http_get", lambda url, **kw: json.dumps({"tickers": ["A"]}).encode()
+    )
+    submissions_ticker_fallback(
+        ["1", "2", "3"], "ops test@example.com", cache_dir=tmp_path, rate_limit_per_sec=8.0
+    )
+    # first call is unthrottled; every subsequent fetch waits toward the 1/8s interval
+    assert len(sleeps) == 2 and all(0 < s <= 0.125 for s in sleeps)
+
+
+# ── warrant/unit classes (skipped BEFORE the options-class check) ─────────────
+def test_is_warrant_or_unit_suffixes_and_dotted_classes():
+    for s in ("EVAC-WT", "ABC-WS", "ABC-U", "ABC-R", "ABC.WS", "SPAQ.U", "abc.ws", "ABC.UN"):
+        assert is_warrant_or_unit(s), s
+    for s in ("NWLR", "CAR", "SU", "WS", "BRK.B", "URBN", "WTW"):
+        assert not is_warrant_or_unit(s), s
+
+
+def test_orphan_new_listings_warrant_unit_skipped_before_checker():
+    candidates = [
+        {"symbol": "EVAC-WT", "cik": "0000777777", "company": "EVAC", "date_filed": "2024-08-01"},
+        {"symbol": "SPAQ.U", "cik": "0000888888", "company": "SPAQ", "date_filed": "2024-08-02"},
+        {"symbol": "NWLR", "cik": "0000111111", "company": "NEWLIST", "date_filed": "2024-08-05"},
+    ]
+    checked: list[str] = []
+
+    def checker(symbol: str) -> bool:
+        checked.append(symbol)
+        return True
+
+    notes: list[str] = []
+    errors: list[str] = []
+    now = datetime(2026, 7, 14, 12, 0, tzinfo=UTC)
+    items, updated = orphan_new_listings(
+        candidates, {}, checker, now=now, errors=errors, notes=notes
+    )
+    assert checked == ["NWLR"]  # warrant/unit classes NEVER reach the Alpaca endpoint
+    assert [i.symbol for i in items] == ["NWLR"]
+    assert updated == {"NWLR": "2026-07-14"}  # skipped classes are NOT marked seen
+    assert notes == ["orphan_watch: 2 warrant/unit class(es) skipped"]
+    assert errors == []  # a skip is a note, never an error — genuine failures stay separate
 
 
 def test_orphan_new_listings_detects_only_new_listed_symbols():

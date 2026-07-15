@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import calendar
 import json
+import time
 import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterable, Mapping
@@ -44,6 +45,7 @@ CHANNELS = ("trade_press", "agency", "orphan_watch")
 
 FEDERAL_REGISTER_URL = "https://www.federalregister.gov/api/v1/documents.json"
 SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
+SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 DIGEST_CACHE_DIR = Path("data/cache/digest")
 ORPHAN_SNAPSHOT_PATH = DIGEST_CACHE_DIR / "orphan_seen.json"
 
@@ -267,6 +269,64 @@ def sec_ticker_map(
     return {str(r["cik_str"]).zfill(10): str(r["ticker"]).upper() for r in raw.values()}
 
 
+def submissions_ticker_fallback(
+    ciks: Iterable[str],
+    user_agent: str,
+    *,
+    cache_dir: str | Path = DIGEST_CACHE_DIR,
+    timeout: float = 20,
+    rate_limit_per_sec: float = 8.0,
+    errors: list[str] | None = None,
+) -> dict[str, str | None]:
+    """Current ticker for CIKs MISSING from ``company_tickers.json``, via the per-CIK
+    SEC submissions JSON (its top-level ``tickers`` array carries the current symbol(s)).
+
+    Returns cik(10-digit) → ticker, or → ``None`` when the CIK legitimately has no
+    current ticker (delisted/withdrawn — expected for aged IPOs; that's signal, not
+    failure, and it IS cached). A CIK whose fetch fails is OMITTED from the result
+    (fail-soft per CIK: counted into ``errors``, NOT cached, re-tried next run).
+
+    Callers pass only the missing CIKs; fetches are throttled to ``rate_limit_per_sec``
+    (SEC asks < 10 req/s — mirrors ``data/filings.EdgarClient``) and resolutions are
+    cached under ``cache_dir`` so repeat weeks are network-free."""
+    path = Path(cache_dir) / "submissions_tickers.json"
+    cache: dict[str, str | None] = json.loads(path.read_text()) if path.exists() else {}
+    out: dict[str, str | None] = {}
+    min_interval = 1.0 / rate_limit_per_sec if rate_limit_per_sec > 0 else 0.0
+    last_call = 0.0
+    dirty = False
+    for cik in ciks:
+        cik10 = str(cik).zfill(10)
+        if cik10 in cache:
+            out[cik10] = cache[cik10]
+            continue
+        if min_interval:
+            wait = min_interval - (time.monotonic() - last_call)
+            if wait > 0:
+                time.sleep(wait)
+        last_call = time.monotonic()
+        try:
+            raw = json.loads(
+                _http_get(
+                    SEC_SUBMISSIONS_URL.format(cik=cik10), timeout=timeout, user_agent=user_agent
+                )
+            )
+            tickers = [str(t).strip() for t in (raw.get("tickers") or []) if str(t).strip()]
+            ticker = tickers[0].upper() if tickers else None
+        except Exception as e:  # noqa: BLE001 — the fail-soft boundary is the point
+            if errors is not None:
+                errors.append(
+                    f"orphan_watch/submissions-fallback CIK{cik10}: {type(e).__name__}: {e}"
+                )
+            continue
+        cache[cik10] = out[cik10] = ticker
+        dirty = True
+    if dirty:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(dict(sorted(cache.items())), indent=1) + "\n")
+    return out
+
+
 def orphan_cohort(
     edgar_index: Any,
     *,
@@ -275,6 +335,7 @@ def orphan_cohort(
     limit: int,
     ticker_map: Mapping[str, str],
     notes: list[str] | None = None,
+    fallback_lookup: Callable[[list[str]], Mapping[str, str | None]] | None = None,
 ) -> list[dict[str, Any]]:
     """The 424B4 IPO cohort in [start, end] as ``{symbol, cik, company, date_filed}`` dicts.
 
@@ -283,16 +344,37 @@ def orphan_cohort(
     ``ticker_map`` (CIK→ticker, :func:`sec_ticker_map`) is injected so this stays pure /
     offline-testable. Deduped by ticker (first filing wins), chronological; capped at
     ``limit`` by dropping the OLDEST with an explicit dropped-count note (truncation,
-    never selection). CIKs with no current ticker mapping are counted, not silent."""
+    never selection).
+
+    CIKs absent from ``ticker_map`` go to ``fallback_lookup`` (only the MISSING CIKs,
+    deduped — :func:`submissions_ticker_fallback` wired by the runner): a returned ticker
+    rejoins the cohort (counted); a returned ``None`` is a filer with legitimately no
+    current ticker (delisted/withdrawn — counted as signal, not failure); a CIK omitted
+    from the result stays unmapped (counted; the fallback's own ``errors`` carry why)."""
     events = edgar_index.enumerate_events(start, end)  # ts-ascending, accession-deduped
+    missing = list(dict.fromkeys(ev["cik"] for ev in events if not ticker_map.get(ev["cik"])))
+    fallback: Mapping[str, str | None] = {}
+    if fallback_lookup is not None and missing:
+        fallback = fallback_lookup(missing)
     seen: set[str] = set()
-    unmapped = 0
+    unmapped_ciks: set[str] = set()
+    no_ticker_ciks: set[str] = set()
+    recovered_ciks: set[str] = set()
     cohort: list[dict[str, Any]] = []
     for ev in events:
         symbol = ticker_map.get(ev["cik"])
         if not symbol:
-            unmapped += 1
-            continue
+            if ev["cik"] in fallback:
+                fb = fallback[ev["cik"]]
+                if fb:
+                    symbol = fb
+                    recovered_ciks.add(ev["cik"])
+                else:
+                    no_ticker_ciks.add(ev["cik"])
+                    continue
+            else:
+                unmapped_ciks.add(ev["cik"])
+                continue
         if symbol in seen:
             continue
         seen.add(symbol)
@@ -304,14 +386,42 @@ def orphan_cohort(
                 "date_filed": ev.get("date_filed", ""),
             }
         )
-    if unmapped and notes is not None:
-        notes.append(f"orphan_watch: {unmapped} 424B4 filer(s) with no current ticker mapping skipped")
+    if notes is not None:
+        if recovered_ciks:
+            notes.append(
+                f"orphan_watch: {len(recovered_ciks)} ticker(s) resolved via "
+                "SEC submissions fallback"
+            )
+        if no_ticker_ciks:
+            notes.append(
+                f"orphan_watch: {len(no_ticker_ciks)} 424B4 filer(s) with no current ticker "
+                "(delisted/withdrawn) skipped"
+            )
+        if unmapped_ciks:
+            notes.append(
+                f"orphan_watch: {len(unmapped_ciks)} 424B4 filer(s) with no current "
+                "ticker mapping skipped"
+            )
     if len(cohort) > limit:
         dropped = len(cohort) - limit
         if notes is not None:
             notes.append(f"orphan_watch: cohort capped at {limit}; {dropped} older issuers dropped")
         cohort = cohort[dropped:]
     return cohort
+
+
+_WARRANT_UNIT_SUFFIXES = ("-WT", "-WS", "-U", "-R")
+_WARRANT_UNIT_INFIXES = (".WS", ".U")
+
+
+def is_warrant_or_unit(symbol: str) -> bool:
+    """True for warrant/unit/rights share classes (``-WT``/``-WS``/``-U``/``-R`` suffixes
+    or dotted ``.WS``/``.U`` classes). These have no options class by construction and
+    Alpaca's contract endpoint rejects them (the EVAC-WT APIError class), so they are
+    skipped BEFORE the options-class check — counted in a note, never sent to the
+    endpoint, and kept distinct from genuine checker errors."""
+    s = symbol.upper()
+    return s.endswith(_WARRANT_UNIT_SUFFIXES) or any(m in s for m in _WARRANT_UNIT_INFIXES)
 
 
 def options_class_exists(trading_client: Any, symbol: str) -> bool:
@@ -334,19 +444,27 @@ def orphan_new_listings(
     *,
     now: datetime | None = None,
     errors: list[str] | None = None,
+    notes: list[str] | None = None,
 ) -> tuple[list[Item], dict[str, str]]:
     """Items for cohort symbols whose options class exists NOW and which are NOT in the
     prior ``snapshot`` (symbol → first_seen ISO date). Returns (items, updated snapshot).
 
     The filter is IPO-age × options-class-existence ONLY — no coverage/volume/analyst leg
     of any kind (charter §3: a decayed-coverage leg is forbidden inverted-salience math).
-    A checker failure for one symbol is counted and skipped (the symbol is NOT marked
-    seen, so it is re-checked next run) — fail-soft, never raises out."""
+    Warrant/unit classes (:func:`is_warrant_or_unit`) are skipped BEFORE the options-class
+    check and counted into ``notes`` — never sent to the endpoint, never an ``errors``
+    entry (genuine checker failures stay counted separately). A checker failure for one
+    symbol is counted and skipped (the symbol is NOT marked seen, so it is re-checked
+    next run) — fail-soft, never raises out."""
     now_dt = _as_utc(now or datetime.now(UTC))
     updated = dict(snapshot)
     items: list[Item] = []
+    warrant_unit_skipped = 0
     for cand in candidates:
         symbol = str(cand["symbol"])
+        if is_warrant_or_unit(symbol):
+            warrant_unit_skipped += 1
+            continue  # no options class by construction; never probe the endpoint
         if symbol in snapshot:
             continue  # already known-listed; not new
         try:
@@ -374,6 +492,8 @@ def orphan_new_listings(
                 symbol=symbol,
             )
         )
+    if warrant_unit_skipped and notes is not None:
+        notes.append(f"orphan_watch: {warrant_unit_skipped} warrant/unit class(es) skipped")
     return items, updated
 
 
