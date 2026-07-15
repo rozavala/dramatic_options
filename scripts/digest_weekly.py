@@ -51,6 +51,7 @@ from digest import (  # noqa: E402
     orphan_new_listings,
     save_snapshot,
     sec_ticker_map,
+    submissions_ticker_fallback,
 )
 
 
@@ -174,6 +175,12 @@ def run_orphan(
         limit=int(orphan_cfg.get("cohort_limit", 40)),
         ticker_map=sec_ticker_map(user_agent),
         notes=notes,
+        # CIKs missing from company_tickers.json fall back to the per-CIK SEC
+        # submissions JSON (missing-only, throttled, cached under data/cache/digest/);
+        # fail-soft per CIK — failures are counted into `errors`, retried next week.
+        fallback_lookup=lambda ciks: submissions_ticker_fallback(
+            ciks, user_agent, errors=errors
+        ),
     )
 
     trading = TradingClient(api_key, secret_key, paper=bool(config["alpaca"]["paper"]))
@@ -184,6 +191,7 @@ def run_orphan(
         lambda symbol: options_class_exists(trading, symbol),
         now=now,
         errors=errors,
+        notes=notes,
     )
     summary.append(
         f"orphan_watch: cohort {len(cohort)} (424B4 {start.date()}..{end.date()}), "
