@@ -1,6 +1,6 @@
 {
   "_comment": "OPERATOR-EDITABLE — the x_lists pond (reach-channels charter, records/2026-07-14_reach_channels_charter_RATIFIED.md section 2 + the 2026-07-16 amendment). WHO is in is the operator's curation act (pond-naming, operator-picked priority cut 2026-07-16); edits by PR. Ships enabled:false — flip to true ONLY after scripts/x_probe.py passes on-box (the retained section-2(b) tier/pricing check); that config flip IS the channel's activation date (charter section 1 — the prune/yield clocks run from it). Org accounts UxC_Nuclear and Almonty_ are sanctioned exceptions to the practitioner rule. Ingestion is engagement-blind and chronological (no public_metrics ever requested); caps are salience-blind truncation, never selection.",
-  "enabled": false,
+  "enabled": true,
   "verticals": {
     "fiber": [
       {"handle": "DougDawson_CCG", "name": "Doug Dawson"},
