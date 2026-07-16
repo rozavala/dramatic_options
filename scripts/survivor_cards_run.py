@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Survivor-card runner, STAGE A — OFFLINE OPERATOR TOOL (run by hand, never by systemd).
+"""Survivor-card runner, STAGES A+B — OFFLINE OPERATOR TOOL (run by hand, never by systemd).
 
 Governing spec: ``records/2026-07-14_reach_channels_charter_RATIFIED.md`` §3b. Consumes a
 written weekly digest (``records/digests/<YYYY>-W<ww>.md`` — the artifact of record; see
@@ -7,12 +7,17 @@ written weekly digest (``records/digests/<YYYY>-W<ww>.md`` — the artifact of r
 seam), extracts tickers conservatively, drops restricted names (fail-CLOSED on a broken
 ``restricted.json``), runs the four-axis deterministic feasibility screen, pulls the
 mechanical premise-currency numbers for survivors, and writes the card document to
-``records/cards/<YYYY>-W<ww>.md``. Stage A only — NO LLM calls anywhere; the drafting layer
-is Stage B behind ``survivor_cards.draft_thesis_section``.
+``records/cards/<YYYY>-W<ww>.md``. Stage A makes NO LLM calls; the Stage-B drafting layer
+(``card_drafts.py``) runs ONLY behind ``--draft`` (default OFF — keyless/testless runs are
+byte-unchanged): one bounded LLM call per survivor via the ``reach.drafter`` role config,
+kill-before-spend, per-run cost cap, grounded on PRINTS with the surfacing item as a
+pointer only; parse failure fail-closes to an undrafted card. Keyless ``--draft`` falls
+back to the deterministic ``FakeRouter`` demo drafts (the council ``--demo`` pattern), loudly.
 
 Run (from the repo root):
     python scripts/survivor_cards_run.py [--digest records/digests/2026-W29.md]
-        [--out records/cards] [--restricted restricted.json] [--skip-market] [--dry-run]
+        [--out records/cards] [--restricted restricted.json] [--skip-market] [--draft]
+        [--dry-run]
 
 ``--skip-market`` is the keyless mode (no Alpaca creds): every screen axis is marked
 UNAVAILABLE — never passed. Market mode reads Alpaca creds via the existing
@@ -107,6 +112,71 @@ def _cached_records(cache, source: str, symbol: str, now: datetime) -> list[dict
         return None
 
 
+def _fundamentals_source(config: dict | None, cache, now: datetime, errors: list[str]):
+    """A cache-first §9 ``FundamentalsData`` for the Stage-B grounding pack (or ``None``).
+
+    Cache-first, staleness-honest: disk raws are reused within the council's 7-day freshness
+    policy; the EDGAR client is built only when a contact UA is configured (its ticker→CIK
+    map is itself disk-cached). Any failure degrades to ``None`` — the pack renders
+    fundamentals as unavailable, never invented."""
+    if cache is None or not config:
+        return None
+    try:
+        from data.fundamentals import FundamentalsData
+
+        cache_dir = (config.get("cache", {}) or {}).get("dir", "data/cache")
+        ua = (config.get("edgar") or {}).get("user_agent") or ""
+        edgar = None
+        if ua:
+            from data.filings import EdgarClient
+
+            edgar = EdgarClient(ua, cache_dir=cache_dir)
+        return FundamentalsData(cache, edgar=edgar, fetch_end=now, ua=ua,
+                                cache_dir=cache_dir, max_raw_age_days=7)
+    except Exception as e:  # noqa: BLE001 — grounding degrades, the run continues
+        errors.append(f"drafter-fundamentals: {type(e).__name__}: {e}")
+        return None
+
+
+def _draft_stage(survivors: list[sc.SurvivorCard], config: dict | None, cache,
+                 now: datetime, notes: list[str], errors: list[str],
+                 ) -> tuple[list[sc.SurvivorCard], dict[str, list[str]]]:
+    """STAGE B (charter §3b): one bounded LLM call per survivor via ``card_drafts``.
+
+    Kill-before-spend and the per-run cost cap live inside ``card_drafts.draft_survivors``;
+    this wrapper only wires the router (live, else the loud FakeRouter demo fallback — the
+    council ``--demo`` pattern) and the cache-first grounding sources. Fail-soft throughout:
+    a drafting problem never loses a card or the run."""
+    import card_drafts as cd
+
+    cfg = config or {}
+    try:
+        router = cd.build_drafter_router(cfg, cfg.get("llm_keys") or {})
+    except Exception as e:  # noqa: BLE001 — no key/SDK → offline demo drafts, LOUDLY counted
+        from council.router import FakeRouter
+
+        cap = float(cd.drafter_config(cfg)["cost_cap_usd"])
+        router = FakeRouter(responder=cd.drafter_fake_responder, cap_usd=cap)
+        notes.append(f"drafter: live router unavailable ({e}) — FakeRouter DEMO drafts ($0)")
+    fundamentals = _fundamentals_source(config, cache, now, errors)
+
+    def pack_for(card: sc.SurvivorCard) -> str:
+        fund = None
+        if fundamentals is not None:
+            try:
+                fund = fundamentals.corpus_asof(card.symbol, now)
+            except Exception as e:  # noqa: BLE001 — corpus_asof is fail-soft; belt-and-braces
+                errors.append(f"{card.symbol}/drafter-fundamentals: {type(e).__name__}: {e}")
+        heads = _cached_records(cache, "news", card.symbol, now) if cache is not None else None
+        return cd.build_grounding_pack(card, as_of=now, fundamentals=fund, headlines=heads)
+
+    run = cd.draft_survivors(survivors, router=router, pack_builder=pack_for)
+    notes.extend(run.notes)
+    print(f"[cards] draft: {run.n_drafted} drafted, {run.n_parse_failed} parse-failed, "
+          f"{run.n_undrafted} undrafted — {router.ledger.summary()}")
+    return run.cards, run.sections
+
+
 def _premise_for(symbol: str, market: sc.MarketAccess | None, cache, event_forms,
                  now: datetime, errors: list[str]) -> sc.PremiseCurrency:
     closes: list[float] | None = None
@@ -137,6 +207,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="cached SEC company_tickers.json (the digest's cache file)")
     parser.add_argument("--skip-market", action="store_true",
                         help="keyless mode: screen axes marked UNAVAILABLE, not passed")
+    parser.add_argument("--draft", action="store_true",
+                        help="Stage B: one bounded LLM call per survivor (reach.drafter; "
+                             "kill-before-spend, per-run cost cap; keyless → FakeRouter demo)")
     parser.add_argument("--dry-run", action="store_true", help="print instead of writing")
     args = parser.parse_args(argv)
 
@@ -233,12 +306,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[cards] {symbol}: "
               + " ".join(f"{a.axis}={a.status}" for a in result.axes))
 
+    # ── Stage B drafting (opt-in; default OFF — keyless/testless runs unaffected) ─
+    draft_sections: dict[str, list[str]] | None = None
+    if args.draft:
+        draft_sections = {}
+        if survivors:
+            survivors, draft_sections = _draft_stage(survivors, config, cache, now, notes,
+                                                     errors)
+
     # ── assembly + output ─────────────────────────────────────────────────────
     document = sc.assemble_cards(
         survivors, screened_out, week=week, digest_path=str(digest_path),
         restricted_note=restricted_note, n_extracted=n_extracted,
         n_restricted_dropped=n_restricted_dropped, quotes_live=quotes_live,
-        notes=notes, errors=errors, generated_at=now,
+        notes=notes, errors=errors, generated_at=now, draft_sections=draft_sections,
     )
     print(f"[cards] {len(survivors)} survivor(s), {len(screened_out)} screened out, "
           f"{len(errors)} error(s)")

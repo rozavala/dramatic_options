@@ -11,10 +11,13 @@ construction:
   Survivors and screen-failures are listed ALPHABETICALLY; no scoring/rank/relevance field
   exists anywhere in this module's schema (a guard test pins each dataclass's exact field
   set so a future scoring field fails CI — the ``digest.Item`` discipline).
-- **Stage A is mechanical: NO LLM calls anywhere.** The thesis-drafting layer is Stage B
-  and enters through one clearly named seam (:func:`draft_thesis_section` /
-  :data:`STAGE_B_SEAM`); Stage B also upgrades the provenance tag ``machine_surfaced`` →
-  ``machine_surfaced_machine_drafted`` (charter §3b's per-thesis provenance guard).
+- **Stage A is mechanical: NO LLM calls anywhere in this module.** The thesis-drafting
+  layer is Stage B — built in ``card_drafts.py`` — and enters through one clearly named
+  seam: the ``draft_sections`` parameter of :func:`assemble_cards` (per-symbol rendered
+  section lines; absent → the empty :func:`draft_thesis_section` /
+  :data:`STAGE_B_SEAM` placeholder). Stage B also upgrades the provenance tag
+  ``machine_surfaced`` → ``machine_surfaced_machine_drafted`` (charter §3b's per-thesis
+  provenance guard); this module never flips it.
 - **Extraction is conservative** (high-precision patterns only — cashtags, exchange
   parentheticals, an exact-match pass against the SEC known-universe set, and the digest's
   own machine-generated orphan-watch title). NO fuzzy company-name matching: false
@@ -54,9 +57,10 @@ from structure import contract_eligible, select_structure
 # "operator_sourced" (charter §3b) — neither exists in Stage A.
 PROVENANCE_STAGE_A = "machine_surfaced"
 
-# THE STAGE-B SEAM (charter §3b): the LLM thesis-drafting layer, when built (its own PR, its
-# own pre-reg), replaces this section's empty body with a drafted thesis + attached falsifier
-# and flips the card's provenance tag. Stage A renders it EMPTY by construction.
+# THE STAGE-B SEAM (charter §3b): the LLM thesis-drafting layer (``card_drafts.py``) supplies
+# a rendered per-symbol section via ``assemble_cards(draft_sections=...)`` — a drafted thesis
+# + attached falsifier — and flips the card's provenance tag. Without it (Stage A alone, or a
+# --draft run that skipped this card), the section renders EMPTY by construction.
 STAGE_B_SEAM = "Draft thesis (Stage B pending)"
 
 # Achieved-OTM admission band, PREREG_UNIVERSE_CURATION §11 Rule 1 (operator-confirmed
@@ -614,10 +618,11 @@ class SurvivorCard:
 
 
 def draft_thesis_section(card: SurvivorCard) -> list[str]:
-    """THE STAGE-B SEAM (charter §3b). Stage B — the LLM thesis-drafting layer, NOT built in
-    Stage A — replaces this empty body with a drafted thesis + attached falsifier and flips
-    the card's provenance to ``machine_surfaced_machine_drafted``. Stage A renders the
-    section EMPTY by construction (no LLM calls anywhere in this module)."""
+    """THE STAGE-B SEAM (charter §3b) — the DEFAULT (undrafted) rendering. Stage B — the LLM
+    thesis-drafting layer, built in ``card_drafts.py`` — supplies a drafted thesis + attached
+    falsifier per symbol via ``assemble_cards(draft_sections=...)`` and flips the card's
+    provenance to ``machine_surfaced_machine_drafted``. Without a supplied section the card
+    renders EMPTY here by construction (no LLM calls anywhere in this module)."""
     return [
         f"### {STAGE_B_SEAM}",
         "",
@@ -637,7 +642,7 @@ def _axis_line(a: AxisResult) -> str:
     return f"  - {a.axis}: {a.status}{flag} — {a.detail}"
 
 
-def _card_lines(card: SurvivorCard) -> list[str]:
+def _card_lines(card: SurvivorCard, draft_section: list[str] | None = None) -> list[str]:
     lines = [f"## {card.symbol}", "", f"- provenance: {card.provenance}", "- surfaced via:"]
     for ex in card.surfaced_via:
         link = f" — {ex.link}" if ex.link else ""
@@ -662,7 +667,7 @@ def _card_lines(card: SurvivorCard) -> list[str]:
                                                                    else "none in cache")
         )
     lines.append("")
-    lines += draft_thesis_section(card)
+    lines += draft_section if draft_section is not None else draft_thesis_section(card)
     return lines
 
 
@@ -692,11 +697,17 @@ def assemble_cards(
     notes: list[str],
     errors: list[str],
     generated_at: datetime | None = None,
+    draft_sections: Mapping[str, list[str]] | None = None,
 ) -> str:
     """One survivor-card markdown document (charter §3b). Survivors AND screen-failures are
     ordered ALPHABETICALLY — compression only by the sanctioned deterministic steps, never by
     ranking. Screen-failures are listed compactly with every axis state (never silently
-    dropped). ``generated_at`` is injectable so tests pin a deterministic document."""
+    dropped). ``generated_at`` is injectable so tests pin a deterministic document.
+
+    ``draft_sections`` is THE STAGE-B SEAM's document side: per-symbol rendered draft-thesis
+    section lines from ``card_drafts.draft_survivors`` (``None`` = Stage A alone — the doc is
+    byte-identical to the pre-Stage-B output). A symbol without a supplied section falls back
+    to the empty :func:`draft_thesis_section` placeholder."""
     gen = (generated_at or datetime.now(UTC)).astimezone(UTC)
     survivors = sorted(survivors, key=lambda c: c.symbol)
     screened_out = sorted(screened_out, key=lambda s: s.symbol)
@@ -715,14 +726,17 @@ def assemble_cards(
         f"- funnel: {n_extracted} extracted -> {len(survivors) + len(screened_out)} screened "
         f"-> {len(survivors)} survivor(s)",
         "- ordering: alphabetical (no ranking anywhere — charter §3b)",
-        "- stage: A (deterministic; no LLM calls). Stage B drafting pending.",
+        ("- stage: A (deterministic; no LLM calls). Stage B drafting pending."
+         if draft_sections is None else
+         "- stage: A screen + B drafting (one bounded LLM call per survivor — reach.drafter; "
+         "kill-before-spend, per-run cost cap)"),
         "",
     ]
     body: list[str] = []
     if not survivors:
         body += ["(no survivors this week)", ""]
     for card in survivors:
-        body += _card_lines(card)
+        body += _card_lines(card, (draft_sections or {}).get(card.symbol))
     body += ["## Screened out", ""]
     if screened_out:
         body += [_screened_out_line(s) for s in screened_out]

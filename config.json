@@ -156,6 +156,15 @@
       "lookback_days": 14
     }
   },
+  "reach": {
+    "_comment": "The offline reach-channel operator tools (records/2026-07-14_reach_channels_charter_RATIFIED.md). drafter = the Stage-B survivor-card thesis-drafting role (card_drafts.py, behind scripts/survivor_cards_run.py --draft): ONE bounded LLM call per screen survivor, grounded on PRINTS only (fundamentals/filings/news/premise numbers) with the surfacing item as a POINTER never evidence (the §2/§3b reconciliation). cost_cap_usd is the hard per-RUN fail-closed cap (router boundary; cap hit → remaining survivors ship undrafted, counted). Kill-before-spend applies (risk.kill_switch_active). Never a trade/auth path; nothing here can stale the §5 clock.",
+    "drafter": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "max_tokens": 2048,
+      "cost_cap_usd": 0.5
+    }
+  },
   "fixed_basket": {
     "_comment": "The no-gate / fixed-basket NULL books (PREREG_FIXED_BASKET_NULL.md) — test the IV GATE itself (the existing real/shadow pair only tests the council). PR2a ships book 3A ('union_nogate'): gate-OFF over the SAME candidate union the shadow book sees, cap-ON, every L1, so shadow−3A is the FSSD null≈signal control on the edge. PR2b adds 3B (whole basket, equal-weight, weekly) + the shares null. Simulated-only, NEVER the broker, fail-soft (a null bug never halts the real cycle). enabled=false disables the no-gate books; the real loop is unaffected.",
     "enabled": true
