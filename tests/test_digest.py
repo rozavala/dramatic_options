@@ -22,7 +22,7 @@ from digest import (
     assemble,
     federal_register_items,
     fetch_rss,
-    is_warrant_or_unit,
+    is_nonoption_share_class,
     iso_week_stamp,
     last_closed_quarter_end,
     load_snapshot,
@@ -407,19 +407,32 @@ def test_submissions_fallback_throttles_between_fetches(tmp_path, monkeypatch):
     assert len(sleeps) == 2 and all(0 < s <= 0.125 for s in sleeps)
 
 
-# ── warrant/unit classes (skipped BEFORE the options-class check) ─────────────
-def test_is_warrant_or_unit_suffixes_and_dotted_classes():
+# ── non-option share classes (skipped BEFORE the options-class check) ─────────
+def test_is_nonoption_share_class_suffixes_dotted_and_preferred():
+    # warrants/units/rights — hyphen suffixes and dotted classes (case-insensitive)
     for s in ("EVAC-WT", "ABC-WS", "ABC-U", "ABC-R", "ABC.WS", "SPAQ.U", "abc.ws", "ABC.UN"):
-        assert is_warrant_or_unit(s), s
-    for s in ("NWLR", "CAR", "SU", "WS", "BRK.B", "URBN", "WTW"):
-        assert not is_warrant_or_unit(s), s
+        assert is_nonoption_share_class(s), s
+    # the 2026-W29 live-failure classes: preferred series (-P / -P<letter>), units, rights
+    for s in ("AUB-PA", "JACS-RI", "SOUL-UN", "COPL-UN", "AHL-PF", "PHXE-P", "aub-pa"):
+        assert is_nonoption_share_class(s), s
+    # plain commons pass through — incl. hyphen/dot COMMON classes and P-containing names
+    for s in ("NWLR", "CAR", "SU", "WS", "BRK.B", "URBN", "WTW", "MSFT", "CC", "MSW",
+              "BRK-B", "MOG-A", "PBR"):
+        assert not is_nonoption_share_class(s), s
 
 
-def test_orphan_new_listings_warrant_unit_skipped_before_checker():
+def test_is_warrant_or_unit_alias_kept():
+    # pre-2026-07-16 name must keep working (and stay the SAME callable, not a fork)
+    assert digest.is_warrant_or_unit is digest.is_nonoption_share_class
+
+
+def test_orphan_new_listings_nonoption_share_class_skipped_before_checker():
+    # Every 2026-W29 live-failure symbol must be skipped BEFORE the Alpaca checker;
+    # plain symbols (MSFT/CC-shaped) still flow through to it.
+    live_failures = ["AUB-PA", "JACS-RI", "SOUL-UN", "COPL-UN", "AHL-PF", "PHXE-P"]
     candidates = [
-        {"symbol": "EVAC-WT", "cik": "0000777777", "company": "EVAC", "date_filed": "2024-08-01"},
-        {"symbol": "SPAQ.U", "cik": "0000888888", "company": "SPAQ", "date_filed": "2024-08-02"},
-        {"symbol": "NWLR", "cik": "0000111111", "company": "NEWLIST", "date_filed": "2024-08-05"},
+        {"symbol": s, "cik": f"{i:010d}", "company": s, "date_filed": "2024-08-01"}
+        for i, s in enumerate([*live_failures, "EVAC-WT", "SPAQ.U", "MSFT", "CC"], start=1)
     ]
     checked: list[str] = []
 
@@ -429,14 +442,14 @@ def test_orphan_new_listings_warrant_unit_skipped_before_checker():
 
     notes: list[str] = []
     errors: list[str] = []
-    now = datetime(2026, 7, 14, 12, 0, tzinfo=UTC)
+    now = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
     items, updated = orphan_new_listings(
         candidates, {}, checker, now=now, errors=errors, notes=notes
     )
-    assert checked == ["NWLR"]  # warrant/unit classes NEVER reach the Alpaca endpoint
-    assert [i.symbol for i in items] == ["NWLR"]
-    assert updated == {"NWLR": "2026-07-14"}  # skipped classes are NOT marked seen
-    assert notes == ["orphan_watch: 2 warrant/unit class(es) skipped"]
+    assert checked == ["MSFT", "CC"]  # non-option classes NEVER reach the Alpaca endpoint
+    assert [i.symbol for i in items] == ["MSFT", "CC"]
+    assert updated == {"MSFT": "2026-07-16", "CC": "2026-07-16"}  # skips NOT marked seen
+    assert notes == ["orphan_watch: 8 non-option share class(es) skipped"]
     assert errors == []  # a skip is a note, never an error — genuine failures stay separate
 
 
