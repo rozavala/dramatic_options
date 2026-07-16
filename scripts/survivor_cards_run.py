@@ -236,8 +236,9 @@ def main(argv: list[str] | None = None) -> int:
         notes.append(restricted_note)  # the absent-file WARNING rides the card doc too
     print(f"[cards] {restricted_note}")
 
-    # ── known-universe set (cache-first; fetched only in market mode) ─────────
+    # ── known-universe set + registry titles (cache-first; fetched only in market mode) ─
     known = sc.load_known_tickers(args.ticker_cache)
+    titles = sc.load_known_titles(args.ticker_cache)
     config: dict | None = None
     if not args.skip_market:
         from config_loader import load_config
@@ -251,14 +252,18 @@ def main(argv: list[str] | None = None) -> int:
 
                     known = frozenset(sec_ticker_map(ua, cache_dir=Path(args.ticker_cache).parent)
                                       .values())
+                    # sec_ticker_map cached company_tickers.json — the titles read now works
+                    titles = sc.load_known_titles(
+                        Path(args.ticker_cache).parent / "company_tickers.json")
                 except Exception as e:  # noqa: BLE001 — degrade to no-exact-match, counted
                     errors.append(f"known-universe: {type(e).__name__}: {e}")
     if known is None:
         notes.append("known-universe set unavailable — exact-match extraction pass SKIPPED "
                      "(cashtag/exchange/orphan patterns only)")
 
-    # ── extraction (conservative, provenance-carrying) ────────────────────────
-    candidates = sc.extract_candidates(items, known)
+    # ── extraction (conservative, provenance-carrying; ambiguous exact-match hits
+    #    dropped-and-counted into notes — the W29 entity-confusion fix) ─────────
+    candidates = sc.extract_candidates(items, known, titles=titles, notes=notes)
     n_extracted = len(candidates)
     candidates, n_restricted_dropped = sc.apply_restricted(candidates, restricted)
     print(f"[cards] extracted {n_extracted} candidate(s); "
