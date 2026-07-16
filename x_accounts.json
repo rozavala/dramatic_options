@@ -1,0 +1,69 @@
+{
+  "_comment": "OPERATOR-EDITABLE — the x_lists pond (reach-channels charter, records/2026-07-14_reach_channels_charter_RATIFIED.md section 2 + the 2026-07-16 amendment). WHO is in is the operator's curation act (pond-naming, operator-picked priority cut 2026-07-16); edits by PR. Ships enabled:false — flip to true ONLY after scripts/x_probe.py passes on-box (the retained section-2(b) tier/pricing check); that config flip IS the channel's activation date (charter section 1 — the prune/yield clocks run from it). Org accounts UxC_Nuclear and Almonty_ are sanctioned exceptions to the practitioner rule. Ingestion is engagement-blind and chronological (no public_metrics ever requested); caps are salience-blind truncation, never selection.",
+  "enabled": false,
+  "verticals": {
+    "fiber": [
+      {"handle": "DougDawson_CCG", "name": "Doug Dawson"},
+      {"handle": "mattlarsen", "name": "Matt Larsen"},
+      {"handle": "ICSIL", "name": "Mike Hammett"},
+      {"handle": "communitynets", "name": "Christopher Mitchell"},
+      {"handle": "jaredmauch", "name": "Jared Mauch"}
+    ],
+    "grid": [
+      {"handle": "maxk", "name": "Max Kanter"},
+      {"handle": "shinynew_oz", "name": "Astrid Atkinson"},
+      {"handle": "_brianpotter", "name": "Brian Potter"},
+      {"handle": "steven_q_zhang", "name": "Steven Zhang"},
+      {"handle": "ConnorWaldoch", "name": "Connor Waldoch"},
+      {"handle": "lohstroh", "name": "Matt Lohstroh"},
+      {"handle": "tylerhnorris", "name": "Tyler Norris"},
+      {"handle": "rand_joseph", "name": "Joseph Rand"}
+    ],
+    "chemicals": [
+      {"handle": "bryanjorr", "name": "Bryan Orr"},
+      {"handle": "allgood_dr", "name": "Chuck Allgood"},
+      {"handle": "refrigerant365", "name": "Elizabeth Ortlieb"}
+    ],
+    "nuclear": [
+      {"handle": "nuclearkatie", "name": "Katie Mummah"},
+      {"handle": "whatisnuclear", "name": "Nick Touran"},
+      {"handle": "energybants", "name": "Mark Nelson"},
+      {"handle": "katyhuff", "name": "Katy Huff"},
+      {"handle": "Dr_A_Stein", "name": "Adam Stein"},
+      {"handle": "gilbeaq", "name": "Alex Gilbert"},
+      {"handle": "Beazy_Rampezy", "name": "Brett Rampal"},
+      {"handle": "UxC_Nuclear", "name": "UxC LLC"}
+    ],
+    "freight": [
+      {"handle": "mattschrap", "name": "Matt Schrap"},
+      {"handle": "mercoglianos", "name": "Sal Mercogliano"},
+      {"handle": "johnkonrad", "name": "John Konrad"},
+      {"handle": "typesfast", "name": "Ryan Petersen"},
+      {"handle": "oceanfr8", "name": "Steve Ferreira"},
+      {"handle": "FreightAlley", "name": "Craig Fuller"},
+      {"handle": "thefr8coach", "name": "Chris Jolly"},
+      {"handle": "Freight_360", "name": "Freight 360"},
+      {"handle": "TradeGeek", "name": "Pete Mento"},
+      {"handle": "TomGouldCustoms", "name": "Tom Gould"}
+    ],
+    "smallsat": [
+      {"handle": "TSKelso", "name": "T.S. Kelso"},
+      {"handle": "planet4589", "name": "Jonathan McDowell"},
+      {"handle": "Marco_Langbroek", "name": "Marco Langbroek"},
+      {"handle": "ProfHughLewis", "name": "Hugh Lewis"},
+      {"handle": "moribajah", "name": "Moriba Jah"},
+      {"handle": "brianweeden", "name": "Brian Weeden"},
+      {"handle": "SpaceAbhi", "name": "Abhi Tripathi"},
+      {"handle": "KatherineMonson", "name": "Katherine Monson"},
+      {"handle": "llcrabbie", "name": "Laura Crabtree"},
+      {"handle": "Gedmark", "name": "John Gedmark"}
+    ],
+    "mining": [
+      {"handle": "robert_ivanhoe", "name": "Robert Friedland"},
+      {"handle": "brandon_munro", "name": "Brandon Munro"},
+      {"handle": "AmirAdnani", "name": "Amir Adnani"},
+      {"handle": "Almonty_", "name": "Almonty Industries"}
+    ]
+  },
+  "caps": {"per_account_per_week": 10, "per_vertical_per_week": 25}
+}

@@ -260,8 +260,8 @@ def test_assemble_header_week_counts_provenance_and_notes():
                    generated_at=datetime(2026, 7, 14, 15, 0, tzinfo=UTC))
     assert doc.startswith("# Reach digest — 2026-W29")
     assert "- generated: 2026-07-14T15:00:00+00:00" in doc
-    assert "- provenance: trade_press/newsletters/agency/orphan_watch" in doc
-    assert "trade_press 1/1" in doc and "newsletters 0/0" in doc
+    assert "- provenance: trade_press/newsletters/x_lists/agency/orphan_watch" in doc
+    assert "trade_press 1/1" in doc and "newsletters 0/0" in doc and "x_lists 0/0" in doc
     assert "agency 0/0" in doc and "orphan_watch 0/0" in doc
     assert "## notes" in doc and "- FAILED — trade_press/Dead: OSError: x" in doc
 

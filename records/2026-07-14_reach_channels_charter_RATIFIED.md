@@ -55,6 +55,15 @@ act, the pond-naming family); ingestion engagement-blind and chronological.
   manual v0 AND (b) a live check that the operator's API tier covers list-timeline reads at
   the needed volume.
 
+**Amendment 2026-07-16 (operator word, verbatim):** "I would build the X integration
+immediately… so everything is automatic and nothing is standing behind me which could be a
+bottleneck. I already have an X API key…" — the manual-v0 yield precondition is WAIVED; the
+tier/pricing check is RETAINED (scripts/x_probe.py, run before enabling); all other §2
+disciplines (pointer-never-evidence, no engagement math — enforced by never requesting
+public_metrics, no LLM synthesis from the stream, fail-soft/disposable) UNCHANGED. The
+account set lives in x_accounts.json; edits are operator PRs. Channel activation date = the
+enabling config flip.
+
 ## 3. The digest (weekly, one file, many feeds)
 
 Feeds: trade-press RSS (non-financial salience axis) · agency/program milestone feeds ·
