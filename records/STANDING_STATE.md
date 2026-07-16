@@ -1,9 +1,10 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-07-15T01:00Z · supersedes: 2026-07-14T18:40Z · reflects: the 2026-07-15
-RATIFICATIONS (restricted list + min-N pins N₁=25/N₂=10-by-2027-03-02/N₃=4 + reach-channels
-charter k=6/X-yield-1-per-6wk — informed delegation, provenance AI-proposed-operator-adopted)
-+ PR #187 MERGED (board EMPTY) + digest channels active from first run 2026-07-14**
+**as_of: 2026-07-16T17:10Z · supersedes: 2026-07-15T01:00Z · reflects: the reach layer LIVE
+end-to-end (PRs #186–#204: 5-channel digest + X leg enabled + survivor cards Stage A+B + the
+entity-corroboration fix + W29 amended to 0 survivors + the :8602 Reach panel) + KMT re-pin #2
+(May customs print PUBLISHED $82.66/kg re-spike, PR #205) + pair #3 run (M-ledger 3/8) + the
+BEAD 07-16 re-check (no ISO-dated construction start yet)**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act
 change. **Relay rule (both directions): a strategy question or advice arriving WITHOUT this
@@ -16,27 +17,42 @@ against the record before acting.** The header's absence is itself a signal.
   Window-#3 MAIN curation + channel SENTINEL EXPANSION are HELD behind it.
   **Any curation act before 08-02 re-stales the clock.** (Off-cycle carve-outs + hand-seed
   probes remain available; offline operator tools never touch the clock.)
+- **Restricted list RATIFIED 2026-07-15, in force now:** R-001 = LIFE/Ethos (person-anchored;
+  enforcement code = PR #199, STAGED, merges post-08-02 by its ratified clause — the RULE
+  binds regardless).
+- **Min-N pins RATIFIED 2026-07-15** (N₁=25/book resolved else read VOID · N₂=10 real
+  admissions by 2027-03-02 [operating target; unmet → underpowered + terminal backstop] ·
+  N₃=4 clusters else concentration caveat; provenance: AI-proposed, advisor-reviewed,
+  operator-adopted under informed delegation).
+- **Reach-channels charter RATIFIED 2026-07-15** (k=6wk prune · X-yield ≥1/6wk · clocks from
+  ACTIVATION · 09-30 = a LOOK not a kill · digest never ranks · per-thesis provenance tags).
 - Mandate: §10.7 tri-criteria thesis-only council (scarcity band live). HARK leash, hard seam,
   never-backtest-the-council all standing.
 
 ## Staged / pending
-- **Operator acts pending:** X practitioner-list curation ONLY (the x_lists channel's
-  activation clock starts at list assembly). Everything else ratified/merged 2026-07-15.
-- **Build queue (CC):** digest fixes (orphan cohort widen · ticker-map gap · warrant filter ·
-  C&EN swap + water/desal + mining feeds) → survivor-card pipeline (screen + premise-currency
-  + draft + per-thesis provenance tag, Sunday timer) → restricted.json enforcement PR
-  (STAGED, merges post-08-02 by default) → mapper v0.
+- **PR #199** (restricted-list enforcement): STAGED — merges post-2026-08-02 ONLY, absent an
+  explicit dated operator line.
+- **Build queue (CC):** bench record (operator's 143-name priority table → records) ·
+  supply-chain mapper v0 · Bluesky-leg candidate (keyless) · optional US-weighted chemicals feed.
 
 ## Dated docket (next two weeks)
-- 2026-07-16: WV BEAD permitting roundtable → BEAD watch re-check after.
-- ≤2026-07-19: KMT re-pin #2 (May Comtrade unpublished as of 07-13 → re-pin-only, NO pair,
-  unless May lands first).
+- 2026-07-16 19:45 UTC L1 — routine grade; WATCH gemini tail-repair rate (3 on Wed) + IRDM
+  indicative-missing-IV recurrence.
+- BEAD: 07-16 8-agency roundtable outcomes not yet covered (checked same-day) — re-check
+  early next week. As of 07-16: NEPA deep-dive passed 06-24; 07-20 = one-on-one ISP
+  permitting assistance begins (below the pin bar — no ISO-dated construction start yet).
 - 2026-07-19 12:00 UTC L0 = §5 scan #2 (June-10 sentinel cohort crosses TTL: excluded this
-  scan, dormant after, re-surface-eligible 07-26).
-- 2026-07-26 L0 = scan #3 · 2026-08-02 L0 = scan #4 → **the read closes.**
+  scan, dormant after, re-surface-eligible 07-26; EXPECTED live `fresh_on_active_lineage=LUNR`
+  stamp — grade it). THEN: W30 digest + survivor cards (--draft) + labeled signals brief.
+- ≤2026-07-23: KMT re-pin #3 (June Comtrade check FIRST — unpublished as of 07-16; no new
+  month → re-pin only, NO pair; June lands → material → pair #4).
+- 2026-07-26 L0 = scan #3 · 2026-08-02 L0 = scan #4 → **the read closes** → window-#3 main
+  curation + sentinel expansion + merge #199.
 
 ## Board & book
-- Board: 1 open PR (#187, staged) · 0 issues. Box = main @ `436312b`, healthy.
-- Book: real 1 (PL, bullish, $690) · null books 91 open (shadow 30 / 3A 31 / 3B 30) ·
+- Board: 1 open PR (#199, staged) · 0 issues. Box = main @ `a9ae054`, healthy.
+- Book: real 1 (PL, bullish, $690) · null books 92 open (shadow 31 / 3A 31 / 3B 30) ·
   expiry wall 2027-01-15 · first natural resolutions ≈ 2026-12-25.
-- M-ledger 2/8 · restricted list RATIFIED: R-001 = LIFE/Ethos (rule effective now).
+- M-ledger 3/8 (pair #3 2026-07-16: NEUTRAL/NEUTRAL no-flip, channel arm CITED the May
+  re-spike; both arms refute the bear thesis on fundamentals — margin expansion + guidance
+  raise + 3 downgrades = already-narrated) · restricted list R-001 = LIFE in force.
