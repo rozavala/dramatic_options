@@ -32,6 +32,7 @@ if str(_REPO_ROOT) not in sys.path:
 from fastapi import Depends, FastAPI, Header, HTTPException  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
+from reach import build_reach  # noqa: E402
 from snapshot import build_snapshot  # noqa: E402
 
 import dashboard_data as dd  # noqa: E402
@@ -92,6 +93,20 @@ def snapshot(nocache: int = 0) -> dict:
 def health() -> dict:
     """Liveness only — never touches the DB or the broker."""
     return {"ok": True}
+
+
+# Repo-relative reach documents (records/cards + records/digests). Module-level so tests can
+# point it at a tmp tree; never resolved from user input.
+_RECORDS_DIR = _REPO_ROOT / "records"
+
+
+@app.get("/api/reach", dependencies=[Depends(_require_token)])
+def reach() -> dict:
+    """RENDER-ONLY: the newest weekly survivor-cards document + the newest weekly digest
+    (raw markdown, verbatim — no ranking/reordering). Fail-soft: an absent document is
+    ``{available: false, reason}``, never a 500 — the panel renders an explicit absent-state.
+    No DB, no fetch, no keys, no write path (picks happen in the operator's session)."""
+    return build_reach(_RECORDS_DIR)
 
 
 class CurationDraftRequest(BaseModel):
