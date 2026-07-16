@@ -2,10 +2,10 @@
 """Weekly reach-digest runner — OFFLINE OPERATOR TOOL (run by hand, never by systemd).
 
 Governing spec: ``records/2026-07-14_reach_channels_charter_DRAFT.md`` (§3, the digest).
-Assembles the four reach channels (trade_press RSS · operator-curated newsletters RSS ·
-Federal Register agency pulls · the post-IPO orphan watch) into ONE chronological,
-source-grouped markdown file under ``records/digests/<YYYY>-W<ww>.md``. No ranking
-anywhere; overflow is per-source chronological truncation (charter §3).
+Assembles the five reach channels (trade_press RSS · operator-curated newsletters RSS ·
+X practitioner lists · Federal Register agency pulls · the post-IPO orphan watch) into
+ONE chronological, source-grouped markdown file under ``records/digests/<YYYY>-W<ww>.md``.
+No ranking anywhere; overflow is per-source chronological truncation (charter §3).
 
 Fail-soft throughout: a dead feed / dead channel is COUNTED and printed, never kills the
 digest (dead-arm vs quiet-arm). Exit 0 on partial failure; exit 1 only if EVERY attempted
@@ -13,14 +13,19 @@ channel produced nothing AND at least one error occurred.
 
 Run (from the repo root):
     python scripts/digest_weekly.py [--feeds digest_feeds.json] [--out records/digests]
-                                    [--skip-orphan] [--dry-run]
+                                    [--skip-orphan] [--x-accounts x_accounts.json]
+                                    [--skip-x] [--dry-run]
 
 ``--skip-orphan`` is the keyless mode (no Alpaca creds / EDGAR UA needed). The orphan
 channel reads Alpaca creds via the existing ``config_loader.load_config()`` +
 ``require_alpaca_credentials`` pattern and the EDGAR contact UA from
-``config.edgar.user_agent`` — never ``os.environ`` directly. ``--dry-run`` prints the
-digest instead of writing it and does NOT update the orphan snapshot (a dry run must not
-consume first-seen events).
+``config.edgar.user_agent`` — never ``os.environ`` directly. The x_lists channel
+(charter §2 + the 2026-07-16 amendment) runs ONLY if ``x_accounts.json`` exists AND is
+``enabled: true`` AND ``X_BEARER_TOKEN`` resolves via the same ``config_loader`` seam;
+otherwise one loud counted ``x_lists: OFF (…)`` note — never a silent dead arm.
+``--skip-x`` skips it entirely (keyless runs). ``--dry-run`` prints the digest instead
+of writing it and does NOT update the orphan snapshot or the x_lists since_id state (a
+dry run must not consume first-seen events / timeline progress).
 """
 
 from __future__ import annotations
@@ -135,6 +140,60 @@ def run_agency(
     return out
 
 
+def run_x_lists(
+    accounts_path: str | Path,
+    *,
+    notes: list[str],
+    errors: list[str],
+    summary: list[str],
+) -> tuple[list[Item], dict[str, str] | None, int | None]:
+    """The X practitioner-lists channel (charter §2 + the 2026-07-16 amendment).
+
+    Runs ONLY when ``x_accounts.json`` exists AND ``enabled: true`` AND the bearer token
+    resolves (env ``X_BEARER_TOKEN`` → ``config["x_api"]["bearer_token"]`` via the
+    ``config_loader`` seam — never ``os.environ`` here). Otherwise the channel is OFF
+    with one loud counted note — never a silent dead arm. Returns
+    ``(items, updated since_id state | None, per-account cap | None)``; the caller
+    persists the since state only on a real (non-dry-run) write and threads the
+    per-account cap into ``assemble``'s per-source truncation (source = one account)."""
+    off_reason: str | None = None
+    cfg: dict[str, Any] = {}
+    path = Path(accounts_path)
+    if not path.exists():
+        off_reason = f"{accounts_path} not found"
+    else:
+        cfg = json.loads(path.read_text())
+        if not cfg.get("enabled"):
+            off_reason = 'disabled in x_accounts.json — flip "enabled" after scripts/x_probe.py passes'
+    token: str | None = None
+    if off_reason is None:
+        from config_loader import load_config
+
+        token = (load_config().get("x_api") or {}).get("bearer_token")
+        if not token:
+            off_reason = "no X_BEARER_TOKEN"
+    if off_reason is not None:
+        notes.append(f"x_lists: OFF ({off_reason})")
+        summary.append(f"x_lists: OFF ({off_reason})")
+        return [], None, None
+
+    from data.x_feed import XChannelOff, fetch_x_channel
+
+    n_accounts = sum(len(v) for v in (cfg.get("verticals") or {}).values())
+    try:
+        items, since_state = fetch_x_channel(cfg, token, errors=errors, notes=notes)
+    except XChannelOff as e:
+        # Fail-CLOSED: the whole channel is OFF, loudly — counted as an error AND a note.
+        errors.append(f"x_lists: OFF ({e})")
+        notes.append(f"x_lists: OFF ({e})")
+        summary.append(f"x_lists: OFF ({e})")
+        return [], None, None
+    summary.append(f"x_lists: {len(items)} item(s) from {n_accounts} account(s)")
+    caps = cfg.get("caps") or {}
+    per_account = int(caps["per_account_per_week"]) if caps.get("per_account_per_week") else None
+    return items, since_state, per_account
+
+
 def run_orphan(
     orphan_cfg: dict[str, Any],
     *,
@@ -215,6 +274,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skip-orphan", action="store_true", help="skip the Alpaca/EDGAR channel (keyless mode)"
     )
+    parser.add_argument(
+        "--x-accounts", default="x_accounts.json", help="x_lists accounts config path"
+    )
+    parser.add_argument(
+        "--skip-x", action="store_true", help="skip the X practitioner-lists channel (keyless mode)"
+    )
     parser.add_argument("--dry-run", action="store_true", help="print instead of writing")
     args = parser.parse_args(argv)
 
@@ -241,6 +306,20 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as e:  # noqa: BLE001 — the fail-soft boundary is the point
             errors.append(f"{channel}: {type(e).__name__}: {e}")
             summary.append(f"{channel}: CHANNEL FAILED ({errors[-1]})")
+    x_since: dict[str, str] | None = None
+    x_per_account_cap: int | None = None
+    if args.skip_x:
+        notes.append("x_lists: skipped (--skip-x) — not quiet, not run")
+        summary.append("x_lists: skipped (--skip-x)")
+    else:
+        try:
+            x_items, x_since, x_per_account_cap = run_x_lists(
+                args.x_accounts, notes=notes, errors=errors, summary=summary
+            )
+            items += x_items
+        except Exception as e:  # noqa: BLE001 — the fail-soft boundary is the point
+            errors.append(f"x_lists: {type(e).__name__}: {e}")
+            summary.append(f"x_lists: CHANNEL FAILED ({errors[-1]})")
     try:
         items += run_agency(
             feeds_cfg.get("agency", {}),
@@ -270,9 +349,14 @@ def main(argv: list[str] | None = None) -> int:
             summary.append(f"orphan_watch: CHANNEL FAILED ({errors[-1]})")
 
     week = iso_week_stamp(now)
+    caps = dict(feeds_cfg.get("caps", {}))
+    if x_per_account_cap is not None:
+        # The per-ACCOUNT weekly cap rides assemble's per-source truncation
+        # (source = one account); the per-VERTICAL cap was applied in the fetcher.
+        caps["x_lists"] = x_per_account_cap
     document = assemble(
         items,
-        caps=feeds_cfg.get("caps", {}),
+        caps=caps,
         week=week,
         dropped_notes=notes + [f"FAILED — {e}" for e in errors],
         generated_at=now,
@@ -290,6 +374,10 @@ def main(argv: list[str] | None = None) -> int:
         out_path.write_text(document)
         if orphan_snapshot is not None:
             save_snapshot(orphan_snapshot, ORPHAN_SNAPSHOT_PATH)
+        if x_since is not None:
+            from data.x_feed import save_since_ids
+
+            save_since_ids(x_since)
         print(f"[digest] wrote {out_path} ({len(items)} item(s), {len(errors)} error(s))")
 
     if not items and errors:

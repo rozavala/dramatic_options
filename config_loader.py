@@ -119,6 +119,15 @@ def load_config() -> dict[str, Any]:
     if os.getenv("EDGAR_USER_AGENT"):
         edgar["user_agent"] = os.getenv("EDGAR_USER_AGENT").strip()
 
+    # X API bearer token (the x_lists reach channel — reach-channels charter §2 + the
+    # 2026-07-16 amendment; never stored in config.json). Same env→config seam as
+    # EDGAR_USER_AGENT above: consumers read config["x_api"]["bearer_token"], never
+    # os.environ. Absent is fine — the x_lists channel fails CLOSED with a loud counted
+    # note (never a silent dead arm).
+    x_api = config.setdefault("x_api", {})
+    if os.getenv("X_BEARER_TOKEN"):
+        x_api["bearer_token"] = os.getenv("X_BEARER_TOKEN").strip()
+
     # Council LLM provider keys (T2; never stored in config.json). Absent is fine — an
     # enabled council with a missing key for a mapped provider fails closed at run time.
     config["llm_keys"] = {
