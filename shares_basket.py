@@ -23,6 +23,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+import restricted as restricted_list
 import state
 from clock import Clock
 from convexity_data import ChainProvider
@@ -70,6 +71,10 @@ def run_shares_basket_cycle(
         result.halted = True
         return result
 
+    # Restricted list (records/2026-07-14_restricted_list_RATIFIED.md, enforcement (c) — "all books
+    # including the null books"; this book walks the RAW basket). FAIL-CLOSED on a broken list.
+    restricted = restricted_list.load_restricted()
+
     as_of_dt = clock.now()
     as_of = as_of_dt.date()
     as_of_iso = as_of_dt.isoformat()
@@ -85,6 +90,11 @@ def run_shares_basket_cycle(
             min_contract_price=0.10, max_contract_price=100.0, min_oi=elig.get("min_option_open_interest"))
 
     for sym, basket in basket_symbols(config).items():
+        if restricted_list.is_restricted(sym, restricted):
+            log.warning("restricted-list veto: %s never books in the shares null book — %s",
+                        sym, restricted_list.RECORD)
+            result.vetoed += 1  # no per-reason counter on this book — counted where one exists
+            continue
         if sym in recent:
             result.skipped += 1
             continue

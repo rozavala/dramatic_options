@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 
 import clusters
+import restricted as restricted_list
 import state
 from clock import Clock
 from convexity_data import ChainProvider, QuoteProvider
@@ -58,8 +59,9 @@ class FixedBasketResult:
     errors: int = 0
     halted: bool = False
     by_origin: dict[str, int] = field(default_factory=dict)
-    # Per-reason veto counts (3A: "sentinel_slots" | "no_structure" | "cluster_cap" | "sizing";
-    # 3B: "no_structure" | "sizing") — mirrors ShadowBookResult.veto_reasons (dead-arm visibility).
+    # Per-reason veto counts (3A: "restricted" | "sentinel_slots" | "no_structure" | "cluster_cap" |
+    # "sizing"; 3B: "restricted" | "no_structure" | "sizing") — mirrors ShadowBookResult.veto_reasons
+    # (dead-arm visibility).
     veto_reasons: dict[str, int] = field(default_factory=dict)
 
 
@@ -101,6 +103,10 @@ def run_fixed_basket_3a_cycle(
     if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
         result.halted = True
         return result
+
+    # Restricted list, belt-and-suspenders (records/2026-07-14_restricted_list_RATIFIED.md,
+    # enforcement (c) — symmetric with the shadow book). FAIL-CLOSED on an absent/malformed list.
+    restricted = restricted_list.load_restricted()
 
     if candidates is None:
         candidates = candidate_union(conn, config)
@@ -157,6 +163,13 @@ def run_fixed_basket_3a_cycle(
         if not theme.active:
             continue
         origin = _origin_of(theme)
+        if restricted_list.is_restricted(theme.symbol, restricted):
+            log.warning("restricted-list veto: %s never books in the 3A book — %s",
+                        theme.symbol, restricted_list.RECORD)
+            result.vetoed += 1
+            result.veto_reasons["restricted"] = result.veto_reasons.get("restricted", 0) + 1
+            _note(theme, origin, "restricted")
+            continue
         if theme.symbol in open_syms:
             result.skipped += 1
             _note(theme, origin, "skip_open")
@@ -274,6 +287,9 @@ def run_fixed_basket_3b_cycle(
     if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
         result.halted = True
         return result
+    # Restricted list (enforcement (c)): 3B walks the RAW basket (never the union), so it needs its
+    # own check — the CI merge-blocker keeps the baskets clean in-repo, this catches a live edit.
+    restricted = restricted_list.load_restricted()
     as_of_dt = clock.now()
     as_of = as_of_dt.date()
     as_of_iso = as_of_dt.isoformat()
@@ -291,6 +307,12 @@ def run_fixed_basket_3b_cycle(
         )
 
     for sym, basket in basket_symbols(config).items():
+        if restricted_list.is_restricted(sym, restricted):
+            log.warning("restricted-list veto: %s never books in the 3B basket book — %s",
+                        sym, restricted_list.RECORD)
+            result.vetoed += 1
+            result.veto_reasons["restricted"] = result.veto_reasons.get("restricted", 0) + 1
+            continue
         if sym in open_syms:
             result.skipped += 1
             continue
