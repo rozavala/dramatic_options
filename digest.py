@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
 
-CHANNELS = ("trade_press", "agency", "orphan_watch")
+CHANNELS = ("trade_press", "newsletters", "agency", "orphan_watch")
 
 FEDERAL_REGISTER_URL = "https://www.federalregister.gov/api/v1/documents.json"
 SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
@@ -60,8 +60,8 @@ class Item:
     ("no scoring field exists anywhere in the harness schema"); a guard test asserts
     this exact field set so a future scoring field fails CI."""
 
-    channel: str  # "trade_press" | "agency" | "orphan_watch"
-    source: str  # feed / agency name
+    channel: str  # "trade_press" | "newsletters" | "agency" | "orphan_watch"
+    source: str  # feed / agency / newsletter name
     title: str
     link: str
     published: datetime | None
@@ -572,7 +572,7 @@ def assemble(
         f"# Reach digest — {week}",
         "",
         f"- generated: {gen.isoformat(timespec='seconds')}",
-        "- provenance: trade_press/agency/orphan_watch",
+        f"- provenance: {'/'.join(CHANNELS)}",
         f"- items (shown/fetched): {count_line}",
         "",
     ]

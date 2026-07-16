@@ -1,11 +1,29 @@
 {
   "_comment": "OPERATOR-EDITABLE (reach-channels charter, records/2026-07-14_reach_channels_charter_RATIFIED.md). Which feeds/lists are IN is the operator's curation act (pond-naming). No feed may be added that requires ranking to be useful. trade_press URLs verified live 2026-07-14 (curl -> HTTP 200, parseable RSS 2.0): Utility Dive, Fierce Network (the successor brand of Fierce Telecom -- fiercetelecom.com itself now 403s behind Cloudflare), FreightWaves. Feed swap 2026-07-15 (ratified): Chemical & Engineering News REMOVED; Chemical Industry Digest (chemicals business) + Smart Water Magazine /rss/news (water/desalination) verified live 2026-07-15 (curl -> HTTP 200, parseable RSS 2.0 via digest.parse_feed, fresh items 2026-07-14). Mining slot EMPTY: Mining.com /feed 403 (Cloudflare, even browser UA) and MiningWeekly RSS paths 403, verified failed 2026-07-15. Also failed 2026-07-15: WaterWorld (404 on all RSS paths), ICIS explore feed (parseable but zero items), ChemAnalyst (HTML, not a feed), Desalination.biz (parseable RSS but newest item 2026-04 -- passed over for the fresher Smart Water Magazine). orphan_watch.cohort_limit widened 40 -> 500 (ratified 2026-07-15): effectively uncapped for the current ~448-issuer window -- the first run's cap silently cost ~90% of the channel's reach; the explicit dropped-count note still fires whenever it binds again.",
+  "_comment_newsletters": "newsletters channel: operator-curated 2026-07-16 (the pond-naming act; ACTIVATION DATE 2026-07-16 per charter section 1 -- prune/yield clocks run from here). 19 sources delivered; 15 feeds live-verified 2026-07-16 (HTTP 200 under BOTH a browser UA and the harness's own DEFAULT_USER_AGENT, parseable via digest.parse_feed, newest item fresh: 13 feeds 2026-07-15, Construction Physics 2026-07-11, Bright Spots 2026-07-12, MCJ 2026-07-01). NO FEED FOUND, reported not pinned (verified failed 2026-07-16): The Fiber Optic Association (static HTML site, no RSS -- foanewsletter.xml/rss.xml/feed all 404, no autodiscovery link), Flexport Global Logistics Update (email-only -- /global-logistics-update/feed/, /feed/, /blog/feed/, /rss.xml all 404, no autodiscovery), Grid Brief (beehiiv publication with RSS not enabled -- site config rss_feed_map null; /feed /rss /rss.xml /feed.xml /atom.xml all 404), SpaceNexus Weekly Brief (no feed at any standard path, no autodiscovery, no newsletter-platform embed). Derivation notes: Chilling Realities rides the whole MCJ newsletter feed (the operator's link was a single post); IAEA Bulletin has no per-issue feed -- pinned the site-wide /feeds/news which carries Bulletin articles (/feeds/topnews exists but its items are undated); World Nuclear Association pinned via its news arm world-nuclear-news.org/rss; Mining Magazine feed discovered via robots.txt (/feeds/rss, Aspermont platform); Broadband Breakfast /feed/ 301s to /rss/ (pinned the canonical); e-mj.com 301s to www.e-mj.com (pinned the canonical).",
   "trade_press": [
     {"source": "Utility Dive", "url": "https://www.utilitydive.com/feeds/news/"},
     {"source": "Fierce Network", "url": "https://www.fierce-network.com/rss/xml"},
     {"source": "FreightWaves", "url": "https://www.freightwaves.com/news/feed"},
     {"source": "Chemical Industry Digest", "url": "https://www.chemindigest.com/feed/"},
     {"source": "Smart Water Magazine", "url": "https://smartwatermagazine.com/rss/news"}
+  ],
+  "newsletters": [
+    {"source": "Chilling Realities (MCJ)", "vertical": "chemicals_refrigerants", "url": "https://newsletter.mcj.vc/feed"},
+    {"source": "The Chemical Engineer", "vertical": "chemicals_refrigerants", "url": "https://www.thechemicalengineer.com/rss/"},
+    {"source": "Silicon Silk Road", "vertical": "fiber_broadband", "url": "https://mtnconsulting.substack.com/feed"},
+    {"source": "Construction Physics", "vertical": "fiber_broadband", "url": "https://www.construction-physics.com/feed"},
+    {"source": "Broadband Breakfast", "vertical": "fiber_broadband", "url": "https://broadbandbreakfast.com/rss/"},
+    {"source": "The Loadstar", "vertical": "freight_customs_shipping", "url": "https://theloadstar.com/feed/"},
+    {"source": "Bright Spots", "vertical": "grid_power", "url": "https://janrosenow.substack.com/feed"},
+    {"source": "The Texas Energy and Power", "vertical": "grid_power", "url": "https://www.texasenergyandpower.com/feed"},
+    {"source": "Volts", "vertical": "grid_power", "url": "https://www.volts.wtf/feed"},
+    {"source": "Energy Storage News", "vertical": "grid_power", "url": "https://www.energy-storage.news/feed/"},
+    {"source": "Mining Magazine", "vertical": "mining_metals", "url": "https://www.miningmagazine.com/feeds/rss"},
+    {"source": "Engineering & Mining Journal", "vertical": "mining_metals", "url": "https://www.e-mj.com/feed/"},
+    {"source": "IAEA News", "vertical": "nuclear_fuel_cycle", "url": "https://www.iaea.org/feeds/news"},
+    {"source": "World Nuclear News", "vertical": "nuclear_fuel_cycle", "url": "https://www.world-nuclear-news.org/rss"},
+    {"source": "SmallSat News", "vertical": "smallsat_launch", "url": "https://smallsatnews.com/feed/"}
   ],
   "agency": {
     "federal_register_agencies": [
@@ -19,6 +37,6 @@
     "rss": []
   },
   "orphan_watch": {"ipo_age_months_min": 12, "ipo_age_months_max": 24, "cohort_limit": 500},
-  "caps": {"trade_press": 15, "agency": 15, "orphan_watch": 20},
+  "caps": {"trade_press": 15, "newsletters": 20, "agency": 15, "orphan_watch": 20},
   "lookback_days": 8
 }

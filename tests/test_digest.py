@@ -260,9 +260,27 @@ def test_assemble_header_week_counts_provenance_and_notes():
                    generated_at=datetime(2026, 7, 14, 15, 0, tzinfo=UTC))
     assert doc.startswith("# Reach digest — 2026-W29")
     assert "- generated: 2026-07-14T15:00:00+00:00" in doc
-    assert "- provenance: trade_press/agency/orphan_watch" in doc
-    assert "trade_press 1/1" in doc and "agency 0/0" in doc and "orphan_watch 0/0" in doc
+    assert "- provenance: trade_press/newsletters/agency/orphan_watch" in doc
+    assert "trade_press 1/1" in doc and "newsletters 0/0" in doc
+    assert "agency 0/0" in doc and "orphan_watch 0/0" in doc
     assert "## notes" in doc and "- FAILED — trade_press/Dead: OSError: x" in doc
+
+
+def test_assemble_newsletters_channel_own_group_and_own_cap():
+    # A newsletters-channel item flows through assemble under its own "## newsletters"
+    # group with its OWN cap — trade_press's cap never bleeds across channels.
+    items = [
+        _mk("newsletters", "Volts", f"post-{d:02d}", datetime(2026, 7, d, tzinfo=UTC))
+        for d in range(1, 5)
+    ] + [_mk("trade_press", "Wire", "story", datetime(2026, 7, 10, tzinfo=UTC))]
+    doc = assemble(items, caps={"trade_press": 1, "newsletters": 2}, week="2026-W29",
+                   dropped_notes=[], generated_at=datetime(2026, 7, 14, tzinfo=UTC))
+    assert doc.index("## trade_press") < doc.index("## newsletters") < doc.index("## agency")
+    assert "### Volts" in doc
+    assert "… 2 older items dropped (per-source cap)" in doc  # newsletters cap, not 15
+    assert "post-01" not in doc and "post-02" not in doc  # oldest truncated
+    assert "post-03" in doc and "post-04" in doc
+    assert "newsletters 2/4" in doc and "trade_press 1/1" in doc
 
 
 def test_assemble_is_deterministic_for_fixed_inputs():
@@ -565,6 +583,53 @@ def test_runner_exit_1_only_when_all_empty_and_errored(feeds_file, capsys, monke
     rc = runner.main(["--feeds", str(feeds_file), "--skip-orphan", "--dry-run"])
     assert rc == 1
     assert "exit 1" in capsys.readouterr().out
+
+
+def test_runner_missing_newsletters_key_is_failsoft(feeds_file, capsys, monkeypatch):
+    # Backward compat: the feeds_file fixture has NO "newsletters" key — the config
+    # parses fine, the channel simply has no arms (quiet, never an error/exit-1).
+    import scripts.digest_weekly as runner
+
+    monkeypatch.setattr(
+        runner,
+        "fetch_rss",
+        lambda url, *, source, channel, timeout=20, errors=None: parse_feed(
+            RSS2, source=source, channel=channel
+        ),
+    )
+    rc = runner.main(["--feeds", str(feeds_file), "--skip-orphan", "--dry-run"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "newsletters 0/0" in out  # rendered empty, not failed
+    assert "newsletters: CHANNEL FAILED" not in out
+
+
+def test_runner_newsletters_feeds_flow_through(feeds_file, tmp_path, capsys, monkeypatch):
+    import scripts.digest_weekly as runner
+
+    cfg = json.loads(feeds_file.read_text())
+    cfg["newsletters"] = [
+        {"source": "Volts", "vertical": "grid_power", "url": "https://volts.example/feed"},
+        {"source": "Dead Letter", "vertical": "mining_metals", "url": "https://dead.example/feed"},
+    ]
+    cfg["caps"]["newsletters"] = 20
+    path = tmp_path / "digest_feeds_newsletters.json"
+    path.write_text(json.dumps(cfg))
+
+    def fake_fetch(url, *, source, channel, timeout=20, errors=None):
+        if "dead" in url:
+            raise OSError("boom")
+        return parse_feed(RSS2, source=source, channel=channel)
+
+    monkeypatch.setattr(runner, "fetch_rss", fake_fetch)
+    rc = runner.main(["--feeds", str(path), "--skip-orphan", "--dry-run"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "newsletters/Volts: 3 item(s)" in out  # source = the newsletter name
+    assert "newsletters/Dead Letter: FAILED" in out  # same fail-soft counted pattern
+    assert "## newsletters" in out and "### Volts" in out  # its own channel group
+    assert "newsletters 3/3" in out
+    assert "trade_press/Live Wire: 3 item(s)" in out  # trade_press unaffected
 
 
 def test_runner_quiet_week_without_errors_exits_0(feeds_file, capsys, monkeypatch):

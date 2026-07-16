@@ -2,10 +2,10 @@
 """Weekly reach-digest runner — OFFLINE OPERATOR TOOL (run by hand, never by systemd).
 
 Governing spec: ``records/2026-07-14_reach_channels_charter_DRAFT.md`` (§3, the digest).
-Assembles the three reach channels (trade_press RSS · Federal Register agency pulls ·
-the post-IPO orphan watch) into ONE chronological, source-grouped markdown file under
-``records/digests/<YYYY>-W<ww>.md``. No ranking anywhere; overflow is per-source
-chronological truncation (charter §3).
+Assembles the four reach channels (trade_press RSS · operator-curated newsletters RSS ·
+Federal Register agency pulls · the post-IPO orphan watch) into ONE chronological,
+source-grouped markdown file under ``records/digests/<YYYY>-W<ww>.md``. No ranking
+anywhere; overflow is per-source chronological truncation (charter §3).
 
 Fail-soft throughout: a dead feed / dead channel is COUNTED and printed, never kills the
 digest (dead-arm vs quiet-arm). Exit 0 on partial failure; exit 1 only if EVERY attempted
@@ -81,16 +81,24 @@ def _one_source(
     return got
 
 
-def run_trade_press(
-    feeds: list[dict[str, str]], *, cutoff: datetime, errors: list[str], summary: list[str]
+def run_feed_channel(
+    channel: str,
+    feeds: list[dict[str, str]],
+    *,
+    cutoff: datetime,
+    errors: list[str],
+    summary: list[str],
 ) -> list[Item]:
+    """One RSS/Atom feed-list channel (trade_press · newsletters — the same per-source
+    fail-soft counted pattern). ``source`` is the feed/newsletter name; extra config
+    keys (e.g. the newsletters' ``vertical`` annotation) are operator notes, ignored."""
     out: list[Item] = []
     for feed in feeds:
         source, url = str(feed["source"]), str(feed["url"])
         out += _one_source(
-            f"trade_press/{source}",
+            f"{channel}/{source}",
             lambda url=url, source=source: _cutoff_keep(
-                fetch_rss(url, source=source, channel="trade_press", errors=errors), cutoff
+                fetch_rss(url, source=source, channel=channel, errors=errors), cutoff
             ),
             errors=errors,
             summary=summary,
@@ -222,13 +230,17 @@ def main(argv: list[str] | None = None) -> int:
     orphan_snapshot: dict[str, str] | None = None
 
     # Per-channel fail-soft: a raising channel is counted and the digest still ships.
-    try:
-        items += run_trade_press(
-            feeds_cfg.get("trade_press", []), cutoff=cutoff, errors=errors, summary=summary
-        )
-    except Exception as e:  # noqa: BLE001 — the fail-soft boundary is the point
-        errors.append(f"trade_press: {type(e).__name__}: {e}")
-        summary.append(f"trade_press: CHANNEL FAILED ({errors[-1]})")
+    # A feeds config without a "newsletters" key parses fine (backward compat): the
+    # channel simply has no arms that week — quiet, never an error.
+    for channel in ("trade_press", "newsletters"):
+        try:
+            items += run_feed_channel(
+                channel, feeds_cfg.get(channel, []), cutoff=cutoff, errors=errors,
+                summary=summary,
+            )
+        except Exception as e:  # noqa: BLE001 — the fail-soft boundary is the point
+            errors.append(f"{channel}: {type(e).__name__}: {e}")
+            summary.append(f"{channel}: CHANNEL FAILED ({errors[-1]})")
     try:
         items += run_agency(
             feeds_cfg.get("agency", {}),
