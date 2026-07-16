@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { Curation } from "../components/Curation";
+import { Reach } from "../components/Reach";
 import { Sparkline } from "../components/Sparkline";
 import { Banner, Chip, Skeleton } from "../components/primitives";
 import { STATE_PRESENT, clusterLevel, directionLabel, isAccruingState, markLevel, relativeAge } from "../data/status";
@@ -17,6 +18,7 @@ const TAB_ICON: Record<SectionId, string> = {
   edge: "M4 19V11M9 19V5M14 19v-6M19 19V8",
   pipeline: "M4 5h16l-6 8v5l-4 2v-7z",
   book: "M5 6h14M5 12h14M5 18h9",
+  reach: "M6 4h9l3 3v13H6zM9 10h6M9 14h6",
   curation: "M5 5h14v14H5zM12 9v6M9 12h6",
 };
 const dirLabel = directionLabel; // A6 — single source in status.ts
@@ -395,8 +397,8 @@ function MBook({ vm }: { vm: ViewModel }) {
   );
 }
 
-const NAV_IDS: SectionId[] = ["overview", "safety", "edge", "pipeline", "book", "curation"];
-const TAB_LABEL: Record<SectionId, string> = { overview: "Overview", safety: "Safety", edge: "Edge", pipeline: "Pipeline", book: "Book", curation: "Curate" };
+const NAV_IDS: SectionId[] = ["overview", "safety", "edge", "pipeline", "book", "reach", "curation"];
+const TAB_LABEL: Record<SectionId, string> = { overview: "Overview", safety: "Safety", edge: "Edge", pipeline: "Pipeline", book: "Book", reach: "Reach", curation: "Curate" };
 
 export function MobileApp({ vm, loading, error, fatal, refresh }: ConsoleProps) {
   const [tab, setTab] = useState<SectionId>("overview");
@@ -444,8 +446,9 @@ export function MobileApp({ vm, loading, error, fatal, refresh }: ConsoleProps) 
         {vm && tab === "edge" && <MEdge vm={vm} />}
         {vm && tab === "pipeline" && <MPipeline vm={vm} />}
         {vm && tab === "book" && <MBook vm={vm} />}
+        {tab === "reach" && <Reach />}
         {tab === "curation" && <Curation />}
-        {!vm && !error && !fatal && loading && tab !== "curation" && (
+        {!vm && !error && !fatal && loading && tab !== "curation" && tab !== "reach" && (
           <>
             <Skeleton height={84} /><Skeleton height={150} /><Skeleton height={150} />
           </>
