@@ -37,6 +37,7 @@ from dotenv import load_dotenv
 load_dotenv("/home/rodrigo/dramatic_options/.env")
 
 import orchestrator  # noqa: E402
+import restricted as restricted_list  # noqa: E402
 from clock import LiveClock  # noqa: E402
 from config_loader import load_config, require_alpaca_credentials  # noqa: E402
 from council.council import propose  # noqa: E402
@@ -47,6 +48,19 @@ from risk import kill_switch_active  # noqa: E402
 from themes import active_themes, load_themes  # noqa: E402
 
 LEDGER = "records/forward_catalyst_pairs.csv"
+
+# Restricted list (records/2026-07-14_restricted_list_RATIFIED.md, enforcement (d)): the probe
+# driver drops restricted symbols from EITHER themes file (live or --themes staged) — a restricted
+# name never reaches a deliberation, even a no-live-record one. FAIL-CLOSED on a broken list.
+RESTRICTED = restricted_list.load_restricted()
+
+
+def drop_restricted(by_sym: dict) -> dict:
+    for sym in sorted(s for s in by_sym if restricted_list.is_restricted(s, RESTRICTED)):
+        print(f"WARNING: {sym} is on the restricted list — dropped from the probe "
+              f"({restricted_list.RECORD}).")
+        by_sym.pop(sym)
+    return by_sym
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--symbol", action="append", default=None,
@@ -86,8 +100,8 @@ if args.render_only:
                                  staleness_days=int(fc_cfg.get("staleness_days", 30)),
                                  max_block_chars=int(fc_cfg.get("max_block_chars", 1600)))
     themes_path = args.themes or config.get("themes_path", "themes.json")
-    cands = {t.symbol.upper(): t for t in active_themes(load_themes(themes_path))
-             if getattr(t, "sentinel_id", None) is None}
+    cands = drop_restricted({t.symbol.upper(): t for t in active_themes(load_themes(themes_path))
+                             if getattr(t, "sentinel_id", None) is None})
     want = {s.upper() for s in args.symbol} if args.symbol else None
     shown = 0
     for sym, theme in sorted(cands.items()):
@@ -123,8 +137,8 @@ if catalysts is None:
 themes_path = args.themes or config.get("themes_path", "themes.json")
 if args.themes:
     print(f"probe-only themes file: {args.themes} (staged names — never the live candidate path)")
-themes = {t.symbol.upper(): t for t in active_themes(load_themes(themes_path))
-          if getattr(t, "sentinel_id", None) is None}
+themes = drop_restricted({t.symbol.upper(): t for t in active_themes(load_themes(themes_path))
+                          if getattr(t, "sentinel_id", None) is None})
 want = {s.upper() for s in args.symbol} if args.symbol else None
 
 pairs = 0

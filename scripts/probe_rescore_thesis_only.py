@@ -25,6 +25,7 @@ load_dotenv("/home/rodrigo/dramatic_options/.env")
 
 import discovery  # noqa: E402
 import orchestrator  # noqa: E402
+import restricted as restricted_list  # noqa: E402
 import sentinels  # noqa: E402
 from clock import LiveClock  # noqa: E402
 from config_loader import load_config, require_alpaca_credentials  # noqa: E402
@@ -39,6 +40,17 @@ from themes import Theme  # noqa: E402
 
 UNIVERSE = ["NVDA", "SMCI", "VRT", "ETN", "GEV", "CEG", "CCJ", "FCX",
             "NEE", "PWR", "RKLB", "LMT", "NOC", "LHX", "RTX", "KTOS"]
+
+# Restricted list (records/2026-07-14_restricted_list_RATIFIED.md, enforcement (d)): the rule
+# outranks the pinned population — a restricted name is dropped from the probe, LOUDLY (the drop
+# is recorded in the teed output, so a re-score band over N<16 is self-explaining). FAIL-CLOSED:
+# a broken restricted.json halts the probe before any spend.
+_restricted = restricted_list.load_restricted()
+_dropped = sorted(s for s in UNIVERSE if restricted_list.is_restricted(s, _restricted))
+if _dropped:
+    print(f"WARNING: restricted-list drop from the probe population: {_dropped} "
+          f"({restricted_list.RECORD})")
+    UNIVERSE = [s for s in UNIVERSE if s not in _dropped]
 
 config = load_config()
 config["council"]["max_candidates"] = 20  # score ALL 16 (no truncation; default is 12)
