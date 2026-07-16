@@ -95,6 +95,14 @@ of flow becomes machine-surfaced and machine-framed, operator validation risks b
 confirmation of the machine's frame — the tag makes that an EMPIRICAL question (yield quality
 by provenance, readable at the first resolutions) instead of a philosophical one.
 
+**Build-note — Stage B built 2026-07-16:** drafts ground on prints (fundamentals/filings/news)
+with the surfacing item as pointer-only; one bounded LLM call per survivor behind config
+reach.drafter + per-run cost cap + kill-before-spend; parse fail-closed to an undrafted card.
+The weekly SIGNALS BRIEF (machine-selected narrative over non-ticker material) is delivered
+in-session by CC, labeled, per the operator's 2026-07-16 request — a dated §2 carve-out:
+synthesis into a LABELED BRIEF for the operator's reading, never directly into theses or the
+pipeline.
+
 ## 4. Supply-chain mapper v0 — pre-registered question + the NER door
 
 v0 is a **measurement instrument about its own channel** before it is a tool. Structural
