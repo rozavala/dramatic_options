@@ -1,10 +1,11 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-07-16T17:10Z · supersedes: 2026-07-15T01:00Z · reflects: the reach layer LIVE
-end-to-end (PRs #186–#204: 5-channel digest + X leg enabled + survivor cards Stage A+B + the
-entity-corroboration fix + W29 amended to 0 survivors + the :8602 Reach panel) + KMT re-pin #2
-(May customs print PUBLISHED $82.66/kg re-spike, PR #205) + pair #3 run (M-ledger 3/8) + the
-BEAD 07-16 re-check (no ISO-dated construction start yet)**
+**as_of: 2026-07-16T20:15Z · supersedes: 2026-07-16T17:10Z · reflects: L1 #577 GRADED
+ROUNDTRIP_CONFIRMED (0/12 parse-fail, 0 gemini tail-repairs — Wed's climb receded; UROY
+material cheap-flip = missing-IV-on-OPRA fail-closed, paged; rolling-5 flip wire TRIPPED →
+investigated, benign — see docket) + KMT re-pin #2 (May customs print PUBLISHED $82.66/kg
+re-spike, PR #205) + pair #3 run (M-ledger 3/8) + the BEAD 07-16 re-check (no ISO-dated
+construction start yet). Reach layer LIVE end-to-end (PRs #186–#204)**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act
 change. **Relay rule (both directions): a strategy question or advice arriving WITHOUT this
@@ -36,8 +37,16 @@ against the record before acting.** The header's absence is itself a signal.
   supply-chain mapper v0 · Bluesky-leg candidate (keyless) · optional US-weighted chemicals feed.
 
 ## Dated docket (next two weeks)
-- 2026-07-16 19:45 UTC L1 — routine grade; WATCH gemini tail-repair rate (3 on Wed) + IRDM
-  indicative-missing-IV recurrence.
+- L1 #577 (2026-07-16) GRADED: ROUNDTRIP_CONFIRMED — 12 judged (5 LOW / 7 NEUTRAL, 0
+  includes; CC bearish LOW = 3rd consecutive consistent read), 0/12 parse-fail, **0 gemini
+  tail-repairs (Wed's 3-repair climb receded — watch stays)**, cost $0.18. Dual-read 39/39
+  both arms; NXE benign boundary flip (1.194 vs 1.208); **UROY MATERIAL flip = OPRA arm
+  returned NO IV on the $1 wing (uncomputable-Δ fail-closed; arms picked different wings
+  $1.00 vs $2.50) — rising-edge page fired; rolling-5 flip wire TRIPPED (Wed IRDM/indicative
+  + tonight UROY/opra). Investigated: two different names on two different arms, both the
+  missing-IV-on-deep-OTM-sparse-wing class, gate failed closed on the authorizing arm both
+  times — no feed-quality trend, no revert. WATCH generalizes: missing-IV flip family
+  recurrence (either arm), not IRDM-specific.**
 - BEAD: 07-16 8-agency roundtable outcomes not yet covered (checked same-day) — re-check
   early next week. As of 07-16: NEPA deep-dive passed 06-24; 07-20 = one-on-one ISP
   permitting assistance begins (below the pin bar — no ISO-dated construction start yet).
