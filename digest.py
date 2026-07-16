@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import calendar
 import json
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -410,18 +411,31 @@ def orphan_cohort(
     return cohort
 
 
-_WARRANT_UNIT_SUFFIXES = ("-WT", "-WS", "-U", "-R")
-_WARRANT_UNIT_INFIXES = (".WS", ".U")
+_NONOPTION_SUFFIXES = ("-WT", "-WS", "-U", "-UN", "-R", "-RI")
+_NONOPTION_INFIXES = (".WS", ".U")
+# Preferred series ride a trailing ``-P`` plus an optional series letter (AUB-PA, AHL-PF,
+# PHXE-P). Exactly zero or one letter after the P — a longer tail is not a preferred marker.
+_PREFERRED_SUFFIX_RE = re.compile(r"-P[A-Z]?$")
 
 
-def is_warrant_or_unit(symbol: str) -> bool:
-    """True for warrant/unit/rights share classes (``-WT``/``-WS``/``-U``/``-R`` suffixes
-    or dotted ``.WS``/``.U`` classes). These have no options class by construction and
-    Alpaca's contract endpoint rejects them (the EVAC-WT APIError class), so they are
-    skipped BEFORE the options-class check — counted in a note, never sent to the
+def is_nonoption_share_class(symbol: str) -> bool:
+    """True for share classes that have no options class by construction: warrants, units,
+    and rights (``-WT``/``-WS``/``-U``/``-UN``/``-R``/``-RI`` suffixes or dotted
+    ``.WS``/``.U`` classes) plus preferred series (``-P`` with an optional series letter —
+    AUB-PA, AHL-PF, PHXE-P). Alpaca's contract endpoint rejects all of these as
+    "invalid underlying" (the EVAC-WT/AUB-PA APIError class, seen live 2026-W29), so they
+    are skipped BEFORE the options-class check — counted in a note, never sent to the
     endpoint, and kept distinct from genuine checker errors."""
     s = symbol.upper()
-    return s.endswith(_WARRANT_UNIT_SUFFIXES) or any(m in s for m in _WARRANT_UNIT_INFIXES)
+    return (
+        s.endswith(_NONOPTION_SUFFIXES)
+        or bool(_PREFERRED_SUFFIX_RE.search(s))
+        or any(m in s for m in _NONOPTION_INFIXES)
+    )
+
+
+# Back-compat alias (pre-2026-07-16 name; the set now also covers preferred/units/rights).
+is_warrant_or_unit = is_nonoption_share_class
 
 
 def options_class_exists(trading_client: Any, symbol: str) -> bool:
@@ -451,19 +465,20 @@ def orphan_new_listings(
 
     The filter is IPO-age × options-class-existence ONLY — no coverage/volume/analyst leg
     of any kind (charter §3: a decayed-coverage leg is forbidden inverted-salience math).
-    Warrant/unit classes (:func:`is_warrant_or_unit`) are skipped BEFORE the options-class
-    check and counted into ``notes`` — never sent to the endpoint, never an ``errors``
-    entry (genuine checker failures stay counted separately). A checker failure for one
-    symbol is counted and skipped (the symbol is NOT marked seen, so it is re-checked
-    next run) — fail-soft, never raises out."""
+    Non-option share classes (:func:`is_nonoption_share_class` — warrants/units/rights/
+    preferred) are skipped BEFORE the options-class check and counted into ``notes`` —
+    never sent to the endpoint, never an ``errors`` entry (genuine checker failures stay
+    counted separately). A checker failure for one symbol is counted and skipped (the
+    symbol is NOT marked seen, so it is re-checked next run) — fail-soft, never raises
+    out."""
     now_dt = _as_utc(now or datetime.now(UTC))
     updated = dict(snapshot)
     items: list[Item] = []
-    warrant_unit_skipped = 0
+    nonoption_skipped = 0
     for cand in candidates:
         symbol = str(cand["symbol"])
-        if is_warrant_or_unit(symbol):
-            warrant_unit_skipped += 1
+        if is_nonoption_share_class(symbol):
+            nonoption_skipped += 1
             continue  # no options class by construction; never probe the endpoint
         if symbol in snapshot:
             continue  # already known-listed; not new
@@ -492,8 +507,8 @@ def orphan_new_listings(
                 symbol=symbol,
             )
         )
-    if warrant_unit_skipped and notes is not None:
-        notes.append(f"orphan_watch: {warrant_unit_skipped} warrant/unit class(es) skipped")
+    if nonoption_skipped and notes is not None:
+        notes.append(f"orphan_watch: {nonoption_skipped} non-option share class(es) skipped")
     return items, updated
 
 
