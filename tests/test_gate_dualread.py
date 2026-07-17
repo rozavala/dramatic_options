@@ -174,12 +174,13 @@ def test_sweep_writes_both_arms_and_counts(convexity_db):
 def test_gate_dualread_report_hand_checked(convexity_db):
     rid = state.record_run(convexity_db, mode="TEST", equity=None, note="t")
     rows = [
-        # AAA: both structured, iv_rv 1.10 vs 1.18 → Δ .08; cheap 1 vs 0 → FLIP
-        dict(symbol="AAA", feed="opra", structured=True, iv_rv=1.10, cheap=True),
-        dict(symbol="AAA", feed="indicative", structured=True, iv_rv=1.18, cheap=False),
-        # BBB: both structured, Δ .01, both cheap → clean pair
-        dict(symbol="BBB", feed="opra", structured=True, iv_rv=1.00, cheap=True),
-        dict(symbol="BBB", feed="indicative", structured=True, iv_rv=1.01, cheap=True),
+        # AAA: both structured, iv_rv 1.10 vs 1.18 → Δ .08; cheap 1 vs 0 → FLIP (same wing)
+        dict(symbol="AAA", feed="opra", structured=True, iv_rv=1.10, cheap=True, wing="AAA270115C10"),
+        dict(symbol="AAA", feed="indicative", structured=True, iv_rv=1.18, cheap=False, wing="AAA270115C10"),
+        # BBB: both structured, Δ .01, both cheap → clean pair, but on DIFFERENT wings →
+        # wing_mismatch (the sparse-chain caveat; no flip so no wire interaction)
+        dict(symbol="BBB", feed="opra", structured=True, iv_rv=1.00, cheap=True, wing="BBB270115C05"),
+        dict(symbol="BBB", feed="indicative", structured=True, iv_rv=1.01, cheap=True, wing="BBB270115C07"),
         # CCC: INDICATIVE structures, OPRA cannot → a §5 coverage GAP
         dict(symbol="CCC", feed="opra", structured=False, note="no_structure"),
         dict(symbol="CCC", feed="indicative", structured=True, iv_rv=1.05, cheap=True),
@@ -193,6 +194,7 @@ def test_gate_dualread_report_hand_checked(convexity_db):
     assert s["median_d_ivrv"] == 0.045 and s["max_d_ivrv"] == 0.08  # median(.08,.01), max
     assert s["flips"] == ["AAA"] and s["coverage_gaps"] == ["CCC"]
     assert s["material_flips"] == ["AAA"]  # Δ .08 ≥ the 0.02 floor → counts
+    assert s["wing_mismatch"] == ["BBB"]  # hand-checked: only BBB's arms read different wings
     assert s["opra_coverage"] == round(2 / 3, 3) and s["indicative_coverage"] == 1.0
     tw = rep["tripwires"]
     assert tw["flip_sessions"] == 1 and tw["gap_sessions"] == 1
@@ -211,14 +213,20 @@ def test_gate_dualread_flip_materiality_floor(convexity_db):
         state.record_gate_dualread(convexity_db, run_id=r1, as_of=AS_OF.isoformat(),
                                    source="sweep", **r)
     # Session 2: EEE flips with the OPRA iv_rv MISSING → delta uncomputable → counts (fail-closed).
+    # The arms also read DIFFERENT wings — the live UROY 2026-07-16 shape ($1.00 OPRA vs $2.50
+    # indicative): the flip still counts toward the wire; wing_mismatch surfaces the caveat.
     r2 = state.record_run(convexity_db, mode="TEST", equity=None, note="t2")
-    for r in [dict(symbol="EEE", feed="opra", structured=True, iv_rv=None, cheap=False),
-              dict(symbol="EEE", feed="indicative", structured=True, iv_rv=1.10, cheap=True)]:
+    for r in [dict(symbol="EEE", feed="opra", structured=True, iv_rv=None, cheap=False,
+                   wing="EEE270115C00001000"),
+              dict(symbol="EEE", feed="indicative", structured=True, iv_rv=1.10, cheap=True,
+                   wing="EEE270115C00002500")]:
         state.record_gate_dualread(convexity_db, run_id=r2, as_of=AS_OF.isoformat(),
                                    source="sweep", **r)
     rep = gate_dualread_report(convexity_db)
     s1, s2 = rep["sessions"][-2], rep["sessions"][-1]
     assert s1["flips"] == ["DDD"] and s1["material_flips"] == []
+    assert s1["wing_mismatch"] == []  # DDD carried no wing strings → never inferred
+    assert s2["wing_mismatch"] == ["EEE"]  # the UROY shape, surfaced
     assert s1["median_d_ivrv"] == 0.004  # hand-checked: |1.202 - 1.198|
     assert s2["flips"] == ["EEE"] and s2["material_flips"] == ["EEE"]
     assert s2["median_d_ivrv"] is None  # no computable pair
