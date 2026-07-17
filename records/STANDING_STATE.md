@@ -33,8 +33,12 @@ against the record before acting.** The header's absence is itself a signal.
 ## Staged / pending
 - **PR #199** (restricted-list enforcement): STAGED — merges post-2026-08-02 ONLY, absent an
   explicit dated operator line.
-- **Build queue (CC):** bench record (operator's 143-name priority table → records) ·
-  supply-chain mapper v0 · Bluesky-leg candidate (keyless) · optional US-weighted chemicals feed.
+- **Build queue (CC):** bench record (BLOCKED on the operator's 143-name table — not in the
+  repo) · supply-chain mapper v0 · optional US-weighted chemicals feed (07-17 probe: Chemical
+  Processing/ACC/Plastics News all 404/403 — slot stays empty). Bluesky-leg candidate CLOSED
+  2026-07-17 on a $0 probe (records/2026-07-17_newsletters_round2_and_bluesky_probe.md):
+  Dawson re-routed via blog RSS, Lewis unreachable. Newsletters round 2 (operator's expanded
+  list): 15 → 21 live feeds; Utility Dive skipped (cross-channel self-corroboration flag).
 
 ## Dated docket (next two weeks)
 - L1 #577 (2026-07-16) GRADED: ROUNDTRIP_CONFIRMED — 12 judged (5 LOW / 7 NEUTRAL, 0
