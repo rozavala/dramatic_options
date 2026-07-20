@@ -1,11 +1,13 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-07-16T20:15Z · supersedes: 2026-07-16T17:10Z · reflects: L1 #577 GRADED
-ROUNDTRIP_CONFIRMED (0/12 parse-fail, 0 gemini tail-repairs — Wed's climb receded; UROY
-material cheap-flip = missing-IV-on-OPRA fail-closed, paged; rolling-5 flip wire TRIPPED →
-investigated, benign — see docket) + KMT re-pin #2 (May customs print PUBLISHED $82.66/kg
-re-spike, PR #205) + pair #3 run (M-ledger 3/8) + the BEAD 07-16 re-check (no ISO-dated
-construction start yet). Reach layer LIVE end-to-end (PRs #186–#204)**
+**as_of: 2026-07-20T21:15Z · supersedes: 2026-07-16T20:15Z · reflects: L0 #597 (§5 scan #2)
+GRADED clean (`fresh_on_active_lineage=LUNR` live stamp confirmed; 06-10 cohort TTL-rotated
+dormant, re-surface-eligible 07-26) + the W30 digest/cards run MONDAY not Sunday (no session
+woke — no coverage lost, lookback covered the week; 0-survivor week, 19 ambiguous drops all
+correct; reach page serving W30) + L1 #612 GRADED ROUNDTRIP_DEGRADED (NEW gemini mangle
+class: invalid \\' escape → PR #210 bounded escape-repair MERGED) + KMT re-pin #3 (June
+Comtrade UNPUBLISHED → dates-only, NO pair; PR #211 MERGED) + BEAD re-check (still no
+ISO-dated construction start). Box = main @ `eacec54`, deploys green, 0 failed units.**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act
 change. **Relay rule (both directions): a strategy question or advice arriving WITHOUT this
@@ -13,18 +15,14 @@ header, or carrying an `as_of` older than the latest ruling, is treated as UNSYN
 against the record before acting.** The header's absence is itself a signal.
 
 ## Rulings in force
-- **§5 four-scan clock (PR #185, conservative restart):** re-anchored at the 07-12 L0.
-  Scans: 07-12 ✓ · 07-19 · 07-26 · 08-02. **The read closes after the 2026-08-02 L0.**
-  Window-#3 MAIN curation + channel SENTINEL EXPANSION are HELD behind it.
-  **Any curation act before 08-02 re-stales the clock.** (Off-cycle carve-outs + hand-seed
-  probes remain available; offline operator tools never touch the clock.)
+- **§5 four-scan clock (PR #185, conservative restart):** 07-12 ✓ · 07-19 ✓ (#597) · 07-26 ·
+  08-02. **The read closes after the 2026-08-02 L0.** Window-#3 MAIN curation + channel
+  SENTINEL EXPANSION are HELD behind it. **Any curation act before 08-02 re-stales the clock.**
 - **Restricted list RATIFIED 2026-07-15, in force now:** R-001 = LIFE/Ethos (person-anchored;
   enforcement code = PR #199, STAGED, merges post-08-02 by its ratified clause — the RULE
   binds regardless).
 - **Min-N pins RATIFIED 2026-07-15** (N₁=25/book resolved else read VOID · N₂=10 real
-  admissions by 2027-03-02 [operating target; unmet → underpowered + terminal backstop] ·
-  N₃=4 clusters else concentration caveat; provenance: AI-proposed, advisor-reviewed,
-  operator-adopted under informed delegation).
+  admissions by 2027-03-02 · N₃=4 clusters else concentration caveat).
 - **Reach-channels charter RATIFIED 2026-07-15** (k=6wk prune · X-yield ≥1/6wk · clocks from
   ACTIVATION · 09-30 = a LOOK not a kill · digest never ranks · per-thesis provenance tags).
 - Mandate: §10.7 tri-criteria thesis-only council (scarcity band live). HARK leash, hard seam,
@@ -33,39 +31,41 @@ against the record before acting.** The header's absence is itself a signal.
 ## Staged / pending
 - **PR #199** (restricted-list enforcement): STAGED — merges post-2026-08-02 ONLY, absent an
   explicit dated operator line.
-- **Build queue (CC):** bench record (BLOCKED on the operator's 143-name table — not in the
-  repo) · supply-chain mapper v0 · optional US-weighted chemicals feed (07-17 probe: Chemical
-  Processing/ACC/Plastics News all 404/403 — slot stays empty). Bluesky-leg candidate CLOSED
-  2026-07-17 on a $0 probe (records/2026-07-17_newsletters_round2_and_bluesky_probe.md):
-  Dawson re-routed via blog RSS, Lewis unreachable. Newsletters round 2 (operator's expanded
-  list): 15 → 21 live feeds; Utility Dive skipped (cross-channel self-corroboration flag).
+- **Build queue (CC):** bench record (BLOCKED on the operator's 143-name table) · supply-chain
+  mapper v0 (plan red-team offered) · US-weighted chemicals feed slot still empty.
+- **Sunday automation:** one-shot session wakeup ARMED for 07-26 13:35 UTC (grade L0 scan #3 →
+  W31 digest → cards --draft in the quote window → brief; session-bound — if the session dies
+  first, the operator's backstop is one nudge). Card generation stays an operator-session act
+  per charter (never systemd) unless the operator amends.
 
 ## Dated docket (next two weeks)
-- L1 #577 (2026-07-16) GRADED: ROUNDTRIP_CONFIRMED — 12 judged (5 LOW / 7 NEUTRAL, 0
-  includes; CC bearish LOW = 3rd consecutive consistent read), 0/12 parse-fail, **0 gemini
-  tail-repairs (Wed's 3-repair climb receded — watch stays)**, cost $0.18. Dual-read 39/39
-  both arms; NXE benign boundary flip (1.194 vs 1.208); **UROY MATERIAL flip = OPRA arm
-  returned NO IV on the $1 wing (uncomputable-Δ fail-closed; arms picked different wings
-  $1.00 vs $2.50) — rising-edge page fired; rolling-5 flip wire TRIPPED (Wed IRDM/indicative
-  + tonight UROY/opra). Investigated: two different names on two different arms, both the
-  missing-IV-on-deep-OTM-sparse-wing class, gate failed closed on the authorizing arm both
-  times — no feed-quality trend, no revert. WATCH generalizes: missing-IV flip family
-  recurrence (either arm), not IRDM-specific.**
-- BEAD: 07-16 8-agency roundtable outcomes not yet covered (checked same-day) — re-check
-  early next week. As of 07-16: NEPA deep-dive passed 06-24; 07-20 = one-on-one ISP
-  permitting assistance begins (below the pin bar — no ISO-dated construction start yet).
-- 2026-07-19 12:00 UTC L0 = §5 scan #2 (June-10 sentinel cohort crosses TTL: excluded this
-  scan, dormant after, re-surface-eligible 07-26; EXPECTED live `fresh_on_active_lineage=LUNR`
-  stamp — grade it). THEN: W30 digest + survivor cards (--draft) + labeled signals brief.
-- ≤2026-07-23: KMT re-pin #3 (June Comtrade check FIRST — unpublished as of 07-16; no new
-  month → re-pin only, NO pair; June lands → material → pair #4).
-- 2026-07-26 L0 = scan #3 · 2026-08-02 L0 = scan #4 → **the read closes** → window-#3 main
-  curation + sentinel expansion + merge #199.
+- L1 #612 (2026-07-20) GRADED: **ROUNDTRIP_DEGRADED** — 1/12 proposer parse-fail (NVDA,
+  the NEW invalid-\\' escape class, finish=STOP; below page floor), 9 clean roundtrips,
+  8 reasoned abstentions + CC bearish LOW again, $0.21. **Gemini JSON-discipline watch is
+  FIRM**: 3 tail-repairs (Wed 3 → Thu 0 → Mon 3) + the escape fail, all gemini-3.5-flash
+  under JSON mode → if Tue/Wed hold at rate, raise the provider-side lever (model/config
+  pin = record-segmenting via model_mix). PR #210 (escape-repair, MERGED `56e579f`→main)
+  retires the class: verified against the REAL #612 raw (2 fixed, deliberated NEUTRAL =
+  matched the fail-closed outcome). First live `| session:` executor line (PR #209) worked:
+  flips=[ETN,GEV,VRT] material=[] wing_mismatch=[GEV,NOC,RTX] — GEV's flip self-identified
+  as the sparse-wing different-instruments shape.
+- **Null books took their first sentinel-origin positions off L0 #597**: shadow + 3A each
+  booked CCJ & RKLB bearish (gate-cheap, council all-NEUTRAL) — the brain-on-vs-brain-off
+  contrast accruing as designed. Real book abstained (still 1 open: PL $690).
+- ≤2026-07-27: KMT re-pin #4 (June Comtrade check FIRST — 0 rows as of 07-20; May
+  re-confirmed $82.66/kg. June lands → material → pair #4; M-ledger 3/8).
+- BEAD: 07-16 roundtable outcome still uncovered as of 07-20 (latest coverage 07-13: ISPs in
+  federal permitting; "peak of BEAD construction" still ahead) — no ISO-dated construction
+  start, ADTN pin bar UNMET. Re-check ~07-24.
+- 2026-07-26 12:00 UTC L0 = scan #3 (06-10 cohort re-surface-eligible — watch for it) →
+  wakeup runs W31 digest + cards + brief.
+- 2026-08-02 L0 = scan #4 → **the read closes** → window-#3 main curation + sentinel
+  expansion + merge #199.
+- Marker staleness watch: HL max 26.3d (L1 #612 health report).
 
 ## Board & book
-- Board: 1 open PR (#199, staged) · 0 issues. Box = main @ `a9ae054`, healthy.
-- Book: real 1 (PL, bullish, $690) · null books 92 open (shadow 31 / 3A 31 / 3B 30) ·
-  expiry wall 2027-01-15 · first natural resolutions ≈ 2026-12-25.
-- M-ledger 3/8 (pair #3 2026-07-16: NEUTRAL/NEUTRAL no-flip, channel arm CITED the May
-  re-spike; both arms refute the bear thesis on fundamentals — margin expansion + guidance
-  raise + 3 downgrades = already-narrated) · restricted list R-001 = LIFE in force.
+- Board: 1 open PR (#199, staged) · 0 issues. Box = main @ `eacec54`, healthy, 0 failed units.
+- Book: real 1 (PL, bullish, $690) · null books 126 open (shadow 33 / 3A 63 incl. tonight's
+  CCJ+RKLB in each / 3B 30 — counts per tonight's monitor+booking lines) · expiry wall
+  2027-01-15.
+- M-ledger 3/8 · restricted list R-001 = LIFE in force.
