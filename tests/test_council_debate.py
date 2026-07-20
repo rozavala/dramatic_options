@@ -69,6 +69,39 @@ def test_tail_repair_stays_bounded_and_fails_closed():
         agents.extract_json('{"a": {"b": {"c": {"d": {"e": 1')
 
 
+# ── extract_json invalid \' escape-repair (gemini JSON-mode, live run #612 2026-07-20:
+#    "Nvidia\'s" at finish=STOP — \' is never a valid JSON escape; not a truncation) ─────────
+
+def test_escape_repair_strips_invalid_quote_escape():
+    # Run #612 (NVDA): the live shape — \' inside an otherwise complete, balanced object.
+    damaged = r'{"thesis": "Martin Shkreli Says Micron Is Closing In on Nvidia\'s Profits", "n": 1}'
+    assert agents.extract_json(damaged) == {
+        "thesis": "Martin Shkreli Says Micron Is Closing In on Nvidia's Profits", "n": 1,
+    }
+
+
+def test_escape_repair_never_corrupts_valid_escapes():
+    # A legitimate escaped backslash followed by a plain apostrophe is VALID JSON — it parses
+    # first-pass and no repair path may touch it (the naive-text-replace corruption case).
+    ok = r'{"a": "b\\' + r"'c" + '"}'
+    assert agents.extract_json(ok) == {"a": "b\\'c"}
+    # Mixed damage: an invalid \' and a valid \\ in the same string — only the \' is stripped.
+    damaged = r'{"a": "it\'s C:\\dir"}'
+    assert agents.extract_json(damaged) == {"a": "it's C:\\dir"}
+
+
+def test_escape_repair_chains_into_tail_repair():
+    # Both live mangle classes at once: \' damage AND a dropped final '}' — repairs compose.
+    damaged = r'{"a": "it\'s structural", "b": [1, 2]'
+    assert agents.extract_json(damaged) == {"a": "it's structural", "b": [1, 2]}
+
+
+def test_escape_repair_stays_bounded_and_fails_closed():
+    # \' damage plus an unterminated string is still unrepairable → the ORIGINAL error surfaces.
+    with pytest.raises(ValueError, match="unbalanced"):
+        agents.extract_json(r'{"a": "it\'s never closed')
+
+
 def test_parsers_coerce_and_fail_closed():
     # A well-formed non-NEUTRAL proposal keeps its (normalized) confidence.
     full = json.dumps({"confidence": "high", "structural_vs_fad": "structural",
