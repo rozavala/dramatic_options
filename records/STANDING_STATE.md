@@ -1,13 +1,17 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-07-20T21:15Z · supersedes: 2026-07-16T20:15Z · reflects: L0 #597 (§5 scan #2)
-GRADED clean (`fresh_on_active_lineage=LUNR` live stamp confirmed; 06-10 cohort TTL-rotated
-dormant, re-surface-eligible 07-26) + the W30 digest/cards run MONDAY not Sunday (no session
-woke — no coverage lost, lookback covered the week; 0-survivor week, 19 ambiguous drops all
-correct; reach page serving W30) + L1 #612 GRADED ROUNDTRIP_DEGRADED (NEW gemini mangle
-class: invalid \\' escape → PR #210 bounded escape-repair MERGED) + KMT re-pin #3 (June
-Comtrade UNPUBLISHED → dates-only, NO pair; PR #211 MERGED) + BEAD re-check (still no
-ISO-dated construction start). Box = main @ `eacec54`, deploys green, 0 failed units.**
+**as_of: 2026-07-22T20:20Z · supersedes: 2026-07-20T21:15Z · reflects: ⭐ PROPOSER MODEL
+UPGRADE gemini-3.5-flash → **gemini-3.6-flash** (PR #213 MERGED + deployed `325bed3`,
+operator-authorized dated 2026-07-22; probe: 3.5 control reproduced the mangle 1/6, 3.6 =
+0/6 raw + −25% tokens/−28% cost; @live acceptance PASSED on-host post-deploy; **RECORD
+SEGMENT starts at the first 3.6 L1 = Thu 07-23** — council-marginal/Brier never pooled
+across the seam; see records/2026-07-22_proposer_model_upgrade_gemini36.md) + L1 #629 Tue
+CONFIRMED (0/12; 9 names lost gate eligibility BENIGNLY — Jan-2027 LEAPS aged under the
+6-mo tenor floor, both arms symmetric `no_eligible_contract_in_tenor_window`, sweep 30/39
+until longer listings appear) + L1 #646 Wed CONFIRMED (0/12; VRT first genuine SAME-WING
+material flip = threshold-straddler at the 1.2 gate line, OPRA 1.194 cheap vs indicative
+1.218 not, report-only; LOW-widening 1→4→7 across Mon/Tue/Wed — all sub-MODERATE, 0
+includes, segment now CLOSED by the model switch).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act
 change. **Relay rule (both directions): a strategy question or advice arriving WITHOUT this
@@ -39,16 +43,14 @@ against the record before acting.** The header's absence is itself a signal.
   per charter (never systemd) unless the operator amends.
 
 ## Dated docket (next two weeks)
-- L1 #612 (2026-07-20) GRADED: **ROUNDTRIP_DEGRADED** — 1/12 proposer parse-fail (NVDA,
-  the NEW invalid-\\' escape class, finish=STOP; below page floor), 9 clean roundtrips,
-  8 reasoned abstentions + CC bearish LOW again, $0.21. **Gemini JSON-discipline watch is
-  FIRM**: 3 tail-repairs (Wed 3 → Thu 0 → Mon 3) + the escape fail, all gemini-3.5-flash
-  under JSON mode → if Tue/Wed hold at rate, raise the provider-side lever (model/config
-  pin = record-segmenting via model_mix). PR #210 (escape-repair, MERGED `56e579f`→main)
-  retires the class: verified against the REAL #612 raw (2 fixed, deliberated NEUTRAL =
-  matched the fail-closed outcome). First live `| session:` executor line (PR #209) worked:
-  flips=[ETN,GEV,VRT] material=[] wing_mismatch=[GEV,NOC,RTX] — GEV's flip self-identified
-  as the sparse-wing different-instruments shape.
+- **The gemini-3.5-flash watch RESOLVED by upgrade (07-22):** the mangle family (tail-repairs
+  3/0/3+1-hard/1/3 across 07-15→07-22, all absorbed by the PR #210 + tail-repair armor)
+  belonged to 3.5-flash; the provider-side lever was pulled DELIBERATELY (not forced — two
+  clean 0/12 nights preceded it) on the operator's dated word, to the cheaper successor.
+  **Watch for the 3.6 segment:** repair-rate ≈0 expected (any recurrence = a NEW datum);
+  proposer cost leg −25–30%; conviction distribution has NO carried baseline (new segment —
+  the 3.5 segment's 1→4→7 LOW-widening does not extrapolate across the seam). Repair layer
+  stays: model-agnostic armor.
 - **Null books took their first sentinel-origin positions off L0 #597**: shadow + 3A each
   booked CCJ & RKLB bearish (gate-cheap, council all-NEUTRAL) — the brain-on-vs-brain-off
   contrast accruing as designed. Real book abstained (still 1 open: PL $690).
