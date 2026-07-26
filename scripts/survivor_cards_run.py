@@ -43,7 +43,7 @@ if str(_ROOT) not in sys.path:  # `python scripts/survivor_cards_run.py` puts sc
     sys.path.insert(0, str(_ROOT))
 
 import survivor_cards as sc  # noqa: E402
-from digest import DIGEST_CACHE_DIR, iso_week_stamp  # noqa: E402
+from digest import DIGEST_CACHE_DIR, iso_week_stamp, preserve_existing  # noqa: E402
 
 _WEEK_STEM_RE = re.compile(r"^\d{4}-W\d{2}$")
 
@@ -335,6 +335,9 @@ def main(argv: list[str] | None = None) -> int:
         out_dir = Path(args.out)
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{week}.md"
+        sidecar = preserve_existing(out_path, now)
+        if sidecar is not None:
+            print(f"[cards] existing {out_path.name} preserved as {sidecar.name}")
         out_path.write_text(document)
         print(f"[cards] wrote {out_path}")
     return 0

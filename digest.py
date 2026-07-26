@@ -122,6 +122,23 @@ def iso_week_stamp(dt: datetime) -> str:
     return f"{iso.year}-W{iso.week:02d}"
 
 
+def preserve_existing(path: Path, now: datetime) -> Path | None:
+    """Rename an existing output file aside before it would be overwritten.
+
+    Two runs in the same ISO week share a filename (a Monday repair run and the
+    following Sunday run both stamp that week), and an uncommitted earlier file
+    is unrecoverable once clobbered — the 2026-W30 digest was lost this way.
+    Returns the sidecar path, or None if ``path`` does not exist.
+    """
+    if not path.exists():
+        return None
+    sidecar = path.with_name(
+        f"{path.stem}.superseded-{now.strftime('%Y%m%dT%H%M')}Z{path.suffix}"
+    )
+    path.rename(sidecar)
+    return sidecar
+
+
 # ── fetch plumbing ────────────────────────────────────────────────────────────
 def _http_get(url: str, *, timeout: float, user_agent: str = DEFAULT_USER_AGENT) -> bytes:
     """Plain keyless GET (stdlib). Raises on any failure — callers are the fail-soft layer."""
