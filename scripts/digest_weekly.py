@@ -54,6 +54,7 @@ from digest import (  # noqa: E402
     options_class_exists,
     orphan_cohort,
     orphan_new_listings,
+    preserve_existing,
     save_snapshot,
     sec_ticker_map,
     submissions_ticker_fallback,
@@ -371,6 +372,9 @@ def main(argv: list[str] | None = None) -> int:
         out_dir = Path(args.out)
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{week}.md"
+        sidecar = preserve_existing(out_path, now)
+        if sidecar is not None:
+            print(f"[digest] existing {out_path.name} preserved as {sidecar.name}")
         out_path.write_text(document)
         if orphan_snapshot is not None:
             save_snapshot(orphan_snapshot, ORPHAN_SNAPSHOT_PATH)

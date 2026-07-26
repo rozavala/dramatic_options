@@ -654,3 +654,19 @@ def test_runner_quiet_week_without_errors_exits_0(feeds_file, capsys, monkeypatc
     rc = runner.main(["--feeds", str(feeds_file), "--skip-orphan", "--dry-run"])
     assert rc == 0  # a quiet week is NOT a dead week
     assert "0 item(s)" in capsys.readouterr().out
+
+
+# ── preserve_existing (the same-ISO-week overwrite guard) ─────────────────────
+def test_preserve_existing_renames_before_overwrite(tmp_path):
+    now = datetime(2026, 7, 26, 13, 36, tzinfo=UTC)
+    out = tmp_path / "2026-W30.md"
+    out.write_text("monday repair run content")
+    sidecar = digest.preserve_existing(out, now)
+    assert sidecar is not None
+    assert sidecar.name == "2026-W30.superseded-20260726T1336Z.md"
+    assert sidecar.read_text() == "monday repair run content"
+    assert not out.exists()  # the caller's write_text now creates a fresh file
+
+
+def test_preserve_existing_noop_when_absent(tmp_path):
+    assert digest.preserve_existing(tmp_path / "2026-W31.md", datetime(2026, 8, 2, tzinfo=UTC)) is None
