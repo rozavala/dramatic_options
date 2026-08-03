@@ -76,9 +76,11 @@ STRATEGIST_SYSTEM = (
 def extract_json(text: str) -> dict:
     """Pull the first balanced JSON object out of an LLM response. Raises ValueError on failure.
 
-    On a structurally damaged tail, one bounded bracket-level repair is attempted (see
-    ``_repair_tail``) — the gemini JSON-mode tail-mangling family observed live 2026-07-07/09
-    (runs #458/#491: a natural STOP with the final ``}`` dropped, or a stray duplicate ``]``).
+    Two bounded repairs are attempted on a damaged response, then it fails closed:
+    ``_strip_invalid_quote_escapes`` — the gemini JSON-mode invalid ``\\'`` escape observed
+    live 2026-07-20 (run #612: ``Nvidia\\'s`` at a natural STOP; ``\\'`` is never valid JSON) —
+    and ``_repair_tail`` — the tail-mangling family observed live 2026-07-07/09 (runs
+    #458/#491: a natural STOP with the final ``}`` dropped, or a stray duplicate ``]``).
     A repaired object still passes through the caller's post-parse schema validation, so a bad
     repair fails closed exactly like a parse failure."""
     if not text:
@@ -87,35 +89,85 @@ def extract_json(text: str) -> dict:
     if start < 0:
         raise ValueError("no JSON object found")
     try:
-        depth = 0
-        in_str = False
-        esc = False
-        for i in range(start, len(text)):
-            ch = text[i]
-            if in_str:
-                if esc:
-                    esc = False
-                elif ch == "\\":
-                    esc = True
-                elif ch == '"':
-                    in_str = False
-            else:
-                if ch == '"':
-                    in_str = True
-                elif ch == "{":
-                    depth += 1
-                elif ch == "}":
-                    depth -= 1
-                    if depth == 0:
-                        return json.loads(text[start : i + 1])
-        raise ValueError("unbalanced JSON object")
+        return _balanced_parse(text, start)
     except ValueError as err:  # json.JSONDecodeError subclasses ValueError
+        fixed, n_esc = _strip_invalid_quote_escapes(text, start)
+        if n_esc:
+            try:
+                obj = _balanced_parse(fixed, start)
+                log.warning("extract_json: \\' escape-repair succeeded (%d fixed; original "
+                            "error: %s)", n_esc, err)
+                return obj
+            except ValueError:
+                pass  # escape damage can coexist with tail damage — chain into the tail repair
         try:
-            obj = _repair_tail(text, start)
+            obj = _repair_tail(fixed, start)
         except ValueError:
             raise err from None
-        log.warning("extract_json: bracket tail-repair succeeded (original error: %s)", err)
+        log.warning("extract_json: bracket tail-repair succeeded%s (original error: %s)",
+                    f" after {n_esc} \\' escape fix(es)" if n_esc else "", err)
         return obj
+
+
+def _balanced_parse(text: str, start: int) -> dict:
+    """Parse the first balanced JSON object starting at ``start``. Raises ValueError."""
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        else:
+            if ch == '"':
+                in_str = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return json.loads(text[start : i + 1])
+    raise ValueError("unbalanced JSON object")
+
+
+def _strip_invalid_quote_escapes(text: str, start: int) -> tuple[str, int]:
+    """Drop the backslash from ``\\'`` sequences in escape position inside JSON strings.
+
+    ``\\'`` is never a valid JSON escape, so removing the backslash is always safe — but only
+    with real escape-state tracking: a legitimate ``\\\\`` (escaped backslash) followed by a
+    plain apostrophe must never be altered, which a naive text replace would corrupt. Only the
+    exact backslash+apostrophe pair is touched; every other escape (valid or not) passes
+    through untouched for the parser to judge. Returns ``(text, n_fixed)``."""
+    out = list(text[:start])
+    in_str = False
+    pending_backslash = False
+    fixed = 0
+    for ch in text[start:]:
+        if pending_backslash:  # previous char opened an escape inside a string
+            pending_backslash = False
+            if ch == "'":
+                fixed += 1  # emit the apostrophe alone
+            else:
+                out.append("\\")
+            out.append(ch)
+            continue
+        if in_str:
+            if ch == "\\":
+                pending_backslash = True
+                continue
+            if ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        out.append(ch)
+    if pending_backslash:  # dangling backslash at end-of-text — keep it for forensics
+        out.append("\\")
+    return "".join(out), fixed
 
 
 def _repair_tail(text: str, start: int) -> dict:

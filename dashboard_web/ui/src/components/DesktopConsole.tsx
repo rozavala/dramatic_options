@@ -9,6 +9,7 @@ import { Curation } from "./Curation";
 import { Edge } from "./Edge";
 import { Overview } from "./Overview";
 import { Pipeline } from "./Pipeline";
+import { Reach } from "./Reach";
 import { Safety } from "./Safety";
 import { Banner, Skeleton } from "./primitives";
 
@@ -18,6 +19,7 @@ export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsolePr
   const asOf = vm?.asOf ? vm.asOf.slice(0, 16).replace("T", " ") : "—";
   const age = relativeAge(vm?.asOf); // E2: "Nh ago" + a staleness tint
   const [title, subtitle] = TITLES[section];
+  const standalone = section === "curation" || section === "reach"; // no snapshot VM needed
 
   return (
     <div className="flex h-screen w-full overflow-hidden" style={{ fontSize: 14 }}>
@@ -120,15 +122,16 @@ export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsolePr
             {vm && section === "edge" && <Edge vm={vm} />}
             {vm && section === "pipeline" && <Pipeline vm={vm} />}
             {vm && section === "book" && <Book vm={vm} />}
+            {section === "reach" && <Reach />}
             {section === "curation" && <Curation />}
-            {!vm && !error && !fatal && loading && section !== "curation" && (
+            {!vm && !error && !fatal && loading && !standalone && (
               <div className="flex flex-col" style={{ gap: 16 }}>
                 <Skeleton height={92} />
                 <div className="grid grid-cols-4 gap-3.5">{[0, 1, 2, 3].map((i) => <Skeleton key={i} height={120} />)}</div>
                 <Skeleton height={220} />
               </div>
             )}
-            {!vm && !error && !fatal && !loading && section !== "curation" && <div style={{ color: "#5f6675" }}>No snapshot.</div>}
+            {!vm && !error && !fatal && !loading && !standalone && <div style={{ color: "#5f6675" }}>No snapshot.</div>}
           </div>
         </div>
       </main>

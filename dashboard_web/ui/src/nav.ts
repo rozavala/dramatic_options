@@ -1,7 +1,7 @@
 // Section identity + chrome copy, shared by the rail, the topbar, and the Overview section cards
 // (a neutral module so App and SectionCards don't import each other).
 
-export type SectionId = "overview" | "safety" | "edge" | "pipeline" | "book" | "curation";
+export type SectionId = "overview" | "safety" | "edge" | "pipeline" | "book" | "reach" | "curation";
 
 export const NAV: { id: SectionId; label: string; sub: string }[] = [
   { id: "overview", label: "Overview", sub: "status · KPIs · go-live" },
@@ -9,6 +9,7 @@ export const NAV: { id: SectionId; label: string; sub: string }[] = [
   { id: "edge", label: "The Edge", sub: "does the brain help?" },
   { id: "pipeline", label: "Pipeline", sub: "where ideas stop" },
   { id: "book", label: "Book & Data", sub: "positions · scanning" },
+  { id: "reach", label: "Reach", sub: "weekly cards · digest" },
   { id: "curation", label: "Curation", sub: "screen · draft a theme" },
 ];
 
@@ -18,5 +19,6 @@ export const TITLES: Record<SectionId, [string, string]> = {
   edge: ["The Edge", "Does the gate + AI council actually beat running brain-off?"],
   pipeline: ["Pipeline", "Where do candidate ideas stop, and why?"],
   book: ["Book & Data", "What’s held, what’s being watched, and what data has accrued."],
+  reach: ["Reach", "The weekly survivor cards + raw digest — render-only; picks happen in the operator’s session."],
   curation: ["Curation", "Draft a feasibility-screen command or a new theme — keyless, never writes."],
 };

@@ -51,7 +51,7 @@ describe("MobileApp", () => {
   it("renders on an empty VM and exposes the tab bar as a tablist (G1)", () => {
     render(<MobileApp {...props()} />);
     expect(screen.getByRole("tablist")).toBeTruthy();
-    expect(screen.getAllByRole("tab").length).toBe(6); // overview/safety/edge/pipeline/book/curation
+    expect(screen.getAllByRole("tab").length).toBe(7); // overview/safety/edge/pipeline/book/reach/curation
   });
 
   it("surfaces a degraded banner on mobile too (B1)", () => {

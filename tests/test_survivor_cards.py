@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import json
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -167,6 +168,237 @@ def test_load_known_tickers_cache_first(tmp_path):
     assert sc.load_known_tickers(p) == frozenset({"FCX", "RKLB"})
     p.write_text("not json{{")
     assert sc.load_known_tickers(p) is None  # corrupt cache degrades, never raises
+
+
+def test_load_known_titles_cache_first(tmp_path):
+    p = tmp_path / "company_tickers.json"
+    assert sc.load_known_titles(p) is None  # absent → None → name path can't fire
+    p.write_text(json.dumps({"0": {"cik_str": 831259, "ticker": "fcx",
+                                   "title": "FREEPORT-MCMORAN INC"},
+                             "1": {"cik_str": 1, "ticker": "SMR", "title": "NUSCALE POWER CORP"}}))
+    assert sc.load_known_titles(p) == {"FCX": "FREEPORT-MCMORAN INC",
+                                       "SMR": "NUSCALE POWER CORP"}
+    p.write_text("not json{{")
+    assert sc.load_known_titles(p) is None  # corrupt cache degrades, never raises
+
+
+# ── stage 1b′: exact-match corroboration (the 2026-W29 entity-confusion fix) ──
+# Live W29 evidence (records/digests/2026-W29.md → records/cards/2026-W29.md): the
+# exact-match pass on prose channels minted four FALSE cards — "Soyuz MS-29"→MS (Morgan
+# Stanley), "Handler AGI" (an air-cargo company)→AGI (Alamos Gold), "his LI here"
+# (LinkedIn)→LI (Li Auto), "SMR plan" (the reactor acronym)→SMR (NuScale). Only UEC (the
+# CEO naming his own company) was genuine. A stoplist can't cover domain acronyms /
+# proper-noun collisions; a prose exact-match hit must now EARN its card via corroboration.
+
+W29_TITLES = {
+    "MS": "MORGAN STANLEY",
+    "AGI": "ALAMOS GOLD INC",
+    "LI": "Li Auto Inc.",
+    "SMR": "NUSCALE POWER CORP",
+    "UEC": "URANIUM ENERGY CORP",
+}
+W29_KNOWN = frozenset(W29_TITLES)
+
+# The four live collision items — EXACT titles from records/digests/2026-W29.md.
+W29_COLLISIONS = [
+    ("MS", _item("Good radio reception of #Soyuz MS-29 at 121.75 MHz from #Leiden, the "
+                 "Netherlands, a few minutes ago, around time of docking. At least 7 min…",
+                 channel="x_lists", source="x/smallsat/Marco_Langbroek")),
+    ("AGI", _item("Handler AGI claims union’s ‘misleading’ campaign cost it $20m in "
+                  "airline contracts", channel="newsletters", source="The Loadstar")),
+    ("LI", _item("@vozinhapr @fcfcomunica And props to my friend Swarnav for doing most of "
+                 "the work! Check out his LI here: https://t.co/n63qgavAxI",
+                 channel="x_lists", source="x/grid/steven_q_zhang")),
+    ("SMR", _item("Argentina announces privately-financed SMR plan",
+                  channel="newsletters", source="World Nuclear News")),
+]
+
+
+def test_w29_collisions_each_drop_with_counted_note():
+    for sym, item in W29_COLLISIONS:
+        notes: list[str] = []
+        out = sc.extract_candidates([item], W29_KNOWN, titles=W29_TITLES, notes=notes)
+        assert out == {}, sym  # the false card is never minted
+        (note,) = notes
+        assert note.startswith("1 ambiguous ticker-string match(es) dropped "
+                               "(no company-name corroboration): ")
+        assert f'{sym}("' in note  # symbol + a short quote → operator can audit for a
+        #                            false NEGATIVE without re-opening the digest
+    # the quote is the item title (truncated when long)
+    notes = []
+    sc.extract_candidates([W29_COLLISIONS[3][1]], W29_KNOWN, titles=W29_TITLES, notes=notes)
+    assert 'SMR("Argentina announces privately-financed SMR plan")' in notes[0]
+
+
+def test_w29_collisions_combined_single_aggregated_note():
+    notes: list[str] = []
+    out = sc.extract_candidates([i for _, i in W29_COLLISIONS], W29_KNOWN,
+                                titles=W29_TITLES, notes=notes)
+    assert out == {}
+    (note,) = notes  # ONE aggregated note, symbols alphabetical
+    assert note.startswith("4 ambiguous ticker-string match(es) dropped")
+    assert note.index('AGI("') < note.index('LI("') < note.index('MS("') < note.index('SMR("')
+
+
+def test_uec_single_corporate_post_drops_honestly():
+    # The Adnani post (the CEO's own x account) says "for UEC" but never "Uranium Energy" —
+    # and a source ACCOUNT's corporate identity cannot be auto-known, so the honest rule
+    # drops the week's one genuine hit too: 1 item, no name token, no cross-channel
+    # repetition. Accepted (precision-first: fewer false cards beats more): the operator
+    # can always cashtag ($UEC), and the company name will appear in filings-driven items.
+    item = _item("The startup of Burke Hollow is a significant achievement for UEC, "
+                 "advancing the project from a grassroots discovery in 2012 to production i…",
+                 channel="x_lists", source="x/mining/AmirAdnani")
+    notes: list[str] = []
+    out = sc.extract_candidates([item], W29_KNOWN, titles=W29_TITLES, notes=notes)
+    assert out == {}
+    assert 'UEC("The startup of Burke Hollow' in notes[0]
+
+
+def test_name_corroboration_keeps_genuine_exact_match():
+    # Path 1: a distinctive registry-name token in the SAME item's title.
+    item = _item("NuScale wins Argentina SMR order", channel="newsletters",
+                 source="World Nuclear News")
+    notes: list[str] = []
+    out = sc.extract_candidates([item], W29_KNOWN, titles=W29_TITLES, notes=notes)
+    assert set(out) == {"SMR"} and notes == []
+    (ex,) = out["SMR"]
+    assert ex.method == "exact_match"
+    # case-insensitive against the registry title ("MORGAN STANLEY" ↔ "Morgan Stanley")
+    out2 = sc.extract_candidates(
+        [_item("Morgan Stanley lifts MS price target", channel="trade_press")],
+        W29_KNOWN, titles=W29_TITLES)
+    assert set(out2) == {"MS"}
+    # GENERIC name tokens never corroborate: "NUSCALE POWER CORP" corroborates on
+    # "nuscale" only — a nuclear headline containing "power" is not the company
+    out3 = sc.extract_candidates(
+        [_item("Argentina power grid ready for SMR plan", channel="newsletters",
+               source="World Nuclear News")], W29_KNOWN, titles=W29_TITLES)
+    assert out3 == {}
+
+
+def test_cross_channel_repetition_corroborates():
+    # Path 2: the same symbol surfaced from >=2 distinct CHANNELS in the week — repeated
+    # independent mention. Both items survive into provenance (they corroborate each other).
+    items = [
+        _item("Burke Hollow startup: UEC confirms first drums", channel="trade_press",
+              source="Wire"),
+        _item("UEC ramping Burke Hollow wellfields", channel="x_lists",
+              source="x/mining/analyst"),
+    ]
+    notes: list[str] = []
+    out = sc.extract_candidates(items, W29_KNOWN, titles=W29_TITLES, notes=notes)
+    assert set(out) == {"UEC"} and len(out["UEC"]) == 2 and notes == []
+
+
+def test_same_channel_repetition_never_corroborates_the_live_ms_smr_evidence():
+    # THE LIVE-EVIDENCE STRENGTHENING: repetition counts distinct CHANNELS, not distinct
+    # items. In W29 "Soyuz MS-29" rode FOUR x_lists items across TWO accounts, and "SMR"
+    # rode TWO newsletter items — a distinct-item (or distinct-source) rule would have kept
+    # both false cards. Within one channel, repetition of the colliding string is the
+    # collision NORM, not independent mention of the company.
+    ms_items = [
+        _item("Good radio reception of #Soyuz MS-29 at 121.75 MHz from #Leiden, the "
+              "Netherlands, a few minutes ago, around time of docking. At least 7 min…",
+              channel="x_lists", source="x/smallsat/Marco_Langbroek"),
+        _item("Here is a recording of about 2 minutes of the voice reception from #Soyuz "
+              "MS-29 at 121.75 MHz as received by radio from Leiden, around dock…",
+              channel="x_lists", source="x/smallsat/Marco_Langbroek"),
+        _item("LAUNCH at 1447 Jul 14 of the Soyuz MS-29 spaceship carrying Petr Dubrov "
+              "and Anna Kikina of Roskosmos and Anil Menon of NASA.",
+              channel="x_lists", source="x/smallsat/planet4589"),
+        _item("The first actual orbit data for sats with 6-digit catalog numbers are out. "
+              "100000 Saramago in 501 x 508 km x 97.5 deg orbit 100057 Soyuz MS…",
+              channel="x_lists", source="x/smallsat/planet4589"),
+    ]
+    notes: list[str] = []
+    out = sc.extract_candidates(ms_items, W29_KNOWN, titles=W29_TITLES, notes=notes)
+    assert out == {}
+    (note,) = notes
+    assert note.startswith("4 ambiguous ticker-string match(es) dropped")
+    assert note.count('MS("') == 1 and '+3 more' in note  # compact per-symbol entry
+    smr_items = [
+        _item("Argentina announces privately-financed SMR plan",
+              channel="newsletters", source="World Nuclear News"),
+        _item("Hyundai E&C, FANCO to collaborate on SMR project",
+              channel="newsletters", source="World Nuclear News"),
+    ]
+    assert sc.extract_candidates(smr_items, W29_KNOWN, titles=W29_TITLES) == {}
+
+
+def test_uncorroborated_item_pruned_from_surviving_symbols_provenance():
+    # Corroboration is per-item: the symbol survives via the name-corroborated item, and
+    # surfaced-via lists ONLY corroborated items — the ambiguous same-channel hit is
+    # pruned AND counted (still visible to the operator in the note).
+    items = [
+        _item("NuScale Power signs Argentina SMR deal", channel="newsletters",
+              source="World Nuclear News"),
+        _item("Hyundai E&C, FANCO to collaborate on SMR project", channel="newsletters",
+              source="World Nuclear News"),
+    ]
+    notes: list[str] = []
+    out = sc.extract_candidates(items, W29_KNOWN, titles=W29_TITLES, notes=notes)
+    assert set(out) == {"SMR"}
+    (ex,) = out["SMR"]
+    assert "NuScale" in ex.title
+    (note,) = notes
+    assert note.startswith("1 ambiguous") and 'SMR("Hyundai' in note
+
+
+def test_cashtag_survivor_keeps_cashtag_but_prunes_ambiguous_string_hit():
+    # Cashtag hits are UNCHANGED (explicit ticker intent); the same-channel ambiguous
+    # exact-match item is pruned from provenance so the card stays clean.
+    items = [
+        _item("$MS price target raised", channel="x_lists", source="x/fin/desk"),
+        _item("LAUNCH at 1447 Jul 14 of the Soyuz MS-29 spaceship carrying Petr Dubrov "
+              "and Anna Kikina of Roskosmos and Anil Menon of NASA.",
+              channel="x_lists", source="x/smallsat/planet4589"),
+    ]
+    notes: list[str] = []
+    out = sc.extract_candidates(items, W29_KNOWN, titles=W29_TITLES, notes=notes)
+    assert set(out) == {"MS"}
+    (ex,) = out["MS"]
+    assert ex.method == "cashtag"
+    assert 'MS("LAUNCH at 1447' in notes[0]
+
+
+def test_exact_match_prose_fail_closed_without_titles_map():
+    # No cached registry titles → the name path CANNOT fire; a single-item hit drops even
+    # when the headline visibly contains the name (precision-first fail-closed — never
+    # guess a company name without the registry).
+    item = _item("NuScale wins Argentina SMR order", channel="newsletters", source="WNN")
+    assert sc.extract_candidates([item], W29_KNOWN, titles=None) == {}
+
+
+def test_orphan_watch_machine_titles_exempt_from_corroboration():
+    # orphan_watch titles are machine-generated by us (digest.orphan_new_listings) —
+    # authoritative, no corroboration required even for an exact-match token inside one.
+    item = Item(channel="orphan_watch", source="orphan_watch/424B4",
+                title="NWLR: options class now listed (424B4 2026-07-10, ACME CORP)",
+                link="", published=None, symbol="NWLR")
+    out = sc.extract_candidates([item], frozenset({"NWLR", "ACME"}), titles={})
+    assert set(out) == {"NWLR", "ACME"}
+
+
+def test_w29_live_digest_end_to_end_collisions_all_drop():
+    # THE LIVE W29 DIGEST, end to end through extraction: every entity-confusion card the
+    # live run minted must now drop, and the only surviving candidate is the explicit
+    # cashtag ($BMN ×2). Hand-checked against records/cards/2026-W29.md: MS×4 + SMR×2 +
+    # AGI + LI + UEC = 9 dropped exact-match hits.
+    digest = Path(__file__).resolve().parents[1] / "records" / "digests" / "2026-W29.md"
+    if not digest.exists():  # pragma: no cover — fixture ships with the repo
+        pytest.skip("W29 digest of record not present")
+    items = sc.parse_digest_markdown(digest.read_text())
+    notes: list[str] = []
+    out = sc.extract_candidates(items, W29_KNOWN, titles=W29_TITLES, notes=notes)
+    assert set(out) == {"BMN"}
+    assert all(e.method == "cashtag" for e in out["BMN"])
+    (note,) = notes
+    assert note.startswith("9 ambiguous ticker-string match(es) dropped "
+                           "(no company-name corroboration): ")
+    for sym in ("AGI", "LI", "MS", "SMR", "UEC"):
+        assert f'{sym}("' in note
+    assert '+3 more' in note  # the four MS items, compactly
 
 
 # ── stage 2: restricted list (fail-CLOSED) ────────────────────────────────────
@@ -503,3 +735,30 @@ def test_runner_writes_week_file(digest_file, tmp_path):
     written = out_dir / "2026-W29.md"
     assert written.exists()
     assert written.read_text().startswith("# Survivor cards — 2026-W29")
+
+
+def test_runner_w29_live_digest_drops_collisions_and_notes_them(tmp_path, capsys):
+    # Full runner pass over the LIVE W29 digest of record with a known-universe cache
+    # holding the five live-hit tickers: none of the entity-confusion symbols may reach
+    # the document (not even Screened out), the drop note rides ## notes, and the $BMN
+    # cashtag items still flow through (unchanged path).
+    import scripts.survivor_cards_run as runner
+
+    digest = Path(__file__).resolve().parents[1] / "records" / "digests" / "2026-W29.md"
+    if not digest.exists():  # pragma: no cover — fixture ships with the repo
+        pytest.skip("W29 digest of record not present")
+    cache = tmp_path / "company_tickers.json"
+    cache.write_text(json.dumps({
+        str(i): {"cik_str": i, "ticker": t, "title": W29_TITLES[t]}
+        for i, t in enumerate(sorted(W29_TITLES))
+    }))
+    rc = runner.main(["--digest", str(digest), "--skip-market", "--dry-run",
+                      "--restricted", str(tmp_path / "restricted.json"),
+                      "--ticker-cache", str(cache)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    screened = out.split("## Screened out")[1]
+    for sym in ("MS", "AGI", "LI", "SMR", "UEC"):
+        assert f"- {sym} —" not in screened  # the live false cards are gone entirely
+    assert "- BMN — screen unavailable" in screened  # cashtag path untouched
+    assert "9 ambiguous ticker-string match(es) dropped" in out  # counted, in ## notes

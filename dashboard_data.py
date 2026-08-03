@@ -1261,7 +1261,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
     reported, an uncomputable delta counts fail-closed), and the disagree-veto's dated auto-lapse."""
     import statistics
 
-    rows = _rows(conn, "SELECT run_id, symbol, feed, source, structured, iv_rv, cheap, note "
+    rows = _rows(conn, "SELECT run_id, symbol, feed, source, structured, iv_rv, cheap, wing, note "
                        "FROM gate_dualread ORDER BY run_id, symbol, feed")
     sessions: dict[int, dict[str, dict[str, dict]]] = {}
     for r in rows:
@@ -1277,6 +1277,9 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
         gap_transient: list[str] = []    #   per-name fetch instability
         entitlement = False              #   feed-wide OPRA-trust failure (any ¬structured note)
         opra_wing: list[str] = []        #   names with a durable OPRA wing (the debounce re-arm)
+        wing_mismatch: list[str] = []    #   both arms structured but on DIFFERENT wings (sparse-chain
+        #   caveat, 2026-07-17: a flip there compares different instruments, not one instrument's IV
+        #   across feeds — report-only, feeds NO wire; the UROY $1.00-vs-$2.50 shape)
         opra_ok = ind_ok = 0
         for sym, arms in sorted(by_sym.items()):
             o, i = arms.get("opra"), arms.get("indicative")
@@ -1304,6 +1307,8 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
                 if o.get("iv_rv") is not None and i.get("iv_rv") is not None:
                     d = abs(o["iv_rv"] - i["iv_rv"])
                     deltas.append(d)
+                if o.get("wing") and i.get("wing") and o["wing"] != i["wing"]:
+                    wing_mismatch.append(sym)
                 if int(o.get("cheap") or 0) != int(i.get("cheap") or 0):
                     flips.append(sym)
                     # only a MEASURED-small disagreement is exempt from the wire
@@ -1315,7 +1320,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
             "max_d_ivrv": round(max(deltas), 4) if deltas else None,
             "flips": flips, "material_flips": material_flips, "coverage_gaps": gaps,
             "gap_structural": gap_structural, "gap_transient": gap_transient,
-            "entitlement": entitlement, "opra_wing": opra_wing,
+            "entitlement": entitlement, "opra_wing": opra_wing, "wing_mismatch": wing_mismatch,
             "opra_coverage": round(opra_ok / n, 3) if n else None,
             "indicative_coverage": round(ind_ok / n, 3) if n else None,
         })

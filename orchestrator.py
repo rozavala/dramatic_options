@@ -802,13 +802,21 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             report = gate_dualread_report(conn, config)
                             verdict = dualread_executor.run_executor(
                                 report, config, notify=notify)
-                            log.info("Gate dual-read §5 executor: delta=%s flip=%s structural=%s "
-                                     "entitlement=%s reverted=%s",
+                            # The wire booleans are ROLLING-5 WINDOW state; log tonight's SESSION
+                            # facts alongside so a clean session under a still-tripped wire reads
+                            # as the all-clear it is (the 2026-07-17 #594 misread: flip=True with
+                            # zero session flips — the wire was holding two PRIOR sessions).
+                            sess = (report.get("sessions") or [{}])[-1]
+                            log.info("Gate dual-read §5 executor: delta_wire=%s flip_wire=%s "
+                                     "structural_wire=%s entitlement=%s reverted=%s | session: "
+                                     "flips=%s material=%s wing_mismatch=%s",
                                      verdict["delta"]["tripped"],
                                      verdict["material_flip"]["tripped"],
                                      verdict["gap_structural"]["tripped"],
                                      verdict["entitlement"]["active"],
-                                     verdict.get("revert_written", False))
+                                     verdict.get("revert_written", False),
+                                     sess.get("flips", []), sess.get("material_flips", []),
+                                     sess.get("wing_mismatch", []))
                         except Exception as e:  # noqa: BLE001 — never halts; degrade LOUDLY
                             log.error("gate dual-read executor failed (DEGRADED, non-fatal): %s", e)
                             notify.send("Dual-read §5 executor DEGRADED",
