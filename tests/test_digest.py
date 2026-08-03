@@ -511,6 +511,13 @@ def test_options_class_exists_true_iff_any_contract():
     assert options_class_exists(listed, "NWLR") is True
     assert listed.requests[0].underlying_symbols == ["NWLR"]  # one cheap existence probe
     assert listed.requests[0].limit == 1
+    # The expiration window must be EXPLICIT and wide: Alpaca's default window only covers
+    # near-dated expirations, false-negativing monthly-cycle names queried early in the
+    # cycle (KMT/VIAV live repro 2026-08-03 — the window-#3 sweep record).
+    req = listed.requests[0]
+    assert req.expiration_date_gte is not None
+    assert req.expiration_date_lte is not None
+    assert (req.expiration_date_lte - req.expiration_date_gte).days >= 365
     assert options_class_exists(_FakeClient([]), "QWTR") is False
     assert options_class_exists(_FakeClient(None), "QWTR") is False  # None-shaped empties
     assert options_class_exists(_FakeClient([object()], raw=True), "NWLR") is True
