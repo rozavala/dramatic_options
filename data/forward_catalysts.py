@@ -34,6 +34,8 @@ import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import restricted as restricted_list
+
 log = logging.getLogger(__name__)
 
 REQUIRED_KEYS = ("symbol", "class", "claim", "source", "as_of", "expires", "provenance")
@@ -81,6 +83,11 @@ class ForwardCatalysts:
         self.expired_n = 0
         self.malformed_n = 0
         self.stale_flagged_n = 0
+        # Restricted list (records/2026-07-14_restricted_list_RATIFIED.md, enforcement (d)):
+        # loaded FAIL-CLOSED before any pin is accepted — an absent/malformed restricted.json
+        # raises RestrictedListError here (the orchestrator's fail-soft construction then
+        # degrades the whole CHANNEL to absent: no pins render, never a silent pass).
+        self._restricted = restricted_list.load_restricted()
         self._items = self._load(path)
 
     # ── load + §2 schema validation (malformed → counted, skipped, never raised) ─────────────
@@ -122,6 +129,13 @@ class ForwardCatalysts:
             log.error("forward_catalysts: non-operator provenance %r (F-b: LLM-authored/unknown "
                       "items halt the channel — operator audit required): %s",
                       it.get("provenance"), it.get("claim"))
+            return False
+        if restricted_list.is_restricted(str(it.get("symbol", "")), self._restricted):
+            # Restricted-list pin REFUSAL (the `generated`-provenance refusal pattern): counted
+            # malformed + never rendered — a restricted name must not be groundable, period.
+            log.error("forward_catalysts: %r is on the RESTRICTED list — pin refused "
+                      "(%s, enforcement (d)): %s",
+                      it.get("symbol"), restricted_list.RECORD, it.get("claim"))
             return False
         if _parse_date(it.get("as_of")) is None or _parse_date(it.get("expires")) is None:
             log.warning("forward_catalysts: unparseable as_of/expires — malformed: %s",

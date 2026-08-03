@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 
+import restricted as restricted_list
 import state
 from discovery import (
     DiscoveryResult,
@@ -79,7 +80,10 @@ def active_sentinel_candidates(conn) -> list[Theme]:
     return [discovered_to_theme(r) for r in state.active_sentinel_rows(conn)]
 
 
-def union_candidates(hand_seed: list[Theme], sentinel_themes: list[Theme]) -> list[Theme]:
+def union_candidates(
+    hand_seed: list[Theme], sentinel_themes: list[Theme], *,
+    restricted: frozenset[str] | None = None,
+) -> list[Theme]:
     """hand-seed FIRST (protected), then ranked sentinels, **DEDUPED on the lineage identity
     ``(symbol, direction)``** (migration 0007 keys a sentinel lineage on `<SYMBOL>|<direction>`) —
     first occurrence wins, so a hand-seed beats a sentinel of the SAME bet (FCX-bullish ⊕ FCX-bullish
@@ -89,12 +93,27 @@ def union_candidates(hand_seed: list[Theme], sentinel_themes: list[Theme]) -> li
     downstream (``council.propose``'s ``[:max_candidates]``) then drops the weakest sentinel, not the newest.
 
     Single point of dedup for ALL THREE consumers (council, the brain-off shadow null, the no-gate 3A
-    null) — they stay aligned on the same deduped union. The per-name TRADE cap stays symbol-only by
-    design; whether the system should hold a bull AND a bear on one name is a separate, pre-registered
-    concentration question, deliberately not decided here."""
+    null) — they stay aligned on the same deduped union, which also makes it the RESTRICTED-LIST choke
+    point (records/2026-07-14_restricted_list_RATIFIED.md, enforcement (b)): a restricted symbol never
+    enters the union, ANY origin, WARNING-logged. ``restricted=None`` loads the repo ``restricted.json``
+    FAIL-CLOSED — an absent/malformed list raises :class:`restricted.RestrictedListError` and blocks
+    the cycle (per the ratified record, a trade cycle erroring is the correct fail-closed outcome; the
+    file ships in-repo, so this fires only on genuine corruption).
+
+    The per-name TRADE cap stays symbol-only by design; whether the system should hold a bull AND a
+    bear on one name is a separate, pre-registered concentration question, deliberately not decided
+    here."""
+    if restricted is None:
+        restricted = restricted_list.load_restricted()  # RestrictedListError → the cycle HALTS
     out: list[Theme] = []
     seen: set[tuple[str, str]] = set()
     for t in list(hand_seed) + list(sentinel_themes):
+        if restricted_list.is_restricted(t.symbol, restricted):
+            log.warning(
+                "restricted-list drop: %s (%s, source=%s) never enters the candidate union — %s",
+                t.symbol, t.direction, t.source, restricted_list.RECORD,
+            )
+            continue
         key = (t.symbol.upper(), str(t.direction).lower())
         if key not in seen:
             seen.add(key)

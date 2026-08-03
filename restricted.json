@@ -1,0 +1,6 @@
+{
+  "_comment": "Opaque IDs + derived tickers ONLY — the ID→person mapping lives at the governance layer (records/2026-07-14_restricted_list_RATIFIED.md). Fail-closed everywhere.",
+  "entries": [
+    {"id": "R-001", "tickers": ["LIFE"]}
+  ]
+}
