@@ -458,11 +458,21 @@ is_warrant_or_unit = is_nonoption_share_class
 def options_class_exists(trading_client: Any, symbol: str) -> bool:
     """True iff Alpaca lists ≥1 option contract on ``symbol`` — a pure existence event
     (alpaca-py is an existing dependency; imported lazily so the keyless ``--skip-orphan``
-    path never needs it)."""
+    path never needs it).
+
+    The expiration window MUST be explicit: Alpaca's default only covers near-dated
+    expirations, so a monthly-cycle name queried early in its cycle returns 0 contracts —
+    a false negative (KMT/VIAV reproduced live 2026-08-03; the window-#3 sweep record)."""
     from alpaca.trading.requests import GetOptionContractsRequest
 
+    today = datetime.now(UTC).date()
     resp = trading_client.get_option_contracts(
-        GetOptionContractsRequest(underlying_symbols=[symbol], limit=1)
+        GetOptionContractsRequest(
+            underlying_symbols=[symbol],
+            limit=1,
+            expiration_date_gte=today,
+            expiration_date_lte=today + timedelta(days=370),
+        )
     )
     contracts = resp.get("option_contracts") if isinstance(resp, dict) else resp.option_contracts
     return bool(contracts)
