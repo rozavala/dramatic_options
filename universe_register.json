@@ -73,6 +73,16 @@
         "operator-named: CC (Rule-3 tagged — no pure-play ETF source exists for the theme; the NNE channel)"
       ],
       "cluster_default": "chem_transition"
+    },
+    "fiber_buildout": {
+      "provenance": "operator",
+      "added": "2026-08-03 (window #3 main)",
+      "thesis": "The fiber/optical network buildout cycle (AI datacenter backbone interconnect + the federal BEAD deployment wave) lifts demand for optical test-and-measurement as deployment volume converts to field/lab instrument spend; VIAV is the quiet expression — the buildout narrative concentrates on carriers and equipment primes while the T&M layer that every fiber mile must pass through stays under-narrated. Second leg: 3D-sensing/anti-counterfeit OSP franchise as ballast.",
+      "falsifier": "Fiber-buildout capex fails to convert into VIAV network-test segment order/revenue growth in the filed quarterlies through the FY-2027 mid-year reports (~Aug-2027) — the T&M layer never captures the cycle, theme dies. (Draft-dated under the operator's admission delegation — the 2026-07-07 falsifier-pin precedent.)",
+      "sources": [
+        "neighbor screen of the operator's staged bead_fiber_buildout thesis (records/2026-07-10_window3_prep.md — machine-surfaced neighbor of an operator-named channel, Rule-3 tagged; operator-admitted 2026-08-03)"
+      ],
+      "cluster_default": "fiber_capex"
     }
   },
   "windows": {
@@ -146,6 +156,27 @@
       },
       "vetoed": {},
       "notes": "One name, one NEW cluster (chem_transition). CC enters the discovery scan baskets only (universe.themes) — the hand-seed watchlist (themes.json) is untouched; the nightly funnel and the council re-judge it from here, gates and caps dispose."
+    },
+    "3": {
+      "date": "2026-08-03",
+      "rule": "PREREG_UNIVERSE_CURATION §11 Rule 1 — sources ∩ feasibility ∩ achieved-OTM 15–35%; MAIN run, unlocked by the §5 four-scan read closing after the 2026-08-02 L0; sweep-then-veto form (operator-authorized 2026-08-03)",
+      "screen_records": [
+        "records/2026-08-03_window3_admission_sweep.md",
+        "records/2026-08-03_window3_admission_sweep_raw.txt"
+      ],
+      "admitted": {
+        "VIAV": {
+          "basket": "fiber_buildout",
+          "sources": ["neighbor screen of the operator's staged bead_fiber_buildout thesis (records/2026-07-10_window3_prep.md)"],
+          "per_contract_usd": 915,
+          "achieved_otm_pct": 24.6,
+          "tag": "rule",
+          "screen": "VIAV270416C00045000 · dte 256 · 24.6% achieved OTM · $915 ≤ $1,000 cap · ADV $175.5M (in-window 2026-08-03 13:47 UTC, production run_screen path) — reproduces the 2026-07-10 read (28.2%): stable expression",
+          "operator": "'let's admit, right?' (2026-08-03, after the sweep record presented the mechanical set {VIAV} for veto)"
+        }
+      },
+      "vetoed": {},
+      "notes": "The sweep's sole mechanical pass. NOT admitted (honest fails, on the record): ADTN/TROX ITM-fallback, CLFD/LNN ITM+over-cap, CALX/AGCO ATM, KRO ADV-dead, TITN 14.4% near-miss (0.6pt under the band floor — the rule is the rule), HLIT/TWI/KMT tenor-floor (max exp 2027-01-15; re-open on Jun-2027/Jan-2028 listings, ~Sept recheck). One NEW cluster (fiber_capex — the fiber-buildout capex driver, distinct from ai_capex_power's electrical-power spoke). VIAV enters the discovery scan baskets only (universe.themes, 39→40 names) — the sentinel-expansion shape the operator approved 2026-08-03; the nightly funnel and council judge it from the next scan; gates and caps dispose. Dated follow-up carried in the sweep record: the IRDM ranked-union starvation datum (revisit ≥2026-08-10, operator-gated)."
     }
   }
 }
