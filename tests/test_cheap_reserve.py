@@ -262,3 +262,81 @@ def test_seam_gate_and_sizing_reserve_blind():
         src = inspect.getsource(mod)
         assert "cheap_reserve" not in src and "selection" not in src.lower().replace(
             "select_structure", "")
+
+
+# ── fairness reserve (the 2026-08-11 amendment) ─────────────────────────────────────────────────
+
+
+def test_fairness_off_is_byte_identical():
+    # fairness_m=0 (the default) must not change composition even with cheap reserve on.
+    cands = _union()
+    base = compose_judged_set(
+        cands, max_candidates=12, reserve_k=3, cheap_eligible={"S13": 1.1}, last_judged={})
+    with_flag = compose_judged_set(
+        cands, max_candidates=12, reserve_k=3, cheap_eligible={"S13": 1.1}, last_judged={},
+        fairness_m=0, fresh_event=frozenset())
+    assert base == with_flag
+
+
+def test_fairness_rescues_a_starved_never_judged_name():
+    # The IRDM/VIAV class: rank-buried, NOT cheap-eligible, never judged → gets a fairness slot.
+    cands = _union()
+    judged = {f"S{i:02d}": f"2026-08-{i+1:02d}T19:45:00" for i in range(14)}  # all judged except S14
+    selected, selection, displaced = compose_judged_set(
+        cands, max_candidates=12, reserve_k=0, cheap_eligible={}, last_judged=judged,
+        fairness_m=2, fresh_event=frozenset())
+    syms = [c.symbol for c in selected]
+    assert "S14" in syms                       # the never-judged starved name is IN
+    assert selection[("S14", "bullish")] == "fairness"
+    assert len(selected) == 12                 # total unchanged
+    assert displaced != []                     # displacement observable
+
+
+def test_fresh_event_beats_least_recently_judged():
+    cands = _union()
+    judged = {f"S{i:02d}": f"2026-08-{i+1:02d}T19:45:00" for i in range(15)}
+    judged["S13"] = "2026-08-01T19:45:00"      # S13 = least-recently judged of the rest
+    selected, selection, _ = compose_judged_set(
+        cands, max_candidates=12, reserve_k=0, cheap_eligible={}, last_judged=judged,
+        fairness_m=1, fresh_event=frozenset({"S14"}))
+    # S14 was judged MORE recently than S13, but carries a fresh event → wins the single slot.
+    assert selection.get(("S14", "bullish")) == "fairness"
+    assert ("S13", "bullish") not in selection
+
+
+def test_fairness_and_cheap_reserve_compose_without_overlap():
+    cands = _union()
+    judged = {f"S{i:02d}": "2026-08-01T00:00:00" for i in range(15)}
+    selected, selection, _ = compose_judged_set(
+        cands, max_candidates=12, reserve_k=1, cheap_eligible={"S12": 1.05}, last_judged=judged,
+        fairness_m=1, fresh_event=frozenset({"S12", "S14"}))
+    # S12 takes the cheap-reserve slot; the fairness slot must go to a DIFFERENT name (S14).
+    assert selection[("S12", "bullish")] == "reserve"
+    assert selection[("S14", "bullish")] == "fairness"
+    assert len(selected) == 12
+    assert len({id(c) for c in selected}) == 12  # no duplicates
+
+
+def test_hand_seeds_never_displaced_by_fairness():
+    cands = _union(hand=("NVDA", "FCX"))
+    selected, selection, _ = compose_judged_set(
+        cands, max_candidates=12, reserve_k=3, cheap_eligible={"S13": 1.0}, last_judged={},
+        fairness_m=2, fresh_event=frozenset({"S14"}))
+    syms = [c.symbol for c in selected]
+    assert syms[0] == "NVDA" and syms[1] == "FCX"
+    assert len(selected) == 12
+
+
+def test_fresh_event_symbols_reads_active_recent_event_lineages(convexity_db):
+    conn = convexity_db
+    def _put(sym, has_event, seen, status="candidate"):
+        sid = state.record_sentinel_candidate(
+            conn, run_id=None, as_of=seen, symbol=sym, direction="bullish", basket="b",
+            inflection_score=0.5, markers={"has_event": has_event}, kind="sentinel")
+        if status != "candidate":
+            state.set_sentinel_status(conn, sid, status=status)
+    _put("FRESH", True, "2026-06-30T12:00:00+00:00")               # event, seen 2d ago -> IN
+    _put("STALE", True, "2026-06-01T12:00:00+00:00")               # event, seen 31d ago -> OUT
+    _put("NOEVT", False, "2026-06-30T12:00:00+00:00")              # recent, no event -> OUT
+    _put("DORM", True, "2026-06-30T12:00:00+00:00", status="dormant")  # not active -> OUT
+    assert state.fresh_event_symbols(conn, now=AS_OF) == {"FRESH"}

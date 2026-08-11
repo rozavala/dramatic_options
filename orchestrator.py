@@ -150,6 +150,10 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
         if int(config.get("council", {}).get("cheap_reserve_slots", 0) or 0) > 0:
             # PREREG gate_cheap_reserve §6: judged-set composition change — record-segmenting from deploy.
             mix["union_rank"] = "cheap_reserve_v1"
+            if int(config.get("council", {}).get("fairness_slots", 0) or 0) > 0:
+                # 2026-08-11 fairness-reserve amendment (operator-decided): a SECOND composition
+                # change — record-segmenting from ITS deploy, self-describing (no migration).
+                mix["union_rank"] = "cheap_reserve_v1+fairness_v1"
         if (config.get("forward_catalysts", {}) or {}).get("enabled", False):
             # Channel prereg §4: pack-shape capability stamp — record-segmenting from deploy,
             # zero migration (stamped when the channel is CONFIGURED on, item count irrelevant;

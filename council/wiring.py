@@ -45,25 +45,33 @@ def council_to_themes(
     # values, and sizing inputs never do (the §10 seam guard).
     council_cfg = config.get("council", {})
     reserve_k = int(council_cfg.get("cheap_reserve_slots", 0) or 0)
+    fairness_m = int(council_cfg.get("fairness_slots", 0) or 0)
     selection: dict = {}
-    if reserve_k > 0 and conn is not None:
+    if (reserve_k > 0 or fairness_m > 0) and conn is not None:
         cheap = state.gate_cheap_reads(
             conn, now=clock.now(),
             max_age_td=int(council_cfg.get("cheap_reserve_staleness_td", 5)),
         )
+        fresh = state.fresh_event_symbols(conn, now=clock.now()) if fairness_m > 0 else frozenset()
         candidates, selection, displaced = compose_judged_set(
             candidates,
             max_candidates=int(council_cfg.get("max_candidates", 12)),
             reserve_k=reserve_k,
             cheap_eligible=cheap,
             last_judged=state.council_last_judged(conn),
+            fairness_m=fairness_m,
+            fresh_event=fresh,
         )
         n_res = sum(1 for v in selection.values() if v == "reserve")
+        n_fair = sum(1 for v in selection.values() if v == "fairness")
         # §5: the displacement is observable, never silent — logged every cycle, even at zero.
         log.info(
-            "Cheap-reserve: k=%d filled=%d eligible=%d reserve=%s displaced=%s",
+            "Cheap-reserve: k=%d filled=%d eligible=%d reserve=%s | fairness: m=%d filled=%d "
+            "fresh_event=%s fairness=%s | displaced=%s",
             reserve_k, n_res, len(cheap),
             sorted(sym for (sym, _d), v in selection.items() if v == "reserve"),
+            fairness_m, n_fair, sorted(fresh) if fairness_m > 0 else [],
+            sorted(sym for (sym, _d), v in selection.items() if v == "fairness"),
             displaced,
         )
     proposals = propose(candidates, router=router, config=config, clock=clock,
