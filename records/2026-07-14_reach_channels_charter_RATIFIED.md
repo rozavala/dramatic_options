@@ -127,3 +127,14 @@ after repo-verification of the plan's factual claims. Knobs: k = 6 weeks · X-yi
 swap the C&EN feed for a chemicals BUSINESS feed; add water/desalination and mining trade
 press as candidate feeds (URLs live-verified before pinning); widen the orphan-watch
 `cohort_limit`; fix the ticker-mapping gap and warrant-suffix noise.
+
+---
+
+## Amendment 2026-08-11 — Sunday production moves box-side (operator-decided)
+
+The "cards are operator-session acts, never systemd" clause is AMENDED per the operator's
+2026-08-11 decision (records/2026-08-11_reach_boxside_amendment.md): weekly digest+cards
+PRODUCTION runs on `dramatic-options-reach.{service,timer}` (Sun 09:40 ET); the
+operator/session layer becomes the REVIEW layer (in-window re-screens, same-day records
+commit, the brief). The no-ranking/no-judgment schema law and the bounded Stage-B drafting
+are unchanged.

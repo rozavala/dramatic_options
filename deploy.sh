@@ -36,8 +36,8 @@ ENV_NAME="${ENV_NAME:-DEV}"                       # DEV | PROD
 SERVICE_PREFIX="dramatic-options"
 SYSTEMD_SRC="scripts/systemd"                      # unit templates (rendered at install time)
 SYSTEMD_DST="/etc/systemd/system"
-TIMERS=("${SERVICE_PREFIX}-l0.timer" "${SERVICE_PREFIX}-l1.timer" "${SERVICE_PREFIX}-l2.timer")
-SERVICES=("${SERVICE_PREFIX}-l0.service" "${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service")
+TIMERS=("${SERVICE_PREFIX}-l0.timer" "${SERVICE_PREFIX}-l1.timer" "${SERVICE_PREFIX}-l2.timer" "${SERVICE_PREFIX}-reach.timer")
+SERVICES=("${SERVICE_PREFIX}-l0.service" "${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service" "${SERVICE_PREFIX}-reach.service")
 # The §5b observability dashboard — a LONG-RUNNING service (not a oneshot timer-fired one), armed separately
 # (apply_dashboard) and fail-soft: its failure never rolls back trading. install_units globs *.service so the
 # unit lands on both boxes automatically; only the arming differs by env.
