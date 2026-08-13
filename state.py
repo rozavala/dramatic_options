@@ -963,6 +963,28 @@ def council_last_judged(conn: sqlite3.Connection) -> dict[str, str]:
     }
 
 
+def fresh_event_symbols(conn: sqlite3.Connection, *, now, window_days: int = 7) -> set[str]:
+    """SYMBOLs of ACTIVE sentinels whose markers carry a structural event AND whose lineage was
+    seen within ``window_days`` — the fairness reserve's fresh-event priority input (the
+    2026-08-11 amendment): a fresh filing on an active lineage gets judged the next L1 instead
+    of decaying unjudged inside its event window (the LUNR/IRDM gap). Fail-soft: unparseable
+    markers ⇒ not fresh."""
+    import json as _json
+    from datetime import timedelta
+    cutoff = (now - timedelta(days=int(window_days))).isoformat()
+    out: set[str] = set()
+    for r in conn.execute(
+        "SELECT symbol, markers, last_seen_at FROM sentinel_candidates "
+        "WHERE kind='sentinel' AND status='candidate' AND last_seen_at >= ?", (cutoff,)
+    ):
+        try:
+            if _json.loads(r["markers"] or "{}").get("has_event"):
+                out.add(str(r["symbol"]).upper())
+        except (ValueError, TypeError):
+            continue
+    return out
+
+
 def _json_or_none(raw):
     """Parse a persisted JSON cell (``rationale`` / ``raw``) → dict, or None. Fail-soft (never raises)."""
     if not raw:
