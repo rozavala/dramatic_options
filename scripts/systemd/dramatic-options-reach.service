@@ -1,0 +1,33 @@
+# Dramatic Options — REACH weekly digest + survivor cards (the Sunday session-half, box-side).
+# TEMPLATE: deploy.sh renders __REPO_ROOT__ / __USER__ / __GROUP__ at install time. Never loaded raw.
+#
+# The 2026-08-11 charter amendment (operator-decided; records/2026-08-11_reach_boxside_amendment.md):
+# after THREE session-side Sunday misses (07-19, 08-09 + the 08-04 cron expiry), the digest+cards
+# PRODUCTION moves to this deterministic unit; the operator/session layer becomes the REVIEW layer
+# (reads the output, commits the records same-day, delivers the brief). The charter's judgment
+# boundary is unchanged: the harness cannot rank or judge (schema-guarded), the cards screen is
+# deterministic, and Stage-B drafting stays bounded/cost-capped ($0.50/run, kill-before-spend).
+#
+# Type=oneshot fired by dramatic-options-reach.timer (Sun 09:40 ET, after the 08:00 ET L0).
+# Sunday quote context is PROVISIONAL by design (quotes_are_live requires a weekday) — the review
+# layer re-screens any near-survivor in-window, per the standing after-hours rule.
+# Both steps run sequentially; a digest failure stops the run (cards read the digest) → OnFailure page.
+[Unit]
+Description=Dramatic Options weekly reach digest + survivor cards (box-side, Sun 09:40 ET)
+After=network-online.target
+Wants=network-online.target
+OnFailure=dramatic-options-notify@%n.service
+
+[Service]
+Type=oneshot
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__REPO_ROOT__
+EnvironmentFile=__REPO_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
+# Ceiling: a healthy digest run measures ~2-3 min (22 feeds + 46 X accounts + the orphan sweep)
+# and cards ~1-2 min incl. bounded Stage-B drafts; 900s clears both with margin while SIGTERMing
+# (→ page) a wedged provider rather than grinding (the L0 "fail loud" posture).
+TimeoutStartSec=900
+ExecStart=__REPO_ROOT__/venv/bin/python -u scripts/digest_weekly.py
+ExecStart=__REPO_ROOT__/venv/bin/python -u scripts/survivor_cards_run.py --draft
