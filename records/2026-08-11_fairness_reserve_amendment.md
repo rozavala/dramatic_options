@@ -51,5 +51,7 @@ first two rescues by construction (never-judged sorts first).
 - BUILT + tested (22 reserve-suite tests incl. 6 new: off=byte-identical, starved-rescue,
   fresh-event-beats-LRJ, no-overlap with cheap reserve, hand-seed protection, the
   `fresh_event_symbols` state read). Full suite green.
-- **STAGED — merges only on the operator's explicit word.** Merging = the amendment's dated
-  activation; the first post-deploy L1 opens the `fairness_v1` record segment.
+- **ACTIVATED 2026-08-13** — operator (TRUE form): "Sure, let's merge it" (after the
+  recommendation memo: IRDM 0-for-15 with its event window burning, VIAV 0-for-3, risk profile
+  minimal, single-variable timing before the 19:45 L1). The first post-deploy L1
+  (2026-08-13 19:45 UTC) opens the `fairness_v1` record segment.
