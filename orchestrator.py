@@ -62,6 +62,15 @@ if not log.handlers:
     log.addHandler(_h)
     log.setLevel(logging.INFO)
     log.propagate = False
+    # council.* INFO was journald-INVISIBLE until 2026-08-13: with no root handler, only
+    # WARNING+ escaped via logging.lastResort (which is why repair WARNINGs always showed while
+    # the cheap-reserve/fairness composition line never did — found on the fairness-activation
+    # night). Give the council tree the same handler so composition/displacement lines land in
+    # the journal, per the reserve preregs' "observable, never silent" promise.
+    _council_log = logging.getLogger("council")
+    _council_log.addHandler(_h)
+    _council_log.setLevel(logging.INFO)
+    _council_log.propagate = False
 
 
 def _banner(mode: str) -> None:
