@@ -724,6 +724,25 @@ def test_runner_no_digest_exits_1(tmp_path, capsys):
     assert "no digest found" in capsys.readouterr().out
 
 
+def test_find_digest_never_selects_a_superseded_sidecar(tmp_path):
+    # The 2026-08-16 live bug: a preserve_existing sidecar (same-label W33 collision)
+    # sorts lexicographically after the canonical file ("s" > "m"), so a bare
+    # glob()[-1] hands cards the STALE digest. Canonical stems only.
+    import scripts.survivor_cards_run as runner
+
+    digests = tmp_path / "digests"
+    digests.mkdir()
+    fresh = digests / "2026-W33.md"
+    fresh.write_text("# fresh")
+    stale = digests / "2026-W33.superseded-20260816T1340Z.md"
+    stale.write_text("# stale")
+
+    assert runner._find_digest(None, digests) == fresh
+
+    # An explicit --digest path still wins, sidecar or not (the repair path).
+    assert runner._find_digest(str(stale), digests) == stale
+
+
 def test_runner_writes_week_file(digest_file, tmp_path):
     import scripts.survivor_cards_run as runner
 

@@ -49,13 +49,19 @@ _WEEK_STEM_RE = re.compile(r"^\d{4}-W\d{2}$")
 
 
 def _find_digest(arg: str | None, digests_dir: Path) -> Path | None:
-    """The digest to consume: an explicit ``--digest`` path, else the newest week file."""
+    """The digest to consume: an explicit ``--digest`` path, else the newest week file.
+
+    Only canonical ``YYYY-Www.md`` stems qualify — ``preserve_existing`` sidecars
+    (``2026-W33.superseded-<ts>.md``) sort lexicographically AFTER the canonical file,
+    so a bare glob would hand cards the STALE superseded digest the first time a
+    same-label collision occurs (bitten live 2026-08-16, the first box-side Sunday).
+    """
     if arg:
         p = Path(arg)
         return p if p.exists() else None
     if not digests_dir.is_dir():
         return None
-    weeks = sorted(digests_dir.glob("*-W*.md"))
+    weeks = sorted(p for p in digests_dir.glob("*-W*.md") if _WEEK_STEM_RE.match(p.stem))
     return weeks[-1] if weeks else None
 
 
