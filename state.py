@@ -964,25 +964,59 @@ def council_last_judged(conn: sqlite3.Connection) -> dict[str, str]:
 
 
 def fresh_event_symbols(conn: sqlite3.Connection, *, now, window_days: int = 7) -> set[str]:
-    """SYMBOLs of ACTIVE sentinels whose markers carry a structural event AND whose lineage was
-    seen within ``window_days`` — the fairness reserve's fresh-event priority input (the
-    2026-08-11 amendment): a fresh filing on an active lineage gets judged the next L1 instead
-    of decaying unjudged inside its event window (the LUNR/IRDM gap). Fail-soft: unparseable
-    markers ⇒ not fresh."""
+    """SYMBOLs of ACTIVE sentinels with a fresh structural event NOT yet judged since it became
+    visible — the fairness reserve's fresh-event priority input (the 2026-08-11 amendment;
+    semantics v1.1 per the 2026-08-19 amendment): a fresh filing on an active lineage gets
+    judged the next L1 instead of decaying unjudged inside its event window (the LUNR/IRDM gap).
+
+    Two visibility sources, unioned (v1.1 — the 08-17 finding: an ACTIVE lineage is
+    novelty-excluded from re-surfacing, so its row's ``last_seen_at``/``markers`` freeze at
+    surface time and source (a) alone can never fire for the motivating case):
+      (a) the sentinel row — re-surfaced within ``window_days`` with ``markers.has_event``;
+      (b) the latest DISCOVERY run's ``events:ON`` note stamp within ``window_days`` — the
+          ``fresh_names=`` token the L0 detection layer already persists (runs.note, the
+          PREREG_EVENT_LEG §4 write), intersected with the ACTIVE sentinel set.
+    A symbol already council-judged at-or-after its visibility timestamp is DEMOTED (dropped):
+    the amendment's intent is judged-the-NEXT-L1 once, not fresh-priority nightly for the
+    detection window's length (14d lookback ≈ 2 scans would otherwise pin a slot).
+    Fail-soft throughout: unparseable markers/note ⇒ that source contributes nothing."""
     import json as _json
+    import re as _re
     from datetime import timedelta
     cutoff = (now - timedelta(days=int(window_days))).isoformat()
-    out: set[str] = set()
+    vis: dict[str, str] = {}  # SYMBOL -> latest visibility timestamp (ISO-comparable, UTC)
     for r in conn.execute(
         "SELECT symbol, markers, last_seen_at FROM sentinel_candidates "
         "WHERE kind='sentinel' AND status='candidate' AND last_seen_at >= ?", (cutoff,)
     ):
         try:
             if _json.loads(r["markers"] or "{}").get("has_event"):
-                out.add(str(r["symbol"]).upper())
+                sym = str(r["symbol"]).upper()
+                ts = str(r["last_seen_at"] or "")
+                vis[sym] = max(vis.get(sym, ""), ts)
         except (ValueError, TypeError):
             continue
-    return out
+    row = conn.execute(
+        "SELECT started_at, note FROM runs "
+        "WHERE mode='DISCOVERY' AND note LIKE '%events:ON%' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if row is not None:
+        # runs.started_at is sqlite datetime('now') format ("YYYY-MM-DD HH:MM:SS", UTC) —
+        # normalize the space to 'T' so string comparison against ISO timestamps is sound.
+        started = str(row["started_at"] or "").replace(" ", "T")
+        if started and started >= cutoff:
+            m = _re.search(r"\bfresh_names=([A-Za-z0-9.,\-]+)", str(row["note"] or ""))
+            if m:
+                active = {str(s).upper() for s in active_sentinel_symbols(conn)}
+                for sym in (s.strip().upper() for s in m.group(1).split(",")):
+                    if sym and sym in active:
+                        vis[sym] = max(vis.get(sym, ""), started)
+    if not vis:
+        return set()
+    judged = council_last_judged(conn)
+    # Keep only names NOT judged since visibility (never-judged ⇒ "" < ts ⇒ kept; a judgment
+    # timestamped exactly at visibility counts as judged — conservative).
+    return {sym for sym, ts in vis.items() if judged.get(sym, "") < ts}
 
 
 def _json_or_none(raw):

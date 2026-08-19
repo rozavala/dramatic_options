@@ -340,3 +340,84 @@ def test_fresh_event_symbols_reads_active_recent_event_lineages(convexity_db):
     _put("NOEVT", False, "2026-06-30T12:00:00+00:00")              # recent, no event -> OUT
     _put("DORM", True, "2026-06-30T12:00:00+00:00", status="dormant")  # not active -> OUT
     assert state.fresh_event_symbols(conn, now=AS_OF) == {"FRESH"}
+
+
+# ── fresh-event v1.1 (the 2026-08-19 amendment): the L0-note leg + judged-since demotion ────────
+
+
+def _active_sentinel(conn, sym, seen="2026-06-01T12:00:00+00:00", has_event=False):
+    """An ACTIVE lineage whose row FROZE at surface time (the novelty-exclusion shape —
+    old last_seen, no event marker): invisible to the row leg by construction."""
+    return state.record_sentinel_candidate(
+        conn, run_id=None, as_of=seen, symbol=sym, direction="bullish", basket="b",
+        inflection_score=0.5, markers={"has_event": has_event}, kind="sentinel")
+
+
+def _l0_run(conn, started_at, note):
+    rid = state.record_run(conn, mode="DISCOVERY", equity=None, note=note)
+    conn.execute("UPDATE runs SET started_at=? WHERE id=?", (started_at, rid))
+    return rid
+
+
+def test_fresh_event_v11_reads_the_l0_note_stamp(convexity_db):
+    # The 08-17 finding: IRDM's fresh filing was in the L0 note but its ACTIVE row froze at
+    # 07-26 — the row leg alone can never fire for the motivating case. The note leg must.
+    conn = convexity_db
+    _active_sentinel(conn, "IRDM")
+    _active_sentinel(conn, "PWR")
+    _l0_run(conn, "2026-06-28 12:00:05",  # sqlite datetime('now') format, 4d before AS_OF
+            "weekly scan · events:ON ev=abc checked=40 cik=40 no_cik=0 fresh=3 err=0 "
+            "fresh_names=IRDM,PWR,ZZZQ fresh_on_active_lineage=IRDM,PWR")
+    # ZZZQ is not an active sentinel -> excluded; IRDM/PWR enter via the note leg.
+    assert state.fresh_event_symbols(conn, now=AS_OF) == {"IRDM", "PWR"}
+
+
+def test_fresh_event_v11_stale_l0_note_contributes_nothing(convexity_db):
+    conn = convexity_db
+    _active_sentinel(conn, "IRDM")
+    _l0_run(conn, "2026-06-20 12:00:05",  # 12d before AS_OF > window_days=7
+            "weekly scan · events:ON ev=abc checked=40 fresh=1 err=0 fresh_names=IRDM")
+    assert state.fresh_event_symbols(conn, now=AS_OF) == set()
+
+
+def test_fresh_event_v11_events_off_or_malformed_note_failsoft(convexity_db):
+    conn = convexity_db
+    _active_sentinel(conn, "IRDM")
+    _l0_run(conn, "2026-06-28 12:00:05", "weekly scan · events:OFF reason=disabled")
+    assert state.fresh_event_symbols(conn, now=AS_OF) == set()
+    _l0_run(conn, "2026-06-29 12:00:05", "weekly scan · events:ON ev=abc fresh=0 err=0")
+    assert state.fresh_event_symbols(conn, now=AS_OF) == set()  # no fresh_names token
+
+
+def test_fresh_event_v11_judged_since_visibility_demotes(convexity_db):
+    # Intent = judged-the-NEXT-L1 once, not fresh-priority nightly for the 14d detection
+    # window: a name judged AFTER its event became visible returns to the plain rotation.
+    conn = convexity_db
+    _active_sentinel(conn, "IRDM")
+    _active_sentinel(conn, "PWR")
+    _l0_run(conn, "2026-06-28 12:00:05",
+            "weekly scan · events:ON ev=abc fresh=2 err=0 fresh_names=IRDM,PWR")
+    state.record_council_proposal(
+        conn, run_id=None, as_of="2026-06-29T19:47:00+00:00", theme="t", symbol="IRDM",
+        direction="bullish", conviction="NEUTRAL", status="dropped")
+    # IRDM judged the L1 after detection -> demoted; PWR still unjudged -> stays.
+    assert state.fresh_event_symbols(conn, now=AS_OF) == {"PWR"}
+    # A judgment BEFORE visibility does not demote (it predates the event).
+    state.record_council_proposal(
+        conn, run_id=None, as_of="2026-06-27T19:47:00+00:00", theme="t", symbol="PWR",
+        direction="bullish", conviction="NEUTRAL", status="dropped")
+    assert state.fresh_event_symbols(conn, now=AS_OF) == {"PWR"}
+
+
+def test_fresh_event_v11_row_leg_judged_since_demotion(convexity_db):
+    # The demotion rule applies uniformly to the row leg too.
+    conn = convexity_db
+    state.record_sentinel_candidate(
+        conn, run_id=None, as_of="2026-06-30T12:00:00+00:00", symbol="FRESH",
+        direction="bullish", basket="b", inflection_score=0.5,
+        markers={"has_event": True}, kind="sentinel")
+    assert state.fresh_event_symbols(conn, now=AS_OF) == {"FRESH"}
+    state.record_council_proposal(
+        conn, run_id=None, as_of="2026-07-01T19:47:00+00:00", theme="t", symbol="FRESH",
+        direction="bullish", conviction="NEUTRAL", status="dropped")
+    assert state.fresh_event_symbols(conn, now=AS_OF) == set()

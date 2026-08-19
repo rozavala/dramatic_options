@@ -162,7 +162,9 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
             if int(config.get("council", {}).get("fairness_slots", 0) or 0) > 0:
                 # 2026-08-11 fairness-reserve amendment (operator-decided): a SECOND composition
                 # change — record-segmenting from ITS deploy, self-describing (no migration).
-                mix["union_rank"] = "cheap_reserve_v1+fairness_v1"
+                # v1.1 (2026-08-19 amendment): the fresh-event leg reads the L0 note stamp +
+                # judged-since-visibility demotion — selection semantics changed, segment again.
+                mix["union_rank"] = "cheap_reserve_v1+fairness_v1.1"
         if (config.get("forward_catalysts", {}) or {}).get("enabled", False):
             # Channel prereg §4: pack-shape capability stamp — record-segmenting from deploy,
             # zero migration (stamped when the channel is CONFIGURED on, item count irrelevant;
