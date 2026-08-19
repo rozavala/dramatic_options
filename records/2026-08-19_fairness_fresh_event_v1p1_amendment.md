@@ -64,5 +64,8 @@ The no-op finding and three design forks were reported to the operator in the 20
 nightly grade; the operator asked "Anything we need to work on?" 2026-08-19, was given the
 board with fork (a) recommended, and answered **"Go"** — informed delegation on the
 recommended fork (red-team + staged build). The demotion rule and the named limitation
-were added by the build's own red-team and are presented for review IN this record; the
-operator's merge of the build PR ratifies both and is the activation act.
+were added by the build's own red-team and presented for review in this record and the
+staged PR's summary. The operator then answered **"can you help me merge it?"**
+(2026-08-19) — explicit informed instruction to merge, exercised by CC pressing the
+button on the operator's behalf (the #141/#145 true-form convention). That instruction
+is the activation act and ratifies the demotion rule and the named limitation.
