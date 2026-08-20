@@ -83,6 +83,16 @@
         "neighbor screen of the operator's staged bead_fiber_buildout thesis (records/2026-07-10_window3_prep.md — machine-surfaced neighbor of an operator-named channel, Rule-3 tagged; operator-admitted 2026-08-03)"
       ],
       "cluster_default": "fiber_capex"
+    },
+    "mrna_oncology": {
+      "provenance": "operator",
+      "added": "2026-08-20 (window #4, off-cycle)",
+      "thesis": "The Moderna+Merck intismeran Phase 3 melanoma win (2026-08-19) is the first pivotal validation of individualized neoantigen therapy (INT) — a platform event, not a single-drug event: intismeran runs multiple Phase 2/3 trials in other tumors, BioNTech runs the rival program, and every patient-individualized dose requires tumor sequencing + rapid mRNA synthesis + bioprocess capacity. Second-order expression (copper-not-rockets): the platform's commercialization economics and picks-and-shovels layer rather than the repriced headline name. MRK is the admitted expression — ~50/50 intismeran economics plus the under-narrated angle that INT success extends the Keytruda franchise past its ~2028 LOE cliff. MRNA itself is EXCLUDED as already-priced (+177% on the readout — premise-currency Rule 5).",
+      "falsifier": "By ~Aug-2027, INT progress must show BOTH (a) a regulatory milestone for intismeran in melanoma (filing/approval) AND (b) measurable order/revenue acceleration at the supply layer (mRNA raw materials, sequencing-partner volumes) in filed reports. Neither = theme dies. Sympathy-repriced names fail premise-currency at any future admission. (Draft-dated under the operator's admission delegation — the 2026-07-07 falsifier-pin precedent.)",
+      "sources": [
+        "AI-drafted thesis + 13-name slate presented 2026-08-20 after the operator's question ('do we have anything around medical stuff and drugs?', MRNA +177% day); operator adopted with 'I would do both' — informed adoption, true form in records/2026-08-20_mrna_oncology_window_admission.md"
+      ],
+      "cluster_default": "mrna_oncology"
     }
   },
   "windows": {
@@ -177,6 +187,26 @@
       },
       "vetoed": {},
       "notes": "The sweep's sole mechanical pass. NOT admitted (honest fails, on the record): ADTN/TROX ITM-fallback, CLFD/LNN ITM+over-cap, CALX/AGCO ATM, KRO ADV-dead, TITN 14.4% near-miss (0.6pt under the band floor — the rule is the rule), HLIT/TWI/KMT tenor-floor (max exp 2027-01-15; re-open on Jun-2027/Jan-2028 listings, ~Sept recheck). One NEW cluster (fiber_capex — the fiber-buildout capex driver, distinct from ai_capex_power's electrical-power spoke). VIAV enters the discovery scan baskets only (universe.themes, 39→40 names) — the sentinel-expansion shape the operator approved 2026-08-03; the nightly funnel and council judge it from the next scan; gates and caps dispose. Dated follow-up carried in the sweep record: the IRDM ranked-union starvation datum (revisit ≥2026-08-10, operator-gated)."
+    },
+    "4": {
+      "date": "2026-08-20",
+      "rule": "PREREG_UNIVERSE_CURATION §11 OFF-CYCLE admission — event-opened window (MRNA +177% intismeran P3 08-19); AI-drafted thesis/slate, operator-adopted ('I would do both'); feasibility ∩ achieved-OTM 15–35% on the in-window re-screen; sweep-then-adopt form",
+      "screen_records": [
+        "records/2026-08-20_mrna_oncology_window_admission.md"
+      ],
+      "admitted": {
+        "MRK": {
+          "basket": "mrna_oncology",
+          "sources": ["AI-drafted mrna_oncology_platform slate (13 names), operator-adopted 2026-08-20"],
+          "per_contract_usd": 890,
+          "achieved_otm_pct": 20.5,
+          "tag": "rule",
+          "screen": "MRK270617C00180000 · dte 301 · 20.5% achieved OTM · $890 ≤ $1,000 cap · ADV $1,254M (in-window 2026-08-20 13:41 UTC) — provisional read 00:17 UTC was $725/24.8%: stable expression",
+          "operator": "'I would do both' (2026-08-20 ~00:20 UTC, on the presented fork: admit MRK + park the blocked names)"
+        }
+      },
+      "vetoed": {},
+      "notes": "NOT admitted (honest fails, on the record): BNTX flipped to a CLEAN fit in-window ($945, 29.3% — was a $1,195 near-miss provisionally) but the decision word covered MRK-only → HELD for the operator's word, parked in probe_themes meanwhile (with TEM, $1,038 near-miss both reads); MRVI (−69.2%) / AVTR (−29.1%) / PSNL (−84.9%, $1,480) ITM-fallback band-broken in BOTH reads (coarse chains — not an off-hours artifact); NTRA/IOVA tenor-fail (~Sept recheck, join HLIT/TWI/KMT/FIG); RGEN/ILMN/GH/TWST over cap; TLX ADV-fail; MRNA excluded as already-priced (Rule 5). One NEW cluster (mrna_oncology — the INT-platform-commercialization driver, shared with no existing cluster) = TEN clusters; the book still fills at most 5. MRK enters the discovery scan baskets only (universe.themes, 40→41); first scan = the 2026-08-23 L0; funnel/council judge, gates/caps dispose."
     }
   }
 }

@@ -28,6 +28,20 @@
       "direction": "bullish",
       "thesis": "TiO2 trough with structural Western capacity removal; realized pigment price/mix recovery lands in filed quarterlies (print-anchored at_inflection). Staged 2026-07-07.",
       "active": true
+    },
+    {
+      "name": "mrna_oncology_platform",
+      "symbol": "BNTX",
+      "direction": "bullish",
+      "thesis": "The rival individualized-neoantigen program: intismeran's P3 melanoma win (08-19) de-risks the INT class BNTX's autogene cevumeran shares; platform validation reads through to the whole pipeline. Parked 2026-08-20: in-window screen FLIPPED it to a clean fit ($945, 29.3% OTM) but the window-4 decision word covered MRK-only — admission awaits the operator's word (upgrade flagged in the window record). Sympathy-pop premise-currency check applies at any admission.",
+      "active": true
+    },
+    {
+      "name": "mrna_oncology_platform",
+      "symbol": "TEM",
+      "direction": "bullish",
+      "thesis": "AI oncology data/sequencing layer of the INT build-out: patient-individualized therapy scales tumor-sequencing and oncology-data volumes. Parked 2026-08-20: cap near-miss both reads ($1,035 provisional / $1,038 in-window, 22-24% OTM clean band) — re-screen at future windows.",
+      "active": true
     }
   ]
 }
