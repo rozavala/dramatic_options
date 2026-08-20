@@ -93,6 +93,16 @@
         "AI-drafted thesis + 13-name slate presented 2026-08-20 after the operator's question ('do we have anything around medical stuff and drugs?', MRNA +177% day); operator adopted with 'I would do both' — informed adoption, true form in records/2026-08-20_mrna_oncology_window_admission.md"
       ],
       "cluster_default": "mrna_oncology"
+    },
+    "ag_cycle_trough": {
+      "provenance": "operator",
+      "added": "2026-08-20 (window #5, off-cycle)",
+      "thesis": "Ag equipment/inputs cycle trough: two years of farm-income recession have compressed dealer inventories, aged the working fleet, and cut nutrient application below agronomic norms — a mean-reversion setup with a structural floor (fleet age + soil-nutrient draw-down are not narratives, they are inventories that must eventually restock). TITN (equipment dealer — the highest-torque cycle expression) + MOS (phosphate/potash — application recovery + supply-side discipline). PINNED HONESTLY: this is a TURNAROUND-CLASS thesis, ranked LAST of the five adopted on mandate fit — it self-falsifies by success (the rally that proves the turn IS the already-priced state; premise-currency Rule 5 applies at every future window) and cycle-watching analyst coverage makes under_narrated the council's binding question, not ours.",
+      "falsifier": "By ~Aug-2027, the filed record must show equipment orders/dealer-inventory normalization (TITN same-store sales/inventory turns inflecting) or nutrient volume/price recovery (MOS shipment volumes) in quarterlies. A prolonged farm-income recession through the FY-2027 mid-year reports with no order inflection = theme dies. (Draft-dated under the operator's admission delegation — the 2026-07-07 falsifier-pin precedent.)",
+      "sources": [
+        "AI-drafted five-sector slate presented 2026-08-20 (ranked LAST of five on mandate fit — the ranking is in the record); operator adopted all five with 'Sure, I'll like these five. let's get them all in using the same process' — informed adoption, true form in records/2026-08-20_window5_five_sector_admission.md"
+      ],
+      "cluster_default": "ag_cycle"
     }
   },
   "windows": {
@@ -207,6 +217,35 @@
       },
       "vetoed": {},
       "notes": "NOT admitted (honest fails, on the record): BNTX flipped to a CLEAN fit in-window ($945, 29.3% — was a $1,195 near-miss provisionally) but the decision word covered MRK-only → HELD for the operator's word, parked in probe_themes meanwhile (with TEM, $1,038 near-miss both reads); MRVI (−69.2%) / AVTR (−29.1%) / PSNL (−84.9%, $1,480) ITM-fallback band-broken in BOTH reads (coarse chains — not an off-hours artifact); NTRA/IOVA tenor-fail (~Sept recheck, join HLIT/TWI/KMT/FIG); RGEN/ILMN/GH/TWST over cap; TLX ADV-fail; MRNA excluded as already-priced (Rule 5). One NEW cluster (mrna_oncology — the INT-platform-commercialization driver, shared with no existing cluster) = TEN clusters; the book still fills at most 5. MRK enters the discovery scan baskets only (universe.themes, 40→41); first scan = the 2026-08-23 L0; funnel/council judge, gates/caps dispose."
+    },
+    "5": {
+      "date": "2026-08-20",
+      "rule": "PREREG_UNIVERSE_CURATION §11 OFF-CYCLE admission (same-day as window #4) — FIVE AI-drafted sector theses operator-adopted as a batch; feasibility ∩ achieved-OTM 15–35% on the in-window re-screen disposes per basket; 0-admit sectors = measured negatives, no register entry, no empty basket",
+      "screen_records": [
+        "records/2026-08-20_window5_five_sector_admission.md"
+      ],
+      "admitted": {
+        "TITN": {
+          "basket": "ag_cycle_trough",
+          "sources": ["AI-drafted ag_cycle_trough slate, operator-adopted 2026-08-20"],
+          "per_contract_usd": 127,
+          "achieved_otm_pct": 29.1,
+          "tag": "rule",
+          "screen": "TITN270319C00022500 · dte 211 · 29.1% achieved OTM · $127 ≤ $1,000 cap · ADV $3.3M (in-window 2026-08-20 14:12 UTC) — the window-3 near-miss (14.4%, 2026-08-03) grown into the band: the recheck discipline paying off",
+          "operator": "'Sure, I'll like these five. let's get them all in using the same process' (2026-08-20 ~00:30 UTC — batch adoption; the process's screen disposes per name)"
+        },
+        "MOS": {
+          "basket": "ag_cycle_trough",
+          "sources": ["AI-drafted ag_cycle_trough slate, operator-adopted 2026-08-20"],
+          "per_contract_usd": 120,
+          "achieved_otm_pct": 32.1,
+          "tag": "rule",
+          "screen": "MOS270319C00030000 · dte 211 · 32.1% achieved OTM · $120 ≤ $1,000 cap · ADV $166.7M (in-window 2026-08-20 14:12 UTC)",
+          "operator": "same batch adoption"
+        }
+      },
+      "vetoed": {},
+      "notes": "FOUR of the five adopted theses = feasibility-bounded MEASURED NEGATIVES (theses adopted, no admissible expression today; corpus-bounded, NOT thesis-dead): water_pfas (all 10 names ITM/ATM-fallback or over cap on live quotes — the low-vol/coarse-chain structural wall; recheck door: chain re-listings or a cap re-amendment), aviation_mro (AIR moved away in-window $1,415/9.6%; SARO 2024-IPO tenor-less → ~Sept recheck; VSE data-dead twice — symbology check owed; HEI/TDG/FTAI/CW over cap), radiopharma_isotopes (BWXT $1,120/18.5% near-miss; ASPI tenor; TLX ADV-dead; LNTH ITM-fallback), us_shipbuilding (the predicted thin-expression negative: HII $1,360, GD band-broken, KEX/TDW ATM-ITM). CF flipped OUT in-window (provisional $930/26.0% → spot pop → $1,240/18.4% over cap; the in-window read governs — the same-rule mirror of BNTX's window-4 flip IN, held symmetrically). NEAR-MISS LEDGER (recorded, not admitted): CF $1,240 · AGCO $1,195 · AIR · HEI $1,660 · BWXT $1,120 · MWA $1,035 (+ window-4's TEM $1,038, BNTX-held). One NEW cluster (ag_cycle) = ELEVEN clusters; book still fills at most 5. TITN/MOS enter the scan baskets only (universe 41→43); first scan = the 2026-08-23 L0. The honest headline pinned: the last-ranked thesis was the only feasible one — feasibility ≠ mandate fit; the council's tri-criteria judge the turnaround question at surfacing."
     }
   }
 }
