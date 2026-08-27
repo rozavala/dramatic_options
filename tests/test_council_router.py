@@ -83,6 +83,63 @@ def test_router_exhausts_retries_then_raises():
         r.call(role="strategist", system="s", user="u")
 
 
+FALLBACK = {"strategist": {"provider": "openai", "model": "gpt-5.2-2025-12-11"}}
+
+
+def test_router_fallback_fires_only_after_primary_exhausts_retries():
+    # The 2026-08-27 understudy: primary dead (quota 400 class) → the pinned fallback answers,
+    # and the response/ledger attribute the ACTUAL provider+model (honest per-call attribution).
+    led = CostLedger()
+    fb = _StubProvider("openai", text='{"conviction": "NEUTRAL"}', in_tok=1_000_000, out_tok=0)
+    r = Router(providers={"anthropic": _StubProvider("anthropic", fail_times=99), "openai": fb},
+               roles={"strategist": ROLES["strategist"]}, roles_fallback=FALLBACK,
+               prices={"gpt-5.2-2025-12-11": {"in": 2.0, "out": 1.0}}, ledger=led, max_retries=1)
+    out = r.call(role="strategist", system="s", user="u")
+    assert out.provider == "openai" and out.model == "gpt-5.2-2025-12-11"
+    assert out.cost_usd == pytest.approx(2.0)
+    assert led.total_usd == pytest.approx(2.0)
+
+
+def test_router_fallback_untouched_when_primary_succeeds():
+    led = CostLedger()
+    fb = _StubProvider("openai")
+    r = Router(providers={"anthropic": _StubProvider("anthropic"), "openai": fb},
+               roles={"strategist": ROLES["strategist"]}, roles_fallback=FALLBACK,
+               prices={}, ledger=led, max_retries=0)
+    out = r.call(role="strategist", system="s", user="u")
+    assert out.provider == "anthropic" and fb._calls == 0  # byte-identical primary path
+
+
+def test_router_fallback_also_failing_raises_with_both_errors():
+    led = CostLedger()
+    r = Router(providers={"anthropic": _StubProvider("anthropic", fail_times=99),
+                          "openai": _StubProvider("openai", fail_times=99)},
+               roles={"strategist": ROLES["strategist"]}, roles_fallback=FALLBACK,
+               prices={}, ledger=led, max_retries=0)
+    with pytest.raises(RouterError, match="primary already failed"):
+        r.call(role="strategist", system="s", user="u")
+
+
+def test_router_no_fallback_for_unmapped_role_raises_as_before():
+    led = CostLedger()
+    r = Router(providers={"gemini": _StubProvider("gemini", fail_times=99)},
+               roles={"proposer": ROLES["proposer"]}, roles_fallback=FALLBACK,
+               prices={}, ledger=led, max_retries=0)
+    with pytest.raises(RouterError):
+        r.call(role="proposer", system="s", user="u")
+
+
+def test_build_router_fallback_key_missing_disables_understudy_fail_soft():
+    # A missing FALLBACK key must never fail-closed the council — understudy off, loudly.
+    cfg = {"council": {"roles": {"strategist": {"provider": "anthropic", "model": "m"}},
+                       "roles_fallback": FALLBACK}}
+    r = build_router(cfg, {"anthropic": "k"})  # no openai key
+    assert r._roles_fallback == {}
+    with pytest.raises(RouterError):  # primary-dead still fail-closed, as before
+        r._providers["anthropic"] = _StubProvider("anthropic", fail_times=99)
+        r.call(role="strategist", system="s", user="u")
+
+
 def test_router_budget_exceeded_blocks_call_before_spending():
     led = CostLedger(cap_usd=0.0)  # already at cap
     prov = _StubProvider("anthropic")

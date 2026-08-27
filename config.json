@@ -111,6 +111,10 @@
       "adversary": {"provider": "xai", "model": "grok-4.3"},
       "strategist": {"provider": "anthropic", "model": "claude-opus-4-8"}
     },
+    "_comment_roles_fallback": "2026-08-27 (the 08-26 anthropic spend-cap incident, rec #3; operator: 'go all the way with the three recommendations, now'). The pinned UNDERSTUDY fires ONLY after the primary exhausts its retries (outage/quota); a 4th provider preserves 3-way heterogeneity (never grok/gemini — role collision). Model id verified LIVE against the OpenAI models endpoint 2026-08-27 (dated snapshot, pinned-stable-beats-latest); price verified same day. Per-call attribution is honest in council_agent_outputs.provider/model (the proposal-level model_mix states the configured primary); the runs.model_mix roles_fallback stamp makes the CAPABILITY record-segmenting from deploy. A fallback-judged night is a SEGMENT datum — do not pool its strategist Brier with opus nights.",
+    "roles_fallback": {
+      "strategist": {"provider": "openai", "model": "gpt-5.2-2025-12-11"}
+    },
     "cost_cap_usd": 5.0,
     "conviction_floor": "MODERATE",
     "conviction_to_prob": {"LOW": 0.55, "MODERATE": 0.65, "HIGH": 0.75, "EXTREME": 0.85},
@@ -137,7 +141,8 @@
       "gemini-3.1-flash-lite": {"in": 0.25, "out": 1.5},
       "claude-sonnet-4-6": {"in": 3.0, "out": 15.0},
       "claude-haiku-4-5": {"in": 1.0, "out": 5.0},
-      "grok-build-0.1": {"in": 1.0, "out": 2.0}
+      "grok-build-0.1": {"in": 1.0, "out": 2.0},
+      "gpt-5.2-2025-12-11": {"in": 0.875, "out": 7.0}
     }
   },
   "discovery": {

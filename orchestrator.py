@@ -154,6 +154,13 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
         mix["prompts"] = "/".join(
             hashlib.sha256(s.encode()).hexdigest()[:16]
             for s in (_agents._COMMON, _agents.ADVERSARY_SYSTEM, _agents.STRATEGIST_SYSTEM))
+        fb = config.get("council", {}).get("roles_fallback") or {}
+        if fb:
+            # 2026-08-27 understudy capability stamp — record-segmenting from deploy (a
+            # fallback-JUDGED night additionally self-describes per call via
+            # council_agent_outputs.provider/model; never pool its strategist Brier with primary nights).
+            mix["roles_fallback"] = ",".join(
+                f"{r}:{s.get('provider')}/{s.get('model')}" for r, s in sorted(fb.items()))
         mix["corpus"] = "fundamentals_v2"  # §9: pack-change record-segmentation (v2 = IFRS taxonomy + tag-recency + annual fallback; zero migration)
         mix["coverage_meter"] = "analyst_v1"  # §19: coverage proxy = analyst-count (replaced news-count); pack-change record-segmentation, zero migration
         if int(config.get("council", {}).get("cheap_reserve_slots", 0) or 0) > 0:
