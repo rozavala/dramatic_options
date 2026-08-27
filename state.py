@@ -880,6 +880,33 @@ def council_parse_health(conn: sqlite3.Connection, run_id: int) -> dict:
     return {"called": called, "parse_failed": failed, "rate": (failed / called) if called else 0.0}
 
 
+def provider_month_spend(conn: sqlite3.Connection, provider: str, *, now) -> float:
+    """Month-to-date COUNCIL LLM spend for one provider (``council_agent_outputs.cost_usd``
+    summed from the 1st of ``now``'s month, UTC). COUNCIL-SCOPE ONLY, stated honestly: a
+    shared API key's external usage is invisible here — the 2026-08-26 cap exhaustion hit
+    with our side at ~$1.9 MTD, so console-side spend alerts are the operator's lever for a
+    shared key; this tripwire catches OUR-side runaway/creep days early instead of as a
+    19:45 provider 400 (incident rec #1)."""
+    row = conn.execute(
+        "SELECT SUM(cost_usd) AS s FROM council_agent_outputs "
+        "WHERE provider = ? AND created_at >= ?",
+        (provider, now.strftime("%Y-%m-01")),
+    ).fetchone()
+    return float(row["s"] or 0.0)
+
+
+def provider_run_spend(conn: sqlite3.Connection, run_id: int, provider: str) -> float:
+    """This run's council spend for one provider (the tripwire's crossing debounce: page only
+    on the cycle whose spend CROSSES the line, never again all month)."""
+    row = conn.execute(
+        "SELECT SUM(ao.cost_usd) AS s FROM council_agent_outputs ao "
+        "JOIN council_proposals cp ON cp.id = ao.proposal_id "
+        "WHERE cp.run_id = ? AND ao.provider = ?",
+        (run_id, provider),
+    ).fetchone()
+    return float(row["s"] or 0.0)
+
+
 def council_provider_drops(conn: sqlite3.Connection, run_id: int) -> dict:
     """Provider-error drop count for a run's council proposals (the 2026-08-26 incident class —
     the #37 lesson in a THIRD costume): a per-candidate provider failure (e.g. an exhausted API

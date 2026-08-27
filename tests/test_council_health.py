@@ -246,6 +246,26 @@ def test_migration_0019_backfills_only_majority_provider_drop_runs(convexity_db)
     assert got == {ra: "provider_fail", rb: "ok", rc: "parse_fail"}
 
 
+def test_provider_month_spend_and_run_spend(convexity_db):
+    from datetime import UTC, datetime
+    conn = convexity_db
+    rid = state.record_run(conn, mode="PAPER", equity=1)
+    pid = _proposer_output(conn, rid, "A", {"confidence": "NEUTRAL"})
+    state.record_agent_output(conn, proposal_id=pid, role="strategist", provider="anthropic",
+                              model="m", confidence="NEUTRAL", stance="bullish",
+                              raw={"conviction": "NEUTRAL"}, cost_usd=2.5)
+    # an out-of-month row must not count
+    pid2 = _proposer_output(conn, rid, "B", {"confidence": "NEUTRAL"})
+    state.record_agent_output(conn, proposal_id=pid2, role="strategist", provider="anthropic",
+                              model="m", confidence="NEUTRAL", stance="bullish",
+                              raw={"conviction": "NEUTRAL"}, cost_usd=9.9)
+    conn.execute("UPDATE council_agent_outputs SET created_at='2026-05-05 12:00:00' "
+                 "WHERE cost_usd=9.9")
+    now = datetime(2026, 8, 27, tzinfo=UTC)
+    assert state.provider_month_spend(conn, "anthropic", now=now) == 2.5
+    assert state.provider_run_spend(conn, rid, "anthropic") == 12.4  # run-scope ignores month
+
+
 def test_l1_health_degraded_when_adversary_not_direction_relative(convexity_db):
     rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
     state.update_run_council_health(convexity_db, rid, council_health="ok")

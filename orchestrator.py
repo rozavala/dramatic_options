@@ -212,6 +212,23 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
         health_val = "parse_fail" if inert else ("provider_fail" if provider_dead else "ok")
         state.update_run_council_health(conn, run_id, council_health=health_val,
                                         model_mix=json.dumps(mix))
+        # Spend tripwire (incident rec #1, 2026-08-27): page at 80% of a configured per-provider
+        # monthly budget so a cap approach is a warning days out, not a 19:45 provider 400.
+        # Crossing-debounced (pages only on the cycle that crosses). COUNCIL-SCOPE spend only —
+        # a shared key's external usage is invisible; console alerts cover that side.
+        for prov, cap in (config.get("council", {}).get("monthly_spend_page_usd") or {}).items():
+            try:
+                line = 0.8 * float(cap)
+                mtd = state.provider_month_spend(conn, prov, now=datetime.now(UTC))
+                if mtd >= line and (mtd - state.provider_run_spend(conn, run_id, prov)) < line:
+                    log.warning("Council spend tripwire: %s MTD $%.2f crossed 80%% of $%.2f/mo.",
+                                prov, mtd, float(cap))
+                    notify.send("Council spend tripwire",
+                                f"{prov} council spend ${mtd:.2f} MTD crossed 80% of the "
+                                f"${float(cap):.2f}/mo budget. If the key is shared, check the "
+                                f"provider console's own limit too (the 08-26 lesson).")
+            except Exception as te:  # noqa: BLE001 — telemetry, never blocks the cycle
+                log.warning("spend tripwire failed for %s (non-fatal): %s", prov, te)
     except Exception as e:  # noqa: BLE001 — health/paging is a control, must never break the trade cycle
         log.warning("council health stamp failed (non-fatal): %s", e)
 
