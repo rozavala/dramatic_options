@@ -118,6 +118,7 @@
     "max_retries": 2,
     "max_tokens": 2048,
     "parse_fail_page_rate": 0.5,
+    "monthly_spend_page_usd": {"anthropic": 10.0, "gemini": 10.0, "xai": 10.0},
     "gemini": {"thinking_level": "minimal", "json_mode": true},
     "openai": {"json_mode": true},
     "max_candidates": 12,
