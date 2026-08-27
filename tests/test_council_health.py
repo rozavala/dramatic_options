@@ -172,6 +172,80 @@ def test_l1_health_proposer_clean_but_no_roundtrip(convexity_db):
     assert council_l1_health(convexity_db, run_id=rid)["verdict"] == "PROPOSER_CLEAN_NO_ROUNDTRIP"
 
 
+def _provider_drop(conn, run_id, symbol):
+    """The 2026-08-26 incident row shape: a dropped proposal whose rationale carries
+    ``error: provider_error:...`` and NO agent outputs for the failed role."""
+    return state.record_council_proposal(
+        conn, run_id=run_id, as_of="t", theme="x", symbol=symbol, direction="bullish",
+        conviction="NEUTRAL", status="dropped",
+        rationale={"error": "provider_error: strategist (anthropic/x) failed after 3 attempts: 400"},
+    )
+
+
+def test_l1_health_provider_degraded_on_majority_drops(convexity_db):
+    # The #37 class in its third costume: an exhausted provider quota drops candidates with no
+    # parse_error flag — must grade PROVIDER_DEGRADED (censor-class), never a benign quiet night.
+    rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
+    state.update_run_council_health(convexity_db, rid, council_health="ok")
+    _proposer_output(convexity_db, rid, "A", {"confidence": "NEUTRAL"})
+    _provider_drop(convexity_db, rid, "B")
+    _provider_drop(convexity_db, rid, "C")
+    out = council_l1_health(convexity_db, run_id=rid)
+    assert out["verdict"] == "PROVIDER_DEGRADED"
+    assert out["provider"] == {"drops": 2, "proposals": 3, "rate": round(2 / 3, 4)}
+
+
+def test_l1_health_single_provider_drop_is_note_only(convexity_db):
+    # A 1-off per-candidate blip (fail-soft by design) must NOT fail the night — count surfaced only.
+    rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
+    state.update_run_council_health(convexity_db, rid, council_health="ok")
+    _proposer_output(convexity_db, rid, "A", {"confidence": "NEUTRAL"})
+    _proposer_output(convexity_db, rid, "B", {"confidence": "NEUTRAL"})
+    _proposer_output(convexity_db, rid, "C", {"confidence": "NEUTRAL"})
+    _provider_drop(convexity_db, rid, "D")
+    out = council_l1_health(convexity_db, run_id=rid)
+    assert out["verdict"] == "PROPOSER_CLEAN_NO_ROUNDTRIP"
+    assert out["provider"]["drops"] == 1
+
+
+def test_l1_health_honors_provider_fail_stamp(convexity_db):
+    rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
+    state.update_run_council_health(convexity_db, rid, council_health="provider_fail")
+    _proposer_output(convexity_db, rid, "A", {"confidence": "NEUTRAL"})
+    assert council_l1_health(convexity_db, run_id=rid)["verdict"] == "PROVIDER_DEGRADED"
+
+
+def test_migration_0019_backfills_only_majority_provider_drop_runs(convexity_db):
+    import importlib.util
+    from pathlib import Path
+    conn = convexity_db
+    # run A: 2/3 provider drops + 'ok' -> flips to provider_fail
+    ra = state.record_run(conn, mode="PAPER", equity=1)
+    state.update_run_council_health(conn, ra, council_health="ok")
+    _proposer_output(conn, ra, "A", {"confidence": "NEUTRAL"})
+    _provider_drop(conn, ra, "B")
+    _provider_drop(conn, ra, "C")
+    # run B: 1/3 drops -> stays ok
+    rb = state.record_run(conn, mode="PAPER", equity=1)
+    state.update_run_council_health(conn, rb, council_health="ok")
+    _proposer_output(conn, rb, "A", {"confidence": "NEUTRAL"})
+    _proposer_output(conn, rb, "B", {"confidence": "NEUTRAL"})
+    _provider_drop(conn, rb, "C")
+    # run C: majority drops but already parse_fail -> untouched (never overwrite a FAIL stamp)
+    rc = state.record_run(conn, mode="PAPER", equity=1)
+    state.update_run_council_health(conn, rc, council_health="parse_fail")
+    _provider_drop(conn, rc, "A")
+    _provider_drop(conn, rc, "B")
+    p = Path(__file__).resolve().parents[1] / "scripts" / "migrations" / "0019_provider_fail_backfill.py"
+    spec = importlib.util.spec_from_file_location(p.stem, p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.apply(conn)
+    got = {r["id"]: r["council_health"] for r in conn.execute(
+        "SELECT id, council_health FROM runs WHERE id IN (?,?,?)", (ra, rb, rc))}
+    assert got == {ra: "provider_fail", rb: "ok", rc: "parse_fail"}
+
+
 def test_l1_health_degraded_when_adversary_not_direction_relative(convexity_db):
     rid = state.record_run(convexity_db, mode="PAPER", equity=10000)
     state.update_run_council_health(convexity_db, rid, council_health="ok")

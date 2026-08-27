@@ -880,6 +880,30 @@ def council_parse_health(conn: sqlite3.Connection, run_id: int) -> dict:
     return {"called": called, "parse_failed": failed, "rate": (failed / called) if called else 0.0}
 
 
+def council_provider_drops(conn: sqlite3.Connection, run_id: int) -> dict:
+    """Provider-error drop count for a run's council proposals (the 2026-08-26 incident class —
+    the #37 lesson in a THIRD costume): a per-candidate provider failure (e.g. an exhausted API
+    spend cap) records a dropped proposal whose ``rationale.error`` starts ``provider_error:``,
+    carries NO parse_error flag, and so graded as a benign quiet night. Deterministic count from
+    the recorded rows; ``rate`` is over ALL recorded proposals (a 1-off transient blip stays
+    note-only; a majority = a dead provider = censor-grade)."""
+    import json as _json
+    rows = conn.execute(
+        "SELECT rationale FROM council_proposals WHERE run_id = ?", (run_id,)
+    ).fetchall()
+    total = len(rows)
+    drops = 0
+    for r in rows:
+        try:
+            err = (_json.loads(r["rationale"] or "{}") or {}).get("error", "")
+        except (ValueError, TypeError):
+            continue
+        if isinstance(err, str) and err.startswith("provider_error"):
+            drops += 1
+    return {"proposals": total, "provider_drops": drops,
+            "rate": (drops / total) if total else 0.0}
+
+
 def _weekday_age(d0, d1) -> int:
     """Weekdays strictly after ``d0`` up to and including ``d1`` (dates). Holiday-blind by design:
     a holiday inflates the count, which can only EXPIRE a read early — the fail-closed direction

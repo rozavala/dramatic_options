@@ -191,7 +191,26 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
             notify.send("Council parse-fail — inert apparatus",
                         f"{health['parse_failed']}/{health['called']} proposer calls failed to parse this "
                         f"cycle → the council included nothing for a BUG reason. Check council_agent_outputs.raw.")
-        state.update_run_council_health(conn, run_id, council_health="parse_fail" if inert else "ok",
+        # Provider-error drops (2026-08-26: the anthropic spend-cap exhaustion dropped 9/12
+        # candidates yet stamped 'ok' and paged nothing — the #37 silent-inert class in a third
+        # costume). Same page-rate threshold as parse-fail; a 1-off per-candidate blip stays
+        # log-only, a majority-dead provider stamps 'provider_fail' (censors council-marginal;
+        # the brain-off null books stay valid) + pages.
+        pdrops = state.council_provider_drops(conn, run_id)
+        provider_dead = pdrops["proposals"] >= 2 and pdrops["rate"] >= page_rate
+        if pdrops["provider_drops"]:
+            log.info("Council provider-error drops: %d/%d (%.0f%%)",
+                     pdrops["provider_drops"], pdrops["proposals"], pdrops["rate"] * 100)
+        if provider_dead and not inert:
+            log.error("Council provider-dead %d/%d (>=%.0f%%) — candidates dropped on PROVIDER "
+                      "errors (quota/outage), not judgment. See council_proposals.rationale.error.",
+                      pdrops["provider_drops"], pdrops["proposals"], page_rate * 100)
+            notify.send("Council provider-dead — candidates dropped",
+                        f"{pdrops['provider_drops']}/{pdrops['proposals']} council candidates dropped on "
+                        f"provider errors this cycle (quota/outage — e.g. an exhausted API spend cap). "
+                        f"Fail-closed held (no entries), but the run is censored provider_fail.")
+        health_val = "parse_fail" if inert else ("provider_fail" if provider_dead else "ok")
+        state.update_run_council_health(conn, run_id, council_health=health_val,
                                         model_mix=json.dumps(mix))
     except Exception as e:  # noqa: BLE001 — health/paging is a control, must never break the trade cycle
         log.warning("council health stamp failed (non-fatal): %s", e)

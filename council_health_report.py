@@ -203,8 +203,16 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str | None = No
     above_floor = sum(1 for p in props if passes_floor(p["conviction"], floor))
     marker_staleness = _marker_staleness(props)
 
+    pdrops = state.council_provider_drops(conn, run_id)
+
     if council_health == "parse_fail" or (parse["called"] >= 2 and parse["rate"] >= page_rate):
         verdict = "PARSE_FAIL"                       # the #37 bug — FAIL (do NOT start the window)
+    elif council_health == "provider_fail" or (pdrops["proposals"] >= 2
+                                               and pdrops["rate"] >= page_rate):
+        # 2026-08-26: a majority-dead PROVIDER (quota/outage) drops candidates with NO parse_error
+        # flag — without this branch the night grades PROPOSER_CLEAN_NO_ROUNDTRIP = benign. FAIL-class:
+        # censor from council-marginal/Brier; fail-closed already held (drops never trade).
+        verdict = "PROVIDER_DEGRADED"
     elif not roundtrip:
         verdict = "PROPOSER_CLEAN_NO_ROUNDTRIP"      # proposer parses, but all NEUTRAL → adv/strat never fired
     elif any_parse_error or adv_dir_rel < len(roundtrip) or strat_valid < len(roundtrip) or cost <= 0:
@@ -223,6 +231,8 @@ def council_l1_health(conn, *, run_id: int | None = None, floor: str | None = No
                       "strategist_valid_conviction": strat_valid, "strategist_abstained": strat_abstained,
                       "strategist_criteria_vetoed": strat_criteria_vetoed,
                       "any_role_parse_error": any_parse_error},
+        "provider": {"drops": pdrops["provider_drops"], "proposals": pdrops["proposals"],
+                     "rate": round(pdrops["rate"], 4)},
         "cost_usd": cost, "cost_by_role": {r: round(c, 6) for r, c in cost_by_role.items()},
         "fundamentals": _fundamentals_summary(props),
         "marker_staleness": marker_staleness,
