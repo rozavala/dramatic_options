@@ -283,6 +283,7 @@ class Router:
         timeout_s: float = 60.0,
         max_retries: int = 2,
         max_tokens: int = 2048,
+        roles_fallback: dict[str, dict] | None = None,
     ) -> None:
         self._providers = providers
         self._roles = roles
@@ -291,6 +292,12 @@ class Router:
         self._timeout_s = timeout_s
         self._max_retries = max_retries
         self._max_tokens = max_tokens
+        # The pinned UNDERSTUDY map (2026-08-27, incident rec #3): role → {provider, model}, fired
+        # ONLY after the primary exhausts its retries (a provider outage/quota 400 — the 08-26
+        # class). Distinct-provider by design (heterogeneity); absent/unbuildable → the old
+        # fail-closed behavior byte-identical. Per-call attribution is honest automatically: the
+        # LLMResponse (→ council_agent_outputs.provider/model) carries whoever actually answered.
+        self._roles_fallback = roles_fallback or {}
 
     def provider_model(self, role: str) -> tuple[str, str]:
         spec = self._roles.get(role) or {}
@@ -306,6 +313,24 @@ class Router:
         if provider is None:
             raise RouterError(f"no provider configured for role {role!r} (provider={provider_name!r})")
 
+        try:
+            return self._attempt_loop(role, provider_name, model, provider,
+                                      system=system, user=user, max_tokens=max_tokens)
+        except RouterError as primary_err:
+            fb = self._roles_fallback.get(role) or {}
+            fb_name, fb_model = str(fb.get("provider", "")), str(fb.get("model", ""))
+            fb_provider = self._providers.get(fb_name) if fb_name else None
+            if fb_provider is None or not fb_model:
+                raise
+            log.warning("router %s: primary %s/%s exhausted retries — FALLING BACK to the pinned "
+                        "understudy %s/%s (per-call attribution rides the output row).",
+                        role, provider_name, model, fb_name, fb_model)
+            return self._attempt_loop(role, fb_name, fb_model, fb_provider,
+                                      system=system, user=user, max_tokens=max_tokens,
+                                      primary_err=primary_err)
+
+    def _attempt_loop(self, role, provider_name, model, provider, *, system, user,
+                      max_tokens, primary_err: Exception | None = None) -> LLMResponse:
         last_err: Exception | None = None
         for attempt in range(self._max_retries + 1):
             try:
@@ -325,7 +350,9 @@ class Router:
                             provider_name, model, attempt + 1, self._max_retries + 1, e)
                 if attempt < self._max_retries:
                     time.sleep(min(2.0 ** attempt, 5.0))
-        raise RouterError(f"{role} ({provider_name}/{model}) failed after {self._max_retries + 1} attempts: {last_err}")
+        suffix = f" (primary already failed: {primary_err})" if primary_err else ""
+        raise RouterError(f"{role} ({provider_name}/{model}) failed after "
+                          f"{self._max_retries + 1} attempts: {last_err}{suffix}")
 
 
 _PROVIDER_KNOB_KEYS = ("thinking_level", "thinking_budget", "json_mode")
@@ -353,8 +380,21 @@ def build_router(config: dict, llm_keys: dict, *, ledger: CostLedger | None = No
     """
     council = config.get("council", {})
     roles = council.get("roles", {})
+    roles_fallback = council.get("roles_fallback", {}) or {}
     prices = council.get("prices_per_mtok", {})
     needed = {str(spec.get("provider")) for spec in roles.values() if spec.get("provider")}
+    # Understudy providers build FAIL-SOFT (2026-08-27): the fallback is optional hardening —
+    # a missing fallback key logs loudly and disables the understudy; it must never fail-closed
+    # the whole council (the primary path is byte-unchanged without it).
+    fb_needed = {str(s.get("provider")) for s in roles_fallback.values() if s.get("provider")} - needed
+    for name in list(fb_needed):
+        if not llm_keys.get(name):
+            log.warning("council roles_fallback maps provider %r but no API key is set — "
+                        "understudy DISABLED for its role(s).", name)
+            fb_needed.discard(name)
+            roles_fallback = {r: s for r, s in roles_fallback.items()
+                              if str(s.get("provider")) != name}
+    needed = needed | fb_needed
 
     providers: dict[str, object] = {}
     for name in needed:
@@ -385,6 +425,7 @@ def build_router(config: dict, llm_keys: dict, *, ledger: CostLedger | None = No
         timeout_s=float(council.get("timeout_s", 60)),
         max_retries=int(council.get("max_retries", 2)),
         max_tokens=int(council.get("max_tokens", 2048)),
+        roles_fallback=roles_fallback,
     )
 
 
