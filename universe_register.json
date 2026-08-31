@@ -103,6 +103,16 @@
         "AI-drafted five-sector slate presented 2026-08-20 (ranked LAST of five on mandate fit — the ranking is in the record); operator adopted all five with 'Sure, I'll like these five. let's get them all in using the same process' — informed adoption, true form in records/2026-08-20_window5_five_sector_admission.md"
       ],
       "cluster_default": "ag_cycle"
+    },
+    "alt_capital_deployment": {
+      "provenance": "operator",
+      "added": "2026-08-31 (window #6, off-cycle — the reach layer's first net-new admission)",
+      "thesis": "Alternative-asset capital-deployment cycle: KKR's platform shows +31.1% TTM revenue growth (Q2-2026 10-Q, filed 2026-08-06) while actively deploying into high-barrier real-asset sectors — aviation infrastructure (Atlantic Aviation, with Apollo joining), energy storage (the HMC/KKR Australian BESS financing at 90% equity), and adjacent infrastructure — positioning the firm to capture long-tail value as the deployment cycle converts to fee-related and carried earnings. The name is 12m −22.1% while the platform grows: the price/fundamentals divergence is the convexity setup. PINNED CAVEATS: a diversified financial mega-cap (the MRK precedent — analyst-saturated; under_narrated is the council's binding question, not ours); the quarterly growth is decelerating (qtr +12.5% vs TTM +31.1%, accel −0.636) — the card's own weakest point.",
+      "falsifier": "The card's pinned falsifier: quarterly revenue YoY below 5.0% in the 2026-Q3 10-Q = thesis dead. Standing review ~Aug-2027: deployment must be converting into fee-related earnings growth in filed reports. (Draft-dated under the operator's admission delegation — the 2026-07-07 falsifier-pin precedent.)",
+      "sources": [
+        "machine_surfaced_machine_drafted (reach W35): surfaced via TWO distinct channels — trade_press/AviTrader MRO (Apollo joins KKR as Atlantic Aviation investor, 2026-08-28) + newsletters/Energy Storage News (KKR/HMC Australian BESS 90% equity financing) — the charter's ≥2-distinct-channels corroboration bar; card drafted by reach.drafter (gemini-3.1-flash-lite, $0.0008); operator ADOPTED with 'let's include KKR' (2026-08-30) — informed adoption, true form in records/2026-08-31_kkr_window6_admission.md"
+      ],
+      "cluster_default": "alt_capital_deployment"
     }
   },
   "windows": {
@@ -246,6 +256,26 @@
       },
       "vetoed": {},
       "notes": "FOUR of the five adopted theses = feasibility-bounded MEASURED NEGATIVES (theses adopted, no admissible expression today; corpus-bounded, NOT thesis-dead): water_pfas (all 10 names ITM/ATM-fallback or over cap on live quotes — the low-vol/coarse-chain structural wall; recheck door: chain re-listings or a cap re-amendment), aviation_mro (AIR moved away in-window $1,415/9.6%; SARO 2024-IPO tenor-less → ~Sept recheck; VSE data-dead twice — symbology check owed; HEI/TDG/FTAI/CW over cap), radiopharma_isotopes (BWXT $1,120/18.5% near-miss; ASPI tenor; TLX ADV-dead; LNTH ITM-fallback), us_shipbuilding (the predicted thin-expression negative: HII $1,360, GD band-broken, KEX/TDW ATM-ITM). CF flipped OUT in-window (provisional $930/26.0% → spot pop → $1,240/18.4% over cap; the in-window read governs — the same-rule mirror of BNTX's window-4 flip IN, held symmetrically). NEAR-MISS LEDGER (recorded, not admitted): CF $1,240 · AGCO $1,195 · AIR · HEI $1,660 · BWXT $1,120 · MWA $1,035 (+ window-4's TEM $1,038, BNTX-held). One NEW cluster (ag_cycle) = ELEVEN clusters; book still fills at most 5. TITN/MOS enter the scan baskets only (universe 41→43); first scan = the 2026-08-23 L0. The honest headline pinned: the last-ranked thesis was the only feasible one — feasibility ≠ mandate fit; the council's tri-criteria judge the turnaround question at surfacing."
+    },
+    "6": {
+      "date": "2026-08-31",
+      "rule": "PREREG_UNIVERSE_CURATION §11 OFF-CYCLE admission — ⭐ the REACH layer's first NET-NEW admission (the 2026-07-14 charter's channel→digest→card→admission chain closed end-to-end; FLY was already-in-universe). Two-channel corroboration + machine-drafted card + operator adoption + the in-window feasibility screen",
+      "screen_records": [
+        "records/2026-08-31_kkr_window6_admission.md"
+      ],
+      "admitted": {
+        "KKR": {
+          "basket": "alt_capital_deployment",
+          "sources": ["reach W35 survivor card (machine_surfaced_machine_drafted, 2-channel corroboration: AviTrader MRO + Energy Storage News), operator-adopted 2026-08-30"],
+          "per_contract_usd": 705,
+          "achieved_otm_pct": 24.0,
+          "tag": "rule",
+          "screen": "KKR270521C00135000 · dte 263 · 24.0% achieved OTM · $705 ≤ $1,000 cap · ADV $483.6M (in-window 2026-08-31 13:37 UTC) — provisional 08-30 read $710/28.8% (C140 Jun-2027): stable expression across a structure re-selection",
+          "operator": "'let's include KKR' (2026-08-30, on the presented W35 card + its machine draft — informed adoption)"
+        }
+      },
+      "vetoed": {},
+      "notes": "One NEW cluster (alt_capital_deployment — a financial-platform/deployment-cycle driver shared with no real-asset cluster) = TWELVE clusters; the book still fills at most 5. KKR enters the discovery scan baskets only (universe 43→44); first scan = the 2026-09-06 L0; funnel/council judge, gates/caps dispose. Diversified-mega-cap + decelerating-quarterly caveats pinned in the register thesis; the card's Q3-10-Q <5% falsifier is the crisp kill. The milestone datum: the 08-23 channel batch produced this survivor in its FIRST week (two of the five new channels corroborating)."
     }
   }
 }
