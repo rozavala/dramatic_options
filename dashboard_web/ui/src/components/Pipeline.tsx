@@ -1,167 +1,129 @@
-import type { ViewModel } from "../data/types";
-import { color, signal, type Level } from "../theme/tokens";
-import { CheapnessWatch } from "./CheapnessWatch";
+import { useState } from "react";
 
-const INTRO =
-  "Ideas pass through the AI debate first, then a deterministic cheapness gate, then the risk caps. The council can " +
-  "only propose — it can never overrule a veto. This is “the hard seam.”";
+import type { ViewModel } from "../data/types";
+import { signal, type Level } from "../theme/tokens";
+import { CheapnessWatch } from "./CheapnessWatch";
+import { Card } from "./primitives";
+import { CriteriaLegs, SessionTable } from "./SessionTable";
+
+const Muted = ({ children }: { children: React.ReactNode }) => <span style={{ color: "#6a7280", fontWeight: 400 }}>{children}</span>;
+const Row = ({ label, value }: { label: React.ReactNode; value: React.ReactNode }) => (
+  <div className="flex justify-between items-center" style={{ gap: 14, padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
+    <span style={{ fontSize: 12.5, color: "#2c3645" }}>{label}</span>
+    <span className="font-mono text-right" style={{ fontSize: 12.5, fontWeight: 500, color: "#2c3645" }}>{value}</span>
+  </div>
+);
+
+function Stage({ label, n, sub, level, max }: { label: string; n: number; sub: string; level: Level; max: number }) {
+  const lv = signal[level];
+  const h = Math.max(34, (n / max) * 120);
+  return (
+    <div className="flex-1" style={{ textAlign: "center" }}>
+      <div className="flex items-center justify-center" style={{ height: h, borderRadius: 9, background: lv.bg, border: `1px solid ${lv.border}` }}>
+        <span className="font-mono" style={{ fontSize: 24, fontWeight: 500, color: lv.text }}>{n}</span>
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 500, color: "#2c3645", marginTop: 9 }}>{label}</div>
+      <div style={{ fontSize: 11, color: "#6a7280", marginTop: 1 }}>{sub}</div>
+    </div>
+  );
+}
+
+/** A collapsed research instrument: title + one-line record; opens in place. Records, not decisions. */
+function Instrument({ title, meta, children }: { title: string; meta: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ borderTop: "1px solid #edf0f4" }}>
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="w-full flex items-center text-left" style={{ gap: 12, padding: "11px 4px", background: "none", border: "none", cursor: "pointer" }}>
+        <span aria-hidden="true" style={{ color: "#6a7280", fontSize: 11, width: 10 }}>{open ? "▾" : "▸"}</span>
+        <span style={{ flex: 1, fontSize: 13, color: "#141b28", fontWeight: 500 }}>{title}</span>
+        <span className="font-mono" style={{ fontSize: 11.5, color: "#6a7280" }}>{meta}</span>
+      </button>
+      {open && <div style={{ padding: "0 4px 14px 26px" }}>{children}</div>}
+    </div>
+  );
+}
 
 export function Pipeline({ vm }: { vm: ViewModel }) {
   const f = vm.funnel;
-  const fmax = Math.max(f.proposed, f.evaluated, f.opened, 1);
-  // F3: proposed→evaluated→opened is a FLOW; "wasted calls" is a side-metric shown below, not a 4th stage.
-  const steps: { label: string; value: number; sub: string; level: Level }[] = [
-    { label: "Proposed", value: f.proposed, sub: "by the AI council", level: "acc" },
-    { label: "Evaluated", value: f.evaluated, sub: "reached the gate", level: "acc" },
-    { label: "Opened", value: f.opened, sub: "cleared everything", level: f.opened > 0 ? "ok" : "mute" },
-  ];
-
-  const cmax = f.council.asserted + f.council.ungrounded + f.council.abstained || 1;
-  const debate: { label: string; value: number; level: Level }[] = [
-    { label: "Asserted (full debate)", value: f.council.asserted, level: "ok" },
-    { label: "Reached the gate", value: f.council.toGate, level: "acc" },
-    { label: "Dropped — ungrounded", value: f.council.ungrounded, level: "mute" },
-    { label: "Dropped — proposer abstained", value: f.council.abstained, level: "mute" },
-  ];
-
-  const gate: { label: string; sub: string; value: number; color: string }[] = [
-    { label: "IV-gate vetoes (total)", sub: "too rich or missing data", value: f.gate.ivTotal, color: color.ink2 },
-    { label: "Real veto", sub: "genuinely too richly priced", value: f.gate.ivReal, color: color.accent },
-    { label: "Fail-closed", sub: "missing input — safe default", value: f.gate.ivFail, color: f.gate.ivFail ? signal.warn.text : signal.ok.text },
-    { label: "Eligibility vetoes", sub: "liquidity / tradability floor", value: f.gate.elig, color: color.ink2 },
-  ];
-
+  const se = vm.session;
+  const judged = se.rows.length || f.proposed;
+  const deliberated = f.council.asserted;
+  const aboveFloor = f.council.aboveFloor;
+  const stMax = Math.max(judged, 1);
+  const abstainedStrategist = vm.council.strategistAbstained;
+  const provenance = { reserve: se.rows.filter((r) => r.via === "reserve").length, fairness: se.rows.filter((r) => r.via === "fairness").length, rank: se.rows.filter((r) => r.via === "rank").length };
+  const attempts = vm.attempts;
+  const cat = vm.catalysts;
+  const ch = vm.cheapness;
   return (
-    <>
-      <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px", marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: "#2c3645", lineHeight: 1.6 }}>{INTRO}</div>
-      </div>
-
-      {/* funnel */}
-      <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "20px 22px", marginBottom: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 3, color: "#141b28" }}>
-          Latest cycle — where candidates stop <span style={{ color: "#6a7280", fontWeight: 400 }}>· run #{f.runId ?? "—"}</span>
-        </div>
-        <div style={{ fontSize: 12, color: "#414956", marginBottom: 18 }}>Ideas flow left to right; each step can veto. Zero opened is healthy if nothing was genuinely cheap.</div>
-        <div className="flex" style={{ alignItems: "stretch", gap: 8 }}>
-          {steps.map((s) => {
-            const lv = signal[s.level];
-            const h = Math.max(34, (s.value / fmax) * 120);
-            return (
-              <div key={s.label} className="flex-1" style={{ textAlign: "center" }}>
-                <div className="flex items-center justify-center" style={{ height: h, borderRadius: 9, background: lv.bg, border: `1px solid ${lv.border}` }}>
-                  <span className="font-mono" style={{ fontSize: 24, fontWeight: 500, color: lv.text }}>{s.value}</span>
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 500, color: "#2c3645", marginTop: 9 }}>{s.label}</div>
-                <div style={{ fontSize: 11, color: "#6a7280", marginTop: 1 }}>{s.sub}</div>
-              </div>
-            );
-          })}
-        </div>
-        {/* F3: side-metrics, visually separated from the flow above */}
-        <div className="flex flex-wrap" style={{ gap: 20, marginTop: 16, paddingTop: 13, borderTop: "1px solid #edf0f4", fontSize: 11.5, color: "#414956" }}>
-          <span>Wasted LLM calls <span style={{ color: "#6a7280" }}>(deliberated, then gate-vetoed)</span> · <span className="font-mono" style={{ fontWeight: 500 }}>{f.wasted}</span></span>
-          <span>Cluster-cap rejected otherwise-passing · <span className="font-mono" style={{ fontWeight: 500, color: vm.capFlow.rejected ? signal.warn.text : color.ink2 }}>{vm.capFlow.rejected}</span></span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* inside the debate */}
-        <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px" }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>Inside the AI debate</div>
-          <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 14 }}>Where ideas drop out before they ever reach the gate.</div>
-          {debate.map((r) => {
-            const lv = signal[r.level];
-            return (
-              <div key={r.label} className="flex items-center gap-3" style={{ padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
-                <span style={{ fontSize: 12.5, color: "#2c3645", flex: 1 }}>{r.label}</span>
-                <div style={{ width: 90, height: 6, background: "#edf0f4", borderRadius: 3, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${Math.max(3, (r.value / cmax) * 100)}%`, background: lv.text, borderRadius: 3 }} />
-                </div>
-                <span className="font-mono text-right" style={{ fontSize: 13, fontWeight: 500, color: lv.text, width: 26 }}>{r.value}</span>
-              </div>
-            );
-          })}
-        </div>
-        {/* cheapness gate */}
-        <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px" }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>The cheapness gate</div>
-          <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 14 }}>
-            Only buys convexity that's genuinely cheap. A real veto (too rich) differs from a fail-closed veto (missing data).
-          </div>
-          {gate.map((r) => (
-            <div key={r.label} className="flex justify-between items-center" style={{ padding: "9px 0", borderTop: "1px solid #edf0f4" }}>
-              <div>
-                <div style={{ fontSize: 12.5, color: "#2c3645" }}>{r.label}</div>
-                <div style={{ fontSize: 11, color: "#6a7280" }}>{r.sub}</div>
-              </div>
-              <span className="font-mono" style={{ fontSize: 15, fontWeight: 500, color: r.color }}>{r.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* latest run's per-name deliberation — the "why" */}
-      {vm.deliberation.rows.length > 0 && (
-        <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px", marginTop: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>Latest decisions <span style={{ color: "#6a7280", fontWeight: 400 }}>· run #{vm.deliberation.runId} · proposer → adversary → strategist</span></div>
-          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, padding: "12px 4px 8px", borderBottom: "1px solid #cbd0da", fontSize: 10.5, color: "#6a7280", textTransform: "uppercase", letterSpacing: ".6px", fontWeight: 500, marginTop: 6 }}>
-            <span>Name</span><span>Proposer</span><span>Adversary</span><span>Strategist</span>
-          </div>
-          {vm.deliberation.rows.map((d, i) => (
-            <div key={i} className="grid items-center font-mono" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, padding: "9px 4px", borderBottom: "1px solid #f6f8fa", fontSize: 12.5 }}>
-              <span style={{ fontWeight: 500, color: "#141b28" }}>{d.symbol}</span>
-              <span style={{ color: "#414956" }}>{d.dir ?? "—"}</span>
-              <span style={{ color: "#414956" }}>{d.adversary ?? "—"}</span>
-              <span style={{ color: "#2c3645", fontWeight: 500 }}>{d.conviction ?? "—"}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* judged-set provenance — the gate-cheap reserve (changes WHO is judged, never HOW) */}
-      <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px", marginTop: 16 }}>
+    <div className="flex flex-col" style={{ gap: 16 }}>
+      <Card style={{ padding: "20px 22px" }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
-          Judged-set provenance — the gate-cheap reserve{" "}
-          <span style={{ color: "#6a7280", fontWeight: 400 }}>· run #{vm.reserve.runId ?? "—"} · {vm.reserve.stamp ?? "no stamp"}</span>
+          Session {se.runId != null ? `#${se.runId}` : "—"} — where the {judged} candidates stopped
+          {se.startedAt && <Muted> · {se.startedAt.slice(0, 16)} UTC</Muted>}
         </div>
-        <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 12 }}>
-          Which judged names came via the reserve (gate-cheap, salience-truncated) vs the motion rank. The reserve
-          changes <em>who</em> is judged, never <em>how</em> — includes stay the council's.
+        <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5 }}>Left to right; each step can drop a name. Zero opened is healthy when nothing was both grounded and genuinely cheap.</div>
+        <div className="flex" style={{ alignItems: "flex-end", gap: 8, marginTop: 18 }}>
+          <Stage label="Judged" n={judged} sub="the slate the council saw" level="acc" max={stMax} />
+          <Stage label="Deliberated" n={deliberated} sub="proposer asserted a direction" level="acc" max={stMax} />
+          <Stage label="Above floor" n={aboveFloor} sub={`strategist ≥ ${f.council.floor}`} level={aboveFloor ? "acc" : "mute"} max={stMax} />
+          <Stage label="Reached the gate" n={f.council.toGate} sub="cheapness + caps" level={f.council.toGate ? "acc" : "mute"} max={stMax} />
+          <Stage label="Opened" n={f.opened} sub="cleared everything" level={f.opened ? "ok" : "mute"} max={stMax} />
         </div>
-        {vm.reserve.stamp == null ? (
-          <div style={{ fontSize: 12, color: "#6a7280" }}>No provenance recorded — reserve OFF or a pre-deploy run.</div>
-        ) : (
-          <div className="flex flex-wrap" style={{ gap: 8 }}>
-            {vm.reserve.slots.map((s, i) => {
-              const lv = s.via === "reserve" ? signal.acc : signal.mute;
-              return (
-                <span key={i} className="font-mono" style={{ fontSize: 12, padding: "4px 9px", borderRadius: 7, background: lv.bg, border: `1px solid ${lv.border}`, color: lv.text }}>
-                  <span style={{ fontWeight: 500 }}>{s.symbol}</span>
-                  <span style={{ opacity: 0.75 }}> · {s.via} · {s.conviction}{s.status === "booked" ? " · booked" : ""}</span>
-                </span>
-              );
-            })}
+        <div className="flex flex-wrap" style={{ gap: 20, marginTop: 16, paddingTop: 13, borderTop: "1px solid #edf0f4", fontSize: 11.5, color: "#414956" }}>
+          <span>Proposer abstained · <span className="font-mono" style={{ fontWeight: 500 }}>{f.council.abstained}</span></span>
+          <span>Strategist abstained · <span className="font-mono" style={{ fontWeight: 500 }}>{abstainedStrategist}</span></span>
+          <span>Criteria-vetoed · <span className="font-mono" style={{ fontWeight: 500 }}>{f.council.criteriaVetoed}</span></span>
+          <span>Ungrounded · <span className="font-mono" style={{ fontWeight: 500 }}>{f.council.ungrounded}</span></span>
+          <span>Wasted LLM calls <Muted>(deliberated, then gate-vetoed)</Muted> · <span className="font-mono" style={{ fontWeight: 500 }}>{f.wasted}</span></span>
+          {(provenance.reserve || provenance.fairness || provenance.rank) > 0 && (
+            <span>Slate: {provenance.rank} by motion rank · {provenance.reserve} cheap reserve · {provenance.fairness} fairness</span>
+          )}
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] items-start" style={{ gap: 16 }}>
+        <Card style={{ padding: "18px 20px" }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>The decisions, and why <Muted>· proposer → adversary → strategist</Muted></div>
+          <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 12 }}>
+            The strategist’s weakest-point line is the “why”. <b>Via</b> is the slate provenance — reserve and fairness change <em>who</em> is judged, never <em>how</em>.
           </div>
-        )}
+          <SessionTable session={se} lastCol="weakest" />
+        </Card>
+
+        <div className="flex flex-col" style={{ gap: 16 }}>
+          <Card style={{ padding: "18px 20px" }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>Why nothing passes</div>
+            <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 8 }}>The mandate needs all three criteria on an include. Of {f.legs?.n ?? 0} deliberated:</div>
+            <CriteriaLegs legs={f.legs} />
+            <div style={{ fontSize: 11, color: "#6a7280", marginTop: 10, lineHeight: 1.5 }}>
+              When inflection is the binding leg the universe is grounded and quiet but the council does not see the turn yet — the expected shape of a copper-not-rockets book.
+            </div>
+          </Card>
+          <Card style={{ padding: "18px 20px" }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>The cheapness gate <Muted>· {f.council.toGate ? `${f.council.toGate} reached it` : "nothing reached it"}</Muted></div>
+            <div style={{ marginTop: 8 }}>
+              <Row label={<>IV-gate vetoes <Muted>too rich</Muted></>} value={f.gate.ivReal} />
+              <Row label={<>Fail-closed <Muted>missing data</Muted></>} value={<span style={{ color: f.gate.ivFail ? signal.warn.text : signal.ok.text }}>{f.gate.ivFail}</span>} />
+              <Row label="Eligibility vetoes" value={f.gate.elig} />
+              <Row label={<>Cluster-cap rejections <Muted>all-time</Muted></>} value={vm.capFlow.rejected} />
+            </div>
+          </Card>
+        </div>
       </div>
 
-      {/* the null-book entry walk (migration 0018) — the per-name attribution surface */}
-      {vm.attempts.books.length > 0 && (
-        <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px", marginTop: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
-            Null-book entry walk <span style={{ color: "#6a7280", fontWeight: 400 }}>· run #{vm.attempts.runId ?? "—"} · walk order · terminal outcome · premium-at-attempt</span>
-          </div>
-          <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 12 }}>
-            Every candidate each capped null book touched last cycle — why a name is (or isn't) in a control book.
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {vm.attempts.books.map((b) => (
+      <Card style={{ padding: "18px 20px" }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>Research instruments <Muted>· collapsed by default — records, not decisions</Muted></div>
+        <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 8 }}>The pre-registered reads’ substrate. They matter for the frozen records, not for a daily glance.</div>
+        <Instrument title="Null-book entry walk" meta={attempts.books.length ? `${attempts.books.map((b) => `${b.book} ${b.rows.length} rows`).join(" · ")} · session #${attempts.runId ?? "—"}` : "no rows yet"}>
+          <div style={{ fontSize: 12, color: "#414956", marginBottom: 8 }}>Every candidate each capped null book touched last cycle, in walk order — why a name is (or isn’t) in a control book.</div>
+          <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: 16 }}>
+            {attempts.books.map((b) => (
               <div key={b.book}>
                 <div style={{ fontSize: 11, color: "#6a7280", textTransform: "uppercase", letterSpacing: ".6px", fontWeight: 500, marginBottom: 4 }}>book {b.book}</div>
                 <div style={{ maxHeight: 240, overflowY: "auto" }}>
                   {b.rows.map((r, i) => (
-                    <div key={i} className="flex items-center font-mono" style={{ gap: 10, padding: "6px 2px", borderTop: "1px solid #f6f8fa", fontSize: 12 }}>
+                    <div key={i} className="flex items-center font-mono" style={{ gap: 10, padding: "5px 2px", borderTop: "1px solid #f6f8fa", fontSize: 12 }}>
                       <span style={{ color: "#6a7280", width: 22, textAlign: "right" }}>{r.idx}</span>
                       <span style={{ fontWeight: 500, color: "#141b28", width: 52 }}>{r.symbol}</span>
                       <span style={{ color: "#6a7280", width: 76 }}>{r.origin}</span>
@@ -173,45 +135,25 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* the forward-catalyst channel (frozen prereg §4/§6/§8) — record only, never a verdict */}
-      <div className="bg-white border rounded-card shadow-card" style={{ borderColor: "#cbd0da", padding: "18px 20px", marginTop: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
-          Forward-catalyst channel{" "}
-          <span style={{ color: "#6a7280", fontWeight: 400 }}>
-            · {vm.catalysts.stamp ?? "no stamp"}{vm.catalysts.countersRunId != null ? ` · run #${vm.catalysts.countersRunId}` : ""}
-          </span>
-        </div>
-        <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 12 }}>
-          Dated public forward evidence in the council pack — grounding, never permission. The M=8 disposition
-          read stays the operator's; this card renders the record.
-        </div>
-        <div className="font-mono" style={{ fontSize: 12, color: "#414956", marginBottom: 10 }}>
-          {vm.catalysts.countersLine ?? "no cycle counters yet — the stamp/counters appear from the first post-deploy L1"}
-        </div>
-        {vm.catalysts.pinsFileMissing ? (
-          <div style={{ fontSize: 12, color: "#6a7280", marginBottom: 10 }}>pin file missing on this checkout</div>
-        ) : vm.catalysts.pins.length === 0 ? (
-          <div style={{ fontSize: 12, color: "#6a7280", marginBottom: 10 }}>no items pinned — the channel is live-inert</div>
-        ) : (
-          <div className="flex flex-wrap" style={{ gap: 8, marginBottom: 10 }}>
-            {vm.catalysts.pins.map((p, i) => (
-              <span key={i} className="font-mono" style={{ fontSize: 12, padding: "4px 9px", borderRadius: 7, background: signal.acc.bg, border: `1px solid ${signal.acc.border}`, color: signal.acc.text }}>
-                <span style={{ fontWeight: 500 }}>{p.symbol}</span>
-                <span style={{ opacity: 0.75 }}> · class {p.cls}{p.eventDate ? ` · event ${p.eventDate}` : ""} · pinned {p.asOf} · expires {p.expires}</span>
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="font-mono" style={{ fontSize: 12, color: "#141b28" }}>
-          {vm.catalysts.ledgerLine ?? "no pairs ledger yet — rows accrue via the paired-contrast probe"}
-          {vm.catalysts.bySymbol ? <span style={{ color: "#6a7280" }}>  ({vm.catalysts.bySymbol})</span> : null}
-        </div>
-      </div>
-
-      <div style={{ marginTop: 16 }}><CheapnessWatch data={vm.cheapness} /></div>
-    </>
+        </Instrument>
+        <Instrument title="Forward-catalyst channel" meta={`${cat.pins.length} pin${cat.pins.length === 1 ? "" : "s"}${cat.pins[0] ? ` · ${cat.pins[0].symbol} class ${cat.pins[0].cls} · expires ${cat.pins[0].expires}` : ""}${cat.ledgerLine ? ` · ${cat.ledgerLine.split(" · ")[0]}` : ""}`}>
+          <div style={{ fontSize: 12, color: "#414956", marginBottom: 8 }}>Dated public forward evidence in the council pack — grounding, never permission. The M={cat.mTarget} disposition read stays the operator’s.</div>
+          <div className="font-mono" style={{ fontSize: 12, color: "#414956" }}>{cat.stamp ?? "no stamp"}{cat.countersRunId != null ? ` · run #${cat.countersRunId}` : ""} · {cat.countersLine ?? "no cycle counters yet"}</div>
+          {cat.pins.length > 0 && (
+            <div className="flex flex-wrap" style={{ gap: 8, margin: "10px 0" }}>
+              {cat.pins.map((p, i) => (
+                <span key={i} className="font-mono" style={{ fontSize: 12, padding: "4px 9px", borderRadius: 7, background: signal.acc.bg, border: `1px solid ${signal.acc.border}`, color: signal.acc.text }}>
+                  <span style={{ fontWeight: 500 }}>{p.symbol}</span><span style={{ opacity: 0.75 }}> · class {p.cls}{p.eventDate ? ` · event ${p.eventDate}` : ""} · pinned {p.asOf} · expires {p.expires}</span>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="font-mono" style={{ fontSize: 12, color: "#141b28", marginTop: 6 }}>{cat.ledgerLine ?? "no pairs ledger yet"}{cat.bySymbol ? <span style={{ color: "#6a7280" }}> ({cat.bySymbol})</span> : null}</div>
+        </Instrument>
+        <Instrument title="Cheapness-watch (finding #1)" meta={ch ? `verdict ${ch.verdict} · ${ch.n_breaks} breaks · ${ch.n_qualifying} qualifying` : "accruing"}>
+          <CheapnessWatch data={ch} />
+        </Instrument>
+      </Card>
+    </div>
   );
 }

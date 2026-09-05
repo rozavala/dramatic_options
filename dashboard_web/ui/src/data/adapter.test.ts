@@ -347,3 +347,85 @@ describe("fromBackend", () => {
     expect(bad.degraded).toContain("cheapness");
   });
 });
+
+// ── the 2026-09 simplification: session · spend · canary · data-accrual honesty · five books · first entry ──
+describe("fromBackend — the nightly-grade read", () => {
+  const base = () => ({ ...synthetic() }) as Snapshot;
+  const withSession = (): Snapshot => ({
+    ...base(),
+    session: {
+      run_id: 1196, started_at: "2026-09-04 19:45:04",
+      rows: [
+        { symbol: "MRK", direction: "bullish", adversary_stance: "bearish", conviction: "LOW", structural_vs_fad: "structural", weakest_point: "no inflection", status: "dropped", selection: "rank", proposer_abstained: false, streak: { reads: 5, low: 4, prev: "NEUTRAL" } },
+        { symbol: "RTX", direction: "bullish", adversary_stance: "bearish", conviction: "NEUTRAL", structural_vs_fad: "structural", weakest_point: "narrated", status: "dropped", selection: "fairness", proposer_abstained: false, streak: { reads: 3, low: 1, prev: "LOW" } },
+        { symbol: "NVDA", direction: "bullish", adversary_stance: null, conviction: "NEUTRAL", structural_vs_fad: null, weakest_point: null, status: "dropped", selection: null, proposer_abstained: true, streak: { reads: 9, low: 0, prev: "NEUTRAL" } },
+        { symbol: "ERO", direction: "bearish", adversary_stance: "bullish", conviction: "LOW", structural_vs_fad: "fad", weakest_point: "x", status: "dropped", selection: "reserve", proposer_abstained: false, streak: { reads: 1, low: 1, prev: null } },
+      ],
+      profile: { NEUTRAL: 2, LOW: 2, MODERATE: 0, HIGH: 0, EXTREME: 0 },
+      low_history: [{ run_id: 1179, started_at: "2026-09-03 19:45:04", judged: 12, low: 7 }, { run_id: 1196, started_at: "2026-09-04 19:45:04", judged: 12, low: 6 }],
+      provider_drops: 0, understudy: { configured: "strategist:openai/gpt-5.2", fired: 0 },
+    },
+    spend: {
+      month: "2026-09",
+      providers: [
+        { provider: "anthropic", mtd_usd: 0.5211, cap_usd: 10, frac: 0.0521, page_would_fire: false },
+        { provider: "openai", mtd_usd: 0, cap_usd: null, frac: null, page_would_fire: false },
+        { provider: "gemini", mtd_usd: 8.5, cap_usd: 10, frac: 0.85, page_would_fire: true },
+      ],
+      total_mtd_usd: 9.0211, total_cap_usd: 20, page_fraction: 0.8, per_cycle_cap_usd: 5,
+      cumulative: { l0_framer_usd: 0.0152, l1_council_usd: 10.6079, cumulative_usd: 10.6231 },
+    },
+    canary: { gate_line: 1.2, canaries: [{ symbol: "NVDA", series: [{ run_id: 1, iv_rv: 1.0184, otm_skew: -0.8, cheap: 1 }, { run_id: 2, iv_rv: 1.0444, otm_skew: -0.8, cheap: 1 }], latest: { run_id: 2, iv_rv: 1.0444, otm_skew: -0.8, cheap: 1 } }] },
+    data_gathered: { chain_snapshots: { symbols: 2, latest: "2026-07-01T19:47:45+00:00", names: ["PL", "RKLB"] }, bar_coverage_symbols: 0, latest_age_days: 65.4, accruing: false },
+    positions: { ...base().positions, real_open: [{ ...base().positions.real_open[0], opened_at: "2026-07-01T20:00:04+00:00" }], shadow_open: [{}, {}], nogate_3A_open: [{}], nogate_3B_open: [{}, {}, {}], shares: [{}, {}, {}, {}] },
+  });
+
+  it("maps the session rows with the streak vocabulary and the slate provenance", () => {
+    const vm = fromBackend(withSession());
+    const by = Object.fromEntries(vm.session.rows.map((r) => [r.symbol, r]));
+    expect(by.MRK.streak).toBe("LOW ×4 of 5");
+    expect(by.RTX.streak).toBe("LOW → NEUTRAL");
+    expect(by.NVDA.streak).toBe("proposer abstained");
+    expect(by.ERO.streak).toBe("1 read");
+    expect([by.MRK.via, by.RTX.via, by.NVDA.via, by.ERO.via]).toEqual(["rank", "fairness", "—", "reserve"]);
+    expect(by.MRK.dir).toBe("CALL"); expect(by.ERO.dir).toBe("PUT"); expect(by.NVDA.adversary).toBe("—");
+    expect(vm.session.profile).toEqual([{ level: "LOW", n: 2 }, { level: "NEUTRAL", n: 2 }, { level: "MODERATE+", n: 0 }]);
+    expect(vm.session.lowHistory).toEqual([{ runId: 1179, day: "09-03", low: 7, judged: 12 }, { runId: 1196, day: "09-04", low: 6, judged: 12 }]);
+    expect(vm.session.understudy).toEqual({ configured: "strategist:openai/gpt-5.2", fired: 0 });
+  });
+
+  it("maps month-to-date spend vs the tripwire, flags the page, keeps uncapped providers", () => {
+    const vm = fromBackend(withSession());
+    expect(vm.spend.month).toBe("2026-09");
+    expect(vm.spend.rows.map((r) => `${r.provider}:${r.mtd}:${r.cap}:${r.page}`)).toEqual([
+      "anthropic:$0.52:$10:false", "openai:$0.00:null:false", "gemini:$8.50:$10:true",
+    ]);
+    expect(vm.spend.anyPage).toBe(true);
+    expect(vm.spend.totalMtd).toBe("$9.02"); expect(vm.spend.totalCap).toBe("$20"); expect(vm.spend.perCycleCap).toBe("$5.00");
+  });
+
+  it("maps the canary series oldest→newest with a trend, and the data-accrual honesty flag", () => {
+    const vm = fromBackend(withSession());
+    expect(vm.canary).toEqual({ symbol: "NVDA", latest: 1.0444, skew: -0.8, cheap: true, series: [1.0184, 1.0444], gateLine: 1.2, trend: "up" });
+    expect(vm.dataAccrual).toEqual({ symbols: 2, latest: "2026-07-01", ageDays: 65.4, accruing: false, barSymbols: 0, names: ["PL", "RKLB"] });
+  });
+
+  it("counts the five books' open rows and anchors the edge timeline on the first real entry", () => {
+    const vm = fromBackend(withSession());
+    expect(vm.booksOpen).toEqual({ real: 1, shadow: 2, a3: 1, basket: 3, shares: 4 });
+    expect(vm.firstEntry).toBe("2026-07-01");
+  });
+
+  it("buckets fairness slots as their own provenance (reserve_panel.fairness)", () => {
+    const vm = fromBackend({ ...base(), reserve: { run_id: 1, stamp: "cheap_reserve_v1+fairness_v1.1", reserve: [], rank: [], fairness: [{ symbol: "ATKR", conviction: "LOW", status: "dropped" }], unlabeled: [] } } as Snapshot);
+    expect(vm.reserve.slots).toEqual([{ symbol: "ATKR", conviction: "LOW", status: "dropped", via: "fairness" }]);
+  });
+
+  it("degrades cleanly when the new panels are absent or errored", () => {
+    const vm = fromBackend({ ...base(), session: { error: "boom" }, spend: undefined, canary: undefined } as unknown as Snapshot);
+    expect(vm.session.rows).toEqual([]); expect(vm.session.runId).toBeNull();
+    expect(vm.spend.rows).toEqual([]); expect(vm.canary).toBeNull();
+    expect(vm.degraded).toContain("session");
+    expect(vm.firstEntry).toBeNull();
+  });
+});

@@ -8,10 +8,11 @@
 //   #4 sentinel `note` ("rv-slope · 4d") is composed (trigger + age) — not a raw column; best-effort here.
 
 import type {
-  AttemptsVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM, NullStepVM, PositionVM,
-  CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, Snapshot, ViewModel,
+  AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
+  NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
+  Snapshot, SpendVM, ViewModel,
 } from "./types";
-import { levelFromSystem, t4RowState, verdictDisplay } from "./status";
+import { directionLabel, levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
 const DASH = "—";
 // The "first null read" sample target (PREREG_FIXED_BASKET_NULL — the calibration cohort size). No config
@@ -115,6 +116,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["forward_catalysts", P.forward_catalysts],
       ["null_attempts", P.null_attempts],
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
+      ["session", P.session], ["spend", P.spend], ["canary", P.canary],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
@@ -124,9 +126,10 @@ export function fromBackend(P: Snapshot): ViewModel {
   const markByContract = new Map((mc.open_positions ?? []).map((o) => [o.contract, o.mark_over_entry] as const));
   const positions: PositionVM[] = (ps.real_open ?? []).map((p) => ({
     symbol: p.symbol, theme: p.theme ?? null, dir: p.direction, conviction: p.origin_conviction, dte: p.dte,
-    premium: fmt(p.total_premium), mark: markByContract.get(p.contract_symbol) ?? p.mark ?? null,
+    premium: fmt(p.total_premium), premiumUsd: Number(p.total_premium ?? 0),
+    mark: markByContract.get(p.contract_symbol) ?? p.mark ?? null, opened: p.opened_at ? String(p.opened_at).slice(0, 10) : null,
   }));
-  const sentinels: SentinelVM[] = (se.active ?? []).map((x) => ({ symbol: x.symbol, basket: x.basket, note: sentinelNote(x) })); // #4
+  const sentinels: SentinelVM[] = (se.active ?? []).map((x) => ({ symbol: x.symbol, basket: x.basket, dir: x.direction, note: sentinelNote(x) })); // #4
 
   // A1: readiness is driven off the backend `checkable` flag (NOT the verdict→state map) so the headline
   // matches dashboard.py: pass/checkable over checkable conditions, accruing = the non-checkable ones.
@@ -209,6 +212,7 @@ export function fromBackend(P: Snapshot): ViewModel {
     slots: [
       ...(rvP?.reserve ?? []).map(slotVM("reserve")),
       ...(rvP?.rank ?? []).map(slotVM("rank")),
+      ...(rvP?.fairness ?? []).map(slotVM("fairness")),
       ...(rvP?.unlabeled ?? []).map(slotVM("unlabeled")),
     ],
   };
@@ -248,6 +252,82 @@ export function fromBackend(P: Snapshot): ViewModel {
     mTarget: fcP?.m_target ?? 8,
   };
 
+  // The nightly-grade read — the latest council SESSION per name (council_session_panel).
+  const seP = panelError(P.session) ? null : P.session;
+  const streakText = (r: NonNullable<typeof seP>["rows"][number]): string => {
+    if (r.proposer_abstained) return "proposer abstained";
+    const { reads, low, prev } = r.streak;
+    if (reads <= 1) return "1 read";
+    if (r.conviction === "LOW" && low >= 2) return `LOW ×${low} of ${reads}`;
+    if (prev && prev !== r.conviction) return `${prev} → ${r.conviction}`;
+    return `${reads} reads`;
+  };
+  const sessionRows: SessionRowVM[] = (seP?.rows ?? []).map((r) => ({
+    symbol: r.symbol, dir: r.direction ? directionLabel(r.direction) : DASH, adversary: r.adversary_stance ?? DASH,
+    conviction: r.conviction, via: r.selection ?? "—", weakest: r.weakest_point ?? "", streak: streakText(r),
+  }));
+  const prof = seP?.profile ?? {};
+  const recentW = P.council?.recent ?? [];
+  const cleanN = recentW.filter((r) => r.verdict === "ROUNDTRIP_CONFIRMED").length;
+  const session: SessionVM = {
+    runId: seP?.run_id ?? null, startedAt: seP?.started_at ?? null, rows: sessionRows,
+    profile: [
+      { level: "LOW", n: prof.LOW ?? 0 }, { level: "NEUTRAL", n: prof.NEUTRAL ?? 0 },
+      { level: "MODERATE+", n: (prof.MODERATE ?? 0) + (prof.HIGH ?? 0) + (prof.EXTREME ?? 0) },
+    ],
+    lowHistory: (seP?.low_history ?? []).map((h) => ({
+      runId: h.run_id, day: (h.started_at ?? "").slice(5, 10), low: h.low, judged: h.judged,
+    })),
+    providerDrops: seP?.provider_drops ?? 0,
+    understudy: { configured: seP?.understudy?.configured ?? null, fired: seP?.understudy?.fired ?? 0 },
+    cleanLine: recentW.length ? `${cleanN} of the last ${recentW.length} sessions clean` : "no sessions yet",
+  };
+
+  // Month-to-date spend vs the per-provider tripwire (spend_panel).
+  const spP = panelError(P.spend) ? null : P.spend;
+  const spend: SpendVM = {
+    month: spP?.month ?? DASH,
+    rows: (spP?.providers ?? []).map((r) => ({
+      provider: r.provider, mtd: usd(r.mtd_usd, 2), cap: r.cap_usd != null ? usd(r.cap_usd, 0) : null,
+      frac: r.frac, page: r.page_would_fire,
+    })),
+    totalMtd: usd(spP?.total_mtd_usd, 2), totalCap: spP?.total_cap_usd != null ? usd(spP.total_cap_usd, 0) : null,
+    cumulative: usd(spP?.cumulative?.cumulative_usd, 2), framer: usd(spP?.cumulative?.l0_framer_usd, 2),
+    perCycleCap: spP?.per_cycle_cap_usd != null ? usd(spP.per_cycle_cap_usd, 2) : null,
+    anyPage: (spP?.providers ?? []).some((r) => r.page_would_fire),
+  };
+
+  // The gate-rich canary (canary_panel) — first canary only (NVDA today); trend from the last two reads.
+  const caP = panelError(P.canary) ? null : P.canary;
+  const c0 = caP?.canaries?.[0];
+  const cSeries = (c0?.series ?? []).map((pt) => pt.iv_rv);
+  const cLast = cSeries.length ? cSeries[cSeries.length - 1] : null;
+  const cPrev = cSeries.length > 1 ? cSeries[cSeries.length - 2] : null;
+  const canary: CanaryVM | null = c0
+    ? {
+        symbol: c0.symbol, latest: cLast, skew: c0.latest?.otm_skew ?? null,
+        cheap: c0.latest?.cheap == null ? null : c0.latest.cheap === 1, series: cSeries, gateLine: caP?.gate_line ?? 1.2,
+        trend: cLast == null || cPrev == null ? "—" : cLast > cPrev + 0.002 ? "up" : cLast < cPrev - 0.002 ? "down" : "flat",
+      }
+    : null;
+
+  const dualreadLast = P.dualread?.sessions?.[(P.dualread?.sessions?.length ?? 0) - 1];
+  const wingMismatch = dualreadLast?.wing_mismatch ?? [];
+
+  const dataAccrual: DataAccrualVM = {
+    symbols: cgs.symbols ?? 0, latest: String(cgs.latest ?? DASH).slice(0, 10), ageDays: dg.latest_age_days ?? null,
+    accruing: dg.accruing ?? false, barSymbols: dg.bar_coverage_symbols ?? 0, names: cgs.names ?? [],
+  };
+  const booksOpen: BooksOpenVM = {
+    real: (ps.real_open ?? []).length, shadow: (ps.shadow_open ?? []).length, a3: (ps.nogate_3A_open ?? []).length,
+    basket: (ps.nogate_3B_open ?? []).length, shares: (ps.shares ?? []).length,
+  };
+  const openedAts = [...(ps.real_open ?? []), ...(ps.real_closed ?? [])]
+    .map((p) => (p as { opened_at?: string | null }).opened_at)
+    .filter((x): x is string => typeof x === "string" && x.length > 0)
+    .sort();
+  const firstEntry = openedAts.length ? openedAts[0].slice(0, 10) : null;
+
   const cf = P.cap_flow;
   const delta = acc.delta_vs_frame ?? 0;
   const edgeN = ci(ciP.real).n;
@@ -281,6 +361,7 @@ export function fromBackend(P: Snapshot): ViewModel {
     openN: rk.book?.open ?? 0, maxN: rk.book?.max ?? 0, openPrem: fmt(rk.book?.open_premium),
     council: {
       verdict: verdictLabel, vlevel, runId: ch.run_id ?? null, roundtrips: ch.roundtrip?.n ?? 0,
+      strategistAbstained: ch.roundtrip?.strategist_abstained ?? 0,
       parseFail: ch.proposer?.parse_failed ?? 0, parseCalled: ch.proposer?.called ?? 0,
       cost: usd(ch.cost_usd), streak: councilStreak(P.council?.recent), models: modelMixSummary(P.council?.model_mix ?? null),
       byProvider,
@@ -300,8 +381,14 @@ export function fromBackend(P: Snapshot): ViewModel {
     funnel: {
       runId: l1.run_id ?? null, proposed: l1.proposed ?? 0, evaluated: l1.evaluated ?? 0, opened: l1.opened ?? 0,
       wasted: String(l1.wasted_llm_spend ?? 0), // a COUNT of paid-then-gate-vetoed proposals, not dollars
-      council: { asserted: cs.asserted ?? 0, ungrounded: cs.ungrounded ?? 0, abstained: cs.proposer_abstained ?? 0, toGate: cs.to_gate ?? 0, floor: P.council_stage?.floor ?? "MODERATE" },
+      council: {
+        asserted: cs.asserted ?? 0, ungrounded: cs.ungrounded ?? 0, abstained: cs.proposer_abstained ?? 0, toGate: cs.to_gate ?? 0,
+        floor: P.council_stage?.floor ?? "MODERATE", aboveFloor: cs.post_veto_include ?? 0, criteriaVetoed: cs.criteria_vetoed ?? 0,
+      },
       gate: { ivTotal: ivg.total ?? 0, ivReal: ivg.real_veto ?? 0, ivFail: ivg.fail_closed_missing_data ?? 0, elig: gr.eligibility_vetoes ?? 0 },
+      legs: P.council_stage?.legs
+        ? { n: P.council_stage.legs.n_deliberated ?? 0, structural: P.council_stage.legs.structural ?? 0, underNarrated: P.council_stage.legs.under_narrated ?? 0, atInflection: P.council_stage.legs.at_inflection ?? 0 }
+        : null,
     },
     universe: { ivrv: String(mc.universe_iv_rv?.p50 ?? "—"), skew: String(mc.universe_otm_skew?.p50 ?? "—"), n: mc.universe_iv_rv?.n ?? 0 },
     positions, openCount: (ps.real_open ?? []).length, openPrem2: fmt(rk.book?.open_premium),
@@ -314,5 +401,6 @@ export function fromBackend(P: Snapshot): ViewModel {
     t4: cond,
     readiness,
     edgeAccrual: { n: edgeN, target: EDGE_TARGET }, phasePct, phaseSub,
+    session, spend, canary, wingMismatch, dataAccrual, booksOpen, firstEntry,
   };
 }

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -707,3 +707,126 @@ def test_build_theme_entry_multi_source_and_added_label():
 def test_build_theme_entry_empty_source_list_is_problem():
     te = dd.build_theme_entry(name="x", cluster="", thesis="t", falsifier="f", source=[], today="2026-06-28")
     assert not te["valid"] and any("source required" in p for p in te["problems"])
+
+
+# ── E · the nightly-grade read: session · spend · canary (+ the funnel anchor + fairness bucket) ──
+def _judged(conn, rid, symbol, conviction, *, selection=None, adversary="bearish", weakest="wp"):
+    pid = state.record_council_proposal(
+        conn, run_id=rid, as_of="t", theme="x", symbol=symbol, direction="bullish", conviction=conviction,
+        weakest_point=weakest, rationale=({"selection": selection} if selection else {}), status="dropped")
+    state.record_agent_output(conn, proposal_id=pid, role="proposer", provider="gemini", model="m",
+                              confidence=conviction, stance="bullish", raw={"confidence": conviction},
+                              cost_usd=0.01)
+    if adversary is not None:
+        state.record_agent_output(conn, proposal_id=pid, role="adversary", provider="xai", model="m",
+                                  confidence="MODERATE", stance=adversary, raw={"counter_case": "c"}, cost_usd=0.02)
+        state.record_agent_output(conn, proposal_id=pid, role="strategist", provider="anthropic", model="m",
+                                  confidence=conviction, stance="bullish", raw={"conviction": conviction},
+                                  cost_usd=0.03)
+    return pid
+
+
+def test_council_session_panel_hand_checked(convexity_db):
+    r1 = state.record_run(convexity_db, mode="PAPER", equity=None)
+    _judged(convexity_db, r1, "MRK", "LOW")
+    _judged(convexity_db, r1, "RTX", "LOW")
+    r2 = state.record_run(convexity_db, mode="PAPER", equity=None)
+    convexity_db.execute("UPDATE runs SET model_mix=? WHERE id=?",
+                         ('{"roles_fallback": "strategist:openai/gpt-5.2"}', r2))
+    _judged(convexity_db, r2, "MRK", "LOW", selection="rank")
+    _judged(convexity_db, r2, "RTX", "NEUTRAL", selection="fairness")
+    _judged(convexity_db, r2, "NVDA", "NEUTRAL", adversary=None)  # proposer abstained → no round-trip
+    s = dd.council_session_panel(convexity_db, {})
+    assert s["run_id"] == r2
+    assert s["profile"] == {"NEUTRAL": 2, "LOW": 1, "MODERATE": 0, "HIGH": 0, "EXTREME": 0}
+    by = {r["symbol"]: r for r in s["rows"]}
+    assert by["MRK"]["streak"] == {"reads": 2, "low": 2, "prev": "LOW"}        # LOW ×2 of 2
+    assert by["RTX"]["streak"] == {"reads": 2, "low": 1, "prev": "LOW"}        # LOW → NEUTRAL
+    assert by["RTX"]["selection"] == "fairness" and by["MRK"]["selection"] == "rank"
+    assert by["NVDA"]["proposer_abstained"] is True and by["NVDA"]["adversary_stance"] is None
+    assert by["MRK"]["weakest_point"] == "wp" and by["MRK"]["adversary_stance"] == "bearish"
+    assert [(h["run_id"], h["judged"], h["low"]) for h in s["low_history"]] == [(r1, 2, 2), (r2, 3, 1)]
+    assert s["understudy"] == {"configured": "strategist:openai/gpt-5.2", "fired": 0}
+    assert s["provider_drops"] == 0
+
+
+def test_council_session_panel_counts_understudy_fire(convexity_db):
+    rid = state.record_run(convexity_db, mode="PAPER", equity=None)
+    convexity_db.execute("UPDATE runs SET model_mix=? WHERE id=?", ('{"roles_fallback": "strategist:openai/gpt-5.2"}', rid))
+    pid = _judged(convexity_db, rid, "SMCI", "LOW", adversary=None)
+    state.record_agent_output(convexity_db, proposal_id=pid, role="strategist", provider="openai", model="gpt-5.2",
+                              confidence="LOW", stance="bullish", raw={"conviction": "LOW"}, cost_usd=0.002)
+    assert dd.council_session_panel(convexity_db, {})["understudy"]["fired"] == 1
+
+
+def test_council_session_panel_empty(convexity_db):
+    s = dd.council_session_panel(convexity_db, {})
+    assert s["run_id"] is None and s["rows"] == [] and s["low_history"] == []
+
+
+def test_spend_panel_month_to_date_vs_tripwire(convexity_db):
+    rid = state.record_run(convexity_db, mode="PAPER", equity=None)
+    _judged(convexity_db, rid, "MRK", "LOW")   # gemini .01 · xai .02 · anthropic .03 (created_at = now)
+    cfg = {"council": {"monthly_spend_page_usd": {"anthropic": 10.0, "gemini": 0.0125},
+                       "roles": {"strategist": "anthropic/opus"},
+                       "roles_fallback": {"strategist": {"provider": "openai", "model": "gpt-5.2"}},
+                       "cost_cap_usd": 5.0}}
+    sp = dd.spend_panel(convexity_db, cfg, now=datetime.now(UTC))
+    by = {r["provider"]: r for r in sp["providers"]}
+    assert set(by) == {"anthropic", "gemini", "openai"}
+    assert by["anthropic"]["mtd_usd"] == 0.03 and by["anthropic"]["frac"] == 0.003 and not by["anthropic"]["page_would_fire"]
+    assert by["gemini"]["mtd_usd"] == 0.01 and by["gemini"]["page_would_fire"] is True   # 0.01 ≥ 0.8 × 0.0125
+    assert by["openai"]["cap_usd"] is None and by["openai"]["frac"] is None
+    assert sp["total_cap_usd"] == 10.01 and sp["per_cycle_cap_usd"] == 5.0
+    assert sp["cumulative"]["l1_council_usd"] == 0.0  # proposal cost_usd unset; the ledger is proposal-scoped
+
+
+def test_canary_panel_series_oldest_to_newest(convexity_db):
+    r1 = state.record_run(convexity_db, mode="PAPER", equity=None)
+    r2 = state.record_run(convexity_db, mode="PAPER", equity=None)
+    state.record_council_proposal(convexity_db, run_id=r2, as_of="t", theme="gate_rich_canary", symbol="NVDA",
+                                  direction="bullish", conviction="NEUTRAL", status="dropped")
+    for rid, iv in ((r1, 1.0187), (r2, 1.0444)):
+        state.record_gate_dualread(convexity_db, run_id=rid, as_of="t", symbol="NVDA", feed="opra", source="sweep",
+                                   structured=True, iv_rv=iv, otm_skew=-0.8, cheap=True)
+        state.record_gate_dualread(convexity_db, run_id=rid, as_of="t", symbol="NVDA", feed="indicative",
+                                   source="sweep", structured=True, iv_rv=9.9, cheap=False)  # the shadow arm is ignored
+    c = dd.canary_panel(convexity_db)
+    assert c["gate_line"] == 1.2 and [x["symbol"] for x in c["canaries"]] == ["NVDA"]
+    assert [p["iv_rv"] for p in c["canaries"][0]["series"]] == [1.0187, 1.0444]
+    assert c["canaries"][0]["latest"]["run_id"] == r2
+
+
+def test_funnel_anchors_to_latest_council_run_even_with_no_gate_rows(convexity_db):
+    old = state.record_run(convexity_db, mode="PAPER", equity=None)
+    state.record_convexity_eval(convexity_db, run_id=old, as_of="t", theme="x", symbol="VRT", direction="bullish",
+                                decision="open")
+    new = state.record_run(convexity_db, mode="PAPER", equity=None)
+    _judged(convexity_db, new, "MRK", "LOW")
+    f = dd.funnel_panel(convexity_db)["l1_decision"]
+    assert f["run_id"] == new and f["proposed"] == 1 and f["evaluated"] == 0 and f["opened"] == 0
+
+
+def test_reserve_panel_buckets_fairness(convexity_db):
+    rid = state.record_run(convexity_db, mode="PAPER", equity=None)
+    _judged(convexity_db, rid, "ATKR", "LOW", selection="fairness")
+    _judged(convexity_db, rid, "ERO", "NEUTRAL", selection="reserve")
+    _judged(convexity_db, rid, "CC", "LOW", selection="rank")
+    _judged(convexity_db, rid, "ZZZ", "LOW")
+    r = dd.reserve_panel(convexity_db)
+    assert [x["symbol"] for x in r["fairness"]] == ["ATKR"]
+    assert [x["symbol"] for x in r["reserve"]] == ["ERO"] and [x["symbol"] for x in r["rank"]] == ["CC"]
+    assert [x["symbol"] for x in r["unlabeled"]] == ["ZZZ"]
+
+
+def test_data_gathered_accruing_flag(tmp_path):
+    snap = tmp_path / "option_chain_snapshot"
+    snap.mkdir()
+    (snap / "PL.json").write_text("{}")
+    now = datetime.now(UTC)
+    fresh = dd.data_gathered_panel(tmp_path, now=now)
+    assert fresh["accruing"] is True and fresh["latest_age_days"] == 0.0
+    stale = dd.data_gathered_panel(tmp_path, now=now + timedelta(days=65))
+    assert stale["accruing"] is False and stale["latest_age_days"] == 65.0
+    empty = dd.data_gathered_panel(tmp_path / "nope", now=now)
+    assert empty["accruing"] is False and empty["latest_age_days"] is None
