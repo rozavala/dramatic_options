@@ -37,17 +37,17 @@ async function postDraft(body: Record<string, unknown>): Promise<ScreenResult | 
 }
 
 const inputStyle: CSSProperties = {
-  width: "100%", padding: "9px 12px", borderRadius: 9, border: `1px solid ${color.navy600}`,
-  background: "#0b1426", color: "#eaf1ff", fontSize: 13.5, outline: "none",
+  width: "100%", padding: "9px 12px", borderRadius: 9, border: "1px solid #cbd0da",
+  background: "#ffffff", color: "#141b28", fontSize: 13.5, outline: "none",
 };
-const labelStyle: CSSProperties = { fontSize: 12, color: "#9aa6bd", marginBottom: 5, display: "block" };
+const labelStyle: CSSProperties = { fontSize: 12, color: "#414956", marginBottom: 5, display: "block" };
 const btnStyle: CSSProperties = {
   padding: "9px 18px", borderRadius: 9, border: "none", background: color.accent, color: "#fff",
   fontSize: 13.5, fontWeight: 500, cursor: "pointer", flex: "none",
 };
 const preStyle: CSSProperties = {
-  marginTop: 12, padding: "12px 14px", borderRadius: 9, background: "#0b1426",
-  border: `1px solid ${color.navy700}`, color: "#cfe0ff", fontFamily: "'Roboto Mono', monospace",
+  marginTop: 12, padding: "12px 14px", borderRadius: 9, background: "#0f1b32",
+  border: "1px solid #1d2c46", color: "#cfe0ff", fontFamily: "'Roboto Mono', monospace",
   fontSize: 12.5, whiteSpace: "pre-wrap", wordBreak: "break-word", userSelect: "all",
 };
 
@@ -85,8 +85,8 @@ export function Curation() {
   return (
     <div className="flex flex-col" style={{ gap: 18 }}>
       <Card style={{ padding: 22 }}>
-        <div style={{ fontSize: 15, fontWeight: 500, color: "#fff", marginBottom: 4 }}>Feasibility screen</div>
-        <div style={{ fontSize: 12.5, color: "#9aa6bd", marginBottom: 14 }}>
+        <div style={{ fontSize: 15, fontWeight: 500, color: "#141b28", marginBottom: 4 }}>Feasibility screen</div>
+        <div style={{ fontSize: 12.5, color: "#414956", marginBottom: 14 }}>
           Tickers → the command to run on the box (the screen needs live quotes; this surface is keyless).
           Only clean tickers survive — the command is shell-pasted, so no shell metacharacter is kept.
         </div>
@@ -101,7 +101,7 @@ export function Curation() {
           <>
             <pre style={preStyle}>{screen.command || "(no valid tickers)"}</pre>
             {screen.dropped > 0 && (
-              <div style={{ marginTop: 6, fontSize: 11.5, color: "#7c89a1" }}>
+              <div style={{ marginTop: 6, fontSize: 11.5, color: "#6a7280" }}>
                 {screen.dropped} token(s) dropped — only clean tickers kept.
               </div>
             )}
@@ -110,8 +110,8 @@ export function Curation() {
       </Card>
 
       <Card style={{ padding: 22 }}>
-        <div style={{ fontSize: 15, fontWeight: 500, color: "#fff", marginBottom: 4 }}>New theme</div>
-        <div style={{ fontSize: 12.5, color: "#9aa6bd", marginBottom: 14 }}>
+        <div style={{ fontSize: 15, fontWeight: 500, color: "#141b28", marginBottom: 4 }}>New theme</div>
+        <div style={{ fontSize: 12.5, color: "#414956", marginBottom: 14 }}>
           Draft a <span className="font-mono">universe_register.json</span> entry for a PR. This never writes —
           admission still runs the §11 source∩screen∩OTM rule, and the gate disposes on cheapness.
         </div>
@@ -146,7 +146,7 @@ export function Curation() {
             {theme.warnings.length > 0 && (
               <div style={{ marginTop: 8, color: signal.warn.text, fontSize: 12 }}>⚠ {theme.warnings.join(" ")}</div>
             )}
-            <div style={{ marginTop: 6, fontSize: 11.5, color: "#7c89a1" }}>
+            <div style={{ marginTop: 6, fontSize: 11.5, color: "#6a7280" }}>
               Copy into a PR against universe_register.json — or paste it to your agent to open the PR.
             </div>
           </>

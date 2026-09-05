@@ -15,7 +15,16 @@ import { Banner, Skeleton } from "./primitives";
 
 /** The 252px-rail desktop console (≥ the mobile breakpoint). Data comes from <App>; section state is local. */
 export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsoleProps) {
-  const [section, setSection] = useState<SectionId>("overview");
+  // Deep link: ?section=<id> opens that section (a bookmarkable read); anything else lands on the overview.
+  const initial = ((): SectionId => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("section");
+      return NAV.some((n) => n.id === q) ? (q as SectionId) : "overview";
+    } catch {
+      return "overview";
+    }
+  })();
+  const [section, setSection] = useState<SectionId>(initial);
   const asOf = vm?.asOf ? vm.asOf.slice(0, 16).replace("T", " ") : "—";
   const age = relativeAge(vm?.asOf); // E2: "Nh ago" + a staleness tint
   const [title, subtitle] = TITLES[section];
@@ -117,7 +126,7 @@ export function DesktopConsole({ vm, loading, error, fatal, refresh }: ConsolePr
                 </Banner>
               </div>
             )}
-            {vm && section === "overview" && <Overview vm={vm} onNavigate={setSection} />}
+            {vm && section === "overview" && <Overview vm={vm} />}
             {vm && section === "safety" && <Safety vm={vm} />}
             {vm && section === "edge" && <Edge vm={vm} />}
             {vm && section === "pipeline" && <Pipeline vm={vm} />}

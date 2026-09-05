@@ -39,7 +39,7 @@ PANEL_KEYS: tuple[str, ...] = (
     "header", "t4", "risk", "account", "regime", "sentinels", "positions", "council", "deliberation",
     "performance", "nulls", "attribution", "funnel", "council_stage", "gate_reasons", "cap_flow",
     "cost", "market_ctx", "dualread", "dualread_runtime", "cheapness", "null_attempts", "reserve",
-    "curation", "data_gathered", "forward_catalysts",
+    "curation", "data_gathered", "forward_catalysts", "session", "spend", "canary",
 )
 
 
@@ -110,6 +110,9 @@ def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
             "curation": dd.safe(dd.curation_panel, conn, config, market),
             "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir),
             "forward_catalysts": dd.safe(dd.forward_catalyst_panel, conn, config),
+            "session": dd.safe(dd.council_session_panel, conn, config),
+            "spend": dd.safe(dd.spend_panel, conn, config),
+            "canary": dd.safe(dd.canary_panel, conn),
         }
     finally:
         conn.close()

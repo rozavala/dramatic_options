@@ -626,7 +626,7 @@ def reserve_panel(conn, run_id: int | None = None) -> dict:
     run = conn.execute("SELECT model_mix FROM runs WHERE id = ?", (run_id,)).fetchone()
     if run and run["model_mix"]:
         stamp = _parse(run["model_mix"]).get("union_rank")
-    reserve, rank, unlabeled = [], [], []
+    reserve, rank, fairness, unlabeled = [], [], [], []
     for r in _rows(
         conn,
         "SELECT symbol, conviction, status, rationale FROM council_proposals WHERE run_id = ? "
@@ -635,9 +635,10 @@ def reserve_panel(conn, run_id: int | None = None) -> dict:
     ):
         sel = _parse(r["rationale"]).get("selection")
         entry = {"symbol": r["symbol"], "conviction": r["conviction"], "status": r["status"]}
-        (reserve if sel == "reserve" else rank if sel == "rank" else unlabeled).append(entry)
+        (reserve if sel == "reserve" else rank if sel == "rank"
+         else fairness if sel == "fairness" else unlabeled).append(entry)
     return {"run_id": run_id, "stamp": stamp, "reserve": reserve, "rank": rank,
-            "unlabeled": unlabeled}
+            "fairness": fairness, "unlabeled": unlabeled}
 
 
 # ── curation tools (the keyless dashboard panel — DRAFTS only, never fetches/writes) ──────────────
@@ -788,7 +789,11 @@ def funnel_panel(conn, *, run_id: int | None = None) -> dict:
     runs BEFORE the gate, verified paper_loop.py:252-304). The L0 discovery funnel surfaces the DB-persisted
     stages (surfaced/controls/framed); scanned/cleared are journal-only (noted)."""
     if run_id is None:
-        run_id = _scalar(conn, "SELECT MAX(run_id) FROM convexity_eval")
+        # Anchor to the latest COUNCIL session: a session whose candidates all stopped before the gate has
+        # ZERO convexity_eval rows, so MAX(convexity_eval.run_id) silently pinned this card to the last run
+        # that reached the gate (#508, June) for months. The gate-less fallback keeps pre-council DBs working.
+        run_id = _scalar(conn, "SELECT MAX(run_id) FROM council_proposals") \
+            or _scalar(conn, "SELECT MAX(run_id) FROM convexity_eval")
     decisions = {r["decision"]: r["n"] for r in conn.execute(
         "SELECT decision, COUNT(*) AS n FROM convexity_eval WHERE run_id=? GROUP BY decision", (run_id,))} if run_id else {}
     proposed = int(_scalar(conn, "SELECT COUNT(*) FROM council_proposals WHERE run_id=?", (run_id,)) or 0) if run_id else 0
@@ -1086,9 +1091,14 @@ def curation_panel(conn, config: dict, market=None) -> dict:
     }
 
 
-def data_gathered_panel(cache_dir: str | Path) -> dict:
+DATA_ACCRUING_MAX_AGE_DAYS = 7  # a chain-snapshot store older than a week is NOT "building up over time"
+
+
+def data_gathered_panel(cache_dir: str | Path, *, now: datetime | None = None) -> dict:
     """Chain-snapshot coverage (the forward IV baseline) by listing ``<cache>/option_chain_snapshot/`` + bar
-    coverage. Read-only filesystem listing; never fetches."""
+    coverage. Read-only filesystem listing; never fetches. ``latest_age_days`` + ``accruing`` make the card
+    honest: the live store stopped after the first entry (2026-07-01) while the card kept saying "accruing"."""
+    now = now or datetime.now(UTC)
     root = Path(cache_dir)
     out: dict[str, Any] = {"cache_dir": str(root), "exists": root.exists()}
     snap = root / "option_chain_snapshot"
@@ -1102,6 +1112,10 @@ def data_gathered_panel(cache_dir: str | Path) -> dict:
         out["chain_snapshots"] = {"symbols": 0, "latest": None, "names": []}
     bars = root / "alpaca_bars"
     out["bar_coverage_symbols"] = len(list(bars.glob("*.json"))) if bars.exists() else 0
+    latest_dt = _parse_dt(out["chain_snapshots"]["latest"])
+    age = None if latest_dt is None else max(0.0, (now - latest_dt).total_seconds() / 86400.0)
+    out["latest_age_days"] = None if age is None else round(age, 1)
+    out["accruing"] = age is not None and age <= DATA_ACCRUING_MAX_AGE_DAYS
     return out
 
 
@@ -1448,3 +1462,147 @@ def dualread_runtime_panel(conn, config: dict | None = None) -> dict:
                 "branch). Phase 3 (revert) is default-OFF; only the Δ wire can ever revert. "
                 "Observation only — no paging, no sentinel write.",
     }
+
+
+# ── E · the operator's nightly-grade read: session · spend · canary ─────────────────────────────
+SESSION_HISTORY_N = 5  # trailing council sessions for the LOW-count history + per-name streaks
+CONVICTION_LEVELS = ("NEUTRAL", "LOW", "MODERATE", "HIGH", "EXTREME")
+
+
+def _council_run_ids(conn, n: int) -> list[int]:
+    """The last ``n`` council-deliberated run ids (runs that recorded proposals), oldest → newest."""
+    rows = conn.execute(
+        "SELECT DISTINCT run_id FROM council_proposals WHERE run_id IS NOT NULL ORDER BY run_id DESC LIMIT ?",
+        (n,)).fetchall()
+    return [int(r["run_id"]) for r in reversed(rows)]
+
+
+def council_session_panel(conn, config: dict | None = None, *, history_n: int = SESSION_HISTORY_N) -> dict:
+    """The latest council SESSION as the operator grades it every night (read-only, forward record only —
+    never a §6 backtest): per-name proposer → adversary → strategist with the strategist's WEAKEST-POINT
+    line (recorded every session, never rendered before), the slate provenance (``selection`` =
+    reserve | rank | fairness from the rationale JSON), a per-name conviction STREAK over the trailing
+    ``history_n`` reads (the "MRK LOW 4 of 5" signal — a thesis inching without crossing), the conviction
+    PROFILE, the LOW-count history over the trailing sessions, provider drops (the 08-26 incident class)
+    and whether the strategist UNDERSTUDY fired. Judgment-only telemetry: nothing here sizes or trades."""
+    run_ids = _council_run_ids(conn, history_n)
+    if not run_ids:
+        return {"run_id": None, "rows": [], "profile": {k: 0 for k in CONVICTION_LEVELS},
+                "low_history": [], "provider_drops": 0, "understudy": {"configured": None, "fired": 0}}
+    rid = run_ids[-1]
+    run = conn.execute("SELECT started_at, model_mix FROM runs WHERE id = ?", (rid,)).fetchone()
+    mix = _parse_json(run["model_mix"]) if run else {}
+    fallback = mix.get("roles_fallback")  # e.g. "strategist:openai/gpt-5.2-2025-12-11"
+    fallback_provider = None
+    if isinstance(fallback, str) and ":" in fallback:
+        fallback_provider = fallback.split(":", 1)[1].split("/", 1)[0]
+
+    rows: list[dict] = []
+    profile = {k: 0 for k in CONVICTION_LEVELS}
+    for p in _rows(conn,
+                   "SELECT id, symbol, direction, conviction, structural_vs_fad, weakest_point, status, rationale "
+                   "FROM council_proposals WHERE run_id = ? ORDER BY symbol", (rid,)):
+        agents = {a["role"]: a for a in conn.execute(
+            "SELECT role, stance, provider FROM council_agent_outputs WHERE proposal_id = ?", (p["id"],))}
+        adv = agents.get("adversary")
+        conv = p["conviction"] or "NEUTRAL"
+        profile[conv] = profile.get(conv, 0) + 1
+        hist = [r["conviction"] or "NEUTRAL" for r in conn.execute(
+            "SELECT conviction FROM council_proposals WHERE symbol = ? AND run_id <= ? "
+            "ORDER BY run_id DESC LIMIT ?", (p["symbol"], rid, history_n))]
+        rows.append({
+            "symbol": p["symbol"], "direction": p["direction"],
+            "adversary_stance": adv["stance"] if adv else None,
+            "conviction": conv, "structural_vs_fad": p["structural_vs_fad"],
+            "weakest_point": p["weakest_point"], "status": p["status"],
+            "selection": (_parse_json(p["rationale"]).get("selection") or None),
+            "proposer_abstained": conv == "NEUTRAL" and adv is None,
+            "streak": {"reads": len(hist), "low": sum(1 for c in hist if c == "LOW"),
+                       "prev": hist[1] if len(hist) > 1 else None},
+        })
+    low_history = []
+    for r in run_ids:
+        judged = int(_scalar(conn, "SELECT COUNT(*) FROM council_proposals WHERE run_id=?", (r,)) or 0)
+        low = int(_scalar(conn, "SELECT COUNT(*) FROM council_proposals WHERE run_id=? AND conviction='LOW'", (r,)) or 0)
+        started = _scalar(conn, "SELECT started_at FROM runs WHERE id=?", (r,))
+        low_history.append({"run_id": r, "started_at": started, "judged": judged, "low": low})
+    fired = 0
+    if fallback_provider:
+        fired = int(_scalar(
+            conn,
+            "SELECT COUNT(*) FROM council_agent_outputs ao JOIN council_proposals cp ON cp.id = ao.proposal_id "
+            "WHERE cp.run_id = ? AND ao.role = 'strategist' AND ao.provider = ?", (rid, fallback_provider)) or 0)
+    return {
+        "run_id": rid, "started_at": run["started_at"] if run else None,
+        "rows": rows, "profile": profile, "low_history": low_history,
+        "provider_drops": state.council_provider_drops(conn, rid)["provider_drops"],
+        "understudy": {"configured": fallback, "fired": fired},
+    }
+
+
+def _parse_json(raw) -> dict:
+    if isinstance(raw, dict):
+        return raw
+    try:
+        d = json.loads(raw) if raw else {}
+        return d if isinstance(d, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+SPEND_PAGE_FRACTION = 0.8  # the orchestrator pages at 80% of a provider's monthly cap (crossing-debounced)
+
+
+def spend_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
+    """Month-to-date COUNCIL spend per provider against ``council.monthly_spend_page_usd`` (the tripwire that
+    would have surfaced the 2026-08-26 cap exhaustion days early) + the all-time ledger. Council-scope only,
+    stated honestly: a shared key's external usage is invisible here (``state.provider_month_spend``)."""
+    now = now or datetime.now(UTC)
+    council = (config or {}).get("council", {}) or {}
+    caps = council.get("monthly_spend_page_usd", {}) or {}
+    providers: set[str] = set(caps)
+    for role_model in (council.get("roles", {}) or {}).values():
+        if isinstance(role_model, str) and "/" in role_model:
+            providers.add(role_model.split("/", 1)[0])
+        elif isinstance(role_model, dict) and role_model.get("provider"):
+            providers.add(str(role_model["provider"]))
+    for fb in (council.get("roles_fallback", {}) or {}).values():
+        if isinstance(fb, dict) and fb.get("provider"):
+            providers.add(str(fb["provider"]))
+    rows = []
+    for prov in sorted(providers):
+        mtd = round(state.provider_month_spend(conn, prov, now=now), 4)
+        cap = caps.get(prov)
+        rows.append({"provider": prov, "mtd_usd": mtd, "cap_usd": cap,
+                     "frac": (round(mtd / float(cap), 4) if cap else None),
+                     "page_would_fire": bool(cap) and mtd + 1e-9 >= SPEND_PAGE_FRACTION * float(cap)})
+    return {
+        "month": now.strftime("%Y-%m"), "providers": rows,
+        "total_mtd_usd": round(sum(r["mtd_usd"] for r in rows), 4),
+        "total_cap_usd": round(sum(float(c) for c in caps.values()), 2) if caps else None,
+        "page_fraction": SPEND_PAGE_FRACTION,
+        "per_cycle_cap_usd": council.get("cost_cap_usd"),
+        "cumulative": cost_ledger(conn),
+    }
+
+
+CANARY_SERIES_N = 8
+
+
+def canary_panel(conn, *, n: int = CANARY_SERIES_N) -> dict:
+    """The gate-rich CANARY names (hand-seed themes named ``*canary*`` — NVDA today): the trailing OPRA
+    iv/rv reads from ``gate_dualread`` so the regime datum ("compressing toward parity" / "off the floor")
+    is a line, not a number the operator carries in their head. Regime read only — never a gate."""
+    syms = [r["symbol"] for r in conn.execute(
+        "SELECT DISTINCT symbol FROM council_proposals WHERE theme LIKE '%canary%' ORDER BY symbol")]
+    out = []
+    for sym in syms:
+        series = [dict(r) for r in conn.execute(
+            "SELECT run_id, iv_rv, otm_skew, cheap FROM gate_dualread WHERE symbol = ? AND feed = 'opra' "
+            "AND iv_rv IS NOT NULL ORDER BY run_id DESC LIMIT ?", (sym, n))]
+        series.reverse()
+        for pt in series:
+            pt["iv_rv"] = round(float(pt["iv_rv"]), 4)
+            pt["otm_skew"] = None if pt["otm_skew"] is None else round(float(pt["otm_skew"]), 2)
+        out.append({"symbol": sym, "series": series, "latest": series[-1] if series else None})
+    return {"gate_line": 1.2, "canaries": out}

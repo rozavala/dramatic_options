@@ -12,6 +12,20 @@ Streamlit / `:8602` web — clear of real_options' 85xx dashboards.)
   adapter ported from the design's spec, `useSnapshot`). One responsive app: 252px-rail desktop console or
   bottom-tab mobile (`useIsMobile`, ≤760px).
 
+## Sections (the 2026-09 simplification)
+Seven sections, each answering one operator question; the ids are stable (`nav.ts`), and `?section=<id>`
+deep-links to one (`overview` · `safety` = Risk & Feeds · `pipeline` = Council & Pipeline · `book` · `edge` ·
+`reach` · `curation` = Tools). The Overview is *what changed since yesterday*: the status line, three tiles
+(book · last council session · month-to-date spend vs the tripwire), the session's decisions with the
+per-name conviction **streak** and the tri-criteria "why nothing passes" legs, the open position with its
+running P&L, the gate-rich canary's iv/rv trend, the feed wires, and the compact T4 road. Three panels were
+added to the data layer for it — `session` (`dd.council_session_panel`), `spend` (`dd.spend_panel`) and
+`canary` (`dd.canary_panel`) — all read-only and hand-check tested; `funnel_panel` now anchors to the latest
+COUNCIL session (it was pinned to the last run that reached the gate), `reserve_panel` buckets `fairness`,
+and `data_gathered_panel` carries an `accruing` flag. Research instruments (null-book walk, forward-catalyst
+channel, cheapness-watch) live collapsed under Council & Pipeline. The mobile layout (`mobile/`) still renders
+the previous section set over the same ViewModel.
+
 ## Dev (two processes, hot reload)
 ```bash
 # 1) API (from the repo ROOT so themes.json/config.json resolve):

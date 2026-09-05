@@ -33,7 +33,7 @@ export interface CouncilRecentRun {
 export interface PositionRow {
   id: number; symbol: string; direction: string; contract_symbol: string; status: string;
   dte: number | null; contracts: number; total_premium: number; mark: number | null;
-  origin_conviction: string | null;
+  origin_conviction: string | null; opened_at?: string | null;
   theme: string | null; // emitted by positions_panel (dashboard_data.py SELECT p.theme)
 }
 
@@ -87,13 +87,20 @@ export interface Snapshot {
     legs?: { n_deliberated: number; structural: number; under_narrated: number; at_inflection: number };
   };
   gate_reasons: { iv_gate: { total: number; fail_closed_missing_data: number; real_veto: number }; eligibility_vetoes: number };
-  positions: { real_open: PositionRow[]; counts: { real: number; shadow: number } };
+  positions: {
+    real_open: PositionRow[]; counts: { real: number; shadow: number };
+    real_closed?: { id: number; symbol: string; realized_pnl: number | null; closed_at: string | null }[];
+    pending?: unknown[]; shadow_open?: unknown[]; nogate_3A_open?: unknown[]; nogate_3B_open?: unknown[]; shares?: unknown[];
+  };
   sentinels: { active: SentinelRow[]; active_n: number; dormant: number };
   market_ctx: {
     open_positions: { symbol: string; contract: string; dte: number | null; moneyness: number | null; mark_over_entry: number | null; marked_at: string | null }[];
     universe_iv_rv: { n: number; p50?: number }; universe_otm_skew: { n: number; p50?: number };
   };
-  data_gathered: { chain_snapshots: { symbols: number; latest: string | null }; bar_coverage_symbols: number };
+  data_gathered: {
+    chain_snapshots: { symbols: number; latest: string | null; names?: string[] }; bar_coverage_symbols: number;
+    latest_age_days?: number | null; accruing?: boolean; // honesty flags (dashboard_data.data_gathered_panel)
+  };
   t4: { conditions: { id: number; name: string; checkable: boolean; verdict: T4Verdict; detail: string }[]; note: string };
   // Panels below are always emitted by load_all but may be replaced by {error} (dd.safe), so they are typed
   // optional — the adapter must guard. (C: now rendered. regime/curation remain on the wire, not rendered.)
@@ -109,8 +116,35 @@ export interface Snapshot {
   regime?: unknown;
   curation?: unknown;
   cheapness?: CheapnessPanel;
+  session?: SessionPanel;   // the nightly-grade read: the latest council session, per name (council_session_panel)
+  spend?: SpendPanel;       // month-to-date council spend per provider vs the $ tripwire (spend_panel)
+  canary?: CanaryPanel;     // the gate-rich canary's trailing OPRA iv/rv (canary_panel)
   _fatal?: string;
 }
+
+// council_session_panel: the latest session as the operator grades it — per-name roles + weakest point +
+// slate provenance + a per-name conviction streak, the profile, the LOW-count history, understudy state.
+export interface SessionRow {
+  symbol: string; direction: string | null; adversary_stance: string | null; conviction: string;
+  structural_vs_fad: string | null; weakest_point: string | null; status: string | null;
+  selection: "reserve" | "rank" | "fairness" | null; proposer_abstained: boolean;
+  streak: { reads: number; low: number; prev: string | null };
+}
+export interface SessionPanel {
+  run_id: number | null; started_at?: string | null; rows: SessionRow[];
+  profile: Record<string, number>;
+  low_history: { run_id: number; started_at: string | null; judged: number; low: number }[];
+  provider_drops: number;
+  understudy: { configured: string | null; fired: number };
+}
+export interface SpendPanel {
+  month: string;
+  providers: { provider: string; mtd_usd: number; cap_usd: number | null; frac: number | null; page_would_fire: boolean }[];
+  total_mtd_usd: number; total_cap_usd: number | null; page_fraction: number; per_cycle_cap_usd: number | null;
+  cumulative: { l0_framer_usd: number; l1_council_usd: number; cumulative_usd: number };
+}
+export interface CanaryPoint { run_id: number; iv_rv: number; otm_skew: number | null; cheap: number | null }
+export interface CanaryPanel { gate_line: number; canaries: { symbol: string; series: CanaryPoint[]; latest: CanaryPoint | null }[] }
 
 // reserve_panel: judged-set provenance (PREREG gate_cheap_reserve §6) — which judged names came via the
 // RESERVE (gate-cheap, salience-truncated) vs the motion RANK. Stamp absent + all-unlabeled = reserve OFF
@@ -118,7 +152,7 @@ export interface Snapshot {
 export interface ReserveSlot { symbol: string; conviction: string | null; status: string | null }
 export interface ReservePanel {
   run_id: number | null; stamp: string | null;
-  reserve: ReserveSlot[]; rank: ReserveSlot[]; unlabeled: ReserveSlot[];
+  reserve: ReserveSlot[]; rank: ReserveSlot[]; fairness?: ReserveSlot[]; unlabeled: ReserveSlot[];
 }
 // forward_catalyst_panel: the channel's observability (frozen prereg §4/§6/§8) — the capability stamp +
 // the latest cycle's anti-silent-dormancy counters, the operator's pinned items, and the M-sample ledger
@@ -165,8 +199,8 @@ export interface NullHierarchy {
 // gate_dualread_report: the §5 OPRA dual-read soak surface.
 export interface DualRead {
   sessions: { run_id: number; names: number; median_d_ivrv: number | null; max_d_ivrv: number | null;
-    flips: string[]; material_flips: string[]; coverage_gaps: string[];
-    opra_coverage: number | null; indicative_coverage: number | null }[];
+    flips: string[]; material_flips: string[]; coverage_gaps: string[]; wing_mismatch?: string[];
+    opra_wing?: string[]; opra_coverage: number | null; indicative_coverage: number | null }[];
   n_sessions_total: number;
   tripwires: { window: number; delta_breach_sessions: number; delta_tripped: boolean;
     flip_sessions: number; flip_tripped: boolean; flip_floor: number;
@@ -199,8 +233,8 @@ export interface DeliberationRow {
 export type BeatKey = "kill" | "cycle" | "council" | "discovery" | "schema";
 export interface BookCI { n: number; p95: number | null }
 export interface ClusterVM { name: string; premium: number; cap: number; dirs: string }
-export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; mark: number | null }
-export interface SentinelVM { symbol: string; basket?: string; note: string }
+export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; premiumUsd: number; mark: number | null; opened: string | null }
+export interface SentinelVM { symbol: string; basket?: string; dir?: string; note: string }
 export interface T4ItemVM { id: number; name: string; detail: string; verdict: T4Verdict; state: DisplayState }
 export interface ProviderVM { provider: string; calls: number; parseError: number; rate: number | null }
 export interface NullStepVM { name: string; clean: boolean; bundled: string | null; censored: number | null; arms: { label: string; ci: BookCI }[] }
@@ -219,7 +253,24 @@ export interface DualReadRuntimeVM {
   paging: string[]; suppressed: string[];   // debounce split across the debounced classes (name (class))
 }
 export interface DeliberationVM { runId: number | null; rows: { symbol: string; dir: string | null; adversary: string | null; conviction: string | null }[] }
-export interface ReserveSlotVM { symbol: string; conviction: string; status: string; via: "reserve" | "rank" | "unlabeled" }
+export interface ReserveSlotVM { symbol: string; conviction: string; status: string; via: "reserve" | "rank" | "fairness" | "unlabeled" }
+// The nightly-grade read (session · spend · canary) — flat render shapes.
+export interface SessionRowVM {
+  symbol: string; dir: string; adversary: string; conviction: string; via: "reserve" | "rank" | "fairness" | "—";
+  weakest: string; streak: string; // "LOW ×4 of 5" · "LOW → NEUTRAL" · "proposer abstained" · "1 read"
+}
+export interface SessionVM {
+  runId: number | null; startedAt: string | null; rows: SessionRowVM[];
+  profile: { level: string; n: number }[];      // NEUTRAL/LOW/MODERATE+ counts (MODERATE+ folded)
+  lowHistory: { runId: number; day: string; low: number; judged: number }[];
+  providerDrops: number; understudy: { configured: string | null; fired: number };
+  cleanLine: string;                             // "31 of 32 sessions clean" from the recent window
+}
+export interface SpendRowVM { provider: string; mtd: string; cap: string | null; frac: number | null; page: boolean }
+export interface SpendVM { month: string; rows: SpendRowVM[]; totalMtd: string; totalCap: string | null; cumulative: string; framer: string; perCycleCap: string | null; anyPage: boolean }
+export interface CanaryVM { symbol: string; latest: number | null; skew: number | null; cheap: boolean | null; series: number[]; gateLine: number; trend: string }
+export interface DataAccrualVM { symbols: number; latest: string; ageDays: number | null; accruing: boolean; barSymbols: number; names: string[] }
+export interface BooksOpenVM { real: number; shadow: number; a3: number; basket: number; shares: number }
 export interface ReserveVM { runId: number | null; stamp: string | null; slots: ReserveSlotVM[] }
 export interface AttemptRowVM { idx: number; symbol: string; origin: string; outcome: string; premium: number | null }
 export interface AttemptsVM { runId: number | null; books: { book: string; rows: AttemptRowVM[] }[] }
@@ -241,7 +292,7 @@ export interface ViewModel {
   equitySeries: { day: string; equity: number }[];
   bookDD: string; bookDDlevel: Level; openN: number; maxN: number; openPrem: string;
   council: {
-    verdict: string; vlevel: Level; runId: number | null; roundtrips: number;
+    verdict: string; vlevel: Level; runId: number | null; roundtrips: number; strategistAbstained: number;
     parseFail: number; parseCalled: number; cost: string; streak: string; models: string;
     byProvider: ProviderVM[];          // C — per-provider parse health (scoped to the latest run)
   };
@@ -262,8 +313,9 @@ export interface ViewModel {
   brier: { strategist: number | null; n: number; roles: { label: string; value: number | null }[] };
   funnel: {
     runId: number | null; proposed: number; evaluated: number; opened: number; wasted: string;
-    council: { asserted: number; ungrounded: number; abstained: number; toGate: number; floor: string };
+    council: { asserted: number; ungrounded: number; abstained: number; toGate: number; floor: string; aboveFloor: number; criteriaVetoed: number };
     gate: { ivTotal: number; ivReal: number; ivFail: number; elig: number };
+    legs: { n: number; structural: number; underNarrated: number; atInflection: number } | null; // the §10.7 tri-criteria
   };
   universe: { ivrv: string; skew: string; n: number };
   positions: PositionVM[]; openCount: number; openPrem2: string;
@@ -272,6 +324,13 @@ export interface ViewModel {
   t4: T4ItemVM[]; readiness: { pass: number; checkable: number; accruing: number };
   edgeAccrual: { n: number; target: number }; phasePct: string; phaseSub: string;
   cheapness: CheapnessPanel | null;   // finding #1's instrument (PREREG_CHEAPNESS_WATCH)
+  session: SessionVM;                 // the latest council session, as graded nightly
+  spend: SpendVM;                     // month-to-date spend vs the per-provider tripwire
+  canary: CanaryVM | null;            // the gate-rich canary (NVDA) iv/rv trend
+  wingMismatch: string[];             // latest dual-read session's wing-mismatch names (boundary class)
+  dataAccrual: DataAccrualVM;         // chain-snapshot store, with the honesty flag
+  booksOpen: BooksOpenVM;             // open counts across the five books
+  firstEntry: string | null;          // earliest real entry (opened_at) — the edge timeline anchor
 }
 
 /** Props the desktop console + mobile app both receive from <App> (one fetch, two layouts). */
