@@ -34,3 +34,17 @@ future window.
 
 Premise-currency caveat stands: at any executing admission, the sympathy-pop question is
 re-checked at that day's read.
+
+## Weekly read #3 — 2026-09-06 (Sunday, PROVISIONAL quote)
+
+| read | wing | $/contract | achOTM | dte | verdict |
+|---|---|---|---|---|---|
+| 08-24 in-window | BNTX270521C00125000 | $1,185 | — | — | HELD (over cap) |
+| 08-30 provisional | — | $1,140 | — | — | over cap |
+| **09-06 provisional** | BNTX270521C00125000 | **$1,165** | 20.5% | 257 | **over cap — 3rd consecutive read** |
+
+The name has now sat $140–$185 over the $1,000 per-name cap on every read since the word.
+Per the cadence rule above, the standing admission word is treated as **lapsed-by-drift on
+2026-09-13** unless the 09-13 provisional read (or an in-window Tue 09-08+ read) prints a fittable
+contract; a later admission would need a fresh word on a fresh screen. No cap-line camping —
+this is the weekly Sunday read only. (Recorded by CC on the operator's standing weekly cadence.)
