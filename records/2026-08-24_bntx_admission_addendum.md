@@ -48,3 +48,19 @@ Per the cadence rule above, the standing admission word is treated as **lapsed-b
 2026-09-13** unless the 09-13 provisional read (or an in-window Tue 09-08+ read) prints a fittable
 contract; a later admission would need a fresh word on a fresh screen. No cap-line camping —
 this is the weekly Sunday read only. (Recorded by CC on the operator's standing weekly cadence.)
+
+## Weekly read #4 — 2026-09-13 (Sunday, PROVISIONAL quote) → the word LAPSES by drift
+
+| read | wing | $/contract | achOTM | dte | verdict |
+|---|---|---|---|---|---|
+| 08-24 in-window | BNTX270521C00125000 | $1,185 | — | — | HELD (over cap) |
+| 08-30 provisional | — | $1,140 | — | — | over cap |
+| 09-06 provisional | BNTX270521C00125000 | $1,165 | 20.5% | 257 | over cap |
+| **09-13 provisional** | BNTX270820C00120000 | **$1,325** | 24.1% | 341 | **over cap — 4th consecutive read** |
+
+Four consecutive reads over the $1,000 per-name cap; the drift widened ($1,185 → $1,325).
+Per the cadence rule pinned above, the 2026-08-23 admission word ("let's admit BNTX") is
+**treated as lapsed-by-drift as of 2026-09-13**. BNTX stays parked in `probe_themes.json`
+(the mrna_oncology_platform staged thesis is unchanged); a future admission needs a fresh
+word on a fresh in-window screen. No cap-line camping — this closes the weekly reads.
+(Recorded by CC on the operator's standing weekly cadence.)
