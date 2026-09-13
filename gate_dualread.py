@@ -40,12 +40,18 @@ def disagree_veto_active(config: dict, as_of: date) -> bool:
 
 
 def shadow_gate_eval(provider, *, symbol: str, direction: str, rv, underlying_price,
-                     gate: dict, eligibility) -> dict:
+                     gate: dict, eligibility, as_of: date | None = None) -> dict:
     """One arm's gate read with the SAME rv/spot as the of-record evaluation (isolates the option
-    feed). Returns a row dict; an exception is the CALLER's to catch (it becomes a note row)."""
+    feed). Returns a row dict; an exception is the CALLER's to catch (it becomes a note row).
+
+    ``as_of`` is the tenor anchor for ``select_structure`` (dte = expiry − as_of). The sweep passes
+    its own ``as_of_iso`` date so the read is anchored on the cycle's clock, not the wall clock —
+    live they coincide; under a fixed test clock the wall-clock default silently aged every
+    synthetic contract out of the tenor window (the 2026-09-13 CI failure, 95 days after the
+    fixture's AS_OF). Default (None) keeps the wall-clock behaviour for legacy callers."""
     chain = provider.chain(symbol)
     s, why = select_structure(
-        chain, direction=direction, as_of=datetime.now().astimezone().date(),
+        chain, direction=direction, as_of=as_of or datetime.now().astimezone().date(),
         underlying_price=underlying_price,
         underlying_symbol=symbol,
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
@@ -93,6 +99,7 @@ def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, pr
                    market_closes, gate: dict, eligibility, skip: set[str] | None = None) -> dict:
     """The §5 tripwire-population sweep (post-entries, fail-soft). ``market_closes(sym)`` supplies
     the closes for RV; ``skip`` = names already dual-read inline this run. Returns counts."""
+    sweep_as_of = date.fromisoformat(str(as_of_iso)[:10])  # the cycle's clock anchors the tenor read
     from convexity_gate import realized_vol
 
     skip = {s.upper() for s in (skip or set())}
@@ -123,7 +130,7 @@ def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, pr
                                    ("indicative", provider_shadow, "shadow_ok")):
             try:
                 row = shadow_gate_eval(prov, symbol=sym, direction=direction, rv=rv,
-                                       underlying_price=spot, gate=gate, eligibility=eligibility)
+                                       underlying_price=spot, gate=gate, eligibility=eligibility, as_of=sweep_as_of)
                 record_arm(conn, run_id=run_id, as_of_iso=as_of_iso, symbol=sym, feed=feed,
                            source="sweep", row=row)
                 if row.get("structured"):
