@@ -65,3 +65,24 @@ in-window read; the operator's 09-06 word stands for SARO through that recheck.
 3. `universe_register.json` += `themes.design_software_ai` + `windows.7` (with the SARO
    near-miss ledger entry).
 4. This record + the 09-06 theses draft (committed as the provenance trail).
+
+## SARO recheck — 2026-09-13 provisional + 2026-09-14 in-window → the word LAPSES for SARO
+
+| read | wing | $/contract | achOTM | dte | verdict |
+|---|---|---|---|---|---|
+| 09-06 provisional | SARO270416C00030000 | $142 | 20.9% | 222 | in band (marks) |
+| 09-08 13:38 / 13:41 / 15:07 | SARO270416C00022500 | $470 / $470 / $455 | −9.0 / −8.5 / −8.5% | 220 | ITM fallback ✗ |
+| 09-13 provisional | SARO270416C00025000 | $285 | 4.0% | 215 | out of band ✗ |
+| **09-14 15:07 UTC (last read)** | SARO270416C00020000 | $545 | **−15.9% ITM** | 214 | **out of band ✗** |
+
+Five live reads, five fallbacks — and the fallback is drifting deeper in-the-money as spot
+slips ($24.71 → $23.78) while the C25/C30 April-2027 strikes never carry an eligible two-sided
+quote in session. This is not a cap-line flicker; it is a 2024-IPO chain that is still too
+thin at the long tenor to express a 15–35% OTM wing (calibration finding #3: a far-from-25%
+structure is a different payoff object — an in-the-money call is not the convexity the
+mandate buys). Per the recheck door pinned in `universe_register.json windows.7`, the
+operator's 2026-09-06 admission word is **treated as lapsed for SARO as of 2026-09-14**.
+`aviation_mro` stays an adopted thesis without an expression (no basket, no cluster, no
+register theme — the window-5 convention). A later admission needs a fresh word on a fresh
+in-window screen; the natural recheck is chain maturation (more strikes quoted at tenor) or
+the quarterly tenor glance. (Recorded by CC on the operator's standing cadence.)
