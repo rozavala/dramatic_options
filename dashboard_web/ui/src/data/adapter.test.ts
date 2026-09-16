@@ -407,7 +407,7 @@ describe("fromBackend — the nightly-grade read", () => {
   it("maps the canary series oldest→newest with a trend, and the data-accrual honesty flag", () => {
     const vm = fromBackend(withSession());
     expect(vm.canary).toEqual({ symbol: "NVDA", latest: 1.0444, skew: -0.8, cheap: true, series: [1.0184, 1.0444], gateLine: 1.2, trend: "up" });
-    expect(vm.dataAccrual).toEqual({ symbols: 2, latest: "2026-07-01", ageDays: 65.4, accruing: false, barSymbols: 0, names: ["PL", "RKLB"] });
+    expect(vm.dataAccrual).toEqual({ symbols: 2, latest: "2026-07-01", ageDays: 65.4, accruing: false, barSymbols: 0, names: ["PL", "RKLB"], baseline: null });
   });
 
   it("counts the five books' open rows and anchors the edge timeline on the first real entry", () => {

@@ -317,6 +317,11 @@ export function fromBackend(P: Snapshot): ViewModel {
   const dataAccrual: DataAccrualVM = {
     symbols: cgs.symbols ?? 0, latest: String(cgs.latest ?? DASH).slice(0, 10), ageDays: dg.latest_age_days ?? null,
     accruing: dg.accruing ?? false, barSymbols: dg.bar_coverage_symbols ?? 0, names: cgs.names ?? [],
+    baseline: dg.iv_baseline_of_record ? {
+      rows: dg.iv_baseline_of_record.rows ?? 0, symbols: dg.iv_baseline_of_record.symbols ?? 0,
+      sessions: dg.iv_baseline_of_record.sessions ?? 0, latest: String(dg.iv_baseline_of_record.latest ?? DASH).slice(0, 10),
+      ageDays: dg.iv_baseline_of_record.latest_age_days ?? null, accruing: dg.iv_baseline_of_record.accruing ?? false,
+    } : null,
   };
   const booksOpen: BooksOpenVM = {
     real: (ps.real_open ?? []).length, shadow: (ps.shadow_open ?? []).length, a3: (ps.nogate_3A_open ?? []).length,

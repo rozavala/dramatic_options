@@ -80,7 +80,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "null_attempts": dd.safe(dd.null_attempts_panel, conn),
             "reserve": dd.safe(dd.reserve_panel, conn),
             "curation": dd.safe(dd.curation_panel, conn, config, market),
-            "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir),
+            "data_gathered": dd.safe(dd.data_gathered_panel, cache_dir, conn=conn),
             "forward_catalysts": dd.safe(dd.forward_catalyst_panel, conn, config),
             "session": dd.safe(dd.council_session_panel, conn, config),
             "spend": dd.safe(dd.spend_panel, conn, config),

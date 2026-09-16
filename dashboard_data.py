@@ -1094,10 +1094,15 @@ def curation_panel(conn, config: dict, market=None) -> dict:
 DATA_ACCRUING_MAX_AGE_DAYS = 7  # a chain-snapshot store older than a week is NOT "building up over time"
 
 
-def data_gathered_panel(cache_dir: str | Path, *, now: datetime | None = None) -> dict:
-    """Chain-snapshot coverage (the forward IV baseline) by listing ``<cache>/option_chain_snapshot/`` + bar
-    coverage. Read-only filesystem listing; never fetches. ``latest_age_days`` + ``accruing`` make the card
-    honest: the live store stopped after the first entry (2026-07-01) while the card kept saying "accruing"."""
+def data_gathered_panel(cache_dir: str | Path, *, now: datetime | None = None, conn=None) -> dict:
+    """Chain-snapshot coverage + the IV baseline OF RECORD. Read-only; never fetches.
+
+    The ``option_chain_snapshot`` store is written by ``paper_loop`` on the ENTRY-EVALUATION path — i.e.
+    only for names the council sends to the gates. Under the thesis-only council (0 to gates since
+    2026-06-12; last write PL 2026-07-01) it is silent BY ARCHITECTURE, not by breakage (traced
+    2026-09-16). The IV baseline that actually accrues is the nightly ``gate_dualread`` sweep (both
+    arms over the whole universe since 2026-06-10) — reported here as ``iv_baseline_of_record`` when a
+    connection is given. ``latest_age_days`` + ``accruing`` keep the snapshot card honest."""
     now = now or datetime.now(UTC)
     root = Path(cache_dir)
     out: dict[str, Any] = {"cache_dir": str(root), "exists": root.exists()}
@@ -1116,6 +1121,23 @@ def data_gathered_panel(cache_dir: str | Path, *, now: datetime | None = None) -
     age = None if latest_dt is None else max(0.0, (now - latest_dt).total_seconds() / 86400.0)
     out["latest_age_days"] = None if age is None else round(age, 1)
     out["accruing"] = age is not None and age <= DATA_ACCRUING_MAX_AGE_DAYS
+    out["snapshot_writer_note"] = ("entry-path writer (paper_loop) — silent by architecture while the council "
+                                   "sends 0 to gates; the dual-read sweep is the IV baseline of record")
+    out["iv_baseline_of_record"] = None
+    if conn is not None:
+        row = conn.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT symbol), MIN(evaluated_at), MAX(evaluated_at), "
+            "COUNT(DISTINCT substr(evaluated_at, 1, 10)) FROM gate_dualread WHERE feed='opra'"
+        ).fetchone()
+        n, syms, first, latest, sessions = row if row else (0, 0, None, None, 0)
+        ldt = _parse_dt(latest)
+        lage = None if ldt is None else max(0.0, (now - ldt).total_seconds() / 86400.0)
+        out["iv_baseline_of_record"] = {
+            "source": "gate_dualread (opra arm)", "rows": int(n or 0), "symbols": int(syms or 0),
+            "sessions": int(sessions or 0), "first": first, "latest": latest,
+            "latest_age_days": None if lage is None else round(lage, 1),
+            "accruing": lage is not None and lage <= DATA_ACCRUING_MAX_AGE_DAYS,
+        }
     return out
 
 
