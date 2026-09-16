@@ -781,3 +781,51 @@ def test_runner_w29_live_digest_drops_collisions_and_notes_them(tmp_path, capsys
         assert f"- {sym} —" not in screened  # the live false cards are gone entirely
     assert "- BMN — screen unavailable" in screened  # cashtag path untouched
     assert "9 ambiguous ticker-string match(es) dropped" in out  # counted, in ## notes
+
+
+# ── the 2026-W36 homonym fixes: intra-name joiners + syndicated-phrase cross-channel hits ──
+def test_exact_match_ignores_tokens_glued_by_intra_name_joiners():
+    # Live W36: "PG&E" minted PG (Procter & Gamble) — `\b` treats "&" as a word boundary.
+    known = frozenset({"PG", "AT", "SP", "FCX"})
+    titles = ["PG&E sees rising interest in flexible interconnection pilot",
+              "AT&T and the S&P: FCX rallies"]
+    got = {e.symbol for t in titles for e in sc.extract_from_item(_item(t), known=known)}
+    assert got == {"FCX"}
+    # a genuinely standalone token still matches
+    assert {e.symbol for e in sc.extract_from_item(_item("PG raises guidance"), known=known)} == {"PG"}
+
+
+def test_syndicated_phrase_across_channels_does_not_corroborate():
+    # Live W36: "the 21st Century ROAD to Housing Act" rode a newsletter AND an x_lists post by the
+    # same author → 2 channels, 1 story. Same (prev, next) context around the ticker = one mention.
+    items = [
+        _item("How Will the 21st Century ROAD to Housing Act Affect Housing Supply? Part III",
+              channel="newsletters", source="Construction Physics"),
+        _item("This week: my third post on the 21st Century ROAD to Housing Act and supply",
+              channel="x_lists", source="x/grid/_brianpotter"),
+    ]
+    known = frozenset({"ROAD"})
+    titles = {"ROAD": "Construction Partners, Inc."}
+    notes: list[str] = []
+    out = sc.extract_candidates(items, known, titles=titles, notes=notes)
+    assert out == {} and notes and "ROAD(" in notes[0]
+
+
+def test_independent_mentions_of_one_event_still_corroborate():
+    # The UEC/Burke Hollow shape (different contexts around the ticker) must keep working.
+    items = [
+        _item("Burke Hollow startup: UEC confirms first drums", channel="trade_press", source="Wire"),
+        _item("UEC ramping Burke Hollow wellfields", channel="x_lists", source="x/mining/analyst"),
+    ]
+    out = sc.extract_candidates(items, frozenset({"UEC"}), titles={"UEC": "Uranium Energy Corp"}, notes=[])
+    assert set(out) == {"UEC"} and len(out["UEC"]) == 2
+
+
+def test_same_phrase_with_explicit_cashtag_still_counts():
+    # explicit intent (cashtag) is never collapsed by the phrase rule
+    items = [
+        _item("The ROAD Act explained", channel="newsletters", source="A"),
+        _item("$ROAD prints record backlog — the ROAD Act explained", channel="x_lists", source="B"),
+    ]
+    out = sc.extract_candidates(items, frozenset({"ROAD"}), titles={"ROAD": "Construction Partners, Inc."}, notes=[])
+    assert "ROAD" in out

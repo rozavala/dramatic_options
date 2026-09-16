@@ -129,7 +129,12 @@ _EXCHANGES = frozenset({
 # The digest orphan-watch channel's OWN machine-generated title (digest.orphan_new_listings) —
 # a high-precision pattern because we wrote it.
 _ORPHAN_TITLE_RE = re.compile(r"^([A-Z][A-Z0-9]{0,4}(?:[.-][A-Z]{1,2})?): options class now listed")
-_UPPER_TOKEN_RE = re.compile(r"\b[A-Z]{2,5}\b")
+# ALL-CAPS 2–5 letter token. The neighbours may NOT be alphanumerics OR the intra-name joiner
+# ``&`` — the live W36 card minted PG (Procter & Gamble) from "PG&E" because ``\b`` treats ``&``
+# as a word boundary (the same class would mint AT from "AT&T" or a half of "S&P"). Hyphens stay
+# boundaries on purpose: "Soyuz MS-29"-class hits are extracted and then DROPPED by corroboration
+# (the W29 rule), which keeps them visible in the ambiguous-drop note for the false-negative audit.
+_UPPER_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9&])[A-Z]{2,5}(?![A-Za-z0-9&])")
 
 # The digest markdown item line (digest._item_line): "- <when> — <title>[ — <link>]".
 _ITEM_LINE_RE = re.compile(r"^- (?P<when>\d{4}-\d{2}-\d{2} \d{2}:\d{2}Z|undated) — (?P<rest>.+)$")
@@ -284,6 +289,46 @@ def _distinctive_name_tokens(title: str | None) -> frozenset[str]:
     return frozenset(t for t in toks if len(t) >= 4 and t not in _NAME_GENERIC_TOKENS)
 
 
+_CONTEXT_TOKEN_RE = re.compile(r"[A-Za-z0-9&]+")
+
+
+def _ticker_context(title: str, symbol: str) -> tuple[str, str] | None:
+    """The (previous, next) word around the FIRST standalone occurrence of ``symbol`` in the
+    title, lowercased ("" at an edge). None when the symbol is not a standalone token."""
+    toks = _CONTEXT_TOKEN_RE.findall(title)
+    for i, t in enumerate(toks):
+        if t == symbol:
+            return (toks[i - 1].lower() if i else "", toks[i + 1].lower() if i + 1 < len(toks) else "")
+    return None
+
+
+def _distinct_story_channels(exs: list[Extraction], symbol: str) -> int:
+    """Channels counted over DISTINCT STORIES (the 2026-W36 homonym fix). The cross-channel rule
+    assumes two channels carrying a ticker-shaped string are independent evidence — but one
+    phrase syndicated across channels is not: the live W36 card minted ROAD (Construction
+    Partners) from "the 21st Century ROAD to Housing Act" riding a newsletter AND an x_lists
+    post by the same author. Exact-match items whose ticker sits inside the SAME two-word
+    context (previous word, next word) are one story and contribute one channel between them.
+    Genuinely independent mentions of one event keep their channels ("Burke Hollow startup: UEC
+    confirms…" vs "UEC ramping Burke Hollow…" differ in context). Cashtag / exchange-
+    parenthetical / orphan items carry explicit intent and always count."""
+    channels: set[str] = set()
+    seen_context: dict[tuple[str, str], str] = {}  # context → the channel that first carried it
+    for ex in exs:
+        if ex.method != "exact_match":
+            channels.add(ex.channel)
+            continue
+        ctx = _ticker_context(ex.title, symbol)
+        if ctx is None or ctx == ("", ""):
+            channels.add(ex.channel)
+            continue
+        if ctx in seen_context:
+            continue  # the same phrase on another channel — syndication, not a second mention
+        seen_context[ctx] = ex.channel
+        channels.add(ex.channel)
+    return len(channels)
+
+
 def _short_quote(title: str, limit: int = 48) -> str:
     """A short item-title quote for the ambiguous-drop note (operator false-negative audit)."""
     t = " ".join(title.split())
@@ -337,7 +382,7 @@ def extract_candidates(
                        if ex.method == "exact_match" and ex.channel in PROSE_CHANNELS]
         if not prose_exact:
             continue
-        if len({ex.channel for ex in exs}) >= 2:
+        if _distinct_story_channels(exs, symbol) >= 2:
             continue  # repeated independent (cross-channel) mention corroborates the week
         name_tokens = _distinctive_name_tokens((titles or {}).get(symbol))
         kept = [ex for ex in prose_exact
