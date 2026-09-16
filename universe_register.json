@@ -113,6 +113,17 @@
         "machine_surfaced_machine_drafted (reach W35): surfaced via TWO distinct channels — trade_press/AviTrader MRO (Apollo joins KKR as Atlantic Aviation investor, 2026-08-28) + newsletters/Energy Storage News (KKR/HMC Australian BESS 90% equity financing) — the charter's ≥2-distinct-channels corroboration bar; card drafted by reach.drafter (gemini-3.1-flash-lite, $0.0008); operator ADOPTED with 'let's include KKR' (2026-08-30) — informed adoption, true form in records/2026-08-31_kkr_window6_admission.md"
       ],
       "cluster_default": "alt_capital_deployment"
+    },
+    "design_software_ai": {
+      "provenance": "operator",
+      "added": "2026-09-08 (window #7, off-cycle — the Sept tenor recheck's first admission)",
+      "thesis": "AI-native design/collaboration platform whose fundamentals are RE-ACCELERATING while the stock has round-tripped its IPO froth (2025 IPO at $33 → >$120 → ~$23 today, ~−80% from the peak). Q2-2026 revenue $370.1M +48% y/y — the third straight quarter of accelerating growth — on the first full quarter of AI-credit monetization; net dollar retention 136%; FY-2026 guidance raised to $1.463–1.467B (+39% at the midpoint); Q3 guide +36%; gross-profit growth accelerated to 40% (company release 2026-08-05). The price/fundamentals divergence — a busted-IPO tape on an accelerating business — is the convexity setup; software re-rates discontinuously when re-acceleration is believed. PINNED CAVEATS (this is NOT a copper-not-rockets name): heavily narrated — under_narrated will very likely FAIL at the council (the MRK/KKR precedent; that is the seam working, not a reason to skip admission); the growth base is AI-credit add-ons of unproven durability; SBC-heavy; lock-up/secondary supply. Admission is feasibility-only — cheapness and momentum are forbidden criteria; the council judges.",
+      "falsifier": "Q3-2026 (reported ~Nov-2026) revenue growth < 30% y/y, or net dollar retention < 120% = the re-acceleration story is over. (AI-drafted 2026-09-06 under the operator's admission delegation, operator-adopted by the 09-06 word — the 2026-07-07 falsifier-pin precedent.)",
+      "sources": [
+        "FIG entered via the window-3 orphan_new_listings watch (2026-08-03, tenor-less: a July-2025 IPO); Sept tenor recheck 2026-09-06 (provisional $470/24.4%/257d); operator word 'let's admit those FIG and SARO' (2026-09-06); thesis CC-drafted 2026-09-06 (records/2026-09-06_window7_fig_saro_theses_DRAFT.md) — true form: AI-drafted, operator-adopted, never a blind pin",
+        "Q2-2026 results: investor.figma.com news release 2026-08-05 (+48% revenue, NDR 136%, FY guide raised)"
+      ],
+      "cluster_default": "design_software_ai"
     }
   },
   "windows": {
@@ -276,6 +287,36 @@
       },
       "vetoed": {},
       "notes": "One NEW cluster (alt_capital_deployment — a financial-platform/deployment-cycle driver shared with no real-asset cluster) = TWELVE clusters; the book still fills at most 5. KKR enters the discovery scan baskets only (universe 43→44); first scan = the 2026-09-06 L0; funnel/council judge, gates/caps dispose. Diversified-mega-cap + decelerating-quarterly caveats pinned in the register thesis; the card's Q3-10-Q <5% falsifier is the crisp kill. The milestone datum: the 08-23 channel batch produced this survivor in its FIRST week (two of the five new channels corroborating)."
+    },
+    "7": {
+      "date": "2026-09-08",
+      "rule": "PREREG_UNIVERSE_CURATION §11 OFF-CYCLE admission — the Sept tenor recheck's first admission. Operator word 2026-09-06 ('let's admit those FIG and SARO') on the provisional Sunday read; the in-window screen governs (Mon 09-07 Labor Day → Tue 09-08). THREE in-window reads tabulated (13:38 · 13:41 · 15:07 UTC — the 15:07 read pre-declared the LAST of the day, anti-camping)",
+      "screen_records": [
+        "records/2026-09-08_window7_fig_saro_admission.md"
+      ],
+      "admitted": {
+        "FIG": {
+          "basket": "design_software_ai",
+          "sources": [
+            "window-3 orphan_new_listings watch → Sept tenor recheck (2026-09-06) → operator word 2026-09-06; thesis AI-drafted 2026-09-06, operator-adopted"
+          ],
+          "per_contract_usd": 375,
+          "achieved_otm_pct": 28.7,
+          "tag": "rule",
+          "screen": "FIG270416C00030000 · dte 220 · 28.7% achieved OTM · $375 ≤ $1,000 cap · spread 8% · ADV $382.6M (in-window 2026-09-08 15:07 UTC) — the 13:38/13:41 reads selected FIG270521C00025000 8.4%/8.0% OTM $575 (the in-band C30 strikes carried no eligible two-sided quote in the first minutes after the open → selector fallback to the nearest quoted strike); provisional 09-06 read $470/24.4% (C30 May-2027) — the expression re-emerged once the long-dated strikes quoted",
+          "operator": "'let's admit those FIG and SARO' (2026-09-06, on the Sept tenor-recheck survivors + the CC-drafted thesis presented the same day — informed adoption)"
+        }
+      },
+      "vetoed": {},
+      "near_miss": {
+        "SARO": {
+          "basket": "aviation_mro (thesis operator-adopted 2026-08-20; NO register theme until an expression exists — the window-5 convention: no empty baskets)",
+          "reads": "provisional 09-06 SARO270416C00030000 $142/20.9%/222d (in band) → in-window 13:38 SARO270416C00022500 $470/−9.0% ITM · 13:41 $470/−8.5% · 15:07 $455/−8.5% ITM — band FAIL on all three in-window reads",
+          "why": "the in-band strikes (C25/C30 Apr-2027) never carried an eligible two-sided quote during the session — a 2024-IPO chain still too thin at the long tenor (the coarse-chain class; calibration finding #3: a far-from-25% structure is a different payoff object). The selector fell back to the nearest quoted strike, which is in-the-money",
+          "recheck_door": "Sun 2026-09-13 provisional read + Mon 2026-09-14 in-window read; the operator's 09-06 word stands for SARO through that recheck (no fresh word needed if it prints in band)"
+        }
+      },
+      "notes": "One NEW cluster (design_software_ai — a software-platform driver shared with no existing cluster) = THIRTEEN clusters; the book still fills at most 5; cluster_fraction 0.02 unchanged. FIG enters the discovery scan baskets only (universe 44→45); first scan = the 2026-09-13 L0; funnel/council judge, gates/caps dispose. SARO = near-miss (recorded, not admitted — the CF/AIR precedent); aviation_mro stays a thesis without an expression. Pinned honestly: FIG is the LEAST copper-not-rockets name in the universe — heavily narrated; the council's under_narrated leg is expected to veto it, and that outcome is a datum about the seam, not a failure of the admission. Method note: the FIRST in-window read is not automatically the read of record — quote eligibility at the open can select an out-of-band fallback for thin long-dated chains; a pre-declared LAST read of the day governs, and no re-reads follow it."
     }
   }
 }
