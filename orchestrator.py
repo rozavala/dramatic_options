@@ -43,7 +43,12 @@ from config_loader import (
 from config_loader import (
     frame_version as compute_frame_version,
 )
-from convexity_data import AlpacaChainProvider, AlpacaQuoteProvider, SyntheticChainProvider
+from convexity_data import (
+    DEFAULT_MARK_FAILURE_BUDGET,
+    AlpacaChainProvider,
+    AlpacaQuoteProvider,
+    SyntheticChainProvider,
+)
 from council.router import BudgetExceeded, FakeRouter, RouterError, build_router
 from council.wiring import council_to_themes
 from discovery import MarkerParams, scan_baskets
@@ -685,7 +690,10 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             # date-gated disagree-veto) and every failure is a recorded coverage-guard row.
             shadow_gate_provider = AlpacaChainProvider(
                 client, equity_feed=equity_feed, option_feed=to_option_feed("indicative"))
-            quote_provider = AlpacaQuoteProvider(client, option_feed=monitor_feed)
+            quote_provider = AlpacaQuoteProvider(
+                client, option_feed=monitor_feed,
+                failure_budget=config.get("monitor", {}).get("mark_failure_budget",
+                                                              DEFAULT_MARK_FAILURE_BUDGET))
             # Broker: REAL-MONEY only under the triple-gate; else the paper endpoint (DRY_RUN
             # logs-and-simulates in BOTH). PREREG_REAL_MONEY_BROKER §2.
             broker = _select_broker(config, is_live=is_live, api_key=api_key, secret_key=secret_key,

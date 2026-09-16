@@ -15,12 +15,16 @@ use fakes/Synthetic.
 
 from __future__ import annotations
 
+import logging
 import math
 from datetime import date, datetime, timedelta
 from typing import Protocol
 
 from convexity_gate import Contract
 from options_tradability import parse_osi
+
+log = logging.getLogger(__name__)
+DEFAULT_MARK_FAILURE_BUDGET = 3
 
 SNAPSHOT_SOURCE = "option_chain_snapshot"
 
@@ -140,18 +144,42 @@ class AlpacaQuoteProvider:
     no-historical-options wall (PREREG §4). Caches one chain pull per underlying per call-set.
     """
 
-    def __init__(self, client, *, option_feed=None) -> None:  # noqa: ANN001 — AlpacaClient, duck-typed
+    def __init__(self, client, *, option_feed=None,  # noqa: ANN001 — AlpacaClient, duck-typed
+                 failure_budget: int | None = DEFAULT_MARK_FAILURE_BUDGET) -> None:
         self._client = client
         self._option_feed = option_feed  # alpaca OptionsFeed (L2 marks); None → client default (INDICATIVE)
         self._cache: dict[str, dict[str, tuple[float | None, float | None]]] = {}
+        # Mark budget (the 2026-09-11 Alpaca-outage lesson): during a provider outage EVERY chain
+        # pull times out (~21s each), and 39 shadow marks × 21s blew the L2 unit's TimeoutStartSec
+        # → a unit kill + a page for what was only stale marks. After ``failure_budget`` CONSECUTIVE
+        # chain-pull failures the provider trips: the remaining marks this run return None (counted
+        # ``unmarked`` by every monitor, a warning) instead of each paying the timeout. Positions stay
+        # unmarked, never mis-marked; exits never fire on a None. A success resets the streak.
+        # ``None`` disables the breaker. One provider is built per run, so the trip is per-run.
+        self._failure_budget = failure_budget
+        self._consecutive_failures = 0
+        self.tripped = False
+        self.skipped = 0
 
     def _underlying_quotes(self, underlying: str) -> dict[str, tuple[float | None, float | None]]:
-        if underlying not in self._cache:
-            kw = {} if self._option_feed is None else {"feed": self._option_feed}
+        if underlying in self._cache:
+            return self._cache[underlying]
+        if self.tripped:
+            self.skipped += 1
+            return {}
+        kw = {} if self._option_feed is None else {"feed": self._option_feed}
+        try:
             quotes = self._client.option_quote_tuples(underlying, **kw)
-            self._cache[underlying] = {
-                q["symbol"]: (q.get("bid"), q.get("ask")) for q in quotes
-            }
+        except Exception as e:
+            self._consecutive_failures += 1
+            if self._failure_budget is not None and self._consecutive_failures >= self._failure_budget:
+                self.tripped = True
+                log.warning("mark budget exhausted: %d consecutive chain-pull failures (last %s: %s) — "
+                            "remaining marks this run are skipped (left unmarked, never mis-marked)",
+                            self._consecutive_failures, underlying, e)
+            raise
+        self._consecutive_failures = 0
+        self._cache[underlying] = {q["symbol"]: (q.get("bid"), q.get("ask")) for q in quotes}
         return self._cache[underlying]
 
     def option_mid(self, contract_symbol: str) -> float | None:
