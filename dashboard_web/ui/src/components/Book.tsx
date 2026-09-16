@@ -106,15 +106,22 @@ export function Book({ vm }: { vm: ViewModel }) {
             <Row label={<>Shares <Muted>linear, descriptive</Muted></>} value={bo.shares} />
           </Card>
 
-          <Card style={{ padding: "18px 20px", borderColor: da.accruing ? "#cbd0da" : signal.warn.border }}>
+          <Card style={{ padding: "18px 20px", borderColor: (da.baseline?.accruing ?? da.accruing) ? "#cbd0da" : signal.warn.border }}>
             <div className="flex justify-between items-center">
-              <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>Data accrual <Muted>· chain-snapshot store</Muted></div>
-              <Chip level={da.accruing ? "ok" : da.symbols ? "warn" : "mute"}>{da.accruing ? "accruing" : da.symbols ? "not accruing" : "empty"}</Chip>
+              <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>IV baseline <Muted>· the record the gate accrues</Muted></div>
+              <Chip level={da.baseline ? (da.baseline.accruing ? "ok" : "warn") : (da.accruing ? "ok" : da.symbols ? "warn" : "mute")}>
+                {da.baseline ? (da.baseline.accruing ? "accruing" : "stale") : (da.accruing ? "accruing" : da.symbols ? "not accruing" : "empty")}
+              </Chip>
             </div>
             <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 8 }}>
-              {da.accruing ? "The forward IV baseline the gate will read against." : "The snapshot store has not written in over a week — it is not building an IV baseline."}
+              {da.baseline
+                ? "The nightly dual-read sweep is the IV baseline of record. The entry-path snapshot store below is silent by design while the council sends nothing to the gates."
+                : da.accruing ? "The forward IV baseline the gate will read against." : "The snapshot store has not written in over a week — it is not building an IV baseline."}
             </div>
-            <Row label="Chain snapshots" value={<>{da.symbols} name{da.symbols === 1 ? "" : "s"}{da.names.length ? <Muted> · {da.names.slice(0, 4).join(", ")}</Muted> : null}</>} />
+            {da.baseline ? (
+              <Row label={<>Dual-read rows <Muted>opra arm</Muted></>} value={<>{da.baseline.rows.toLocaleString()} <Muted>· {da.baseline.symbols} names · {da.baseline.sessions} sessions · latest {da.baseline.latest}{da.baseline.ageDays != null ? ` (${Math.round(da.baseline.ageDays)}d)` : ""}</Muted></>} />
+            ) : null}
+            <Row label={<>Chain snapshots <Muted>entry-path store</Muted></>} value={<>{da.symbols} name{da.symbols === 1 ? "" : "s"}{da.names.length ? <Muted> · {da.names.slice(0, 4).join(", ")}</Muted> : null}</>} />
             <Row label="Latest snapshot" value={<span style={{ color: da.accruing || da.ageDays == null ? "#2c3645" : signal.warn.text }}>{da.latest}{da.ageDays != null ? ` · ${Math.round(da.ageDays)}d ago` : ""}</span>} />
             <Row label="Bar coverage" value={`${da.barSymbols} symbols`} />
             <Row label={<>Dual-read sessions <Muted>the live IV record</Muted></>} value={<span style={{ color: signal.ok.text }}>{vm.dualread.sessions}</span>} />

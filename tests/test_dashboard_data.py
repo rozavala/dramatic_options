@@ -830,3 +830,20 @@ def test_data_gathered_accruing_flag(tmp_path):
     assert stale["accruing"] is False and stale["latest_age_days"] == 65.0
     empty = dd.data_gathered_panel(tmp_path / "nope", now=now)
     assert empty["accruing"] is False and empty["latest_age_days"] is None
+
+
+def test_data_gathered_reports_the_iv_baseline_of_record(convexity_db, tmp_path):
+    import state
+    now = datetime.now(UTC)
+    for i, sym in enumerate(("NVDA", "CCJ", "NVDA")):
+        state.record_gate_dualread(convexity_db, run_id=None, as_of=(now - timedelta(days=i)).isoformat(),
+                                   symbol=sym, feed="opra", source="sweep", structured=True, iv_rv=1.05,
+                                   cheap=True)
+    state.record_gate_dualread(convexity_db, run_id=None, as_of=now.isoformat(), symbol="NVDA",
+                               feed="indicative", source="sweep", structured=True, iv_rv=1.0, cheap=True)
+    out = dd.data_gathered_panel(tmp_path, now=now, conn=convexity_db)
+    b = out["iv_baseline_of_record"]
+    assert (b["rows"], b["symbols"], b["sessions"]) == (3, 2, 3)   # the indicative arm is not the record
+    assert b["accruing"] is True and b["latest_age_days"] == 0.0
+    assert out["accruing"] is False and "silent by architecture" in out["snapshot_writer_note"]
+    assert dd.data_gathered_panel(tmp_path, now=now)["iv_baseline_of_record"] is None

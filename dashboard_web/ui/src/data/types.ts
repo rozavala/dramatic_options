@@ -100,6 +100,8 @@ export interface Snapshot {
   data_gathered: {
     chain_snapshots: { symbols: number; latest: string | null; names?: string[] }; bar_coverage_symbols: number;
     latest_age_days?: number | null; accruing?: boolean; // honesty flags (dashboard_data.data_gathered_panel)
+    iv_baseline_of_record?: { rows?: number; symbols?: number; sessions?: number; latest?: string | null;
+      latest_age_days?: number | null; accruing?: boolean } | null;
   };
   t4: { conditions: { id: number; name: string; checkable: boolean; verdict: T4Verdict; detail: string }[]; note: string };
   // Panels below are always emitted by load_all but may be replaced by {error} (dd.safe), so they are typed
@@ -269,7 +271,8 @@ export interface SessionVM {
 export interface SpendRowVM { provider: string; mtd: string; cap: string | null; frac: number | null; page: boolean }
 export interface SpendVM { month: string; rows: SpendRowVM[]; totalMtd: string; totalCap: string | null; cumulative: string; framer: string; perCycleCap: string | null; anyPage: boolean }
 export interface CanaryVM { symbol: string; latest: number | null; skew: number | null; cheap: boolean | null; series: number[]; gateLine: number; trend: string }
-export interface DataAccrualVM { symbols: number; latest: string; ageDays: number | null; accruing: boolean; barSymbols: number; names: string[] }
+export interface IvBaselineVM { rows: number; symbols: number; sessions: number; latest: string; ageDays: number | null; accruing: boolean }
+export interface DataAccrualVM { symbols: number; latest: string; ageDays: number | null; accruing: boolean; barSymbols: number; names: string[]; baseline: IvBaselineVM | null }
 export interface BooksOpenVM { real: number; shadow: number; a3: number; basket: number; shares: number }
 export interface ReserveVM { runId: number | null; stamp: string | null; slots: ReserveSlotVM[] }
 export interface AttemptRowVM { idx: number; symbol: string; origin: string; outcome: string; premium: number | null }
