@@ -47,14 +47,14 @@ Thesis below is CC-drafted in true form; the operator adopts by not amending bef
 | read (UTC) | contract | spot | achieved OTM | dte | $/contract | spread | ADV | band | verdict |
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-09-13 provisional (card, outside the window) | KLAR270319C00017500 | $13.83 | 26.5% | 187 | $142 | — | $138.5M | in | provisional only |
-| 2026-09-16 13:37 | _pending_ | | | | | | | | |
-| 2026-09-16 15:07 (LAST) | _only if 13:37 is out of band_ | | | | | | | | |
+| 2026-09-16 13:37 (READ OF RECORD) | KLAR270319C00017500 | $13.92 | **25.7%** | 184 | **$148** | 17% | $105.0M | **in** | **ADMITTED** |
+| 2026-09-16 15:07 (LAST) | not run — the 13:37 read printed in band, so it governs; no re-read (anti-camping) | | | | | | | | |
 
 ## Decision
 
-_pending the in-window read._
+**KLAR ADMITTED** on the 13:37 UTC in-window read: in band (25.7%), under cap ($148), tenor 184d ≥ 180, spread 17% ≤ 25%, ADV $105M ≥ $3M. Basket/cluster `bnpl_payments` (NEW, #14 = FOURTEEN clusters; the book still fills at most 5; cluster_fraction 0.02 unchanged). Universe 45 → 46. First discovery scan = Sun 2026-09-20 L0; the council judges at its first L1 slot; gates and caps dispose. Method note: a first in-window read that prints IN band is the read of record; only an out-of-band first read defers to the pre-declared last read (the FIG lesson, applied symmetrically).
 
-## Changes in this PR (additive-only) — filled at execution
+## Changes in this PR (additive-only)
 
 - `config.json` `universe.themes` += `_comment_window8` + `bnpl_payments: ["KLAR"]`;
   `convexity_book.clusters` += `bnpl_payments: ["KLAR"]` + the by-driver `_comment` WINDOW #8 sentence.
