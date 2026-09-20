@@ -34,7 +34,7 @@
     {"source": "World Nuclear News", "vertical": "nuclear_fuel_cycle", "url": "https://www.world-nuclear-news.org/rss"},
     {"source": "NucNet", "vertical": "nuclear_fuel_cycle", "url": "https://www.nucnet.org/feed"},
     {"source": "SmallSat News", "vertical": "smallsat_launch", "url": "https://smallsatnews.com/feed/"},
-    {"source": "SpaceNews (launch section)", "vertical": "smallsat_launch", "url": "https://spacenews.com/section/launch/feed/"}
+    {"source": "SpaceNews", "vertical": "smallsat_launch", "url": "https://spacenews.com/feed/"}
   ],
   "agency": {
     "federal_register_agencies": [
