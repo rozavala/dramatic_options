@@ -7,8 +7,8 @@
       "claim": "US customs import unit value for tungstates (HS 284180) REVERSED in July 2026: $37.98/kg (latest published month) after the June spike to $182.38/kg — back near the Jan–Feb level and ~1.3x the 2025 average ($29.34/kg). Monthly series: Jan $32.16 · Feb $31.55 · Mar $64.32 · Apr $55.91 · May $82.66 · Jun $182.38 · Jul $37.98 (unit value = customs value / net kg; July netWgt 1,251 t vs June 392 t — the June print now reads as a low-volume mix-shift single-month anomaly, exactly the caveat pinned at re-pins #8–#11). Read honestly: the US import record does NOT support a persisting APT cost shock through the summer; the cost-pressure thesis leg is contradicted for July. Caveats: HS 284180 covers all tungstate salts (not APT-pure); customs publication lags ~2–3 months (July published ~2026-09-13 after one 0-row check).",
       "event_date": null,
       "source": "UN Comtrade public database, US imports of HS 284180 (comtradeapi.un.org public preview API, keyless; reporterCode=842, cmdCode=284180, flowCode=M; verified 2026-07-10)",
-      "as_of": "2026-09-13",
-      "expires": "2026-09-20",
+      "as_of": "2026-09-20",
+      "expires": "2026-09-27",
       "provenance": "operator"
     }
   ]
