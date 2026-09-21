@@ -677,3 +677,39 @@ def test_preserve_existing_renames_before_overwrite(tmp_path):
 
 def test_preserve_existing_noop_when_absent(tmp_path):
     assert digest.preserve_existing(tmp_path / "2026-W31.md", datetime(2026, 8, 2, tzinfo=UTC)) is None
+
+
+def test_orphan_unknown_underlying_is_a_note_not_an_error():
+    """The broker answering 'invalid underlying symbols: X' is a DEFINITIVE no-options-class
+    answer, not a failure: it belongs in notes, the symbol stays unseen (re-checked next run),
+    and genuine checker failures still land in errors (the 2026-W38 MSW/YOOV/FTRK/BURUW noise)."""
+    cands = [
+        {"symbol": "MSW", "cik": "1", "date_filed": "2026-01-01", "company": "M Co"},
+        {"symbol": "BOOM", "cik": "2", "date_filed": "2026-01-02", "company": "Boom Co"},
+        {"symbol": "OK", "cik": "3", "date_filed": "2026-01-03", "company": "OK Co"},
+    ]
+
+    def checker(sym):
+        if sym == "MSW":
+            raise RuntimeError('APIError: {"code":42210000,"message":"invalid underlying symbols: MSW"}')
+        if sym == "BOOM":
+            raise TimeoutError("connection reset")
+        return True
+
+    errors, notes = [], []
+    items, updated = digest.orphan_new_listings(
+        cands, {}, checker, now=datetime(2026, 9, 20, tzinfo=UTC), errors=errors, notes=notes)
+
+    assert [i.symbol for i in items] == ["OK"]
+    assert "MSW" not in updated and "BOOM" not in updated   # neither is marked seen
+    assert updated["OK"] == "2026-09-20"
+    assert errors == ['orphan_watch/BOOM: TimeoutError: connection reset']   # only the real failure
+    assert any("not carried by the broker" in n and "MSW" in n for n in notes)
+    assert not any("BOOM" in n for n in notes)
+
+
+def test_is_unknown_underlying_matches_only_the_broker_answer():
+    assert digest._is_unknown_underlying(RuntimeError("invalid underlying symbols: YOOV"))
+    assert digest._is_unknown_underlying(ValueError("Invalid Underlying Symbol"))
+    assert not digest._is_unknown_underlying(TimeoutError("connection reset"))
+    assert not digest._is_unknown_underlying(RuntimeError("rate limited"))

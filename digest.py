@@ -435,6 +435,20 @@ _NONOPTION_INFIXES = (".WS", ".U")
 _PREFERRED_SUFFIX_RE = re.compile(r"-P[A-Z]?$")
 
 
+_UNKNOWN_UNDERLYING_RE = re.compile(r"invalid underlying symbol", re.I)
+
+
+def _is_unknown_underlying(exc: Exception) -> bool:
+    """True when the broker's error means 'no such underlying here' rather than 'the call failed'.
+
+    Alpaca answers an unlisted/foreign/deregistered ticker with ``invalid underlying symbols:
+    <SYM>``. That is a DEFINITIVE no-options-class answer, so it belongs in the notes beside the
+    share-class skips — not in ``errors``, where it drowns genuine outages (2026-W38: four such
+    lines every week). Matched on the message, deliberately, so no broker SDK type is imported
+    into this keyless module."""
+    return bool(_UNKNOWN_UNDERLYING_RE.search(str(exc)))
+
+
 def is_nonoption_share_class(symbol: str) -> bool:
     """True for share classes that have no options class by construction: warrants, units,
     and rights (``-WT``/``-WS``/``-U``/``-UN``/``-R``/``-RI`` suffixes or dotted
@@ -502,6 +516,7 @@ def orphan_new_listings(
     updated = dict(snapshot)
     items: list[Item] = []
     nonoption_skipped = 0
+    unknown_symbols: list[str] = []
     for cand in candidates:
         symbol = str(cand["symbol"])
         if is_nonoption_share_class(symbol):
@@ -513,6 +528,15 @@ def orphan_new_listings(
             if not checker(symbol):
                 continue
         except Exception as e:  # noqa: BLE001 — the fail-soft boundary is the point
+            if _is_unknown_underlying(e):
+                # A DEFINITIVE answer, not a failure: the broker carries no such underlying
+                # (foreign/OTC/deregistered listings, and bare 5-letter warrant symbols the
+                # suffix filter can't claim safely), so there is no options class to find.
+                # Counted in a note; the symbol is NOT marked seen, so a future listing is
+                # still picked up. Keeps genuine checker failures legible in ``errors``
+                # (the 2026-W38 MSW/YOOV/FTRK/BURUW noise).
+                unknown_symbols.append(symbol)
+                continue
             if errors is not None:
                 errors.append(f"orphan_watch/{symbol}: {type(e).__name__}: {e}")
             continue
@@ -536,6 +560,10 @@ def orphan_new_listings(
         )
     if nonoption_skipped and notes is not None:
         notes.append(f"orphan_watch: {nonoption_skipped} non-option share class(es) skipped")
+    if unknown_symbols and notes is not None:
+        notes.append(
+            f"orphan_watch: {len(unknown_symbols)} symbol(s) not carried by the broker "
+            f"(no options class; re-checked next run): {', '.join(sorted(unknown_symbols))}")
     return items, updated
 
 
