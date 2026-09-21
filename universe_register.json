@@ -135,6 +135,17 @@
         "reach W37 (2026-09-13) orphan_watch/424B4 — Klarna Group plc CIK 2003292, options class now listed; single authoritative channel (a filing), item-symbol corroborated; thesis CC-drafted 2026-09-16, operator-adopted"
       ],
       "cluster_default": "bnpl_payments"
+    },
+    "live_events_marketplace": {
+      "provenance": "operator",
+      "added": "2026-09-21 (window #9, off-cycle — a W38 reach survivor)",
+      "thesis": "A two-sided live-events marketplace whose volume keeps compounding while the equity has round-tripped its 2025 IPO. Quarterly revenue $573.1M, +33.2% y/y (period 2026-06-30, filed 2026-08-13), against a −73.1% twelve-month price return and −14.7% over the last month. Marketplace economics are convex when they turn: fixed platform cost against take-rate on rising volume, so the market's re-rating of a marketplace it has written off is discontinuous rather than gradual. The price/fundamentals divergence is the convexity setup. PINNED CAVEATS: (1) a −73% tape is INFORMATION, not only sentiment — the market may be pricing take-rate compression, the competitive squeeze from Ticketmaster/SeatGeek, or regulatory attention to ticketing fees, none of which the revenue line refutes; (2) live events are consumer discretionary, so the thesis carries a cycle risk the growth number does not show; (3) ONE filed quarter in the corpus and no analyst count — an evidence-thin council read is expected and is a datum about the seam, not a verdict (the FIG/MRK/KLAR precedent); (4) post-IPO insider supply.",
+      "falsifier": "The quarter reported after 2026-09-30 shows revenue growth below +10% y/y.",
+      "direction": "bullish",
+      "sources": [
+        "reach W38 (2026-09-20) orphan_watch/424B4 — StubHub Holdings, Inc. CIK 1337634, options class now listed; item-symbol corroborated; thesis CC-drafted 2026-09-21 in true form, operator-adopted"
+      ],
+      "cluster_default": "live_events_marketplace"
     }
   },
   "windows": {
@@ -350,6 +361,38 @@
         }
       },
       "notes": "One NEW cluster (bnpl_payments — a consumer-payments/BNPL network driver shared with no existing cluster; not alt_capital_deployment, not design_software_ai) = FOURTEEN clusters; the book still fills at most 5; cluster_fraction 0.02 unchanged. KLAR enters the discovery scan baskets only (universe 45→46); first scan = the 2026-09-20 L0; funnel/council judge, gates/caps dispose. Pinned honestly: the corpus carries one fundamentals line for KLAR — an evidence-thin council read is expected and is a datum about the seam, not the admission. The card's 'cheap participation' clause was struck from the adopted thesis (cheapness forbidden as a criterion)."
+    }
+,
+    "9": {
+      "date": "2026-09-21",
+      "rule": "PREREG_UNIVERSE_CURATION §11 OFF-CYCLE admission — the two W38 reach survivors. Operator word 2026-09-21 ~04:10 UTC ('Let's include both survivors and let's fix the issues we are getting from the incorrect feeds') on the 09-20 cards (machine_surfaced_machine_drafted). TWO in-window reads pre-declared (13:37 + 15:07 UTC LAST, anti-camping). The 13:37 read fell OUT OF BAND for BOTH names on quote eligibility at the open — the FIG lesson — so the pre-declared LAST read is the read of record for both.",
+      "screen_records": [
+        "records/2026-09-21_window9_ntsk_stub_admission.md"
+      ],
+      "admitted": {
+        "STUB": {
+          "basket": "live_events_marketplace",
+          "sources": [
+            "reach W38 orphan_watch/424B4 (2026-09-20) → operator word 2026-09-21; thesis CC-drafted 2026-09-21 in true form, operator-adopted"
+          ],
+          "per_contract_usd": 73,
+          "achieved_otm_pct": 27.0,
+          "tag": "rule",
+          "screen": "STUB270416C00007500 · dte 207 · 27.0% achieved OTM · $73 ≤ $1,000 cap · spread 21% · ADV $38.2M · spot $5.91 (in-window 2026-09-21 15:07 UTC, the pre-declared LAST read); the 13:37 read fell to STUB270416C00005000 −14.6% ITM $175 (no eligible quote on the in-band strike at the open); provisional 09-20 read $75/26.7%/208d on the same C7.50 contract",
+          "operator": "'Let's include both survivors' (2026-09-21 ~04:10 UTC)"
+        }
+      },
+      "near_miss": {
+        "NTSK": {
+          "basket_would_be": "cyber_sase (NOT created — a thesis without an expression never gets an empty basket)",
+          "per_contract_usd": 445,
+          "achieved_otm_pct": 11.9,
+          "screen": "NTSK270617C00020000 · dte 269 · 11.9% achieved OTM · $445 (under cap) · spread 20% · ADV $109.3M · spot $17.88 (in-window 2026-09-21 15:07 UTC, the LAST read) — BELOW the 15% floor, so recorded not admitted (the TITN-14.4% precedent); the 13:37 read fell further out, to NTSK270617C00017500 −1.0% ATM $525, the selector crossing expiries away from the Apr-2027 C22.50 that read 28.6%/$288 provisionally on 09-20",
+          "disposition": "The operator's 2026-09-21 word LAPSES for NTSK. The cyber_sase thesis stands in records/2026-09-21_window9_ntsk_stub_admission.md but has no expression; the register carries no cyber_sase theme. A later admission needs a FRESH word on a FRESH in-window screen.",
+          "recheck_door": "the next quarterly tenor glance (the Apr-2027 chain's in-band strikes quoting in session), or a fresh operator word"
+        }
+      },
+      "notes": "One NEW cluster (live_events_marketplace — a live-events/ticketing marketplace driver shared with no existing cluster; NOT bnpl_payments, whose driver is consumer credit) = FIFTEEN clusters; the book still fills at most 5; cluster_fraction 0.02 unchanged. STUB enters the discovery scan baskets only (universe 46→47); first scan = the 2026-09-27 L0; funnel/council judge, gates/caps dispose. Method note, now twice-confirmed (FIG 09-08, NTSK/STUB 09-21): on a thin newly-listed chain the FIRST in-window read is routinely an out-of-band fallback — the selector can even cross expiries — while spot barely moves; the pre-declared LAST read of the day is the honest read of record, and no re-reads follow it. CONCENTRATION CAVEAT pinned at admission: STUB joins FIG and KLAR as a third deeply de-rated 2025 IPO (−73.1% / −80% / −69.8%) sitting in a nominally independent cluster. The by-driver map cannot see that shared shape and the trailing-correlation diagnostic cannot measure it (under a year of history each), so the correlation budget may understate the exposure if two of them ever pass the gate together. Surfaced to the operator 2026-09-21; queued into the 09-30 review."
     }
   }
 }

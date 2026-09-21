@@ -66,18 +66,54 @@ seam, not a verdict on the thesis (the FIG/MRK/KLAR precedent).
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-09-20 provisional (card, outside the window) | NTSK | NTSK270416C00022500 | $17.49 | 28.6% | 208 | $288 | — | $110.1M | in | provisional only |
 | 2026-09-20 provisional (card, outside the window) | STUB | STUB270416C00007500 | $5.92 | 26.7% | 208 | $75 | — | $39.6M | in | provisional only |
-| 2026-09-21 13:37 | NTSK | _pending_ | | | | | | | | |
-| 2026-09-21 13:37 | STUB | _pending_ | | | | | | | | |
-| 2026-09-21 15:07 (LAST) | _only for a name whose 13:37 read is out of band_ | | | | | | | | | |
+| 2026-09-21 13:37 | NTSK | NTSK270617C00017500 | $17.68 | **−1.0% (ATM)** | 269 | $525 | 21% | $107.3M | **OUT** | deferred to the LAST read |
+| 2026-09-21 13:37 | STUB | STUB270416C00005000 | $5.86 | **−14.6% (ITM)** | 207 | $175 | 17% | $37.8M | **OUT** | deferred to the LAST read |
+| 2026-09-21 15:07 (LAST, READ OF RECORD) | NTSK | NTSK270617C00020000 | $17.88 | **11.9%** | 269 | $445 | 20% | $109.3M | **OUT** (below the 15% floor) | **NEAR-MISS — the word lapses** |
+| 2026-09-21 15:07 (LAST, READ OF RECORD) | STUB | STUB270416C00007500 | $5.91 | **27.0%** | 207 | **$73** | 21% | $38.2M | **in** | **ADMITTED** |
+
+**13:37 note (the FIG lesson, reproduced):** both names fell to an out-of-band fallback in the first
+minutes after the open — the in-band strikes carried no eligible two-sided quote. NTSK's selector even
+crossed expiries, taking the **Jun-2027 C17.50 at the money** rather than the Apr-2027 C22.50 the
+provisional read found at 28.6%; STUB fell from the Apr-2027 C7.50 to the **C5.00, 14.6% in the money**.
+Spot barely moved in either name (NTSK $17.49 → $17.68; STUB $5.92 → $5.86), so this is quote
+eligibility at the open, not a repricing. Per the pre-declared rule the **15:07 read governs for both**;
+no re-reads after it.
 
 ## Decision
 
-_pending the in-window read._
+**STUB ADMITTED. NTSK NEAR-MISS — the 2026-09-21 word lapses for it.**
 
-## Changes at execution (additive-only)
+**STUB** cleared every floor on the pre-declared last read: 27.0% achieved OTM (band 15–35%), $73 per
+contract against the $1,000 cap, 207 days (tenor 180–365), spread 21% ≤ 25%, ADV $38.2M ≥ $3M. Basket
+and cluster `live_events_marketplace` (NEW, #15 = FIFTEEN clusters; the book still fills at most 5;
+`cluster_fraction` 0.02 unchanged). Universe 46 → 47. First discovery scan = Sun 2026-09-27 L0; the
+council judges at its first L1 slot; gates and caps dispose.
 
-- `config.json` `universe.themes` += `_comment_window9` + `cyber_sase: ["NTSK"]` + `live_events_marketplace: ["STUB"]`;
-  `convexity_book.clusters` += both (#15, #16) + the by-driver `_comment` WINDOW #9 sentence.
-- `universe_register.json` += `themes.cyber_sase`, `themes.live_events_marketplace` (provenance operator)
-  + `windows.9`, string-spliced (NEVER json.dump).
+**NTSK** improved across the session (−1.0% ATM at 13:37 → 11.9% OTM at 15:07, $525 → $445) but the
+last read still sits **3.1 points below the 15% floor**. The rule is the rule (the TITN-14.4%
+precedent: recorded, not admitted). `cyber_sase` is **not** created — a thesis without an expression
+never gets an empty basket, so the register carries no `cyber_sase` theme. The thesis above stands on
+the record; a later admission needs a fresh word on a fresh in-window screen. Recheck door: the next
+quarterly tenor glance (specifically, whether the Apr-2027 C22.50 that read 28.6% provisionally on
+09-20 ever carries an eligible two-sided quote in session), or the operator's word.
+
+**Method note, now twice-confirmed (FIG 09-08, NTSK/STUB 09-21):** on a thin newly-listed chain the
+first in-window read is routinely an out-of-band fallback — here the selector even crossed expiries for
+NTSK — while spot barely moves. Quote eligibility at the open, not price, is what moves these reads.
+The pre-declared last read of the day is the honest read of record, and no re-reads follow it.
+
+**Concentration caveat, pinned at admission:** STUB joins FIG and KLAR as a third deeply de-rated 2025
+IPO (−73.1% / −80% / −69.8%) sitting in a nominally independent cluster. The by-driver cluster map
+cannot see that shared shape, and the trailing-correlation diagnostic cannot measure it because none of
+the three has a year of history. If two of them ever pass the gate together the correlation budget may
+understate the exposure. Surfaced to the operator today; queued into the 2026-09-30 review. Nothing is
+at risk now — none of the three has passed the IV gate.
+
+## Changes in this PR (additive-only)
+
+- `config.json` `universe.themes` += `_comment_window9` + `live_events_marketplace: ["STUB"]`;
+  `convexity_book.clusters` += the same key (#15) + the by-driver `_comment` WINDOW #9 sentence.
+  **No `cyber_sase` key anywhere** — NTSK was not admitted.
+- `universe_register.json` += `themes.live_events_marketplace` (provenance operator) + `windows.9`
+  (`admitted.STUB` + `near_miss.NTSK` with its recheck door), string-spliced (NEVER json.dump).
 - This record.
