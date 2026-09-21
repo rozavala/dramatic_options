@@ -35,8 +35,9 @@ against the record before acting.** The header's absence is itself a signal.
 ## Staged / pending
 - **PR #199** (restricted-list enforcement): STAGED — merges post-2026-08-02 ONLY, absent an
   explicit dated operator line.
-- **Build queue (CC):** bench record (BLOCKED on the operator's 143-name table) · supply-chain
-  mapper v0 (plan red-team offered) · US-weighted chemicals feed slot still empty.
+- **Build queue (CC):** bench record DONE 2026-09-16 (`records/2026-09-16_bench.md` — the operator confirmed no
+  143-name table existed; the bench was assembled from the records) · supply-chain mapper v0 (plan red-team
+  offered) · US-weighted chemicals feed slot still empty.
 - **Sunday automation:** one-shot session wakeup ARMED for 07-26 13:35 UTC (grade L0 scan #3 →
   W31 digest → cards --draft in the quote window → brief; session-bound — if the session dies
   first, the operator's backstop is one nudge). Card generation stays an operator-session act
