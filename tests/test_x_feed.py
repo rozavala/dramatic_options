@@ -416,3 +416,17 @@ def test_runner_skip_x_flag(feeds_file, tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "x_lists: skipped (--skip-x)" in out
+
+
+def test_runner_x_off_prints_a_deliberate_cut_reason(feeds_file, tmp_path, capsys):
+    """A deliberate cut (2026-09-24) carries its dated reason into the digest, instead of the
+    pre-activation 'flip enabled after x_probe.py passes' hint — which would misdescribe a cut."""
+    import scripts.digest_weekly as runner
+
+    accounts = tmp_path / "x_accounts.json"
+    accounts.write_text(json.dumps({**ACCOUNTS_CFG, "enabled": False,
+                                    "disabled_reason": "CUT 2026-09-24 — zero genuine survivors"}))
+    rc, out = _run(runner, feeds_file, accounts, capsys)
+    assert rc == 0
+    assert "x_lists: OFF (disabled in x_accounts.json — CUT 2026-09-24 — zero genuine survivors)" in out
+    assert "x_probe.py" not in out

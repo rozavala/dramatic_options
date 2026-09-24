@@ -263,3 +263,33 @@ CGS §7 channel one floor up.
 **Window #1 is this rule's first mechanical run** (the §3 honesty note stands: the operator-named
 NNE predates the rule — and was subsequently also verified as an NLR constituent). The admission
 record lives in the register; the screen output is committed under `records/`.
+
+## 12. AMENDMENT (2026-09-24, operator-authorized) — the admission runway floor
+
+**Operator word 2026-09-24:** "Sure let's follow your recommendations", on the recommendation to "require the
+admitting contract to sit clearly above the 180-day floor, so a name can't be admitted onto an expiry that dies
+within a week". A dated amendment; §2's "no new thresholds" is amended by exactly this one.
+
+**Rule.** At the admission read of record, the contract `select_structure` picks must have **at least 200 days
+to expiry** (`scripts/probe_basket_feasibility.py`, `ADMISSION_MIN_DTE = 200`, printed as the `runway` floor).
+A read below it is out of band for admission even when every other floor passes. **Admission quality only:**
+the live gate's tenor window stays 180–365 days, and no live trading rule changes.
+
+**Why.** The tenor floor checks that the admitting contract is inside the window *today*, not that it will
+stay there. KLAR was admitted 2026-09-16 at 184 days on the March-2027 expiry and became unexpressable on
+2026-09-21, when that expiry crossed 180 days and the April chain carried no eligible in-band strike. It was
+not the first case: CC was admitted 2026-07-10 at 189 days on a January-2027 expiry.
+
+**History, disclosed (not a fit).** Of the admissions whose record carries days-to-expiry, only KLAR (184) and
+CC (189) fall below 200. The rest clear it: STUB 207, TITN 211, MOS 211, FIG 220, the window-1 names ~220
+(January-2027), VIAV 256, KKR 263, MRK 301.
+
+**Why 200, not a fitted number.** Twenty days of runway on the admitting expiry covers the name's first Sunday
+L0 scan (at most six days after an admission) plus one full fairness-rotation cycle (about two weeks) before
+that expiry crosses the live 180-day floor.
+
+**Not retroactive.** Admitted names stay admitted; KLAR and CC keep their baskets and clusters.
+
+**Out of scope.** The reach cards' provisional `band_fit` pre-screen keeps the plain 180-day floor. It is a
+pre-screen; this floor binds the admission read of record, which always governs.
+
