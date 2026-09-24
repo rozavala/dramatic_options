@@ -1,12 +1,36 @@
-> **SUPERSEDED 2026-09-24** by the frozen `PREREG_DIRECTION_COHERENCE.md` (repo root). Its §0.5 revision
-> log records three corrections made at freeze (placement, scope, telemetry). This draft is kept as the record.
+# PREREG — Direction coherence: a motion-derived bear framing must not contradict the filed fundamentals
 
-# PREREG DRAFT — Direction coherence: a recent-move bear framing must not contradict the filed fundamentals
+**Status: FROZEN 2026-09-24** on the operator's word ("Sure let's follow your recommendations",
+2026-09-24, on the recommendation "freeze the direction-coherence rule … set the harm test at 126 bars with a
+minimum of ten names, as drafted"). It amends `PREREG_FRESH_INFLECTION_FUNNEL.md` §6 by adding a condition;
+it does not repeal it. Drafted 2026-09-24 as `records/2026-09-24_direction_coherence_PREREG_DRAFT.md`; built
+in the same PR as this freeze, never ahead of it.
 
-**Status: DRAFT — NOT FROZEN.** Written 2026-09-24 for the operator's 2026-09-30 review. Nothing reads this
-file. On the operator's word it is frozen by moving it to the repo root as `PREREG_DIRECTION_COHERENCE.md`,
-where it amends `PREREG_FRESH_INFLECTION_FUNNEL.md` §6 (it adds a condition to that rule; it does not repeal
-it). Until then the live loop behaves exactly as today. Build follows the freeze, never the reverse.
+## §0.5 Revision log — three corrections made at freeze, found while building
+
+Building against the real wiring showed the draft wrong in three places. Each is corrected below, and each
+correction preserves the draft's stated intent rather than changing it.
+
+1. **Placement.** The draft put the filter inside `council.wiring.council_to_themes` and claimed the shadow
+   book "runs over the same union". It does not: the brain-off shadow book and the no-gate 3A book each build
+   their own union through `sentinels.union_candidates` (the documented single dedup point for all three
+   consumers). A filter inside the council path alone would have withheld names from the council while the
+   shadow book still booked them, contaminating the real-vs-shadow contrast. **Corrected:** the withheld set is
+   computed once per cycle against the union the council sees (in the orchestrator, right after that union is
+   built), and the same lineage keys are removed from the shadow and 3A unions through their existing
+   `candidates=` argument. With nothing withheld, both books receive `None` and build their own union exactly
+   as before.
+2. **Scope.** The draft said "bearish because of the §6 recent-move rule". The marker that would tell a recent-
+   move bear from a trailing-momentum bear is the value at surfacing, and a live lineage's markers are refreshed
+   at later scans, so that distinction cannot be made reliably at L1. Both are motion-derived. **Corrected:** the
+   rule applies to every **sentinel-origin (discovery, motion-derived) bearish** framing. Hand-seed themes, which
+   carry operator conviction, stay exempt, as do all bullish framings.
+3. **Telemetry.** The draft promised a per-proposal `selection` tag on withheld names. A withheld name never
+   reaches the council, so it has no proposal row to tag. **Corrected:** the durable record is the per-cycle
+   `runs.note` counter, which lists the withheld symbols by name.
+
+The §9 open numbers are set at freeze: **F1 horizon h = 126 bars, small-n guard 10 matured names.** One
+read was added at freeze on the same recommendation: **F4**, the 30-session review (§6).
 
 ## §0 Why — measured, disclosed as motivation, not as evidence of efficacy
 
@@ -49,9 +73,9 @@ the opposite).
 
 ## §2 The rule (exact)
 
-At council-union assembly, a candidate whose proposed direction is **bearish** because of the §6 recent-move
-rule is **withheld from the union** when its latest filed fundamentals, point-in-time as of the run, show
-**both**:
+At candidate-union assembly, a **sentinel-origin** candidate (a discovery lineage, whose direction is
+motion-derived) framed **bearish** is **withheld from the union** when its latest filed fundamentals,
+point-in-time as of the run, show **both**:
 
 - `revenue.qtr_yoy > 0` — the latest filed quarter's revenue grew year on year, **and**
 - `revenue.qtr_yoy_accel > 0` — that growth is faster than two quarters earlier.
@@ -69,6 +93,7 @@ what makes the harm falsifier in §6 possible).
 - **Bear side only.** The bull-side mirror (a bullish framing contradicted by deteriorating fundamentals,
   20% in §0) is out of scope. It is a smaller effect, and adding it would make the rule a fundamentals-picks-
   direction rule, which is a different claim needing its own measurement (§7).
+- **Hand-seed themes are exempt.** A hand-seed direction is the operator's conviction, not a motion reading.
 - **The rule fires only where an acceleration is filed.** `qtr_yoy_accel` needs three filed quarters.
   Annual-only filers (IFRS issuers with an annual line only) and the newest listings (KLAR, STUB, NTSK carry
   one line) are untouched: with no filed acceleration the rule cannot fire, and §6's behavior applies as
@@ -77,16 +102,23 @@ what makes the harm falsifier in §6 possible).
 
 ## §3 Where it lives, and what it does not touch (the hard seam)
 
-- **Lives at union assembly** (`council.wiring.council_to_themes`), which already receives the fundamentals
-  corpus for the context pack. It is composition-only, in the same class as the frozen gate-cheap reserve
-  and the fairness slots: it changes which names the council is shown, never how the council judges them.
+- **Lives at union assembly in the orchestrator** (`direction_coherence.CoherenceFilter`, applied to the union
+  the council is about to see, right after `sentinels.union_candidates`). The withheld set is computed **once**
+  per cycle and the **same lineage keys** are removed from the brain-off shadow book's and the no-gate 3A book's
+  unions (`CoherenceFilter.exclude`, passed through their existing `candidates=` argument). No consumer re-reads
+  the corpus; all three see the same exclusion. It is composition-only, in the same class as the frozen
+  gate-cheap reserve and the fairness slots: it changes which names are shown, never how they are judged.
+- **Keyed on the lineage identity** `(symbol, direction)`. An opposite-direction lineage on the same symbol is a
+  different bet and is untouched.
 - **Deterministic.** Filed XBRL lines only. Never an LLM label, never the framer's verdict, never price.
-- **The brain-off shadow book is affected identically**, because it runs over the same union. The
-  real-versus-shadow contrast therefore stays paired: both arms see the same candidates.
-- **Untouched:** the L0 surface gate and ranking; `discovery.direction_of` itself (the rule reads its output
-  and withholds; it does not re-compute direction); the 3B whole-basket book and the shares log (they use the
-  trailing-momentum direction over the whole basket and never see the union); the IV gate and every
-  threshold; sizing; the cluster cap; the council prompts (sha-pinned, unchanged); the miss base-rate ledger.
+- **Untouched:** the L0 surface gate and ranking; `discovery.direction_of`; the 3B whole-basket book and the
+  shares log (they read the whole basket with the trailing-momentum direction and never see the union); the IV
+  gate and every threshold; sizing; the cluster cap; the sha-pinned council prompts; the miss base-rate ledger;
+  the restricted-list enforcement in `union_candidates` (unchanged; the explicit-candidates path in both null
+  books still applies it, belt-and-suspenders).
+- **Switch:** `config.council.direction_coherence.enabled`. `false` is byte-identical to the pre-freeze loop.
+  The key is outside `frame_version`'s hashed sections, so the risk-frame stamp does not change; the
+  `union_rank` stamp does (§5).
 
 ## §4 Data discipline
 
@@ -102,10 +134,9 @@ what makes the harm falsifier in §6 possible).
 ## §5 Telemetry and record segmentation
 
 - One journal line per L1: `direction-coherence: withheld=[...] kept_no_accel=[...] errors=N`, and the
-  same counters appended to `runs.note` (journald rotates; the runs row does not — the anti-silent-dormancy
-  convention).
-- Per-proposal provenance: withheld candidates are recorded with `selection="withheld_dircoherence"` so
-  the funnel and dashboards can count them.
+  same line appended to `runs.note` (journald rotates; the runs row does not — the anti-silent-dormancy
+  convention). **This line is the durable record of which names were withheld**: a withheld name has no
+  proposal row. With no fundamentals provider the line reads `fundamentals unavailable — nothing withheld`.
 - **Record-segmenting.** The union composition changes, so the `runs.model_mix` `union_rank` stamp gains a
   suffix (`cheap_reserve_v1+fairness_v1.1+dircoherence_v1`). The first run under the rule is a segment
   boundary: never pool Brier or council-marginal across it.
@@ -126,7 +157,14 @@ All reads are forward from the freeze.
   fundamentals cited against them should fall, and the freed slots' deliberated (non-abstained) rate is
   reported beside the pre-freeze baseline. The pre-freeze above-floor rate is zero, so no benefit claim is
   pinned: F3 describes, F1 decides.
-- **Read dates.** F2 at five sessions after deploy; F1 first readable around h = 126 after the tenth
+- **F4 — the 30-session review (added at freeze).** This rule and a live catalyst source are the two remedies
+  within the mandate for the council's run without an above-floor conviction (none since run #508,
+  2026-07-10). If, after **30 L1 sessions** under this rule, the council has still produced **zero**
+  above-floor convictions, a **dated operator review** is owed on one question: can the §10.7
+  `under_narrated` criterion pass on names this system is able to curate and express? The review decides;
+  **nothing loosens automatically**, and any change to the floor or the criteria is its own dated amendment
+  that re-segments the record.
+- **Read dates.** F2 at five sessions after deploy; F4 at the 30th L1 session after deploy; F1 first readable around h = 126 after the tenth
   withheld name, and re-read at every quarterly curation review.
 
 ## §7 Explicitly out of scope
@@ -152,8 +190,8 @@ All reads are forward from the freeze.
   is bullish, so this would make the book single-sided and forbid a genuine broken-thesis put, which the
   two-sided mandate must keep proposable.
 
-## §9 Open numbers the operator sets at freeze
+## §9 Numbers set at freeze
 
-- F1's horizon (proposed h = 126 bars) and small-n guard (proposed 10 matured names).
-- Whether F3's descriptive read also reports the withheld cohort's shadow-book outcome.
-- The freeze date, which fixes the segment boundary.
+- F1 horizon **h = 126 bars**; small-n guard **10 matured withheld names**.
+- F3 reports the withheld cohort's shadow-book outcome alongside, descriptively.
+- The freeze date **2026-09-24** fixes the segment boundary: the first L1 after the deploy of this PR.
