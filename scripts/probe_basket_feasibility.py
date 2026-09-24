@@ -1,7 +1,7 @@
 """READ-ONLY feasibility screen for universe-curation candidates (PREREG_UNIVERSE_CURATION §2).
 
-Deterministic TRADEABILITY screen — the existing frozen floors + cap-fit arithmetic only, NO new
-thresholds. Per candidate it answers: can ONE contract of the production-selected 25%-OTM 180-365d
+Deterministic TRADEABILITY screen — the frozen floors + cap-fit arithmetic only, NO new
+thresholds beyond the §12 admission-runway floor (2026-09-24, operator-authorized). Per candidate it answers: can ONE contract of the production-selected 25%-OTM 180-365d
 structure fit the frozen $1,000 per-name cap, on real (OPRA) quotes? Info columns (never selection
 thresholds, §2): cluster-budget fit, achieved OTM% + neighbor-strike interval (coarse low-priced
 chains -> a far-from-25% achieved structure is a different payoff object, calibration finding #3),
@@ -102,11 +102,17 @@ def _strike_interval(chain, sel) -> str:
     return f"{fmt(below)}/{fmt(above)}"
 
 
+# PREREG_UNIVERSE_CURATION §12 (2026-09-24): the ADMISSION RUNWAY floor. The live gate's tenor window stays
+# 180-365d; this is an admission-quality floor only, so a name is never admitted onto an expiry that falls
+# out of the window within days (KLAR: admitted at 184dte, unexpressable five days later).
+ADMISSION_MIN_DTE = 200
+
 today = datetime.now(ZoneInfo("America/New_York")).date()
 print(f"=== feasibility screen (PREREG_UNIVERSE_CURATION §2) @ {datetime.now(UTC):%Y-%m-%d %H:%M} UTC ===")
-print(f"floors (existing only): 1 contract <= ${PER_NAME:.0f} | tenor {gate['tenor_min_days']}-{gate['tenor_max_days']}d "
+print(f"floors: 1 contract <= ${PER_NAME:.0f} | tenor {gate['tenor_min_days']}-{gate['tenor_max_days']}d "
       f"| spread <= {float(elig_c.get('max_bid_ask_pct', 0.25)):.0%} | OI >= {elig_c.get('min_option_open_interest')} "
-      f"(when present) | price >= ${PRICE_FLOOR:g} | ADV >= ${ADV_FLOOR / 1e6:.0f}M")
+      f"(when present) | price >= ${PRICE_FLOOR:g} | ADV >= ${ADV_FLOOR / 1e6:.0f}M "
+      f"| admission runway: selected dte >= {ADMISSION_MIN_DTE} (§12)")
 print(f"info-only columns: cluster-fit (${CLUSTER:.0f}), achieved OTM%, strike interval, half-spread % of premium\n")
 
 hdr = (f"{'sym':6} {'spot':>8} {'$/contr':>8} {'fits1?':6} {'cl-fit':6} {'wing':22} {'dte':>4} "
@@ -149,6 +155,8 @@ for sym in _symbols():
         cl = clusters.cluster_of(sym, cmap)
         cl_fit = "YES" if per_contract <= CLUSTER else "no"
         dte = (c.expiry - today).days
+        if dte < ADMISSION_MIN_DTE:
+            floors.append("runway")
         ach_otm = s.moneyness * 100.0
         half_spr = (((c.ask - c.bid) / 2.0) / s.entry_premium * 100.0) if (c.bid is not None and c.ask) else None
         spr = ((c.ask - c.bid) / ((c.ask + c.bid) / 2.0) * 100.0) if (c.bid and c.ask) else None

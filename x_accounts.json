@@ -1,6 +1,7 @@
 {
   "_comment": "OPERATOR-EDITABLE — the x_lists pond (reach-channels charter, records/2026-07-14_reach_channels_charter_RATIFIED.md section 2 + the 2026-07-16 amendment). WHO is in is the operator's curation act (pond-naming, operator-picked priority cut 2026-07-16); edits by PR. Ships enabled:false — flip to true ONLY after scripts/x_probe.py passes on-box (the retained section-2(b) tier/pricing check); that config flip IS the channel's activation date (charter section 1 — the prune/yield clocks run from it). Org accounts UxC_Nuclear and Almonty_ are sanctioned exceptions to the practitioner rule. Ingestion is engagement-blind and chronological (no public_metrics ever requested); caps are salience-blind truncation, never selection. 2026-07-16 handle audit: DougDawson_CCG (Doug Dawson, fiber) and ProfHughLewis (Hugh Lewis, smallsat) REMOVED — both failed users/by on the first live run because both deleted their X accounts and now post on Bluesky only (dougdawsonccg.bsky.social, bio cites the PotsandPansbyCCG blog; profhughlewis.bsky.social, same '#pwME' bio tail as the archived X bio, now Professor of Astronautics at U. Birmingham); verified via X syndication tombstones on their old posts vs a live control. Bluesky is not an X handle — rows removed, never guessed.",
-  "enabled": true,
+  "enabled": false,
+  "disabled_reason": "CUT 2026-09-24 on the operator's word (\"Sure let's follow your recommendations\"): ZERO genuine survivors W29-W38 — its one survivor, ROAD in W36, was a homonym artifact the PR #245 guard now blocks — against ~$0.34/week of X API reads. The account list is kept, so reversal is one flag. records/2026-09-24_operator_decisions.md",
   "verticals": {
     "fiber": [
       {"handle": "mattlarsen", "name": "Matt Larsen"},

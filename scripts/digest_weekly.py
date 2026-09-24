@@ -165,7 +165,11 @@ def run_x_lists(
     else:
         cfg = json.loads(path.read_text())
         if not cfg.get("enabled"):
-            off_reason = 'disabled in x_accounts.json — flip "enabled" after scripts/x_probe.py passes'
+            # A deliberate cut carries its dated reason (2026-09-24); a not-yet-activated file keeps the
+            # pre-activation hint pointing at the retained §2(b) gate.
+            off_reason = (f"disabled in x_accounts.json — {cfg['disabled_reason']}"
+                          if cfg.get("disabled_reason") else
+                          'disabled in x_accounts.json — flip "enabled" after scripts/x_probe.py passes')
     token: str | None = None
     if off_reason is None:
         from config_loader import load_config
