@@ -24,6 +24,7 @@ from pathlib import Path
 
 import cheapness_watch
 import clusters
+import direction_coherence
 import discovery
 import fixed_basket
 import notify
@@ -177,6 +178,10 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
                 # v1.1 (2026-08-19 amendment): the fresh-event leg reads the L0 note stamp +
                 # judged-since-visibility demotion — selection semantics changed, segment again.
                 mix["union_rank"] = "cheap_reserve_v1+fairness_v1.1"
+        if (config.get("council", {}).get("direction_coherence") or {}).get("enabled", False):
+            # PREREG_DIRECTION_COHERENCE §5: a union-composition change — record-segmenting from deploy.
+            mix["union_rank"] = (mix.get("union_rank", "") + "+" if mix.get("union_rank") else "") \
+                + direction_coherence.STAMP
         if (config.get("forward_catalysts", {}) or {}).get("enabled", False):
             # Channel prereg §4: pack-shape capability stamp — record-segmenting from deploy,
             # zero migration (stamped when the channel is CONFIGURED on, item count irrelevant;
@@ -772,6 +777,9 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                 log.info("Entries skipped: %s", why)
             else:
                 themes = None
+                # PREREG_DIRECTION_COHERENCE: ONE withheld set per cycle, computed against the council's
+                # union and removed from the shadow + 3A unions too (every contrast stays paired).
+                coherence: direction_coherence.CoherenceFilter | None = None
                 if config.get("council", {}).get("enabled", False):
                     if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
                         log.info("Kill state active — council skipped (no LLM spend).")
@@ -789,6 +797,12 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                 active_themes(load_themes(config.get("themes_path", "themes.json"))),
                                 sentinels.active_sentinel_candidates(conn),
                             )
+                            if (config.get("council", {}).get("direction_coherence") or {}).get("enabled", False):
+                                coherence = direction_coherence.CoherenceFilter.from_fundamentals(
+                                    fund_dep, clock.now())
+                                candidates = coherence.apply(candidates)
+                                log.info(coherence.summary())
+                                append_run_note(conn, run_id, " · " + coherence.summary())
                             themes = council_to_themes(
                                 conn, candidates=candidates, router=router, config=config,
                                 clock=clock, news=news_dep, fundamentals=fund_dep,
@@ -903,6 +917,8 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                     try:
                         sbr = shadow_book.run_shadow_cycle(
                             config=config, conn=conn, clock=clock, provider=provider, run_id=run_id,
+                            candidates=(coherence.exclude(shadow_book.candidate_union(conn, config))
+                                        if coherence is not None and coherence.withheld else None),
                         )
                         # ALWAYS log (no if-booked guard): a booked=0 cycle with reasons is a healthy
                         # capped book; a booked=0 cycle with silence was 3 weeks of dead control arm.
@@ -924,6 +940,8 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                         try:
                             fbr = fixed_basket.run_fixed_basket_3a_cycle(
                                 config=config, conn=conn, clock=clock, provider=provider, run_id=run_id,
+                                candidates=(coherence.exclude(fixed_basket.candidate_union(conn, config))
+                                            if coherence is not None and coherence.withheld else None),
                             )
                             log.info("No-gate(3A) book: booked=%d %s vetoed=%d %s skipped=%d errors=%d%s",
                                      fbr.booked, dict(fbr.by_origin), fbr.vetoed, dict(fbr.veto_reasons),

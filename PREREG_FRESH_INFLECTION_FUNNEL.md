@@ -231,6 +231,12 @@ A fresh inflection's tradeable direction is the **recent** move. `direction_of` 
 §10), else `sign(mom_12-1)`, else `sign(rel_strength)`, else bullish. A fresh rollover then surfaces
 **bearish/puts** (NOC `mom_3m −0.27`). A behavior change where recent/trailing disagree; intended.
 
+> **Amended 2026-09-24 by `PREREG_DIRECTION_COHERENCE.md` (a condition added, not a repeal).** The rule above
+> still sets direction. A sentinel framed bearish is now **withheld from the candidate union** when its latest
+> filed quarter shows revenue growing AND accelerating: a fresh rollover in a name whose fundamentals are also
+> rolling over is still proposed as a put, exactly as intended here. A three-month pullback in a compounding
+> business is not.
+
 ---
 
 ## §7 — Council + framer grounding via `_marker_evidence` (R1 P1-1 target; R2-1 render)
