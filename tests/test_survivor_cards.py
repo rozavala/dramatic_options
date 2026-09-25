@@ -496,6 +496,27 @@ def test_screen_band_fit_over_cap_and_out_of_band_fail():
     assert "no structure" in adjusted.axis("band_fit").detail
 
 
+def test_screen_band_fit_fails_below_the_admission_runway_floor():
+    """#265: a contract inside the 180d tenor window but under the §12 admission floor would pass the
+    plain screen and then fail the admission read. The card must say FAIL, with the reason spelled out."""
+    short = sc.run_screen("FCX", market=_market(chain=_chain(dte=190)), params=sc.ScreenParams(),
+                          as_of=AS_OF, quotes_live=True)
+    band = short.axis("band_fit")
+    assert band.status == sc.FAIL and not short.passed
+    assert "runway: dte 190 < 200 (admission floor, curation §12)" in band.detail
+    at_floor = sc.run_screen("FCX", market=_market(chain=_chain(dte=200)), params=sc.ScreenParams(),
+                             as_of=AS_OF, quotes_live=True)
+    assert at_floor.axis("band_fit").status == sc.PASS          # the floor is inclusive: dte >= 200
+
+
+def test_admission_runway_floor_matches_the_read_of_record():
+    """The card screen and the admission read of record must never disagree on the floor."""
+    from pathlib import Path
+    src = Path(__file__).resolve().parents[1].joinpath("scripts", "probe_basket_feasibility.py").read_text()
+    assert f"ADMISSION_MIN_DTE = {sc.ADMISSION_MIN_DTE}" in src
+    assert sc.ScreenParams().admission_min_dte == sc.ADMISSION_MIN_DTE == 200
+
+
 def test_screen_skip_market_marks_unavailable_never_passed():
     r = sc.run_screen("FCX", market=None, params=sc.ScreenParams(), as_of=AS_OF,
                       quotes_live=False)
