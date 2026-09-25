@@ -404,6 +404,31 @@ describe("fromBackend — the nightly-grade read", () => {
     expect(vm.spend.totalMtd).toBe("$9.02"); expect(vm.spend.totalCap).toBe("$20"); expect(vm.spend.perCycleCap).toBe("$5.00");
   });
 
+  it("maps direction coherence: filed facts, the let-through bears, and the wiring check (#264)", () => {
+    const dc = {
+      active: true, stamp: "cheap_reserve_v1+fairness_v1.1+dircoherence_v1", f2_clean: true,
+      runs: [
+        { run_id: 1454, started_at: "2026-09-25 19:45:03", status: "ok", errors: 0, reached_despite_withheld: [],
+          withheld: [{ symbol: "AMSC", yoy: 0.3001, accel: 0.0863, period_end: "2026-06-30", filed: "2026-08-05" }],
+          kept: [{ symbol: "CEG", yoy: 0.1321, accel: -0.126, period_end: "2026-06-30", filed: "2026-08-07" }],
+          kept_no_accel: [{ symbol: "KLAR" }] },
+        { run_id: 1437, started_at: "2026-09-24 19:45:03", status: "ok", errors: 0, reached_despite_withheld: [],
+          withheld: [{ symbol: "AMSC" }, { symbol: "GEV" }], kept: [], kept_no_accel: [{ symbol: "CCJ" }] },
+      ],
+    };
+    const vm = fromBackend({ ...synthetic(), dircoherence: dc } as unknown as Snapshot);
+    expect(vm.dircoherence).toEqual({
+      active: true, runId: 1454, day: "2026-09-25", unavailable: false,
+      withheld: [{ symbol: "AMSC", facts: "+30.0% · accel +0.086 · Q 2026-06-30" }],
+      kept: [{ symbol: "CEG", facts: "+13.2% · accel -0.126 · Q 2026-06-30" }],
+      noAccel: ["KLAR"], errors: 0, reachedDespite: [], f2Clean: true,
+      history: [{ day: "2026-09-25", withheld: 1 }, { day: "2026-09-24", withheld: 2 }],
+    });
+    const bad = fromBackend({ ...synthetic(), dircoherence: { error: "boom" } } as unknown as Snapshot);
+    expect(bad.dircoherence).toBeNull();
+    expect(bad.degraded).toContain("dircoherence");
+  });
+
   it("maps the canary series oldest→newest with a trend, and the data-accrual honesty flag", () => {
     const vm = fromBackend(withSession());
     expect(vm.canary).toEqual({ symbol: "NVDA", latest: 1.0444, skew: -0.8, cheap: true, series: [1.0184, 1.0444], gateLine: 1.2, trend: "up" });

@@ -137,6 +137,16 @@ what makes the harm falsifier in §6 possible).
   same line appended to `runs.note` (journald rotates; the runs row does not — the anti-silent-dormancy
   convention). **This line is the durable record of which names were withheld**: a withheld name has no
   proposal row. With no fundamentals provider the line reads `fundamentals unavailable — nothing withheld`.
+- **Clarified 2026-09-25 (telemetry only; issue #263; operator word "file those as issues and fix them"):**
+  grading the first night showed the line could not prove F2 from the record, because it listed withheld
+  symbols without the numbers and did not list the bears the rule examined and let through. The line now
+  carries, for **every** bearish sentinel the rule examined, its filed revenue growth and acceleration with
+  the quarter end and filing date, in exactly one of three lists:
+  `withheld=[AMSC(+0.3001/+0.0863 q=2026-06-30 f=2026-08-05), …] kept=[CEG(+0.1321/-0.1260 q=… f=…), …]
+  kept_no_accel=[CCJ, …] errors=N`. F1 and F2 are therefore auditable from the record alone, even after the
+  cached filings are refreshed or restated. **The rule's decision logic is unchanged** (a test pins that no
+  verdict moved), so this does not disturb the F2 read window. `direction_coherence.parse_summary` reads
+  both the 2026-09-24 symbols-only line and this one.
 - **Record-segmenting.** The union composition changes, so the `runs.model_mix` `union_rank` stamp gains a
   suffix (`cheap_reserve_v1+fairness_v1.1+dircoherence_v1`). The first run under the rule is a segment
   boundary: never pool Brier or council-marginal across it.

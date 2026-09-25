@@ -8,7 +8,7 @@
 //   #4 sentinel `note` ("rv-slope · 4d") is composed (trigger + age) — not a raw column; best-effort here.
 
 import type {
-  AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
+  AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
   NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
   Snapshot, SpendVM, ViewModel,
 } from "./types";
@@ -116,7 +116,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["forward_catalysts", P.forward_catalysts],
       ["null_attempts", P.null_attempts],
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
-      ["session", P.session], ["spend", P.spend], ["canary", P.canary],
+      ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
@@ -311,6 +311,26 @@ export function fromBackend(P: Snapshot): ViewModel {
       }
     : null;
 
+  // Direction coherence (direction_coherence_panel, #264) — the latest L1 plus a short history. The facts
+  // string is the filed revenue the rule decided on; absent on the 2026-09-24 symbols-only record.
+  const dcP = panelError(P.dircoherence) ? null : P.dircoherence;
+  const dcFacts = (i: DirCoherenceItem): DirCoherenceItemVM => ({
+    symbol: i.symbol,
+    facts: i.yoy == null || i.accel == null ? null
+      : `${i.yoy >= 0 ? "+" : ""}${(i.yoy * 100).toFixed(1)}% · accel ${i.accel >= 0 ? "+" : ""}${i.accel.toFixed(3)}${i.period_end ? ` · Q ${i.period_end}` : ""}`,
+  });
+  const dc0 = dcP?.runs?.[0];
+  const dircoherence: DirCoherenceVM | null = dcP
+    ? {
+        active: dcP.active, runId: dc0?.run_id ?? null, day: String(dc0?.started_at ?? DASH).slice(0, 10),
+        unavailable: dc0?.status === "unavailable",
+        withheld: (dc0?.withheld ?? []).map(dcFacts), kept: (dc0?.kept ?? []).map(dcFacts),
+        noAccel: (dc0?.kept_no_accel ?? []).map((i) => i.symbol), errors: dc0?.errors ?? 0,
+        reachedDespite: dc0?.reached_despite_withheld ?? [], f2Clean: dcP.f2_clean,
+        history: (dcP.runs ?? []).map((r) => ({ day: String(r.started_at ?? DASH).slice(0, 10), withheld: r.withheld.length })),
+      }
+    : null;
+
   const dualreadLast = P.dualread?.sessions?.[(P.dualread?.sessions?.length ?? 0) - 1];
   const wingMismatch = dualreadLast?.wing_mismatch ?? [];
 
@@ -406,6 +426,6 @@ export function fromBackend(P: Snapshot): ViewModel {
     t4: cond,
     readiness,
     edgeAccrual: { n: edgeN, target: EDGE_TARGET }, phasePct, phaseSub,
-    session, spend, canary, wingMismatch, dataAccrual, booksOpen, firstEntry,
+    session, spend, canary, dircoherence, wingMismatch, dataAccrual, booksOpen, firstEntry,
   };
 }

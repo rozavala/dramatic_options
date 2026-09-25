@@ -7,6 +7,7 @@ value; PREREG_CONVEXITY_CALIBRATION §6). The fixture `convexity_db` (conftest) 
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -847,3 +848,40 @@ def test_data_gathered_reports_the_iv_baseline_of_record(convexity_db, tmp_path)
     assert b["accruing"] is True and b["latest_age_days"] == 0.0
     assert out["accruing"] is False and "silent by architecture" in out["snapshot_writer_note"]
     assert dd.data_gathered_panel(tmp_path, now=now)["iv_baseline_of_record"] is None
+
+
+def test_direction_coherence_panel_reads_the_record_and_the_wiring_check(convexity_db):
+    """#264: per recent L1, what the filter withheld / let through / kept for no accel, parsed from
+    runs.note (both shapes on record), and F2's one number: withheld lineages that still reached the
+    council (must be 0)."""
+    import direction_coherence as dc
+    import state
+    from themes import Theme
+
+    # night 1 — the 2026-09-24 symbols-only line; clean (no withheld name reached the council)
+    r1 = state.record_run(convexity_db, mode="PAPER", equity=None,
+                          note="paper cycle · direction-coherence: withheld=['AMSC', 'GEV'] "
+                               "kept_no_accel=['CCJ'] errors=0")
+    state.record_council_proposal(convexity_db, run_id=r1, as_of="t", theme="x", symbol="CC",
+                                  direction="bearish", conviction="NEUTRAL", status="dropped", sentinel_id=None)
+    # night 2 — the value-carrying line; a WITHHELD name reached the council (the F2 failure shape)
+    f = dc.CoherenceFilter(lines_of=lambda s: [
+        {"concept": "revenue", "metric": "qtr_yoy", "value": 0.30, "period_end": "2026-06-30", "filed": "2026-08-05"},
+        {"concept": "revenue", "metric": "qtr_yoy_accel", "value": 0.086}])
+    f.apply([Theme(name="t", symbol="AMSC", direction="bearish", thesis="t", source="sentinel", sentinel_id=1)])
+    r2 = state.record_run(convexity_db, mode="PAPER", equity=None, note="paper cycle · " + f.summary())
+    convexity_db.execute("UPDATE runs SET model_mix = ? WHERE id = ?",
+                         (json.dumps({"union_rank": "cheap_reserve_v1+fairness_v1.1+dircoherence_v1"}), r2))
+    state.record_council_proposal(convexity_db, run_id=r2, as_of="t", theme="x", symbol="AMSC",
+                                  direction="bearish", conviction="NEUTRAL", status="dropped", sentinel_id=1)
+
+    p = dd.direction_coherence_panel(convexity_db)
+    assert p["active"] is True and p["stamp"].endswith("+dircoherence_v1")
+    assert [r["run_id"] for r in p["runs"]] == [r2, r1]                       # newest first
+    n2, n1 = p["runs"]
+    assert n2["withheld"] == [{"symbol": "AMSC", "yoy": 0.3, "accel": 0.086,
+                               "period_end": "2026-06-30", "filed": "2026-08-05"}]
+    assert n2["reached_despite_withheld"] == ["AMSC"]                          # the F2 failure is VISIBLE
+    assert [i["symbol"] for i in n1["withheld"]] == ["AMSC", "GEV"] and n1["reached_despite_withheld"] == []
+    assert p["f2_clean"] is False
+    assert dd.direction_coherence_panel(convexity_db, n=1)["runs"][0]["run_id"] == r2
