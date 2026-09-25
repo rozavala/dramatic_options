@@ -404,6 +404,22 @@ describe("fromBackend — the nightly-grade read", () => {
     expect(vm.spend.totalMtd).toBe("$9.02"); expect(vm.spend.totalCap).toBe("$20"); expect(vm.spend.perCycleCap).toBe("$5.00");
   });
 
+  it("maps stale fundamentals from the latest run (#269)", () => {
+    const panel = { latest_lagging: [], runs: [
+      { run_id: 1471, started_at: "2026-09-28 19:45:04", status: "ok", checked: 19, no_corpus: 3, errors: 0,
+        lagging: [{ symbol: "NEE", corpus_filed: "2026-04-23", form: "10-Q", filed: "2026-07-24" }] },
+    ] };
+    const vm = fromBackend({ ...synthetic(), staleness: panel } as unknown as Snapshot);
+    expect(vm.staleness).toEqual({ runId: 1471, day: "2026-09-28", unavailable: null, checked: 19, errors: 0,
+      lagging: [{ symbol: "NEE", line: "read the 2026-04-23 filing · 10-Q filed 2026-07-24" }] });
+    const off = fromBackend({ ...synthetic(), staleness: { runs: [
+      { run_id: 9, started_at: null, status: "unavailable", checked: 0, no_corpus: 0, errors: 0, lagging: [],
+        reason: "fundamentals unavailable — nothing checked" }], latest_lagging: [] } } as unknown as Snapshot);
+    expect(off.staleness?.unavailable).toBe("fundamentals unavailable — nothing checked");
+    const none = fromBackend(synthetic());
+    expect(none.staleness).toBeNull();
+  });
+
   it("maps direction coherence: filed facts, the let-through bears, and the wiring check (#264)", () => {
     const dc = {
       active: true, stamp: "cheap_reserve_v1+fairness_v1.1+dircoherence_v1", f2_clean: true,

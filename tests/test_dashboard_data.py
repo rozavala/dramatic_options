@@ -885,3 +885,21 @@ def test_direction_coherence_panel_reads_the_record_and_the_wiring_check(convexi
     assert [i["symbol"] for i in n1["withheld"]] == ["AMSC", "GEV"] and n1["reached_despite_withheld"] == []
     assert p["f2_clean"] is False
     assert dd.direction_coherence_panel(convexity_db, n=1)["runs"][0]["run_id"] == r2
+
+
+def test_fundamentals_staleness_panel_reads_the_record(convexity_db):
+    """#269: names judged on an older quarter than their latest filed report, parsed from runs.note."""
+    import state
+
+    r1 = state.record_run(convexity_db, mode="PAPER", equity=None,
+                          note="paper cycle · fundamentals-staleness: lagging=[] checked=18 no_corpus=2 errors=0")
+    r2 = state.record_run(convexity_db, mode="PAPER", equity=None,
+                          note="paper cycle · fundamentals-staleness: lagging=[NEE(corpus 2026-04-23 < 10-Q "
+                               "2026-07-24)] checked=19 no_corpus=3 errors=0 · fwd_catalysts: rendered=1")
+    p = dd.fundamentals_staleness_panel(convexity_db)
+    assert [r["run_id"] for r in p["runs"]] == [r2, r1]
+    assert p["latest_lagging"] == [{"symbol": "NEE", "corpus_filed": "2026-04-23", "form": "10-Q",
+                                    "filed": "2026-07-24"}]
+    assert p["runs"][1]["lagging"] == [] and p["runs"][0]["checked"] == 19
+    empty = dd.fundamentals_staleness_panel(convexity_db, n=0)
+    assert empty == {"runs": [], "latest_lagging": []}

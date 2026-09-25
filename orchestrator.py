@@ -27,6 +27,7 @@ import clusters
 import direction_coherence
 import discovery
 import fixed_basket
+import fundamentals_staleness
 import notify
 import sentinels
 import shadow_book
@@ -812,6 +813,18 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             log.info(router.ledger.summary())
                             _stamp_council_health(conn, run_id, config, router,
                                                   catalysts=catalysts_dep)
+                            # Issue #269 — TELEMETRY ONLY: names judged on an older quarter than their latest
+                            # filed report (the NEE upstream companyfacts gap). Never changes the pack or a
+                            # verdict; fail-soft so a check error can never touch the cycle.
+                            if (config.get("council", {}).get("fundamentals_staleness") or {}).get("enabled", False):
+                                try:
+                                    st_line = fundamentals_staleness.check_cycle(
+                                        conn, run_id, config, fund_dep, clock.now(), cache=chain_cache,
+                                        coherence=coherence)
+                                    log.info(st_line)
+                                    append_run_note(conn, run_id, " · " + st_line)
+                                except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                                    log.warning("fundamentals-staleness check failed (non-fatal): %s", e)
                         except BudgetExceeded as e:
                             # Soft, exit-0 condition: OnFailure can't catch it → page in-app (PR2 R-C).
                             log.error("Council cost cap hit (%s) — fail-closed: NO entries this cycle.", e)

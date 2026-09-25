@@ -36,6 +36,7 @@ import breach_audit
 import clusters
 import direction_coherence
 import fixed_basket
+import fundamentals_staleness
 import shadow_book
 import state
 from council.proposal import passes_floor
@@ -1663,4 +1664,21 @@ def direction_coherence_panel(conn, *, n: int = DIRCOHERENCE_RUNS_N) -> dict:
         "runs": runs,
         "f2_clean": all(not x["reached_despite_withheld"] for x in runs) if runs else None,
     }
+
+
+STALENESS_RUNS_N = 5
+
+
+def fundamentals_staleness_panel(conn, *, n: int = STALENESS_RUNS_N) -> dict:
+    """Issue #269 — names the council or the direction rule judged on an older quarter than their latest filed
+    report, parsed from ``runs.note`` (the durable record). Telemetry only; read-only; never fetches."""
+    rows = conn.execute(
+        "SELECT id, started_at, note FROM runs WHERE note LIKE ? ORDER BY id DESC LIMIT ?",
+        (f"%{fundamentals_staleness.PREFIX}%", n)).fetchall()
+    runs = []
+    for r in rows:
+        parsed = fundamentals_staleness.parse_summary(r["note"])
+        if parsed is not None:
+            runs.append({"run_id": r["id"], "started_at": r["started_at"], **parsed})
+    return {"runs": runs, "latest_lagging": runs[0]["lagging"] if runs else []}
 

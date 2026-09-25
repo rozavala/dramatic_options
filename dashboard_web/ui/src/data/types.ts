@@ -122,6 +122,7 @@ export interface Snapshot {
   spend?: SpendPanel;       // month-to-date council spend per provider vs the $ tripwire (spend_panel)
   canary?: CanaryPanel;     // the gate-rich canary's trailing OPRA iv/rv (canary_panel)
   dircoherence?: DirCoherencePanel; // PREREG_DIRECTION_COHERENCE: what the union filter withheld (direction_coherence_panel)
+  staleness?: StalenessPanel;       // #269: names judged on an older quarter than their latest filing (fundamentals_staleness_panel)
   _fatal?: string;
 }
 
@@ -285,6 +286,11 @@ export interface DirCoherenceVM {
   withheld: DirCoherenceItemVM[]; kept: DirCoherenceItemVM[]; noAccel: string[]; errors: number;
   reachedDespite: string[]; f2Clean: boolean | null; history: { day: string; withheld: number }[];
 }
+// #269 — stale fundamentals (fundamentals_staleness_panel): raw + render shape.
+export interface StalenessItem { symbol: string; corpus_filed: string; form: string; filed: string }
+export interface StalenessRun { run_id: number; started_at: string | null; status: string; lagging: StalenessItem[]; checked: number; no_corpus: number; errors: number; reason?: string }
+export interface StalenessPanel { runs: StalenessRun[]; latest_lagging: StalenessItem[] }
+export interface StalenessVM { runId: number | null; day: string; unavailable: string | null; checked: number; errors: number; lagging: { symbol: string; line: string }[] }
 export interface CanaryVM { symbol: string; latest: number | null; skew: number | null; cheap: boolean | null; series: number[]; gateLine: number; trend: string }
 export interface IvBaselineVM { rows: number; symbols: number; sessions: number; latest: string; ageDays: number | null; accruing: boolean }
 export interface DataAccrualVM { symbols: number; latest: string; ageDays: number | null; accruing: boolean; barSymbols: number; names: string[]; baseline: IvBaselineVM | null }
@@ -346,6 +352,7 @@ export interface ViewModel {
   spend: SpendVM;                     // month-to-date spend vs the per-provider tripwire
   canary: CanaryVM | null;            // the gate-rich canary (NVDA) iv/rv trend
   dircoherence: DirCoherenceVM | null; // the direction-coherence union filter, latest L1 + recent nights
+  staleness: StalenessVM | null;       // names judged on an older quarter than their latest filed report
   wingMismatch: string[];             // latest dual-read session's wing-mismatch names (boundary class)
   dataAccrual: DataAccrualVM;         // chain-snapshot store, with the honesty flag
   booksOpen: BooksOpenVM;             // open counts across the five books

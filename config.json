@@ -145,6 +145,8 @@
     "fairness_slots": 2,
     "_comment_direction_coherence": "PREREG_DIRECTION_COHERENCE (FROZEN 2026-09-24 on the operator's word): a SENTINEL framed BEARISH is withheld from the candidate union when its latest filed quarter shows revenue growing (qtr_yoy > 0) AND accelerating (qtr_yoy_accel > 0) — natural zeros, nothing tuned. Composition-only; hand-seeds and bullish framings untouched; missing data never withholds; the SAME withheld set is removed from the shadow + 3A unions so every contrast stays paired. Stamped union_rank +dircoherence_v1 = record-segmenting. enabled=false = byte-identical off.",
     "direction_coherence": {"enabled": true},
+    "_comment_fundamentals_staleness": "Issue #269 (2026-09-25) — TELEMETRY ONLY: after each L1 council pass, flag names whose corpus (read this cycle) reflects an older filing than their newest 10-Q/10-K/20-F/40-F on EDGAR, filed >3 days before the run (NEE: Q2 10-Q filed 2026-07-24 never reached SEC companyfacts). Never changes the context pack or a verdict; no record segmentation; fail-soft. enabled=false = off.",
+    "fundamentals_staleness": {"enabled": true},
     "news_lookback_days": 90,
     "prices_per_mtok": {
       "gemini-3.6-flash": {"in": 1.5, "out": 7.5},
