@@ -290,6 +290,9 @@ that expiry crosses the live 180-day floor.
 
 **Not retroactive.** Admitted names stay admitted; KLAR and CC keep their baskets and clusters.
 
-**Out of scope.** The reach cards' provisional `band_fit` pre-screen keeps the plain 180-day floor. It is a
-pre-screen; this floor binds the admission read of record, which always governs.
+**Extended 2026-09-25 to the reach cards (issue #265; operator word "file those as issues and fix them").**
+The draft above left the cards' provisional `band_fit` pre-screen on the plain 180-day floor, which let a card
+show PASS on a contract that would then fail the admission read — and invite a word on it. The card screen now
+fails a selection below 200 days with the reason spelled out (`runway: dte N < 200`). The admission read of
+record still governs; a test pins the two floors to the same value.
 

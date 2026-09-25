@@ -473,6 +473,11 @@ AXES = ("price", "adv", "optionable", "band_fit")
 PASS, FAIL, UNAVAILABLE = "PASS", "FAIL", "UNAVAILABLE"
 
 
+# PREREG_UNIVERSE_CURATION §12 (2026-09-24): the admission RUNWAY floor. Mirrors ``ADMISSION_MIN_DTE`` in
+# scripts/probe_basket_feasibility.py (the read of record); a parity test pins the two together (#265).
+ADMISSION_MIN_DTE = 200
+
+
 @dataclass(frozen=True)
 class ScreenParams:
     """The frozen floors + cap-fit arithmetic, mirrored from the established feasibility
@@ -489,6 +494,7 @@ class ScreenParams:
     max_open_positions: int = 15
     tenor_min_days: int = 180
     tenor_max_days: int = 365
+    admission_min_dte: int = ADMISSION_MIN_DTE  # §12 runway: the admission read fails a selection below it
     target_moneyness: float = 0.25
     otm_band_lo: float = OTM_BAND[0]
     otm_band_hi: float = OTM_BAND[1]
@@ -696,9 +702,14 @@ def _band_fit_axis(
     detail = (f"{st.contract.symbol} dte {st.dte}, achieved OTM {ach * 100.0:.1f}% "
               f"(band {params.otm_band_lo * 100:.0f}-{params.otm_band_hi * 100:.0f}%), "
               f"${per_contract:.0f}/contract vs ${per_name_cap:.0f} cap")
-    if in_band and fits:
+    # §12 runway (#265): a selection inside the 180d tenor window but below the admission floor would pass the
+    # plain screen and then fail the admission read — so the card says so, instead of showing PASS.
+    runway_ok = st.dte >= params.admission_min_dte
+    if in_band and fits and runway_ok:
         return AxisResult("band_fit", PASS, detail, provisional)
-    reasons = ([] if in_band else ["achieved OTM outside band"]) + ([] if fits else ["over per-name cap"])
+    reasons = (([] if in_band else ["achieved OTM outside band"]) + ([] if fits else ["over per-name cap"])
+               + ([] if runway_ok else [f"runway: dte {st.dte} < {params.admission_min_dte} "
+                                        f"(admission floor, curation §12)"]))
     return AxisResult("band_fit", FAIL, f"{detail} — {'; '.join(reasons)}", provisional)
 
 
