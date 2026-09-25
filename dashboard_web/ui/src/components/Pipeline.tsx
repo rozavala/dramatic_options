@@ -43,6 +43,54 @@ function Instrument({ title, meta, children }: { title: string; meta: string; ch
   );
 }
 
+// PREREG_DIRECTION_COHERENCE (#264): what the union filter held back before the council, with the filed
+// revenue it decided on, and the one-number wiring check (F2) — withheld names that still reached the council.
+function DirCoherenceCard({ dc }: { dc: NonNullable<ViewModel["dircoherence"]> }) {
+  const clean = dc.reachedDespite.length === 0;
+  const list = (items: { symbol: string; facts: string | null }[]) => items.length
+    ? items.map((i) => <div key={i.symbol} className="flex justify-between" style={{ gap: 12, padding: "3px 0", fontSize: 12.5 }}>
+        <span className="font-mono" style={{ color: "#2c3645", fontWeight: 500 }}>{i.symbol}</span>
+        <span className="font-mono" style={{ color: "#6a7280" }}>{i.facts ?? "values not on this record"}</span>
+      </div>)
+    : <div style={{ fontSize: 12, color: "#6a7280", padding: "3px 0" }}>none</div>;
+  return (
+    <Card style={{ padding: "18px 20px", borderColor: clean ? "#cbd0da" : signal.warn.border }}>
+      <div className="flex justify-between items-center" style={{ gap: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
+          Direction coherence <Muted>· {dc.day}{dc.runId != null ? ` · run #${dc.runId}` : ""}</Muted>
+        </div>
+        <span className="font-mono" style={{ fontSize: 12, fontWeight: 500, color: clean ? signal.ok.text : signal.warn.text }}>
+          {clean ? "0 reached the council" : `${dc.reachedDespite.join(", ")} reached the council`}
+        </span>
+      </div>
+      <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 10 }}>
+        {dc.unavailable
+          ? "No fundamentals provider this run, so nothing was withheld."
+          : "A discovery candidate framed bearish is held back when its latest filed quarter shows revenue growing and accelerating. Hand-seeds and bullish framings are never touched, and missing data never withholds."}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 18 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: "#2c3645", marginBottom: 2 }}>Withheld <Muted>· {dc.withheld.length}</Muted></div>
+          {list(dc.withheld)}
+        </div>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: "#2c3645", marginBottom: 2 }}>Examined, let through <Muted>· {dc.kept.length}</Muted></div>
+          {list(dc.kept)}
+          <div style={{ fontSize: 12, color: "#6a7280", marginTop: 8 }}>
+            No filed acceleration, kept: {dc.noAccel.length ? dc.noAccel.join(", ") : "none"}
+            {dc.errors ? <span style={{ color: signal.warn.text }}> · {dc.errors} read error{dc.errors === 1 ? "" : "s"} (kept)</span> : null}
+          </div>
+        </div>
+      </div>
+      {dc.history.length > 1 ? (
+        <div style={{ fontSize: 11, color: "#6a7280", marginTop: 10 }}>
+          Withheld by night: {dc.history.map((h) => `${h.day.slice(5)} ${h.withheld}`).join(" · ")}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
 export function Pipeline({ vm }: { vm: ViewModel }) {
   const f = vm.funnel;
   const se = vm.session;
@@ -81,6 +129,8 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
           )}
         </div>
       </Card>
+
+      {vm.dircoherence ? <DirCoherenceCard dc={vm.dircoherence} /> : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] items-start" style={{ gap: 16 }}>
         <Card style={{ padding: "18px 20px" }}>

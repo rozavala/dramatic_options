@@ -85,6 +85,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "session": dd.safe(dd.council_session_panel, conn, config),
             "spend": dd.safe(dd.spend_panel, conn, config),
             "canary": dd.safe(dd.canary_panel, conn),
+            "dircoherence": dd.safe(dd.direction_coherence_panel, conn),
         }
     finally:
         conn.close()

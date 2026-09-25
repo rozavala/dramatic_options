@@ -121,6 +121,7 @@ export interface Snapshot {
   session?: SessionPanel;   // the nightly-grade read: the latest council session, per name (council_session_panel)
   spend?: SpendPanel;       // month-to-date council spend per provider vs the $ tripwire (spend_panel)
   canary?: CanaryPanel;     // the gate-rich canary's trailing OPRA iv/rv (canary_panel)
+  dircoherence?: DirCoherencePanel; // PREREG_DIRECTION_COHERENCE: what the union filter withheld (direction_coherence_panel)
   _fatal?: string;
 }
 
@@ -270,6 +271,20 @@ export interface SessionVM {
 }
 export interface SpendRowVM { provider: string; mtd: string; cap: string | null; frac: number | null; page: boolean }
 export interface SpendVM { month: string; rows: SpendRowVM[]; totalMtd: string; totalCap: string | null; cumulative: string; framer: string; perCycleCap: string | null; anyPage: boolean }
+// PREREG_DIRECTION_COHERENCE — raw panel (direction_coherence_panel) and its render shape (#264).
+export interface DirCoherenceItem { symbol: string; yoy?: number; accel?: number; period_end?: string | null; filed?: string | null }
+export interface DirCoherenceRun {
+  run_id: number; started_at: string | null; status: string; errors: number;
+  withheld: DirCoherenceItem[]; kept: DirCoherenceItem[]; kept_no_accel: DirCoherenceItem[];
+  reached_despite_withheld: string[];
+}
+export interface DirCoherencePanel { active: boolean; stamp: string | null; runs: DirCoherenceRun[]; f2_clean: boolean | null }
+export interface DirCoherenceItemVM { symbol: string; facts: string | null }  // "+30.0% · accel +0.086 · Q 2026-06-30"
+export interface DirCoherenceVM {
+  active: boolean; runId: number | null; day: string; unavailable: boolean;
+  withheld: DirCoherenceItemVM[]; kept: DirCoherenceItemVM[]; noAccel: string[]; errors: number;
+  reachedDespite: string[]; f2Clean: boolean | null; history: { day: string; withheld: number }[];
+}
 export interface CanaryVM { symbol: string; latest: number | null; skew: number | null; cheap: boolean | null; series: number[]; gateLine: number; trend: string }
 export interface IvBaselineVM { rows: number; symbols: number; sessions: number; latest: string; ageDays: number | null; accruing: boolean }
 export interface DataAccrualVM { symbols: number; latest: string; ageDays: number | null; accruing: boolean; barSymbols: number; names: string[]; baseline: IvBaselineVM | null }
@@ -330,6 +345,7 @@ export interface ViewModel {
   session: SessionVM;                 // the latest council session, as graded nightly
   spend: SpendVM;                     // month-to-date spend vs the per-provider tripwire
   canary: CanaryVM | null;            // the gate-rich canary (NVDA) iv/rv trend
+  dircoherence: DirCoherenceVM | null; // the direction-coherence union filter, latest L1 + recent nights
   wingMismatch: string[];             // latest dual-read session's wing-mismatch names (boundary class)
   dataAccrual: DataAccrualVM;         // chain-snapshot store, with the honesty flag
   booksOpen: BooksOpenVM;             // open counts across the five books

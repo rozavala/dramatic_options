@@ -34,6 +34,7 @@ import numpy as np
 
 import breach_audit
 import clusters
+import direction_coherence
 import fixed_basket
 import shadow_book
 import state
@@ -1628,3 +1629,38 @@ def canary_panel(conn, *, n: int = CANARY_SERIES_N) -> dict:
             pt["otm_skew"] = None if pt["otm_skew"] is None else round(float(pt["otm_skew"]), 2)
         out.append({"symbol": sym, "series": series, "latest": series[-1] if series else None})
     return {"gate_line": 1.2, "canaries": out}
+
+
+DIRCOHERENCE_RUNS_N = 5
+
+
+def direction_coherence_panel(conn, *, n: int = DIRCOHERENCE_RUNS_N) -> dict:
+    """PREREG_DIRECTION_COHERENCE observability (issue #264): per recent L1, what the union filter withheld,
+    what it examined and let through, and what it kept for lack of a filed acceleration — parsed from
+    ``runs.note``, the durable record (a withheld name has no proposal row). Plus the one-number wiring check
+    (F2): how many withheld lineages still reached the council that run. It must be 0; the panel reports,
+    it never decides. Read-only; never fetches."""
+    latest = conn.execute("SELECT MAX(run_id) FROM council_proposals").fetchone()[0]
+    stamp_row = conn.execute("SELECT model_mix FROM runs WHERE id = ?", (latest,)).fetchone() if latest else None
+    stamp = (_parse_json(stamp_row["model_mix"]) or {}).get("union_rank") if stamp_row else None
+    rows = conn.execute(
+        "SELECT id, started_at, note FROM runs WHERE note LIKE '%direction-coherence:%' "
+        "ORDER BY id DESC LIMIT ?", (n,)).fetchall()
+    runs = []
+    for r in rows:
+        parsed = direction_coherence.parse_summary(r["note"])
+        if parsed is None:
+            continue
+        withheld = {i["symbol"] for i in parsed["withheld"]}
+        reached = [x["symbol"] for x in conn.execute(
+            "SELECT symbol FROM council_proposals WHERE run_id = ? AND direction = 'bearish' "
+            "AND sentinel_id IS NOT NULL", (r["id"],)) if x["symbol"] in withheld]
+        runs.append({"run_id": r["id"], "started_at": r["started_at"], **parsed,
+                     "reached_despite_withheld": reached})
+    return {
+        "active": bool(stamp and direction_coherence.STAMP in stamp),
+        "stamp": stamp,
+        "runs": runs,
+        "f2_clean": all(not x["reached_despite_withheld"] for x in runs) if runs else None,
+    }
+
