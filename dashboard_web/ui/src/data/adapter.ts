@@ -8,7 +8,7 @@
 //   #4 sentinel `note` ("rv-slope · 4d") is composed (trigger + age) — not a raw column; best-effort here.
 
 import type {
-  AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
+  AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
   NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
   Snapshot, SpendVM, ViewModel,
 } from "./types";
@@ -116,7 +116,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["forward_catalysts", P.forward_catalysts],
       ["null_attempts", P.null_attempts],
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
-      ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence],
+      ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence], ["staleness", P.staleness],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
@@ -331,6 +331,18 @@ export function fromBackend(P: Snapshot): ViewModel {
       }
     : null;
 
+  // #269 — names judged on an older quarter than their latest filed report (latest L1 only).
+  const stP = panelError(P.staleness) ? null : P.staleness;
+  const st0 = stP?.runs?.[0];
+  const staleness: StalenessVM | null = st0
+    ? {
+        runId: st0.run_id, day: String(st0.started_at ?? DASH).slice(0, 10),
+        unavailable: st0.status === "unavailable" ? (st0.reason ?? "not checked") : null,
+        checked: st0.checked, errors: st0.errors,
+        lagging: st0.lagging.map((i) => ({ symbol: i.symbol, line: `read the ${i.corpus_filed} filing · ${i.form} filed ${i.filed}` })),
+      }
+    : null;
+
   const dualreadLast = P.dualread?.sessions?.[(P.dualread?.sessions?.length ?? 0) - 1];
   const wingMismatch = dualreadLast?.wing_mismatch ?? [];
 
@@ -426,6 +438,6 @@ export function fromBackend(P: Snapshot): ViewModel {
     t4: cond,
     readiness,
     edgeAccrual: { n: edgeN, target: EDGE_TARGET }, phasePct, phaseSub,
-    session, spend, canary, dircoherence, wingMismatch, dataAccrual, booksOpen, firstEntry,
+    session, spend, canary, dircoherence, staleness, wingMismatch, dataAccrual, booksOpen, firstEntry,
   };
 }

@@ -91,6 +91,35 @@ function DirCoherenceCard({ dc }: { dc: NonNullable<ViewModel["dircoherence"]> }
   );
 }
 
+// #269 — names the council or the direction rule read on an older quarter than their latest filed report.
+function StalenessCard({ st }: { st: NonNullable<ViewModel["staleness"]> }) {
+  const clean = st.lagging.length === 0;
+  return (
+    <Card style={{ padding: "16px 20px", borderColor: clean ? "#cbd0da" : signal.warn.border }}>
+      <div className="flex justify-between items-center" style={{ gap: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
+          Stale fundamentals <Muted>· {st.day}{st.runId != null ? ` · run #${st.runId}` : ""}</Muted>
+        </div>
+        <span className="font-mono" style={{ fontSize: 12, fontWeight: 500, color: clean ? signal.ok.text : signal.warn.text }}>
+          {st.unavailable ? "not checked" : clean ? `0 of ${st.checked} read stale` : `${st.lagging.length} of ${st.checked} read stale`}
+        </span>
+      </div>
+      <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5 }}>
+        {st.unavailable
+          ? `Not checked this run: ${st.unavailable}.`
+          : "A name is flagged when the council or the direction rule read an older quarter than the company's latest filed report — usually an SEC data gap, not a refresh problem. Telemetry only: nothing here changes a decision."}
+      </div>
+      {st.lagging.map((l) => (
+        <div key={l.symbol} className="flex justify-between" style={{ gap: 12, padding: "6px 0 0", fontSize: 12.5 }}>
+          <span className="font-mono" style={{ color: "#2c3645", fontWeight: 500 }}>{l.symbol}</span>
+          <span className="font-mono" style={{ color: signal.warn.text }}>{l.line}</span>
+        </div>
+      ))}
+      {st.errors ? <div style={{ fontSize: 11, color: signal.warn.text, marginTop: 6 }}>{st.errors} check error{st.errors === 1 ? "" : "s"} (skipped)</div> : null}
+    </Card>
+  );
+}
+
 export function Pipeline({ vm }: { vm: ViewModel }) {
   const f = vm.funnel;
   const se = vm.session;
@@ -131,6 +160,7 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
       </Card>
 
       {vm.dircoherence ? <DirCoherenceCard dc={vm.dircoherence} /> : null}
+      {vm.staleness ? <StalenessCard st={vm.staleness} /> : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] items-start" style={{ gap: 16 }}>
         <Card style={{ padding: "18px 20px" }}>
