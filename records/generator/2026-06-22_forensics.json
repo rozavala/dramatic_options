@@ -1,0 +1,352 @@
+{
+  "as_of": "2026-06-22T17:49:39.871057+00:00",
+  "model": "gpt-5.4-2026-03-05",
+  "raw_text": "{\"claims\":[{\"claim_id\":\"space-gov-backlog-cluster\",\"statement\":\"government-heavy customer concentration plus dominant space-ETF inclusion -> backlog_growth -> listed U.S. space/defense operators\",\"named_entities\":[{\"canonical\":\"Rocket Lab Corporation\",\"ticker\":\"RKLB\",\"aliases\":[\"Rocket Lab\"]},{\"canonical\":\"Iridium Communications Inc.\",\"ticker\":\"IRDM\",\"aliases\":[\"Iridium Communications\"]},{\"canonical\":\"Intuitive Machines, Inc.\",\"ticker\":\"LUNR\",\"aliases\":[\"Intuitive Machines\"]},{\"canonical\":\"Kratos Defense & Security Solutions, Inc.\",\"ticker\":\"KTOS\",\"aliases\":[\"Kratos Defense & Security Solutions\"]}],\"mechanism_direction\":{\"vocab\":\"backlog_growth\",\"sign\":\"+\"},\"headline_quantities\":[{\"metric\":\"top_five_backlog_customer_share\",\"value\":77.0,\"bucket\":\"pct_50_100\"},{\"metric\":\"major_customer_revenue_share\",\"value\":78.0,\"bucket\":\"pct_50_100\"},{\"metric\":\"government_revenue_share\",\"value\":69.0,\"bucket\":\"pct_50_100\"},{\"metric\":\"largest_customer_revenue_share\",\"value\":29.0,\"bucket\":\"pct_25_50\"}],\"provenance\":\"generated\",\"citations\":[{\"source\":\"corpus_customer_concentration\",\"key\":\"RKLB\",\"ts\":\"2026-02-26T21:31:49+00:00\"},{\"source\":\"corpus_customer_concentration\",\"key\":\"LUNR\",\"ts\":\"2026-03-19T20:56:14+00:00\"},{\"source\":\"corpus_customer_concentration\",\"key\":\"KTOS\",\"ts\":\"2026-02-23T21:48:04+00:00\"},{\"source\":\"corpus_customer_concentration\",\"key\":\"IRDM\",\"ts\":\"2026-02-12T12:01:42+00:00\"},{\"source\":\"corpus_etf_constituents\",\"key\":\"ARKX\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"},{\"source\":\"corpus_etf_constituents\",\"key\":\"UFO\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"}]},{\"claim_id\":\"grid-datacenter-backlog\",\"statement\":\"data-center-driven order strength and backlog expansion -> backlog_growth -> grid electrical equipment and power-infrastructure suppliers\",\"named_entities\":[{\"canonical\":\"Eaton Corporation plc\",\"ticker\":\"ETN\",\"aliases\":[\"Eaton\"]},{\"canonical\":\"Quanta Services, Inc.\",\"ticker\":\"PWR\",\"aliases\":[\"Quanta Services\"]}],\"mechanism_direction\":{\"vocab\":\"backlog_growth\",\"sign\":\"+\"},\"headline_quantities\":[{\"metric\":\"electrical_backlog_growth\",\"value\":31.0,\"bucket\":\"pct_25_50\"},{\"metric\":\"electrical_book_to_bill\",\"value\":1.2,\"bucket\":\"x_lt2\"},{\"metric\":\"utility_and_power_revenue_mix\",\"value\":70.0,\"bucket\":\"pct_50_100\"},{\"metric\":\"technology_manufacturing_and_communications_revenue_mix\",\"value\":13.0,\"bucket\":\"pct_10_25\"}],\"provenance\":\"generated\",\"citations\":[{\"source\":\"corpus_customer_concentration\",\"key\":\"ETN\",\"ts\":\"2026-02-26T20:24:16+00:00\"},{\"source\":\"corpus_customer_concentration\",\"key\":\"PWR\",\"ts\":\"2026-02-19T14:58:03+00:00\"},{\"source\":\"corpus_etf_constituents\",\"key\":\"GRID\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"}]},{\"claim_id\":\"nuclear-fleet-density-ceg-peg\",\"statement\":\"large licensed U.S. reactor footprints plus strong nuclear-theme ETF inclusion -> capacity_constraint -> incumbent nuclear generators and utility owners\",\"named_entities\":[{\"canonical\":\"Constellation Energy Corporation\",\"ticker\":\"CEG\",\"aliases\":[\"Constellation Energy\"]},{\"canonical\":\"Public Service Enterprise Group Incorporated\",\"ticker\":\"PEG\",\"aliases\":[\"PSEG\"]}],\"mechanism_direction\":{\"vocab\":\"capacity_constraint\",\"sign\":\"+\"},\"headline_quantities\":[{\"metric\":\"direct_c_and_i_market_share\",\"value\":32.0,\"bucket\":\"pct_25_50\"},{\"metric\":\"fpl_retail_electricity_revenue_share\",\"value\":90.0,\"bucket\":\"pct_50_100\"},{\"metric\":\"licensed_reactor_count_named_entities\",\"value\":19.0,\"bucket\":\"cnt_lt100\"}],\"provenance\":\"generated\",\"citations\":[{\"source\":\"corpus_customer_concentration\",\"key\":\"CEG\",\"ts\":\"2026-02-24T17:11:36+00:00\"},{\"source\":\"corpus_customer_concentration\",\"key\":\"NEE\",\"ts\":\"2026-02-13T21:19:14+00:00\"},{\"source\":\"corpus_etf_constituents\",\"key\":\"NLR\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"},{\"source\":\"corpus_nrc_dockets\",\"key\":\"power_reactors\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"}]},{\"claim_id\":\"uranium-fueling-fleet-constraint\",\"statement\":\"broad licensed reactor fleet and concentrated nuclear-theme capital allocation -> capacity_constraint -> uranium fuel-cycle and mining equities\",\"named_entities\":[{\"canonical\":\"Cameco Corporation\",\"ticker\":\"CCJ\",\"aliases\":[\"Cameco\"]},{\"canonical\":\"Uranium Energy Corp.\",\"ticker\":\"UEC\",\"aliases\":[\"Uranium Energy\"]},{\"canonical\":\"Energy Fuels Inc.\",\"ticker\":\"UUUU\",\"aliases\":[\"Energy Fuels\"]},{\"canonical\":\"Centrus Energy Corp.\",\"ticker\":\"LEU\",\"aliases\":[\"Centrus Energy\"]},{\"canonical\":\"NuScale Power Corporation\",\"ticker\":\"SMR\",\"aliases\":[\"NuScale Power\"]}],\"mechanism_direction\":{\"vocab\":\"capacity_constraint\",\"sign\":\"+\"},\"headline_quantities\":[{\"metric\":\"urnm_top_holding_weight\",\"value\":20.05,\"bucket\":\"pct_10_25\"},{\"metric\":\"nlr_top_holding_weight\",\"value\":8.17,\"bucket\":\"pct_0_10\"},{\"metric\":\"licensed_reactor_count_us_power_reactors\",\"value\":95.0,\"bucket\":\"cnt_lt100\"}],\"provenance\":\"generated\",\"citations\":[{\"source\":\"corpus_etf_constituents\",\"key\":\"URNM\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"},{\"source\":\"corpus_etf_constituents\",\"key\":\"NLR\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"},{\"source\":\"corpus_nrc_dockets\",\"key\":\"power_reactors\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"}]},{\"claim_id\":\"defense-missile-award-surge\",\"statement\":\"multi-billion guided-missile and space-vehicle federal awards plus high government exposure -> demand_surge -> prime missile and defense contractors\",\"named_entities\":[{\"canonical\":\"Northrop Grumman Corporation\",\"ticker\":\"NOC\",\"aliases\":[\"Northrop Grumman\"]},{\"canonical\":\"Lockheed Martin Corporation\",\"ticker\":\"LMT\",\"aliases\":[\"Lockheed Martin\"]},{\"canonical\":\"RTX Corporation\",\"ticker\":\"RTX\",\"aliases\":[\"RTX\",\"Raytheon\"]}],\"mechanism_direction\":{\"vocab\":\"demand_surge\",\"sign\":\"+\"},\"headline_quantities\":[{\"metric\":\"largest_guided_missile_space_award\",\"value\":11719559923.19,\"bucket\":\"usd_tens_of_billions\"},{\"metric\":\"northrop_us_government_sales_share\",\"value\":84.0,\"bucket\":\"pct_50_100\"},{\"metric\":\"lockheed_international_sales_share\",\"value\":28.0,\"bucket\":\"pct_25_50\"},{\"metric\":\"rtx_international_sales_share\",\"value\":47.0,\"bucket\":\"pct_25_50\"}],\"provenance\":\"generated\",\"citations\":[{\"source\":\"corpus_federal_awards\",\"key\":\"awards_7b7c78b58b\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"},{\"source\":\"corpus_customer_concentration\",\"key\":\"NOC\",\"ts\":\"2026-01-27T21:02:49+00:00\"},{\"source\":\"corpus_customer_concentration\",\"key\":\"LMT\",\"ts\":\"2026-01-29T22:18:08+00:00\"},{\"source\":\"corpus_customer_concentration\",\"key\":\"RTX\",\"ts\":\"2026-02-06T21:33:41+00:00\"},{\"source\":\"corpus_etf_constituents\",\"key\":\"UFO\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"}]},{\"claim_id\":\"ai-power-stack-concentration\",\"statement\":\"compute customer concentration and grid-theme inclusion -> capacity_constraint -> AI power and electrical infrastructure beneficiaries\",\"named_entities\":[{\"canonical\":\"NVIDIA Corporation\",\"ticker\":\"NVDA\",\"aliases\":[\"NVIDIA\"]},{\"canonical\":\"Eaton Corporation plc\",\"ticker\":\"ETN\",\"aliases\":[\"Eaton\"]}],\"mechanism_direction\":{\"vocab\":\"capacity_constraint\",\"sign\":\"+\"},\"headline_quantities\":[{\"metric\":\"largest_direct_customer_revenue_share\",\"value\":22.0,\"bucket\":\"pct_10_25\"},{\"metric\":\"second_direct_customer_revenue_share\",\"value\":14.0,\"bucket\":\"pct_10_25\"},{\"metric\":\"data_center_revenue_attributed_to_us_and_europe_end_customers\",\"value\":76.0,\"bucket\":\"pct_50_100\"},{\"metric\":\"electrical_backlog_growth\",\"value\":31.0,\"bucket\":\"pct_25_50\"}],\"provenance\":\"generated\",\"citations\":[{\"source\":\"corpus_customer_concentration\",\"key\":\"NVDA\",\"ts\":\"2026-02-25T21:42:19+00:00\"},{\"source\":\"corpus_customer_concentration\",\"key\":\"ETN\",\"ts\":\"2026-02-26T20:24:16+00:00\"},{\"source\":\"corpus_etf_constituents\",\"key\":\"GRID\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"},{\"source\":\"corpus_etf_constituents\",\"key\":\"ARKX\",\"ts\":\"2026-06-22T17:19:31.617255+00:00\"}]}]}",
+  "n_parsed": 6,
+  "n_kept": 6,
+  "parsed_forensics": [
+    {
+      "claim_id": "space-gov-backlog-cluster",
+      "statement": "government-heavy customer concentration plus dominant space-ETF inclusion -> backlog_growth -> listed U.S. space/defense operators",
+      "named_entities": [
+        {
+          "canonical": "Rocket Lab Corporation",
+          "ticker": "RKLB",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "Iridium Communications Inc.",
+          "ticker": "IRDM",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "Intuitive Machines, Inc.",
+          "ticker": "LUNR",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "Kratos Defense & Security Solutions, Inc.",
+          "ticker": "KTOS",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        }
+      ],
+      "citations": [
+        {
+          "source": "corpus_customer_concentration",
+          "key": "RKLB",
+          "ts": "2026-02-26T21:31:49+00:00",
+          "n_records_exact_ts": 3,
+          "n_records_whole_key": 3
+        },
+        {
+          "source": "corpus_customer_concentration",
+          "key": "LUNR",
+          "ts": "2026-03-19T20:56:14+00:00",
+          "n_records_exact_ts": 4,
+          "n_records_whole_key": 4
+        },
+        {
+          "source": "corpus_customer_concentration",
+          "key": "KTOS",
+          "ts": "2026-02-23T21:48:04+00:00",
+          "n_records_exact_ts": 1,
+          "n_records_whole_key": 1
+        },
+        {
+          "source": "corpus_customer_concentration",
+          "key": "IRDM",
+          "ts": "2026-02-12T12:01:42+00:00",
+          "n_records_exact_ts": 4,
+          "n_records_whole_key": 4
+        },
+        {
+          "source": "corpus_etf_constituents",
+          "key": "ARKX",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 25,
+          "n_records_whole_key": 25
+        },
+        {
+          "source": "corpus_etf_constituents",
+          "key": "UFO",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 25,
+          "n_records_whole_key": 25
+        }
+      ],
+      "n_citations": 6,
+      "n_citations_with_ts": 6
+    },
+    {
+      "claim_id": "grid-datacenter-backlog",
+      "statement": "data-center-driven order strength and backlog expansion -> backlog_growth -> grid electrical equipment and power-infrastructure suppliers",
+      "named_entities": [
+        {
+          "canonical": "Eaton Corporation plc",
+          "ticker": "ETN",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "Quanta Services, Inc.",
+          "ticker": "PWR",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        }
+      ],
+      "citations": [
+        {
+          "source": "corpus_customer_concentration",
+          "key": "ETN",
+          "ts": "2026-02-26T20:24:16+00:00",
+          "n_records_exact_ts": 4,
+          "n_records_whole_key": 4
+        },
+        {
+          "source": "corpus_customer_concentration",
+          "key": "PWR",
+          "ts": "2026-02-19T14:58:03+00:00",
+          "n_records_exact_ts": 3,
+          "n_records_whole_key": 3
+        },
+        {
+          "source": "corpus_etf_constituents",
+          "key": "GRID",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 25,
+          "n_records_whole_key": 25
+        }
+      ],
+      "n_citations": 3,
+      "n_citations_with_ts": 3
+    },
+    {
+      "claim_id": "nuclear-fleet-density-ceg-peg",
+      "statement": "large licensed U.S. reactor footprints plus strong nuclear-theme ETF inclusion -> capacity_constraint -> incumbent nuclear generators and utility owners",
+      "named_entities": [
+        {
+          "canonical": "Constellation Energy Corporation",
+          "ticker": "CEG",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "Public Service Enterprise Group Incorporated",
+          "ticker": "PEG",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        }
+      ],
+      "citations": [
+        {
+          "source": "corpus_customer_concentration",
+          "key": "CEG",
+          "ts": "2026-02-24T17:11:36+00:00",
+          "n_records_exact_ts": 2,
+          "n_records_whole_key": 2
+        },
+        {
+          "source": "corpus_customer_concentration",
+          "key": "NEE",
+          "ts": "2026-02-13T21:19:14+00:00",
+          "n_records_exact_ts": 1,
+          "n_records_whole_key": 1
+        },
+        {
+          "source": "corpus_etf_constituents",
+          "key": "NLR",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 25,
+          "n_records_whole_key": 25
+        },
+        {
+          "source": "corpus_nrc_dockets",
+          "key": "power_reactors",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 95,
+          "n_records_whole_key": 95
+        }
+      ],
+      "n_citations": 4,
+      "n_citations_with_ts": 4
+    },
+    {
+      "claim_id": "uranium-fueling-fleet-constraint",
+      "statement": "broad licensed reactor fleet and concentrated nuclear-theme capital allocation -> capacity_constraint -> uranium fuel-cycle and mining equities",
+      "named_entities": [
+        {
+          "canonical": "Cameco Corporation",
+          "ticker": "CCJ",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "Uranium Energy Corp.",
+          "ticker": "UEC",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "Energy Fuels Inc.",
+          "ticker": "UUUU",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "Centrus Energy Corp.",
+          "ticker": "LEU",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "NuScale Power Corporation",
+          "ticker": "SMR",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        }
+      ],
+      "citations": [
+        {
+          "source": "corpus_etf_constituents",
+          "key": "URNM",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 25,
+          "n_records_whole_key": 25
+        },
+        {
+          "source": "corpus_etf_constituents",
+          "key": "NLR",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 25,
+          "n_records_whole_key": 25
+        },
+        {
+          "source": "corpus_nrc_dockets",
+          "key": "power_reactors",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 95,
+          "n_records_whole_key": 95
+        }
+      ],
+      "n_citations": 3,
+      "n_citations_with_ts": 3
+    },
+    {
+      "claim_id": "defense-missile-award-surge",
+      "statement": "multi-billion guided-missile and space-vehicle federal awards plus high government exposure -> demand_surge -> prime missile and defense contractors",
+      "named_entities": [
+        {
+          "canonical": "Northrop Grumman Corporation",
+          "ticker": "NOC",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "Lockheed Martin Corporation",
+          "ticker": "LMT",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "RTX Corporation",
+          "ticker": "RTX",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        }
+      ],
+      "citations": [
+        {
+          "source": "corpus_federal_awards",
+          "key": "awards_7b7c78b58b",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 500,
+          "n_records_whole_key": 500
+        },
+        {
+          "source": "corpus_customer_concentration",
+          "key": "NOC",
+          "ts": "2026-01-27T21:02:49+00:00",
+          "n_records_exact_ts": 7,
+          "n_records_whole_key": 7
+        },
+        {
+          "source": "corpus_customer_concentration",
+          "key": "LMT",
+          "ts": "2026-01-29T22:18:08+00:00",
+          "n_records_exact_ts": 6,
+          "n_records_whole_key": 6
+        },
+        {
+          "source": "corpus_customer_concentration",
+          "key": "RTX",
+          "ts": "2026-02-06T21:33:41+00:00",
+          "n_records_exact_ts": 3,
+          "n_records_whole_key": 3
+        },
+        {
+          "source": "corpus_etf_constituents",
+          "key": "UFO",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 25,
+          "n_records_whole_key": 25
+        }
+      ],
+      "n_citations": 5,
+      "n_citations_with_ts": 5
+    },
+    {
+      "claim_id": "ai-power-stack-concentration",
+      "statement": "compute customer concentration and grid-theme inclusion -> capacity_constraint -> AI power and electrical infrastructure beneficiaries",
+      "named_entities": [
+        {
+          "canonical": "NVIDIA Corporation",
+          "ticker": "NVDA",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        },
+        {
+          "canonical": "Eaton Corporation plc",
+          "ticker": "ETN",
+          "resolves_concrete_ts": true,
+          "resolves_whole_key": true
+        }
+      ],
+      "citations": [
+        {
+          "source": "corpus_customer_concentration",
+          "key": "NVDA",
+          "ts": "2026-02-25T21:42:19+00:00",
+          "n_records_exact_ts": 10,
+          "n_records_whole_key": 10
+        },
+        {
+          "source": "corpus_customer_concentration",
+          "key": "ETN",
+          "ts": "2026-02-26T20:24:16+00:00",
+          "n_records_exact_ts": 4,
+          "n_records_whole_key": 4
+        },
+        {
+          "source": "corpus_etf_constituents",
+          "key": "GRID",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 25,
+          "n_records_whole_key": 25
+        },
+        {
+          "source": "corpus_etf_constituents",
+          "key": "ARKX",
+          "ts": "2026-06-22T17:19:31.617255+00:00",
+          "n_records_exact_ts": 25,
+          "n_records_whole_key": 25
+        }
+      ],
+      "n_citations": 4,
+      "n_citations_with_ts": 4
+    }
+  ]
+}

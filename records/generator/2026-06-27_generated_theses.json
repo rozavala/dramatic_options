@@ -1,0 +1,15 @@
+{
+  "as_of": "2026-06-27T22:27:03.795480+00:00",
+  "dropped_entity_unresolved": 0,
+  "dropped_fact_untraced": 0,
+  "dropped_total": 0,
+  "n_parsed": 0,
+  "n_theses": 0,
+  "over_citation": {
+    "mean_citation_count": 0.0,
+    "mean_coords_per_entity": 0.0
+  },
+  "provenance": "generated",
+  "seed_theme": "nuclear_fuel",
+  "theses": []
+}

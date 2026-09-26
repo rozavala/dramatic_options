@@ -32,6 +32,8 @@ data/backtest/
 
 # SQLite / runtime DB (anywhere)
 *.db
+*.db-shm
+*.db-wal
 
 # Kill switch (operational, never committed)
 KILL
