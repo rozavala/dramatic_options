@@ -124,6 +124,7 @@ def _record_one(conn, row, *, provider, gate, elig, rv_window, as_of, as_of_iso,
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)),
+        require_otm_side=bool(gate.get("otm_side_guard", False)),
         eligibility=_eligibility,
     )
     contract_symbol = iv_rv = otm_skew = cheap = atm_iv = wing_iv = None

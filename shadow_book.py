@@ -238,7 +238,7 @@ def _eval_and_book(
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
-        underlying_symbol=theme.symbol,
+        underlying_symbol=theme.symbol, require_otm_side=bool(gate.get("otm_side_guard", False)),
     )
     if structure is None:
         return "no_structure", None
@@ -383,6 +383,10 @@ def tail_report(conn) -> dict[str, dict]:
     report = {f"shadow_{origin}": tail_summary(ms) for origin, ms in shadow.items()}
     report["shadow_all"] = tail_summary([m for ms in shadow.values() for m in ms])
     report["real"] = tail_summary(state.convexity_realized_multiples(conn))
+    # Issue #276: the same reads WITHOUT the tagged wrong-side (ITM/ATM) positions, always beside the "with".
+    in_frame = state.shadow_realized_multiples(conn, in_frame_only=True)
+    report["shadow_all_in_frame"] = tail_summary([m for ms in in_frame.values() for m in ms])
+    report["real_in_frame"] = tail_summary(state.convexity_realized_multiples(conn, in_frame_only=True))
     return report
 
 

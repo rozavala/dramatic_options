@@ -224,7 +224,7 @@ def _eval_and_book_nogate(
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
-        underlying_symbol=theme.symbol,
+        underlying_symbol=theme.symbol, require_otm_side=bool(gate.get("otm_side_guard", False)),
     )
     if structure is None:
         return "no_structure", None
@@ -349,7 +349,7 @@ def _eval_and_book_3b(
         chain, direction=direction, as_of=as_of, underlying_price=underlying_price,
         tenor_min_days=int(gate.get("tenor_min_days", 180)), tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
-        underlying_symbol=sym,
+        underlying_symbol=sym, require_otm_side=bool(gate.get("otm_side_guard", False)),
     )
     if structure is None:
         return "no_structure"
@@ -447,8 +447,12 @@ def tail_report(conn) -> dict[str, dict]:
     """Per-no-gate-book realized-multiple TAIL summaries (reuses `shadow_book.tail_summary`). Keyed
     `nogate_<book>` so the orchestrator can sit them beside the real + shadow tails for the
     `shadow − 3A` (gate) read — forward, never a pass/fail (PREREG §5 / guardrail §6)."""
-    return {f"nogate_{book}": tail_summary(ms)
-            for book, ms in state.fixed_basket_realized_multiples(conn).items()}
+    report = {f"nogate_{book}": tail_summary(ms)
+              for book, ms in state.fixed_basket_realized_multiples(conn).items()}
+    # Issue #276: each book again WITHOUT the tagged wrong-side positions ("with / without", never deleted).
+    report.update({f"nogate_{book}_in_frame": tail_summary(ms)
+                   for book, ms in state.fixed_basket_realized_multiples(conn, in_frame_only=True).items()})
+    return report
 
 
 def _parse_date(value) -> date | None:

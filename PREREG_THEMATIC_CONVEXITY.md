@@ -108,6 +108,15 @@ separately-pre-registered change.)
 Frozen values (T0): `τ_ivrv = 1.2`, `τ_skew = 10.0` vol pts, `rv_window_days = 252`,
 tenor window `[180, 365]` days, `target_moneyness = 0.25` (≈25% OTM).
 
+<!-- #276 option-1 conformance amendment -->
+**Conformance amendment (2026-09-29, approved by Rodrigo via Marcus; PR #277).** The structure selector now
+reads `config.json:convexity_gate.otm_side_guard = true`: it admits only strictly out-of-the-money contracts
+for the thesis direction and fails closed with no structure when no eligible OTM contract exists. This is the
+minimal option-1 side guard, not the separately-scoped 15–35% admission band (option 2). Enabling the switch
+changes `frame_version` and therefore starts a new recorded segment. The six pre-existing wrong-side null-book
+positions are retained and tagged outside-frame; tail reports show both with and without those positions.
+
+
 **Data-provenance amendment (2026-06-08) — `equity_bars` IEX→SIP (the data-feed upgrade, PR1).** The
 gate's `RV_h` is computed from daily closes; PR1 moves those closes from the free **IEX** feed (~2–3% of
 consolidated volume; its last print ≠ the official close) to the paid **SIP** consolidated feed (Algo

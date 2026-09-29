@@ -297,6 +297,7 @@ def _process_theme(
         as_of=as_of,
         underlying_price=underlying_price,
         underlying_symbol=theme.symbol,
+        require_otm_side=bool(gate.get("otm_side_guard", False)),
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)),
