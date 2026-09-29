@@ -29,6 +29,14 @@ This doc pre-registers the books, universes, metric, and read **blind**, so a la
 or "the gate is empty" conclusion cannot be a post-hoc choice (the HARKing failure mode that this
 project is scarred by — divergence, FSSD).
 
+<!-- #276 option-1 conformance amendment -->
+**Conformance amendment (2026-09-29, approved by Rodrigo via Marcus; PR #277).** The real, shadow, 3A, 3B,
+and shares paths use the same `convexity_gate.otm_side_guard = true` selector switch: wrong-side ITM/ATM
+contracts are never selected, and an eligible-OTM-empty chain returns no structure. This is option 1 only; the
+15–35% admission band remains out of scope. The switch changes `frame_version` and marks a new null-book
+segment. Existing wrong-side positions remain untouched and are tagged outside-frame; tail reads report with and
+without them.
+
 ## 2. The null hierarchy (forward, simulated-only, never-broker, tail-scored)
 
 | Book | Gate | Selection | Universe | Caps | Isolates |

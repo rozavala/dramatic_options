@@ -596,26 +596,37 @@ def close_shadow_position(
         )
 
 
-def shadow_realized_multiples(conn: sqlite3.Connection) -> dict[str, list[float]]:
+def _in_frame_clause(in_frame_only: bool) -> str:
+    """``AND NOT <outside-frame>`` when asked (issue #276: the legacy wrong-side positions are TAGGED, never
+    deleted; every tail read is shown with and without them). Lazy import keeps state.py's graph unchanged."""
+    if not in_frame_only:
+        return ""
+    from structure import OUTSIDE_FRAME_SQL
+    return f" AND NOT {OUTSIDE_FRAME_SQL}"
+
+
+def shadow_realized_multiples(conn: sqlite3.Connection, *, in_frame_only: bool = False) -> dict[str, list[float]]:
     """Closed shadow positions' per-position realized multiples, grouped by ``origin`` (the TAIL
     substrate — refinement #2: a convex book's value is in the tail, and the brain-off book is larger,
-    so compare per-position multiples, never an aggregate book total)."""
+    so compare per-position multiples, never an aggregate book total). ``in_frame_only`` drops the
+    wrong-side (ITM/ATM) positions — the "without" read of issue #276."""
     out: dict[str, list[float]] = {}
     for r in conn.execute(
         "SELECT origin, realized_multiple FROM shadow_positions "
-        "WHERE status = 'closed' AND realized_multiple IS NOT NULL ORDER BY id"
+        "WHERE status = 'closed' AND realized_multiple IS NOT NULL" + _in_frame_clause(in_frame_only) + " ORDER BY id"
     ):
         out.setdefault(str(r["origin"]), []).append(float(r["realized_multiple"]))
     return out
 
 
-def convexity_realized_multiples(conn: sqlite3.Connection) -> list[float]:
+def convexity_realized_multiples(conn: sqlite3.Connection, *, in_frame_only: bool = False) -> list[float]:
     """The REAL (brain-on) book's per-position realized multiples (exit value ÷ entry premium) over
     closed positions — the other side of the brain-off-vs-brain-on tail comparison."""
     out: list[float] = []
     for r in conn.execute(
         "SELECT total_premium, realized_pnl FROM convexity_positions "
-        "WHERE status = 'closed' AND realized_pnl IS NOT NULL AND total_premium > 0 ORDER BY id"
+        "WHERE status = 'closed' AND realized_pnl IS NOT NULL AND total_premium > 0"
+        + _in_frame_clause(in_frame_only) + " ORDER BY id"
     ):
         out.append((float(r["total_premium"]) + float(r["realized_pnl"])) / float(r["total_premium"]))
     return out
@@ -719,20 +730,40 @@ def close_fixed_basket_position(
         )
 
 
-def fixed_basket_realized_multiples(conn: sqlite3.Connection, book: str | None = None) -> dict[str, list[float]]:
+def fixed_basket_realized_multiples(conn: sqlite3.Connection, book: str | None = None, *,
+                                   in_frame_only: bool = False) -> dict[str, list[float]]:
     """Closed positions' per-position realized multiples, grouped by `book` (the tail substrate for
-    `shadow − 3A` etc.). `book=None` → all books. Compared on the TAIL (PREREG §5), never an aggregate."""
+    `shadow − 3A` etc.). `book=None` → all books. Compared on the TAIL (PREREG §5), never an aggregate.
+    `in_frame_only` drops the wrong-side positions (issue #276's "without" read)."""
     out: dict[str, list[float]] = {}
+    frame = _in_frame_clause(in_frame_only)
     if book is None:
         q = ("SELECT book, realized_multiple FROM fixed_basket_positions "
-             "WHERE status='closed' AND realized_multiple IS NOT NULL ORDER BY id")
+             "WHERE status='closed' AND realized_multiple IS NOT NULL" + frame + " ORDER BY id")
         params: tuple = ()
     else:
         q = ("SELECT book, realized_multiple FROM fixed_basket_positions "
-             "WHERE status='closed' AND realized_multiple IS NOT NULL AND book=? ORDER BY id")
+             "WHERE status='closed' AND realized_multiple IS NOT NULL AND book=?" + frame + " ORDER BY id")
         params = (book,)
     for r in conn.execute(q, params):
         out.setdefault(str(r["book"]), []).append(float(r["realized_multiple"]))
+    return out
+
+
+
+def outside_frame_positions(conn: sqlite3.Connection) -> list[dict]:
+    """Every booked option position OUTSIDE the far-OTM frame (issue #276), open or closed, across the real,
+    shadow and 3A/3B books — the tag list the "with / without" tail reads refer to. Read-only; nothing is
+    deleted or re-marked. Six at the switch-on (2026-09-29 finding); the side guard keeps it from growing."""
+    from structure import OUTSIDE_FRAME_SQL
+    out: list[dict] = []
+    for book_expr, table in (("'real'", "convexity_positions"), ("'shadow'", "shadow_positions"),
+                             ("book", "fixed_basket_positions")):
+        for r in conn.execute(
+            f"SELECT {book_expr} AS book, id, symbol, direction, structure_kind, contract_symbol, moneyness, "
+            f"status FROM {table} WHERE {OUTSIDE_FRAME_SQL} ORDER BY id"
+        ):
+            out.append({k: r[k] for k in r.keys()})
     return out
 
 

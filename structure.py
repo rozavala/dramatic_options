@@ -79,6 +79,19 @@ def contract_eligible(
 # above for the existing structure.occ_root callers.
 
 
+def is_wrong_side(kind: str | None, moneyness: float | None) -> bool:
+    """A booked position OUTSIDE the far-OTM frame (issue #276): a call at or below spot, or a put at or above
+    it (``moneyness`` = signed (strike − spot)/spot, as stamped at entry). The same strictly-OTM line the side
+    guard draws in :func:`select_structure`; used to TAG legacy positions, never to delete or re-mark them."""
+    if moneyness is None or kind not in ("C", "P"):
+        return False
+    return moneyness <= 0 if kind == "C" else moneyness >= 0
+
+
+# SQL twin of :func:`is_wrong_side` over the book tables' (structure_kind, moneyness) columns.
+OUTSIDE_FRAME_SQL = "((structure_kind = 'C' AND moneyness <= 0) OR (structure_kind = 'P' AND moneyness >= 0))"
+
+
 def select_structure(
     chain: list[Contract],
     *,

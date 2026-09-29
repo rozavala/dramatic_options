@@ -383,6 +383,10 @@ def tail_report(conn) -> dict[str, dict]:
     report = {f"shadow_{origin}": tail_summary(ms) for origin, ms in shadow.items()}
     report["shadow_all"] = tail_summary([m for ms in shadow.values() for m in ms])
     report["real"] = tail_summary(state.convexity_realized_multiples(conn))
+    # Issue #276: the same reads WITHOUT the tagged wrong-side (ITM/ATM) positions, always beside the "with".
+    in_frame = state.shadow_realized_multiples(conn, in_frame_only=True)
+    report["shadow_all_in_frame"] = tail_summary([m for ms in in_frame.values() for m in ms])
+    report["real_in_frame"] = tail_summary(state.convexity_realized_multiples(conn, in_frame_only=True))
     return report
 
 

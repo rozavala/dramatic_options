@@ -112,11 +112,12 @@ def test_every_book_and_gate_path_passes_the_one_switch(module):
     assert calls >= 1 and wired == calls, f"{module}: {calls} call(s), {wired} wired"
 
 
-def test_the_switch_is_off_in_config_and_turning_it_on_segments_the_frame():
+def test_the_switch_is_on_in_config_and_segments_the_frame():
     import json
 
     from config_loader import frame_version
     cfg = json.loads((Path(__file__).resolve().parents[1] / "config.json").read_text())
-    assert "otm_side_guard" not in cfg["convexity_gate"]   # draft: OFF, and the frame hash untouched
-    on = {**cfg, "convexity_gate": {**cfg["convexity_gate"], "otm_side_guard": True}}
-    assert frame_version(on) != frame_version(cfg)          # enabling it IS a recorded frame change
+    assert cfg["convexity_gate"]["otm_side_guard"] is True  # approved option 1
+    off = {**cfg, "convexity_gate": {k: v for k, v in cfg["convexity_gate"].items()
+                                     if k != "otm_side_guard"}}
+    assert frame_version(cfg) != frame_version(off)             # enabling it IS a recorded frame change

@@ -91,6 +91,7 @@
     "tenor_min_days": 180,
     "tenor_max_days": 365,
     "target_moneyness": 0.25,
+    "otm_side_guard": true,
     "skew_abs_max_volpts": 100,
     "iv_rv_sanity_max": 5.0,
     "iv_floor_annualized": 0.03,
