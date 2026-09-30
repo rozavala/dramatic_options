@@ -526,6 +526,8 @@ def performance_panel(conn) -> dict:
         "real_by_origin": {o: shadow_book.tail_summary(ms) for o, ms in _real_multiples_by_origin(conn).items()},
         "premium_bled": premium_bled(conn),
         "hit_rate": hit_rate(conn),
+        # Issue #276: the tagged wrong-side positions; the tails carry `*_in_frame` twins read WITHOUT them.
+        "outside_frame": state.outside_frame_positions(conn),
         "caveat": "Tails/CIs are FORWARD calibration substrate, never a pass-gate (§6). "
                   "parse_fail runs are censored from the council-marginal (real−shadow) read.",
     }

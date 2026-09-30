@@ -36,6 +36,7 @@ contracts are never selected, and an eligible-OTM-empty chain returns no structu
 15–35% admission band remains out of scope. The switch changes `frame_version` and marks a new null-book
 segment. Existing wrong-side positions remain untouched and are tagged outside-frame; tail reads report with and
 without them.
+Confirmed directly by the operator in session on 2026-09-30 ("Go ahead"). Follow-up PR: tests for the tagging, and the dashboard performance panel lists the tagged positions (`outside_frame`).
 
 ## 2. The null hierarchy (forward, simulated-only, never-broker, tail-scored)
 

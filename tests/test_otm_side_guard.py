@@ -121,3 +121,70 @@ def test_the_switch_is_on_in_config_and_segments_the_frame():
     off = {**cfg, "convexity_gate": {k: v for k, v in cfg["convexity_gate"].items()
                                      if k != "otm_side_guard"}}
     assert frame_version(cfg) != frame_version(off)             # enabling it IS a recorded frame change
+
+
+# ── the six legacy wrong-side positions: TAGGED outside the frame, never deleted (issue #276 item 3) ──────
+
+import fixed_basket  # noqa: E402
+import shadow_book  # noqa: E402
+import state  # noqa: E402
+from structure import is_wrong_side  # noqa: E402
+
+
+@pytest.mark.parametrize("kind,m,wrong", [("C", 0.25, False), ("C", 0.0, True), ("C", -0.175, True),
+                                          ("P", -0.25, False), ("P", 0.0, True), ("P", 0.425, True),
+                                          ("C", None, False), ("X", 0.5, False)])
+def test_is_wrong_side_matches_the_guard_line(kind, m, wrong):
+    assert is_wrong_side(kind, m) is wrong   # ATM is outside the frame, as the guard's strictly-OTM filter says
+
+
+def _shadow(conn, sym, kind, m, mult):
+    pid = state.record_shadow_position(
+        conn, run_id=None, origin="sentinel", opened_at="2026-01-02T00:00:00+00:00", theme="t", symbol=sym,
+        direction="bearish" if kind == "P" else "bullish", structure_kind=kind, contract_symbol=f"{sym}{kind}",
+        expiry="2026-12-18", strike=10.0, dte=300, moneyness=m, contracts=1, entry_premium_per_contract=100.0,
+        total_premium=100.0, entry_spot=10.0)
+    state.close_shadow_position(conn, pid, exit_price=0.0, realized_pnl=0.0, realized_multiple=mult,
+                                reason="expiry", as_of="2026-06-01T00:00:00+00:00")
+    return pid
+
+
+def _fb(conn, book, sym, kind, m, mult):
+    pid = state.record_fixed_basket_position(
+        conn, run_id=None, book=book, origin="sentinel", opened_at="2026-01-02T00:00:00+00:00", theme="t",
+        symbol=sym, direction="bullish", structure_kind=kind, contract_symbol=f"{sym}{kind}", expiry="2026-12-18",
+        strike=10.0, dte=300, moneyness=m, contracts=1, entry_premium_per_contract=100.0, total_premium=100.0,
+        entry_spot=10.0)
+    state.close_fixed_basket_position(conn, pid, exit_price=0.0, realized_pnl=0.0, realized_multiple=mult,
+                                      reason="expiry", as_of="2026-06-01T00:00:00+00:00")
+    return pid
+
+
+def test_tail_reads_show_with_and_without_the_tagged_positions(convexity_db):
+    _shadow(convexity_db, "AAA", "C", 0.25, 12.0)      # in frame
+    _shadow(convexity_db, "STUB", "P", 0.425, 0.4)     # wrong side (the STUB put class)
+    _fb(convexity_db, "union_nogate", "BBB", "P", -0.25, 3.0)
+    _fb(convexity_db, "union_nogate", "KLAR", "P", 0.41, 0.2)
+    _fb(convexity_db, "basket_nogate", "UROY", "C", -0.175, 1.5)
+
+    sh = shadow_book.tail_report(convexity_db)
+    assert sh["shadow_all"]["n"] == 2 and sh["shadow_all_in_frame"]["n"] == 1
+    assert sh["shadow_all_in_frame"]["max"] == 12.0
+    fb = fixed_basket.tail_report(convexity_db)
+    assert fb["nogate_union_nogate"]["n"] == 2 and fb["nogate_union_nogate_in_frame"]["n"] == 1
+    assert fb["nogate_basket_nogate"]["n"] == 1 and "nogate_basket_nogate_in_frame" not in fb  # only one, tagged
+
+    tagged = state.outside_frame_positions(convexity_db)
+    assert sorted((t["book"], t["symbol"]) for t in tagged) == [
+        ("basket_nogate", "UROY"), ("shadow", "STUB"), ("union_nogate", "KLAR")]
+    # never deleted: every row is still in its book
+    assert convexity_db.execute("SELECT COUNT(*) FROM shadow_positions").fetchone()[0] == 2
+    assert convexity_db.execute("SELECT COUNT(*) FROM fixed_basket_positions").fetchone()[0] == 3
+
+
+def test_dashboard_performance_panel_lists_the_tagged_positions(convexity_db):
+    import dashboard_data as dd
+    _shadow(convexity_db, "STUB", "P", 0.425, 0.4)
+    perf = dd.performance_panel(convexity_db)
+    assert [t["symbol"] for t in perf["outside_frame"]] == ["STUB"]
+    assert perf["tails"]["shadow_all_in_frame"]["n"] == 0

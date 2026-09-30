@@ -115,6 +115,7 @@ for the thesis direction and fails closed with no structure when no eligible OTM
 minimal option-1 side guard, not the separately-scoped 15–35% admission band (option 2). Enabling the switch
 changes `frame_version` and therefore starts a new recorded segment. The six pre-existing wrong-side null-book
 positions are retained and tagged outside-frame; tail reports show both with and without those positions.
+Confirmed directly by the operator in session on 2026-09-30 ("Go ahead"). Follow-up PR: tests for the tagging, and the dashboard performance panel lists the tagged positions (`outside_frame`).
 
 
 **Data-provenance amendment (2026-06-08) — `equity_bars` IEX→SIP (the data-feed upgrade, PR1).** The
