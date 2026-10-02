@@ -122,7 +122,15 @@ def run_paper_cycle(
     # paper-account equity — a sandbox figure that drifts with unrelated paper fills and would
     # make the per-slot slice (and thus entries) non-deterministic. Live (T4) reconciles the
     # notional against real equity before any capital. Broker equity is logged, not sized on.
-    account_equity = float(book.get("account_equity") or broker.account_equity())
+    # Issue #279: there is NO fallback to broker equity. At real money the account is shared (~$250k of
+    # unrelated holdings), so sizing off it would silently multiply every cap. Unset → no entries (paged).
+    account_equity = float(book.get("account_equity") or 0.0)
+    if account_equity <= 0:
+        result.halted = True
+        result.notes.append("convexity_book.account_equity is not configured — no entries (issue #279: "
+                            "the book never sizes off whole-account broker equity).")
+        log.error("convexity_book.account_equity not configured — halting NEW entries (fail-closed).")
+        return result
 
     # Correlation-cluster exposure cap (PREREG §5 amendment 2026-06-03): an operator-curated
     # symbol→cluster map caps aggregate ENTRY-premium per correlated cluster — the per-name cap alone

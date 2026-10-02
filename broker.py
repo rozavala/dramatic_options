@@ -24,17 +24,60 @@ from typing import Protocol
 
 log = logging.getLogger("broker")
 
+# Shared live account (issue #279): at real money this project shares ONE Alpaca account with the
+# operator's stocks, Finance and alpha_options. Alpaca nets positions per OCC contract across the whole
+# account, so two projects holding the same contract cannot tell whose leg is whose.
+#
+# Every order this project transmits carries this prefix, so its orders are identifiable in the shared
+# account (alpha_options uses ``ao-``).
+CLIENT_ORDER_ID_PREFIX = "do-"
+# Option roots RESERVED for alpha_options (operator decision 2026-09-30, issue #279). Blocked on BOTH
+# sides: a buy would net into alpha_options' legs, and a sell could close one of them. SPXW is the SPX
+# weekly root. Hard-coded on purpose — a reservation must not be deletable by a config edit.
+RESERVED_OPTION_ROOTS = frozenset({"SPY", "XSP", "SPX", "SPXW"})
+
+
+def _option_root(contract_symbol: str) -> str:
+    """The OCC root (everything before the fixed 15-char date/right/strike tail); local so the broker
+    module keeps no dependency on the gate."""
+    return str(contract_symbol)[:-15].upper()
+
+
+def shared_account_reject(contract_symbol: str, *, is_buy: bool) -> str | None:
+    """The order-layer guard for the shared account (issue #279). Returns a rejection note, or ``None``.
+
+    - A RESERVED root (alpha_options' SPY/XSP/SPX) is rejected on either side.
+    - A buy-to-open of a RESTRICTED-list underlying is rejected (``restricted.json`` — the insider rule is
+      enforced upstream at the union too; this is the last layer before transmission). An unreadable list
+      rejects the buy (fail-closed: a broken list is never an empty one). Closes are not blocked by the
+      restricted list, so a defect can never trap an open position.
+    """
+    root = _option_root(contract_symbol)
+    if root in RESERVED_OPTION_ROOTS:
+        return (f"rejected {contract_symbol}: option root {root} is reserved for alpha_options in the shared "
+                f"account (issue #279, fail-closed)")
+    if is_buy:
+        import restricted as restricted_list
+        try:
+            restricted = restricted_list.load_restricted()
+        except restricted_list.RestrictedListError as e:
+            return f"rejected {contract_symbol}: restricted list unreadable — {e}"
+        if restricted_list.is_restricted(root, restricted):
+            return f"rejected {contract_symbol}: underlying {root} is on the restricted list (fail-closed)"
+    return None
+
 
 def make_client_order_id(action: str, contract_symbol: str, trade_date: str) -> str:
     """Deterministic, idempotent order id keyed on the STABLE trade identity (T2.5).
 
     ``action`` is "open" | "close"; ``trade_date`` is the ET date string. Keyed on
-    ``{action}-{contract}-{date}`` — NOT the run_id — so a timer re-fire after a crash submits
+    ``do-{action}-{contract}-{date}`` — NOT the run_id — so a timer re-fire after a crash submits
     the *same* id, Alpaca rejects the duplicate (idempotent), and reconciliation can recompute
     the expected id to detect a DB-less orphan. Per-(contract, date) is safe given the per-name
-    dedup + caps. Sanitized to Alpaca's id charset.
+    dedup + caps. Sanitized to Alpaca's id charset. The ``do-`` project prefix (issue #279) makes every
+    order identifiable in the shared live account.
     """
-    raw = f"{action}-{contract_symbol}-{trade_date}"
+    raw = f"{CLIENT_ORDER_ID_PREFIX}{action}-{contract_symbol}-{trade_date}"
     return re.sub(r"[^A-Za-z0-9._-]", "", raw)[:128]
 
 
@@ -120,6 +163,13 @@ class _AlpacaBrokerBase:
         limit = round(float(limit_price), 2)
         is_buy = str(side).lower() == "buy"
         intent_label = "buy_to_open" if is_buy else "sell_to_close"
+
+        # Shared-account guard (issue #279) — BEFORE the DRY_RUN branch, so a reserved or restricted
+        # contract is rejected in every mode, paper included (a defect surfaces before real money).
+        shared = shared_account_reject(contract_symbol, is_buy=is_buy)
+        if shared is not None:
+            log.error(shared)
+            return Fill(False, 0.0, 0, shared)
 
         # Real-money safeguard (§3) — checked BEFORE the DRY_RUN branch so a ceiling breach / missing
         # config rejects in every mode (surfaces a sizing bug even in simulation).

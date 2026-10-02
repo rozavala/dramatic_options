@@ -111,7 +111,7 @@ def test_make_client_order_id_stable_and_sanitized():
 
     a = make_client_order_id("open", "FCX270319C00080000", "2026-06-01")
     assert a == make_client_order_id("open", "FCX270319C00080000", "2026-06-01")  # idempotent
-    assert a == "open-FCX270319C00080000-2026-06-01" and a.startswith("open-")
+    assert a == "do-open-FCX270319C00080000-2026-06-01" and a.startswith("do-open-")
     # open vs close differ → an open + a close on the same contract/day never collide
     assert make_client_order_id("close", "FCX270319C00080000", "2026-06-01") != a
 
