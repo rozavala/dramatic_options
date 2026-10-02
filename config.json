@@ -114,7 +114,9 @@
     "path": "forward_catalysts.json",
     "max_items": 3,
     "staleness_days": 30,
-    "max_block_chars": 1600
+    "max_block_chars": 1600,
+    "_comment_sentinel_scope": "Channel prereg §11 amendment (operator word 2026-10-02, PR #280): the council's SENTINEL packs receive the operator-pinned block too (the §5 four-scan read it waited on closed 2026-08-02). The discovery framer's pack never does (the §6 leash); grounded unchanged; F-c becomes a live guard. Record-segmenting: model_mix.forward_catalysts = forward_catalyst_v1+sentinel_v1.",
+    "sentinel_scope": true
   },
   "council": {
     "_comment": "T2 — the LLM theme-judgment council (SPEC §5, PREREG §2 hard seam). The council only PROPOSES themes; the deterministic gates below still DISPOSE. Conviction is recorded + forward-scored ONLY — it NEVER sizes a position and NEVER overrides a veto. The three roles run across DISTINCT providers for decorrelated debate. Provider SDKs are lazy-imported; `orchestrator.py --demo` (and all tests) use a deterministic FakeRouter needing no keys. enabled=false falls back to the T1 hand-seeded loop (themes.json consumed directly). cost_cap_usd is a GENEROUS PROVISIONAL fail-closed cap while per-cycle cost is being measured — the real ceiling + run cadence are an operator decision AFTER seeing the printed per-cycle ledger. MODEL IDs + prices_per_mtok ($ per million tokens) verified against provider docs 2026-06-01 (Balanced tier); models/prices move fast — re-verify periodically (a stale model id fails closed: SDK error → RouterError → 0 entries). prices_per_mtok keys not currently mapped are kept so the ledger stays accurate if a role is remapped.",
@@ -146,6 +148,8 @@
     "fairness_slots": 2,
     "_comment_direction_coherence": "PREREG_DIRECTION_COHERENCE (FROZEN 2026-09-24 on the operator's word): a SENTINEL framed BEARISH is withheld from the candidate union when its latest filed quarter shows revenue growing (qtr_yoy > 0) AND accelerating (qtr_yoy_accel > 0) — natural zeros, nothing tuned. Composition-only; hand-seeds and bullish framings untouched; missing data never withholds; the SAME withheld set is removed from the shadow + 3A unions so every contrast stays paired. Stamped union_rank +dircoherence_v1 = record-segmenting. enabled=false = byte-identical off.",
     "direction_coherence": {"enabled": true},
+    "_comment_pack_provenance": "PREREG_EVIDENCE_GROUNDING amendment A1 (operator word 2026-10-02, PR #280; Finding B of 2026-09-29): a sentinel's council pack says OPERATOR_THESIS '(none on file ...)' and renders the discovery framer's skeptical text on its own labelled DISCOVERY_SUMMARY line. grounded unchanged; hand-seeds unchanged; the framer's own pack byte-identical. Record-segmenting: model_mix.pack_provenance = provenance_v1.",
+    "pack_provenance": true,
     "_comment_fundamentals_staleness": "Issue #269 (2026-09-25) — TELEMETRY ONLY: after each L1 council pass, flag names whose corpus (read this cycle) reflects an older filing than their newest 10-Q/10-K/20-F/40-F on EDGAR, filed >3 days before the run (NEE: Q2 10-Q filed 2026-07-24 never reached SEC companyfacts). Never changes the context pack or a verdict; no record segmentation; fail-soft. enabled=false = off.",
     "fundamentals_staleness": {"enabled": true},
     "news_lookback_days": 90,

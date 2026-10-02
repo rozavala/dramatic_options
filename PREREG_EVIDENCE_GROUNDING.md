@@ -180,3 +180,40 @@ Sun L0 run independently.
 The narration probe (stub Stage-2) and theme generation; ANY funnel/surfacing change (judgment
 INPUTS only — floors/TTL/slots untouched); IFRS extractors (dated future amendment, §2); the
 coverage narration-change ratio (v2); IV-baseline graduation; the L2 monitor.
+
+## Amendment A1 (2026-10-02 — ENABLED on the operator's word 2026-10-02, PR #280; live from the first L1 after deploy) — sentinel pack provenance
+
+**Finding (2026-09-29, verified in code and in the record).** For a discovery (sentinel) candidate,
+`sentinel_context_pack` rendered the candidate's thesis text as `OPERATOR_THESIS`. That text is the
+sentinel row's `seed_thesis`, written by the L0 discovery framer, a deliberate skeptic. Through
+2026-09-30, 32 of 35 active seed theses read in the skeptic's voice ("rather than…", "transient",
+"bounce"). Every strategist read that cites "the operator's thesis" against a name is on a sentinel:
+8–20 of 231 since run #990, depending on the match pattern. On 2026-10-01/02 KKR's strategist reason
+("a tactical momentum/vol rotation") echoed its framer summary ("tactical momentum rotation"). The
+operator's admission theses never reach the council for these names.
+
+**What this does not claim.** It does not claim the mislabel causes the council's run without an
+above-floor conviction (since run #508). There is no counterfactual; it plausibly biases toward
+rejection, and the pack misattributes authorship. The fix is about provenance, not leniency.
+
+**The change.** On the council path only, a sentinel pack renders
+`OPERATOR_THESIS: (none on file — …)` (pinned as `SENTINEL_NO_OPERATOR_THESIS`). The framer's text
+moves to its own line: `DISCOVERY_SUMMARY (written by the automated discovery screener, a
+deliberate skeptic reading price markers — NOT the operator's view): …`. The framer text joins the
+authenticity filter's evidence pool, so an agent quoting it is not flagged as unsupported.
+
+**Invariants (tested, `tests/test_pack_provenance.py`).**
+- `grounded` is unchanged: evidence, never permission.
+- Hand-seed packs are unchanged.
+- The discovery framer's own pack is byte-identical, because `council/sentinel.py` calls
+  `sentinel_context_pack` with no switch (the §6 leash).
+- Default off: byte-identical until the switch is set.
+
+**Record segmentation.** `runs.model_mix.pack_provenance = "provenance_v1"` from the first L1 after the
+switch is set. Never pool strategist Brier or the council-marginal read across that boundary.
+
+**Not in this amendment (the operator's open question).** Showing the operator's REGISTER thesis to
+the council (option (b) of the 2026-09-30 review) would require the loop to read
+`universe_register.json`. `PREREG_UNIVERSE_CURATION` Rule 0 pins that the loop never loads the
+register. It would need either a Rule-0 amendment or a loop-loaded copy of the thesis (e.g. in
+`config.universe.themes`). Both are decisions for the operator, not drafted here.
