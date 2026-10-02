@@ -61,6 +61,11 @@ class ContextPack:
     # prereg's one behavior change; this channel's is at_inflection-informing EVIDENCE only).
     # Default-empty ⇒ byte-identical render (framer/sentinel packs carry none — the §5 leash).
     forward_catalysts: list[dict] = field(default_factory=list)
+    # Pack provenance (PREREG_EVIDENCE_GROUNDING amendment A1, 2026-10-02; Finding B of 2026-09-29) —
+    # a sentinel's thesis text is the discovery FRAMER's skeptical summary, not the operator's view. When
+    # set, the pack labels it honestly instead of rendering it as OPERATOR_THESIS. Default None ⇒
+    # byte-identical render (the framer's own pack never sets it — the §6 leash).
+    framer_summary: str | None = None
 
     @property
     def fundamentals_present(self) -> bool:
@@ -84,6 +89,9 @@ class ContextPack:
             f"CANDIDATE: {self.symbol} {self.direction} {self.theme}",
             f"OPERATOR_THESIS: {self.operator_thesis}",
         ]
+        if self.framer_summary is not None:
+            lines.append("DISCOVERY_SUMMARY (written by the automated discovery screener, a deliberate "
+                         f"skeptic reading price markers — NOT the operator's view): {self.framer_summary}")
         # ANALYST_COVERAGE (§19) — the sell-side attention proxy; conditional so the framer pack
         # (analyst_count None) is byte-identical to pre-§9 (the article-count fallback below):
         if self.analyst_count is not None:
@@ -308,10 +316,17 @@ def _fundamentals_corpus(fundamentals, symbol: str, as_of: datetime, *, force_re
         return [], None
 
 
+# The OPERATOR_THESIS line a sentinel carries when pack provenance is on: the operator has stated no thesis
+# for a machine-discovered (name, direction). Pinned text — part of the record-segmenting pack shape.
+SENTINEL_NO_OPERATOR_THESIS = ("(none on file — a discovery candidate; the operator has stated no thesis for "
+                               "this name and direction; judge the evidence below)")
+
+
 def sentinel_context_pack(
     candidate: Theme, *, as_of: datetime,
     fundamentals: list[dict] | None = None, fundamentals_status: str | None = None,
     analyst_count: int | None = None,
+    provenance: bool = False, forward_catalysts: list[dict] | None = None,
 ) -> ContextPack:
     """Origin-aware grounding for a DISCOVERED (source='sentinel') candidate: ground on its
     deterministic MARKERS, not news (T3 PR2). Without this both the framer and the council would
@@ -329,9 +344,14 @@ def sentinel_context_pack(
     # (TTL-bounded; weeks) — kept there as the single source of truth so the number can't drift. Decoupled.
     markers = (getattr(candidate, "markers", None) or {})
     lines = _marker_evidence(markers)
+    fallback = candidate.thesis or "discovery hypothesis (markers-grounded)"
+    # provenance (council path only; the framer never passes it): the framer's text moves to its own
+    # honestly-labelled line and OPERATOR_THESIS says plainly that none is on file.
+    framer_summary = (candidate.thesis or None) if provenance else None
     return ContextPack(
         symbol=candidate.symbol, theme=candidate.name, direction=candidate.direction,
-        operator_thesis=candidate.thesis or "discovery hypothesis (markers-grounded)",
+        operator_thesis=SENTINEL_NO_OPERATOR_THESIS if provenance else fallback,
+        framer_summary=framer_summary, forward_catalysts=list(forward_catalysts or []),
         headlines=lines, coverage_count=len(lines), has_numeric=_has_numeric(lines),
         as_of=as_of, notes=["sentinel: grounded on deterministic markers, not news"],
         fundamentals=fundamentals or [], fundamentals_status=fundamentals_status,
@@ -349,6 +369,8 @@ def build_context_pack(
     fundamentals=None,
     analyst=None,
     catalysts=None,
+    sentinel_provenance: bool = False,
+    sentinel_catalysts: bool = False,
 ) -> ContextPack:
     """Assemble current grounding for one candidate. ``news`` is a duck-typed object exposing
     ``headlines_asof(symbol, as_of) -> list[{'headline': str, 'ts': str, ...}]``
@@ -366,16 +388,28 @@ def build_context_pack(
     **Forward-catalyst channel (frozen prereg §4, origin scope v0): HAND-SEED ONLY** — the
     sentinel branch never receives the block (sentinel grounding byte-unchanged; the §5-read
     safety assertion + the §6 framer leash both depend on this line staying origin-scoped).
-    Sentinel expansion is held until after the §5 read closes — a dated act, not a default."""
+    Sentinel expansion is held until after the §5 read closes — a dated act, not a default.
+    **Sentinel expansion (draft amendment §11, 2026-10-02):** the §5 four-scan read closed 2026-08-02;
+    ``sentinel_catalysts=True`` (config ``forward_catalysts.sentinel_scope``, default OFF) forwards the block
+    to the council's sentinel packs too. The framer (``council/sentinel.py``) calls
+    ``sentinel_context_pack`` directly and never receives it — the §6 leash holds either way.
+    ``sentinel_provenance=True`` (config ``council.pack_provenance``, default OFF) labels a sentinel's
+    framer text honestly (PREREG_EVIDENCE_GROUNDING amendment A1)."""
     force_refresh = bool((getattr(candidate, "markers", None) or {}).get("has_event"))
     fund_lines, fund_status = _fundamentals_corpus(fundamentals, candidate.symbol, as_of,
                                                    force_refresh=force_refresh)
     analyst_count = _analyst_count(analyst, candidate.symbol, as_of)
 
     if getattr(candidate, "source", "hand-seed") == "sentinel":
+        sent_fwd: list[dict] = []
+        if sentinel_catalysts and catalysts is not None:
+            try:
+                sent_fwd = list(catalysts.items_asof(candidate.symbol, as_of))
+            except Exception:  # noqa: BLE001 — §7 fail-soft: the block degrades to absent
+                sent_fwd = []
         return sentinel_context_pack(
             candidate, as_of=as_of, fundamentals=fund_lines, fundamentals_status=fund_status,
-            analyst_count=analyst_count,
+            analyst_count=analyst_count, provenance=sentinel_provenance, forward_catalysts=sent_fwd,
         )
 
     headlines: list[str] = []
@@ -398,8 +432,8 @@ def build_context_pack(
     except Exception as e:  # noqa: BLE001 — grounding is best-effort; absent evidence → NEUTRAL
         notes.append(f"news error: {e}")
 
-    # Channel fetch sits AFTER the sentinel early-return by construction — a sentinel symbol
-    # never reaches the provider, so the §4 counters count hand-seed renders only.
+    # Channel fetch sits AFTER the sentinel early-return — with sentinel_scope OFF a sentinel symbol never
+    # reaches the provider, so the §4 counters count hand-seed renders only (ON: sentinel renders count too).
     fwd: list[dict] = []
     if catalysts is not None:
         try:

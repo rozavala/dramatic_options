@@ -149,7 +149,10 @@ def propose(
             synthetic_context_pack(candidate, as_of=as_of)
             if demo
             else build_context_pack(candidate, news=news, as_of=as_of, lookback_days=lookback,
-                                    fundamentals=fundamentals, analyst=analyst, catalysts=catalysts)
+                                    fundamentals=fundamentals, analyst=analyst, catalysts=catalysts,
+                                    sentinel_provenance=bool(council.get("pack_provenance", False)),
+                                    sentinel_catalysts=bool((config.get("forward_catalysts") or {})
+                                                            .get("sentinel_scope", False)))
         )
         try:
             proposals.append(run_candidate(candidate, pack, router, rng=rng))

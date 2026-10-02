@@ -326,3 +326,26 @@ scale) · M=8 eligible paired contrasts · pack token bound +400 · sample dolla
 baseline · staleness flag N=30d · expiries — class (a): `event_date` + 5 trading days; class
 (c): `event_date` + 5 trading days or superseded by a later announcement; class (d): `as_of` +
 7 days (mirroring `max_raw_age_days`).
+
+## §11 Amendment (2026-10-02, DRAFT — takes effect only when the operator sets `forward_catalysts.sentinel_scope: true`) — sentinel expansion
+
+**Why now.** §5 held sentinel expansion "until after the §5 read closes — a dated act". The §5
+four-scan read closed after the 2026-08-02 L0 (`records/2026-08-03_window3_admission_sweep.md`). The
+operator read the channel LIVE at M = 8 on 2026-09-27 (`records/2026-09-27_forward_catalyst_s8_read.md`)
+and pinned the first class-(a) item, the EPA final rule FR 2026-19071 (effective 2026-11-16) for
+GEV/CEG/NEE. All three are sentinels, so under v0 the pin cannot render: NEE reached the council on
+2026-09-29 and CEG on 2026-09-30, both with `rendered=0`.
+
+**The change.** The council's sentinel packs receive the same operator-pinned block hand-seeds do
+(same §4 counters, same K/N/char bounds). The framer's pack never does, because `council/sentinel.py`
+calls `sentinel_context_pack` with no catalysts (the §6 leash). `grounded` is unchanged.
+
+**Consequences, stated.**
+- **F-c becomes a live guard** (as §8 anticipated): leakage of the dated block into
+  `under_narrated` or `structural` adjudication on sentinel judgments is now readable.
+- **The §4 counters now count sentinel renders too.**
+- **The direction-coherence rule still withholds GEV** (revenue growing and accelerating, framed
+  bearish), so the EPA item can reach CEG and NEE at most.
+
+**Record segmentation.** `runs.model_mix.forward_catalysts = "forward_catalyst_v1+sentinel_v1"` from the
+first L1 after the switch is set.

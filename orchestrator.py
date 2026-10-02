@@ -188,6 +188,14 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
             # zero migration (stamped when the channel is CONFIGURED on, item count irrelevant;
             # the runs.note counters below carry rendered-vs-empty).
             mix["forward_catalysts"] = "forward_catalyst_v1"
+            if (config.get("forward_catalysts", {}) or {}).get("sentinel_scope", False):
+                # Channel prereg §11 amendment (2026-10-02): sentinel packs render the block too —
+                # a pack-shape change on the sentinel origin, record-segmenting from deploy.
+                mix["forward_catalysts"] = "forward_catalyst_v1+sentinel_v1"
+        if config.get("council", {}).get("pack_provenance", False):
+            # PREREG_EVIDENCE_GROUNDING amendment A1 (2026-10-02): a sentinel's framer text is labelled
+            # DISCOVERY_SUMMARY, not OPERATOR_THESIS — a pack-shape change, record-segmenting from deploy.
+            mix["pack_provenance"] = "provenance_v1"
         if catalysts is not None:
             # §4 anti-silent-dormancy counters (the event-leg precedent — journald rotates, the
             # runs row doesn't). reverse_conversion_n is a §6 paired-contrast property and joins
