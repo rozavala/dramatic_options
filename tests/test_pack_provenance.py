@@ -107,8 +107,8 @@ def test_council_reads_both_switches_from_config(monkeypatch):
     assert seen["sentinel_provenance"] is True and seen["sentinel_catalysts"] is True
 
 
-def test_live_config_leaves_both_switches_off_until_the_operator_word():
+def test_live_config_has_both_switches_on_by_the_operator_word():
     import json
-    cfg = json.load(open("config.json"))
-    assert not cfg["council"].get("pack_provenance", False)
-    assert not (cfg.get("forward_catalysts") or {}).get("sentinel_scope", False)
+    cfg = json.load(open("config.json"))   # operator word 2026-10-02 (PR #280)
+    assert cfg["council"]["pack_provenance"] is True
+    assert cfg["forward_catalysts"]["sentinel_scope"] is True

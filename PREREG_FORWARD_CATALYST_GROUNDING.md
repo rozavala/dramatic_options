@@ -327,7 +327,7 @@ baseline · staleness flag N=30d · expiries — class (a): `event_date` + 5 tra
 (c): `event_date` + 5 trading days or superseded by a later announcement; class (d): `as_of` +
 7 days (mirroring `max_raw_age_days`).
 
-## §11 Amendment (2026-10-02, DRAFT — takes effect only when the operator sets `forward_catalysts.sentinel_scope: true`) — sentinel expansion
+## §11 Amendment (2026-10-02 — ENABLED on the operator's word 2026-10-02, PR #280; live from the first L1 after deploy) — sentinel expansion
 
 **Why now.** §5 held sentinel expansion "until after the §5 read closes — a dated act". The §5
 four-scan read closed after the 2026-08-02 L0 (`records/2026-08-03_window3_admission_sweep.md`). The

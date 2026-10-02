@@ -181,7 +181,7 @@ The narration probe (stub Stage-2) and theme generation; ANY funnel/surfacing ch
 INPUTS only — floors/TTL/slots untouched); IFRS extractors (dated future amendment, §2); the
 coverage narration-change ratio (v2); IV-baseline graduation; the L2 monitor.
 
-## Amendment A1 (2026-10-02, DRAFT — takes effect only when the operator sets `council.pack_provenance: true`) — sentinel pack provenance
+## Amendment A1 (2026-10-02 — ENABLED on the operator's word 2026-10-02, PR #280; live from the first L1 after deploy) — sentinel pack provenance
 
 **Finding (2026-09-29, verified in code and in the record).** For a discovery (sentinel) candidate,
 `sentinel_context_pack` rendered the candidate's thesis text as `OPERATOR_THESIS`. That text is the
