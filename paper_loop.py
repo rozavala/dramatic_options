@@ -419,6 +419,34 @@ def _process_theme(
         )
         return
 
+    # 3b. Foreign-quantity check (issue #279; finance#947 §3). The live account is shared and Alpaca nets
+    # per OCC contract, so before opening, the venue quantity in THIS contract must equal what this
+    # project's journal explains. A mismatch (another project holds it) or an unreadable venue → no entry.
+    # A broker with no venue (the simulated PaperBroker) has no ``venue_quantity`` and skips the check.
+    if callable(getattr(broker, "venue_quantity", None)):
+        venue_qty = broker.venue_quantity(structure.contract.symbol)
+        journal_qty = state.journal_contract_quantity(conn, structure.contract.symbol)
+        if venue_qty is None or venue_qty != journal_qty:
+            result.vetoed += 1
+            why = ("venue quantity unreadable" if venue_qty is None
+                   else f"venue holds {venue_qty} but this journal explains {journal_qty}")
+            state.record_convexity_eval(
+                conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+                direction=theme.direction, eligible=True, gate_cheap=True,
+                iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
+                decision="veto-foreign-quantity", proposal_id=theme.proposal_id,
+                reasons=[f"{structure.contract.symbol}: {why} (shared account, fail-closed)"],
+            )
+            log.error("foreign-quantity veto %s: %s", structure.contract.symbol, why)
+            try:
+                import notify
+                notify.send("Foreign quantity — entry refused",
+                            f"{structure.contract.symbol}: {why}. Reconcile across projects before resuming "
+                            "(finance#947 §6).", priority=1)
+            except Exception:  # noqa: BLE001 — paging never breaks the cycle
+                log.warning("foreign-quantity page failed to send")
+            return
+
     # 4. Paper fill (simulated at mid).
     fill = broker.submit_paper(
         contract_symbol=structure.contract.symbol, qty=sizing.contracts, side="buy",

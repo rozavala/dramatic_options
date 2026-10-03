@@ -267,7 +267,8 @@ def _select_broker(config: dict, *, is_live: bool, api_key: str, secret_key: str
     rejects fail-closed). DRY_RUN gates transmission in both. PREREG_REAL_MONEY_BROKER §2/§3."""
     if is_live:
         return AlpacaLiveBroker(api_key, secret_key, dry_run=dry_run, equity=equity,
-                                max_order_notional=config.get("safety", {}).get("live_max_order_notional"))
+                                max_order_notional=config.get("safety", {}).get("live_max_order_notional"),
+                                shared_reserve=config.get("safety", {}).get("shared_account_reserve_usd"))
     return AlpacaPaperBroker(api_key, secret_key, dry_run=dry_run, equity=equity)
 
 
