@@ -122,7 +122,15 @@ def run_paper_cycle(
     # paper-account equity — a sandbox figure that drifts with unrelated paper fills and would
     # make the per-slot slice (and thus entries) non-deterministic. Live (T4) reconciles the
     # notional against real equity before any capital. Broker equity is logged, not sized on.
-    account_equity = float(book.get("account_equity") or broker.account_equity())
+    # Issue #279: there is NO fallback to broker equity. At real money the account is shared (~$250k of
+    # unrelated holdings), so sizing off it would silently multiply every cap. Unset → no entries (paged).
+    account_equity = float(book.get("account_equity") or 0.0)
+    if account_equity <= 0:
+        result.halted = True
+        result.notes.append("convexity_book.account_equity is not configured — no entries (issue #279: "
+                            "the book never sizes off whole-account broker equity).")
+        log.error("convexity_book.account_equity not configured — halting NEW entries (fail-closed).")
+        return result
 
     # Correlation-cluster exposure cap (PREREG §5 amendment 2026-06-03): an operator-curated
     # symbol→cluster map caps aggregate ENTRY-premium per correlated cluster — the per-name cap alone
@@ -410,6 +418,34 @@ def _process_theme(
             cluster_state=cluster_state,
         )
         return
+
+    # 3b. Foreign-quantity check (issue #279; finance#947 §3). The live account is shared and Alpaca nets
+    # per OCC contract, so before opening, the venue quantity in THIS contract must equal what this
+    # project's journal explains. A mismatch (another project holds it) or an unreadable venue → no entry.
+    # A broker with no venue (the simulated PaperBroker) has no ``venue_quantity`` and skips the check.
+    if callable(getattr(broker, "venue_quantity", None)):
+        venue_qty = broker.venue_quantity(structure.contract.symbol)
+        journal_qty = state.journal_contract_quantity(conn, structure.contract.symbol)
+        if venue_qty is None or venue_qty != journal_qty:
+            result.vetoed += 1
+            why = ("venue quantity unreadable" if venue_qty is None
+                   else f"venue holds {venue_qty} but this journal explains {journal_qty}")
+            state.record_convexity_eval(
+                conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+                direction=theme.direction, eligible=True, gate_cheap=True,
+                iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
+                decision="veto-foreign-quantity", proposal_id=theme.proposal_id,
+                reasons=[f"{structure.contract.symbol}: {why} (shared account, fail-closed)"],
+            )
+            log.error("foreign-quantity veto %s: %s", structure.contract.symbol, why)
+            try:
+                import notify
+                notify.send("Foreign quantity — entry refused",
+                            f"{structure.contract.symbol}: {why}. Reconcile across projects before resuming "
+                            "(finance#947 §6).", priority=1)
+            except Exception:  # noqa: BLE001 — paging never breaks the cycle
+                log.warning("foreign-quantity page failed to send")
+            return
 
     # 4. Paper fill (simulated at mid).
     fill = broker.submit_paper(

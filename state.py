@@ -619,6 +619,16 @@ def shadow_realized_multiples(conn: sqlite3.Connection, *, in_frame_only: bool =
     return out
 
 
+def journal_contract_quantity(conn: sqlite3.Connection, contract_symbol: str) -> int:
+    """Contracts of ``contract_symbol`` this project's journal says the venue holds: the real book's open
+    and closing positions (a pending buy has not filled; closed/dropped hold nothing). Issue #279: the
+    foreign-quantity check compares this with the venue before every open."""
+    row = conn.execute(
+        "SELECT COALESCE(SUM(contracts), 0) FROM convexity_positions "
+        "WHERE contract_symbol = ? AND status IN ('open', 'closing')", (contract_symbol,)).fetchone()
+    return int(row[0] or 0)
+
+
 def convexity_realized_multiples(conn: sqlite3.Connection, *, in_frame_only: bool = False) -> list[float]:
     """The REAL (brain-on) book's per-position realized multiples (exit value ÷ entry premium) over
     closed positions — the other side of the brain-off-vs-brain-on tail comparison."""

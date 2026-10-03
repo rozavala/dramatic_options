@@ -16,7 +16,7 @@ class FakeTradingClient:
         self._raise = False
 
     def get_account(self):
-        return SimpleNamespace(equity="100000.0")
+        return SimpleNamespace(equity="100000.0", cash="50000.0", options_buying_power="50000.0")
 
     def submit_order(self, req):
         if self._raise:
@@ -111,7 +111,7 @@ def test_make_client_order_id_stable_and_sanitized():
 
     a = make_client_order_id("open", "FCX270319C00080000", "2026-06-01")
     assert a == make_client_order_id("open", "FCX270319C00080000", "2026-06-01")  # idempotent
-    assert a == "open-FCX270319C00080000-2026-06-01" and a.startswith("open-")
+    assert a == "do-open-FCX270319C00080000-2026-06-01" and a.startswith("do-open-")
     # open vs close differ → an open + a close on the same contract/day never collide
     assert make_client_order_id("close", "FCX270319C00080000", "2026-06-01") != a
 
@@ -150,7 +150,7 @@ def test_fill_dataclass_defaults():
 
 
 # ── AlpacaLiveBroker (the T4 real-money path — PREREG_REAL_MONEY_BROKER) ───────────────────────────
-def _live_broker(monkeypatch, *, dry_run, max_order_notional, fake=None):
+def _live_broker(monkeypatch, *, dry_run, max_order_notional, fake=None, shared_reserve=5250.0):
     fake = fake or FakeTradingClient()
     captured = {}
 
@@ -161,7 +161,8 @@ def _live_broker(monkeypatch, *, dry_run, max_order_notional, fake=None):
     import alpaca.trading.client as tc
     monkeypatch.setattr(tc, "TradingClient", _mk)
     monkeypatch.setattr(broker_mod, "TradingClient", _mk, raising=False)
-    b = AlpacaLiveBroker("k", "s", dry_run=dry_run, equity=100000.0, max_order_notional=max_order_notional)
+    b = AlpacaLiveBroker("k", "s", dry_run=dry_run, equity=100000.0, max_order_notional=max_order_notional,
+                         shared_reserve=shared_reserve)
     return b, fake, captured
 
 

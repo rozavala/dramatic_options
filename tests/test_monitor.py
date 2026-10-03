@@ -150,7 +150,7 @@ def test_profit_take_real_submit_sends_sell_and_marks_closing(convexity_db):
     res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=qp, config=CONFIG,
                             broker=broker, dry_run=False)
     assert res.profit_taken == 1 and res.closing == 1 and res.closed == 0  # resting, not booked
-    assert broker.sells[0]["side"] == "sell" and broker.sells[0]["coid"].startswith("close-")
+    assert broker.sells[0]["side"] == "sell" and broker.sells[0]["coid"].startswith("do-close-")
     row = _row(convexity_db, pid, "status, close_order_id")
     assert row["status"] == "closing" and row["close_order_id"] == "cl-1"
 

@@ -72,3 +72,49 @@ unchanged; the ceiling is a cap, never a target.
   criteria-reconsideration, IMPLEMENTATION_PLAN §T4).
 - The smoke order (§5) is the ONLY real order this workstream contemplates, and it is
   operator-authorized at execution time.
+
+## §3a Amendment (2026-10-03) — the shared live account (issue #279; contract rozavala/finance#947)
+
+**Why.** At real money the live Alpaca account is shared with the operator's own stock (~$250k),
+Finance and alpha_options. Alpaca nets positions **per OCC contract across the whole account** and
+exposes **one** cash / buying-power pool. §3 called the notional ceiling "the SOLE broker-level
+guard"; that stays true for *this project's own* sizing risk. These guards protect the *other*
+tenants of the account, and the operator agreed to them on 2026-10-02/03 (PR #281).
+
+**What is added (all fail-closed; all checked before the DRY_RUN branch except where noted).**
+1. **Reserved option roots.** SPY, XSP, SPX and SPXW are reserved for alpha_options (operator decision
+   2026-09-30). They are rejected on **both** sides: a buy would net into alpha_options' legs, and a
+   sell could close one. The list is hard-coded (`broker.RESERVED_OPTION_ROOTS`), so a config edit
+   cannot remove it. This is an option-root reservation only; SPY stays usable as a bar benchmark.
+2. **Restricted list at the order layer.** A buy of a `restricted.json` underlying is rejected, and an
+   unreadable list rejects the buy. Closes are never blocked by it, so a defect cannot trap an open
+   position. The union-level enforcement is unchanged; this is the last layer before transmission.
+3. **Foreign-quantity check (finance#947 §3).** Before each open, `paper_loop` reads the venue quantity
+   of **that one contract** (`broker.venue_quantity` → `get_open_position`). It refuses the entry
+   (`veto-foreign-quantity`, paged) when the quantity differs from what this journal explains (the real
+   book's open + closing contracts), or when the read fails. The loop still never lists the account's
+   positions, so the journal stays the source of truth and the venue check catches a collision. This
+   runs on the DEV paper account too (this project's own paper account), where it also catches
+   journal/venue drift.
+4. **Buying-power reserve for the other projects (finance#947 §4).** A live buy may not take options
+   buying power below `safety.shared_account_reserve_usd`, set to **$5,250** = alpha_options' declared
+   max risk ($2,250 index aggregate + $3,000 event-pilot premium-at-risk; alpha_options A1 Addendum 3 /
+   §B.1). An unset reserve or an unreadable account rejects every live buy. Closes are exempt: selling
+   a long option needs no buying power. The live broker alone enforces it, since paper accounts are
+   per-project.
+5. **No sizing fallback to account equity.** `paper_loop` sizes only off `convexity_book.account_equity`.
+   An unset base halts new entries (paged); it never reads whole-account broker equity.
+6. **Order ids** carry the project prefix `do-` (alpha_options `ao-`, Finance `fn-`).
+
+**Capital (recorded, operator decision 2026-10-03).** The frozen frame sizes the book off
+`convexity_book.account_equity = $100,000`. The book's maximum premium-at-risk is 10% of that, so
+**real-money funding of about $10,000** covers the frame. Long options are paid in full and need no
+margin, and closes need no buying power, so this project's own close reserve is about $0.
+Dramatic Options is **paper-only**, so **no live funding is needed now**. It is funded as a separate,
+disjoint slice of the shared account at T4 arming, never by overlapping alpha_options' ~$25k
+allocation. A smaller base would be a frozen-frame amendment that segments the record. At a $20k base
+only ~30% of contracts booked to date fit the $200 per-name cap.
+
+**Not in this amendment.** Venue-named env keys (`ALPACA_PAPER_KEY_ID` / `ALPACA_LIVE_KEY_ID`, refuse
+legacy names; finance#947 §5) is a separate, coordinated change, because it touches the `.env` on both
+boxes and the paper/live selection path.
