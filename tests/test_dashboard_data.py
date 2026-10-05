@@ -596,7 +596,8 @@ def test_position_provenance_columns(convexity_db):
 
 
 # ── keyless dashboard invariants (S1: the dashboard process must hold NO broker/LLM secrets) ──────
-_KEY_VARS = ("ALPACA_API_KEY", "ALPACA_SECRET_KEY", "GEMINI_API_KEY", "XAI_API_KEY",
+_KEY_VARS = ("ALPACA_API_KEY", "ALPACA_SECRET_KEY", "ALPACA_PAPER_KEY_ID", "ALPACA_PAPER_SECRET_KEY",
+             "ALPACA_LIVE_KEY_ID", "ALPACA_LIVE_SECRET_KEY", "ALPACA_PAPER", "GEMINI_API_KEY", "XAI_API_KEY",
              "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "PERPLEXITY_API_KEY")
 
 

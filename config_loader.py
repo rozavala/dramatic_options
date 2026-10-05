@@ -11,6 +11,7 @@ from __future__ import annotations
 import functools
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -106,13 +107,9 @@ def load_config() -> dict[str, Any]:
     # (fail-safe: an env trades only when it opts in explicitly via .env).
     config["forward_enabled"] = _as_bool(os.getenv("FORWARD_ENABLED"), default=False)
 
-    # Alpaca credentials (never stored in config.json).
-    config["alpaca"] = {
-        "api_key": os.getenv("ALPACA_API_KEY"),
-        "secret_key": os.getenv("ALPACA_SECRET_KEY"),
-        # ALPACA_PAPER controls the endpoint; defaults to the PAPER gate.
-        "paper": _as_bool(os.getenv("ALPACA_PAPER"), default=safety["paper"]),
-    }
+    # Alpaca credentials (never stored in config.json). The VENUE picks the key pair
+    # (issue #279 item 6; the shared-account convention of rozavala/finance#947 §5).
+    config["alpaca"] = alpaca_credentials(safety)
 
     # EDGAR User-Agent (Phase 1). SEC requires a contact UA on every request.
     edgar = config.setdefault("edgar", {})
@@ -140,6 +137,40 @@ def load_config() -> dict[str, Any]:
     return config
 
 
+# Venue-named Alpaca keys (issue #279 item 6; finance#947 §5 — the same names as alpha_options). The
+# legacy names are still READ in this tolerant step, with a warning, so the operator can rename the .env
+# without a broken window; a later strict step refuses to start while any legacy name is set.
+PAPER_KEY_VARS = ("ALPACA_PAPER_KEY_ID", "ALPACA_PAPER_SECRET_KEY")
+LIVE_KEY_VARS = ("ALPACA_LIVE_KEY_ID", "ALPACA_LIVE_SECRET_KEY")
+LEGACY_KEY_VARS = ("ALPACA_API_KEY", "ALPACA_SECRET_KEY", "ALPACA_PAPER")
+
+_log = logging.getLogger("config_loader")
+
+
+def alpaca_credentials(safety: dict[str, Any]) -> dict[str, Any]:
+    """Resolve the Alpaca key pair for the venue.
+
+    The venue is the PAPER gate (``safety['paper']``). A legacy ``ALPACA_PAPER`` toggle still overrides
+    it in this tolerant step, as before. Paper reads ``ALPACA_PAPER_KEY_ID`` / ``ALPACA_PAPER_SECRET_KEY``;
+    live reads ``ALPACA_LIVE_KEY_ID`` / ``ALPACA_LIVE_SECRET_KEY``. Each falls back to the legacy
+    ``ALPACA_API_KEY`` / ``ALPACA_SECRET_KEY`` with a warning. A venue pair is used only when BOTH halves
+    are set — never a new key with a legacy secret."""
+    paper = _as_bool(os.getenv("ALPACA_PAPER"), default=safety["paper"])
+    key_var, secret_var = PAPER_KEY_VARS if paper else LIVE_KEY_VARS
+    key, secret = os.getenv(key_var), os.getenv(secret_var)
+    source = "venue"
+    if not (key and secret):
+        key, secret = os.getenv("ALPACA_API_KEY"), os.getenv("ALPACA_SECRET_KEY")
+        source = "legacy" if (key and secret) else "missing"
+    legacy_set = [v for v in LEGACY_KEY_VARS if os.getenv(v) is not None]
+    if legacy_set:
+        _log.warning("legacy Alpaca env name(s) set: %s — rename to %s (issue #279 item 6); a later "
+                     "release refuses to start while they are set", ", ".join(legacy_set),
+                     " / ".join(PAPER_KEY_VARS if paper else LIVE_KEY_VARS))
+    return {"api_key": key, "secret_key": secret, "paper": paper, "key_source": source,
+            "legacy_env_names": legacy_set}
+
+
 def require_alpaca_credentials(config: dict[str, Any]) -> tuple[str, str]:
     """Return (api_key, secret_key) or raise a friendly ConfigError."""
     creds = config.get("alpaca", {})
@@ -147,7 +178,8 @@ def require_alpaca_credentials(config: dict[str, Any]) -> tuple[str, str]:
     if not key or not secret:
         raise ConfigError(
             "Alpaca credentials missing. Copy .env.example to .env and set "
-            "ALPACA_API_KEY and ALPACA_SECRET_KEY (paper keys for now)."
+            "ALPACA_PAPER_KEY_ID and ALPACA_PAPER_SECRET_KEY (paper; ALPACA_LIVE_KEY_ID / "
+            "ALPACA_LIVE_SECRET_KEY only for the live venue)."
         )
     return key, secret
 

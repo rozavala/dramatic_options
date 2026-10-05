@@ -97,9 +97,22 @@ if [ "$(_env_truthy)" = "true" ]; then
         echo "$(date --iso=s) — FAIL: .env missing on trading env" >> "$HEALTH_LOG"
         FAILED=1
     else
-        REQUIRED_KEYS=(ALPACA_API_KEY ALPACA_SECRET_KEY GEMINI_API_KEY XAI_API_KEY \
+        REQUIRED_KEYS=(GEMINI_API_KEY XAI_API_KEY \
             ANTHROPIC_API_KEY DRY_RUN FORWARD_ENABLED PUSHOVER_API_TOKEN PUSHOVER_USER_KEY)
         MISSING=0
+        # Alpaca keys (issue #279 item 6): the venue-named PAPER pair, or — in this tolerant step — the
+        # legacy pair. A trading env (FORWARD_ENABLED) is paper until T4, so the paper pair is the check.
+        _pk=$(_env_val ALPACA_PAPER_KEY_ID); _ps=$(_env_val ALPACA_PAPER_SECRET_KEY)
+        _lk=$(_env_val ALPACA_API_KEY); _ls=$(_env_val ALPACA_SECRET_KEY)
+        if [ -n "$_pk" ] && [ -n "$_ps" ] && [[ "$_pk" != your_* ]] && [[ "$_ps" != your_* ]]; then
+            echo "  [verify] Alpaca: venue-named paper pair present"
+        elif [ -n "$_lk" ] && [ -n "$_ls" ] && [[ "$_lk" != your_* ]] && [[ "$_ls" != your_* ]]; then
+            echo "  [verify] Alpaca: LEGACY pair (ALPACA_API_KEY/ALPACA_SECRET_KEY) — rename to ALPACA_PAPER_KEY_ID/ALPACA_PAPER_SECRET_KEY (issue #279)"
+        else
+            echo "  [verify] CRITICAL: no Alpaca paper key pair (ALPACA_PAPER_KEY_ID/ALPACA_PAPER_SECRET_KEY)"
+            echo "$(date --iso=s) — FAIL: .env Alpaca paper pair missing/placeholder" >> "$HEALTH_LOG"
+            FAILED=1; MISSING=1
+        fi
         for _k in "${REQUIRED_KEYS[@]}"; do
             _v=$(_env_val "$_k")
             if [ -z "$_v" ] || [[ "$_v" == your_* ]]; then
