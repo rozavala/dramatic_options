@@ -100,14 +100,19 @@ if [ "$(_env_truthy)" = "true" ]; then
         REQUIRED_KEYS=(GEMINI_API_KEY XAI_API_KEY \
             ANTHROPIC_API_KEY DRY_RUN FORWARD_ENABLED PUSHOVER_API_TOKEN PUSHOVER_USER_KEY)
         MISSING=0
-        # Alpaca keys (issue #279 item 6): the venue-named PAPER pair, or — in this tolerant step — the
-        # legacy pair. A trading env (FORWARD_ENABLED) is paper until T4, so the paper pair is the check.
+        # Alpaca keys (issue #279 item 6, STRICT): the venue-named PAPER pair, and NO legacy name (the
+        # loop refuses to start with one set). A trading env (FORWARD_ENABLED) is paper until T4.
         _pk=$(_env_val ALPACA_PAPER_KEY_ID); _ps=$(_env_val ALPACA_PAPER_SECRET_KEY)
-        _lk=$(_env_val ALPACA_API_KEY); _ls=$(_env_val ALPACA_SECRET_KEY)
-        if [ -n "$_pk" ] && [ -n "$_ps" ] && [[ "$_pk" != your_* ]] && [[ "$_ps" != your_* ]]; then
+        _legacy=""
+        for _lv in ALPACA_API_KEY ALPACA_SECRET_KEY ALPACA_PAPER; do
+            grep -qE "^[[:space:]]*${_lv}[[:space:]]*=" "$ENV_FILE" 2>/dev/null && _legacy="$_legacy $_lv"
+        done
+        if [ -n "$_legacy" ]; then
+            echo "  [verify] CRITICAL: legacy Alpaca name(s) in .env:$_legacy — rename (issue #279)"
+            echo "$(date --iso=s) — FAIL: .env legacy Alpaca names:$_legacy" >> "$HEALTH_LOG"
+            FAILED=1; MISSING=1
+        elif [ -n "$_pk" ] && [ -n "$_ps" ] && [[ "$_pk" != your_* ]] && [[ "$_ps" != your_* ]]; then
             echo "  [verify] Alpaca: venue-named paper pair present"
-        elif [ -n "$_lk" ] && [ -n "$_ls" ] && [[ "$_lk" != your_* ]] && [[ "$_ls" != your_* ]]; then
-            echo "  [verify] Alpaca: LEGACY pair (ALPACA_API_KEY/ALPACA_SECRET_KEY) — rename to ALPACA_PAPER_KEY_ID/ALPACA_PAPER_SECRET_KEY (issue #279)"
         else
             echo "  [verify] CRITICAL: no Alpaca paper key pair (ALPACA_PAPER_KEY_ID/ALPACA_PAPER_SECRET_KEY)"
             echo "$(date --iso=s) — FAIL: .env Alpaca paper pair missing/placeholder" >> "$HEALTH_LOG"

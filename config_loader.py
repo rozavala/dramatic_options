@@ -11,7 +11,6 @@ from __future__ import annotations
 import functools
 import hashlib
 import json
-import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -137,38 +136,32 @@ def load_config() -> dict[str, Any]:
     return config
 
 
-# Venue-named Alpaca keys (issue #279 item 6; finance#947 §5 — the same names as alpha_options). The
-# legacy names are still READ in this tolerant step, with a warning, so the operator can rename the .env
-# without a broken window; a later strict step refuses to start while any legacy name is set.
+# Venue-named Alpaca keys (issue #279 item 6; finance#947 §5 — the same names as alpha_options). STRICT
+# (2026-10-05, after the operator renamed the DEV .env): a legacy name set anywhere in the environment
+# refuses to start — one name must never be able to hold either a paper or a live key.
 PAPER_KEY_VARS = ("ALPACA_PAPER_KEY_ID", "ALPACA_PAPER_SECRET_KEY")
 LIVE_KEY_VARS = ("ALPACA_LIVE_KEY_ID", "ALPACA_LIVE_SECRET_KEY")
 LEGACY_KEY_VARS = ("ALPACA_API_KEY", "ALPACA_SECRET_KEY", "ALPACA_PAPER")
 
-_log = logging.getLogger("config_loader")
-
-
 def alpaca_credentials(safety: dict[str, Any]) -> dict[str, Any]:
     """Resolve the Alpaca key pair for the venue.
 
-    The venue is the PAPER gate (``safety['paper']``). A legacy ``ALPACA_PAPER`` toggle still overrides
-    it in this tolerant step, as before. Paper reads ``ALPACA_PAPER_KEY_ID`` / ``ALPACA_PAPER_SECRET_KEY``;
-    live reads ``ALPACA_LIVE_KEY_ID`` / ``ALPACA_LIVE_SECRET_KEY``. Each falls back to the legacy
-    ``ALPACA_API_KEY`` / ``ALPACA_SECRET_KEY`` with a warning. A venue pair is used only when BOTH halves
-    are set — never a new key with a legacy secret."""
-    paper = _as_bool(os.getenv("ALPACA_PAPER"), default=safety["paper"])
-    key_var, secret_var = PAPER_KEY_VARS if paper else LIVE_KEY_VARS
-    key, secret = os.getenv(key_var), os.getenv(secret_var)
-    source = "venue"
-    if not (key and secret):
-        key, secret = os.getenv("ALPACA_API_KEY"), os.getenv("ALPACA_SECRET_KEY")
-        source = "legacy" if (key and secret) else "missing"
+    The venue is the PAPER gate (``safety['paper']``): paper reads ``ALPACA_PAPER_KEY_ID`` /
+    ``ALPACA_PAPER_SECRET_KEY``, live reads ``ALPACA_LIVE_KEY_ID`` / ``ALPACA_LIVE_SECRET_KEY``. There is no
+    per-key toggle and no fallback. Any legacy name (``ALPACA_API_KEY`` / ``ALPACA_SECRET_KEY`` /
+    ``ALPACA_PAPER``) set → :class:`ConfigError` (fail-closed: refuse to start). A missing pair is left to
+    :func:`require_alpaca_credentials`, so key-less paths (``--demo``, the keyless dashboard) still load."""
     legacy_set = [v for v in LEGACY_KEY_VARS if os.getenv(v) is not None]
     if legacy_set:
-        _log.warning("legacy Alpaca env name(s) set: %s — rename to %s (issue #279 item 6); a later "
-                     "release refuses to start while they are set", ", ".join(legacy_set),
-                     " / ".join(PAPER_KEY_VARS if paper else LIVE_KEY_VARS))
-    return {"api_key": key, "secret_key": secret, "paper": paper, "key_source": source,
-            "legacy_env_names": legacy_set}
+        raise ConfigError(
+            f"legacy Alpaca env name(s) set: {', '.join(legacy_set)} — refusing to start (issue #279 "
+            f"item 6). Rename to ALPACA_PAPER_KEY_ID / ALPACA_PAPER_SECRET_KEY (live: ALPACA_LIVE_KEY_ID / "
+            f"ALPACA_LIVE_SECRET_KEY) and delete ALPACA_PAPER; the PAPER gate picks the venue.")
+    paper = bool(safety["paper"])
+    key_var, secret_var = PAPER_KEY_VARS if paper else LIVE_KEY_VARS
+    key, secret = os.getenv(key_var), os.getenv(secret_var)
+    return {"api_key": key, "secret_key": secret, "paper": paper,
+            "key_source": "venue" if (key and secret) else "missing"}
 
 
 def require_alpaca_credentials(config: dict[str, Any]) -> tuple[str, str]:
