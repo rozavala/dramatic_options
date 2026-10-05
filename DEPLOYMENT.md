@@ -118,7 +118,7 @@ it (start when needed: `sudo systemctl start dramatic-options-dashboard`).
    verify gate **fails the deploy and rolls back** if a key is missing/placeholder on a trading
    env (a missing-`.env` failure cannot self-page — the `notify@` unit reads the same file).
    ```
-   ALPACA_PAPER_KEY_ID= ALPACA_PAPER_SECRET_KEY=   (legacy ALPACA_API_KEY/ALPACA_SECRET_KEY/ALPACA_PAPER still read with a warning until the strict release — issue #279)
+   ALPACA_PAPER_KEY_ID= ALPACA_PAPER_SECRET_KEY=   (legacy ALPACA_API_KEY/ALPACA_SECRET_KEY/ALPACA_PAPER are REFUSED — issue #279. **PROD:** its .env still carries the legacy names because `production` runs pre-#284 code; rename PROD's .env in the SAME act that promotes `production` past #284, at T4 arming — the live pair is ALPACA_LIVE_KEY_ID/ALPACA_LIVE_SECRET_KEY, shared with the other projects, finance#947 §5)
    PAPER=true  LIVE_TRADING_ENABLED=false  DRY_RUN=false  FORWARD_ENABLED=true
    GEMINI_API_KEY=  XAI_API_KEY=  ANTHROPIC_API_KEY=
    PUSHOVER_API_TOKEN=  PUSHOVER_USER_KEY=

@@ -603,7 +603,7 @@ _KEY_VARS = ("ALPACA_API_KEY", "ALPACA_SECRET_KEY", "ALPACA_PAPER_KEY_ID", "ALPA
 
 def test_dotenv_optout_keeps_config_keyless(monkeypatch, tmp_path):
     envf = tmp_path / ".env"
-    envf.write_text("ALPACA_API_KEY=SECRET\nGEMINI_API_KEY=G\n")
+    envf.write_text("ALPACA_PAPER_KEY_ID=SECRET\nGEMINI_API_KEY=G\n")
     monkeypatch.setattr(config_loader, "ENV_PATH", envf)
     for k in _KEY_VARS:
         monkeypatch.delenv(k, raising=False)
@@ -613,7 +613,7 @@ def test_dotenv_optout_keeps_config_keyless(monkeypatch, tmp_path):
         cfg = config_loader.load_config()
         assert cfg["alpaca"]["api_key"] is None
         assert cfg["llm_keys"]["gemini"] is None
-        assert os.getenv("ALPACA_API_KEY") is None  # load_dotenv never ran → nothing injected
+        assert os.getenv("ALPACA_PAPER_KEY_ID") is None  # load_dotenv never ran → nothing injected
         # control: WITHOUT the flag the SAME .env IS read (proves the test .env is wired, not vacuous)
         monkeypatch.delenv("DRAMATIC_SKIP_DOTENV", raising=False)
         config_loader.load_config.cache_clear()
