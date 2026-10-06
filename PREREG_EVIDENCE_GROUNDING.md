@@ -217,3 +217,41 @@ the council (option (b) of the 2026-09-30 review) would require the loop to read
 `universe_register.json`. `PREREG_UNIVERSE_CURATION` Rule 0 pins that the loop never loads the
 register. It would need either a Rule-0 amendment or a loop-loaded copy of the thesis (e.g. in
 `config.universe.themes`). Both are decisions for the operator, not drafted here.
+
+## Amendment A2 (2026-10-06, operator word) — the operator's register thesis in sentinel packs
+
+**Why.** Amendment A1 stopped the discovery framer's skeptical summary being labelled as the operator's
+thesis, leaving sentinels with `OPERATOR_THESIS: (none on file …)`. But 26 of 32 active sentinels sit in a
+basket whose theme the operator admitted with a written thesis. The council judged them without it, while
+hand-seeds always carry their operator thesis.
+
+**What renders.** For a sentinel whose basket has an adopted `council_thesis` in `universe_register.json`:
+- `OPERATOR_THESIS (the operator's admission hypothesis for basket '<key>' — a basket-level view, not a
+  verdict on this candidate or its direction; judge the candidate on the evidence): <council_thesis>`
+- `OPERATOR_FALSIFIER: <falsifier, trailing process notes removed>`
+- A1's `DISCOVERY_SUMMARY` line follows unchanged.
+
+Baskets without one (`ai_compute`, `space_defense`, which predate the register) keep "(none on file)".
+
+**Why a separate council-facing field, not the raw thesis.** The register's `thesis` is written for the
+operator. In the windows-5–9 themes it carries process notes that predict the council's verdict
+("under_narrated will very likely FAIL at the council"). It also carries price, drawdown and "convexity
+setup" language (e.g. "−69.8% over 12 months … the price/fundamentals divergence the mandate looks for").
+A thesis-only council must not see either: cheapness belongs to the IV gate, and a predicted verdict is
+leakage. So each theme gets an operator-adopted `council_thesis`, which states the structural claim only:
+- no price, return or drawdown;
+- no cheapness, IV or convexity language;
+- no under-narrated or at-inflection assertion (those are the council's to judge);
+- no process notes.
+
+A guard pins these exclusions (`tests/test_register_thesis.py`). The raw `thesis` is never read by the loop.
+
+**Invariants.**
+- `grounded` is unchanged.
+- Hand-seed packs are unchanged.
+- The framer's pack stays byte-identical, because it never passes provenance or register data.
+- An unreadable register falls back to "(none on file)".
+- The register text joins the authenticity evidence pool, so quoting it is not flagged.
+
+**Record segmentation.** `runs.model_mix.pack_provenance = "provenance_v1+register_thesis_v1"` from the first
+L1 after deploy. Never pool strategist Brier or the council-marginal read across it.

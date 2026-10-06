@@ -72,6 +72,7 @@ def discovered_to_theme(row) -> Theme:
         source="sentinel",
         sentinel_id=int(row["id"]),
         markers=markers,
+        basket=row["basket"] or None,
     )
 
 
