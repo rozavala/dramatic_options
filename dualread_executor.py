@@ -227,9 +227,11 @@ def run_executor(report: dict, config: dict, *, notify, write_sentinel=None) -> 
 
     for name in verdict["gap_structural"]["pages"]:
         _page(notify, "OPRA dual-read: coverage-feasibility",
-              f"{name}: OPRA has no tradeable wing in the tenor window across the rolling-5 "
-              f"(structural absence — OPRA-correct). The gate fail-closes it; the name stays in the "
-              f"basket (PREREG_UNIVERSE_CURATION §3). No revert. Review feasibility.")
+              f"{name}: OPRA had no tradeable wing in the tenor window this session — the first "
+              f"absence of a new episode (structural, OPRA-correct; e.g. only in-the-money contracts "
+              f"eligible, which the side guard refuses). Pages once per episode and re-arms after 4 "
+              f"clean sessions. The gate fail-closes it; the name stays in the basket "
+              f"(PREREG_UNIVERSE_CURATION §3). No revert. The reason is on the dashboard's dual-read panel.")
 
     for name in verdict["gap_transient"]["pages"]:
         _page(notify, "OPRA dual-read: transient gap escalation",
