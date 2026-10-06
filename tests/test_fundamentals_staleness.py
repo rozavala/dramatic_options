@@ -92,3 +92,25 @@ def test_parse_summary_round_trips():
     assert fs.parse_summary("fundamentals-staleness: fundamentals unavailable — nothing checked")["status"] \
         == "unavailable"
     assert fs.parse_summary("paper cycle") is None
+
+
+# ── 2026-10-02 false positives: an evening-ET acceptance is the same SEC filing date ──────────────
+
+def test_evening_et_acceptance_is_not_a_newer_filing():
+    # RKLB: 10-Q accepted 2026-08-11T00:18:42Z = 2026-08-10 20:18 ET; companyfacts says filed 2026-08-10.
+    rec = [{"form": "10-Q", "ts": "2026-08-11T00:18:42+00:00"}]
+    assert fs.newest_periodic(rec) == ("10-Q", "2026-08-10")
+    assert not fs.is_lagging("2026-08-10", fs.newest_periodic(rec), datetime(2026, 10, 2, 19, 45, tzinfo=UTC))
+
+
+def test_a_genuinely_newer_filing_still_lags():
+    # NEE: corpus 2026-04-23, 10-Q accepted 2026-07-24 mid-day ET.
+    rec = [{"form": "10-Q", "ts": "2026-07-24T16:05:00+00:00"}]
+    assert fs.is_lagging("2026-04-23", fs.newest_periodic(rec), datetime(2026, 10, 2, 19, 45, tzinfo=UTC))
+
+
+def test_et_date_handles_bare_dates_naive_and_z_timestamps():
+    assert fs._et_date("2026-08-10") == "2026-08-10"
+    assert fs._et_date("2026-03-31T01:43:24Z") == "2026-03-30"      # ERO's 40-F
+    assert fs._et_date("2026-08-06T00:10:01") == "2026-08-05"        # naive = UTC (SMR)
+    assert fs._et_date(None) is None

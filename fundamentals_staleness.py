@@ -20,11 +20,16 @@ import logging
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 log = logging.getLogger(__name__)
 
 PERIODIC_FORMS = frozenset({"10-Q", "10-K", "20-F", "40-F"})
+# SEC dates filings in US Eastern time. The corpus carries companyfacts' ``filed`` (an ET date), while filing
+# records carry ``acceptanceDateTime`` in UTC — an evening-ET acceptance lands on the NEXT UTC day, which made
+# the same report look newer (ERO/RKLB/SMR, 2026-10-02). Compare both as ET dates.
+_ET = ZoneInfo("America/New_York")
 GRACE_DAYS = 3
 PREFIX = "fundamentals-staleness:"
 
@@ -42,10 +47,27 @@ def newest_periodic(records: Iterable[dict] | None) -> tuple[str, str] | None:
         form = str(r.get("form", "")).upper()
         if form not in PERIODIC_FORMS:
             continue
-        day = str(r.get("ts", ""))[:10]
+        day = _et_date(r.get("ts"))
         if day and (best is None or day > best[1]):
             best = (form, day)
     return best
+
+
+def _et_date(ts) -> str | None:
+    """The US-Eastern calendar date (YYYY-MM-DD) of a filing timestamp. A bare date passes through; a
+    naive timestamp is read as UTC (the filings layer stamps UTC)."""
+    s = str(ts or "")
+    if len(s) < 10:
+        return None
+    if len(s) == 10:
+        return s
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return s[:10]
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(_ET).date().isoformat()
 
 
 def is_lagging(corpus_filed: str | None, periodic: tuple[str, str] | None, now: datetime,
