@@ -23,6 +23,8 @@ Group=__GROUP__
 WorkingDirectory=__REPO_ROOT__
 Environment=PYTHONUNBUFFERED=1
 Environment=DRAMATIC_SKIP_DOTENV=1
+# The installable app's identity (PROD vs DEV; dashboard_web/api/pwa.py) — not a secret, rendered by deploy.sh.
+Environment=DRAMATIC_ENV=__ENV_NAME__
 ExecStart=__REPO_ROOT__/scripts/dashboard_web_run.sh
 Restart=on-failure
 RestartSec=10

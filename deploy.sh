@@ -114,6 +114,7 @@ render_unit() {
     sed -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
         -e "s|__USER__|$(id -un)|g" \
         -e "s|__GROUP__|$(id -gn)|g" \
+        -e "s|__ENV_NAME__|${ENV_NAME}|g" \
         "$1"
 }
 

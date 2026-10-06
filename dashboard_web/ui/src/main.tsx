@@ -18,3 +18,15 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
+
+// Installable app: register the service worker (shell only — /api is never cached) and title the window by
+// environment from the manifest, so an installed DEV and PROD are never confused. Production build only.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+  fetch("/manifest.webmanifest")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((m) => {
+      if (m && typeof m.name === "string") document.title = `${m.name} — observability`;
+    })
+    .catch(() => {});
+}
