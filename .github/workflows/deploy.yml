@@ -25,6 +25,14 @@ on:
       - main        # Pushing here deploys to DEV
       - production  # Pushing here deploys to PROD
 
+# Serialize deploys per target branch (issue #268). Two merges seconds apart used to start two runs that
+# raced on the box's git refs (2026-09-25: #266/#267 merged 3s apart; one run's `git pull` collided with
+# the other's fetch and exited 1). Queued runs now wait their turn. cancel-in-progress stays false: the
+# newest queued run still executes, so the box always ends at the newest commit.
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -81,7 +89,6 @@ jobs:
             git fetch &&
             git checkout ${{ github.ref_name }} &&
             git reset --hard origin/${{ github.ref_name }} &&
-            git pull &&
 
             # Execute deployment (ENV_NAME drives PROD-only behaviour)
             ENV_NAME=${{ env.ENV_NAME }} ./deploy.sh

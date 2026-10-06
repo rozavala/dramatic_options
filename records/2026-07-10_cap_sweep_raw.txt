@@ -1,0 +1,58 @@
+=== feasibility screen (PREREG_UNIVERSE_CURATION §2) @ 2026-07-10 16:12 UTC ===
+floors (existing only): 1 contract <= $1000 | tenor 180-365d | spread <= 25% | OI >= 50 (when present) | price >= $3 | ADV >= $3M
+info-only columns: cluster-fit ($2000), achieved OTM%, strike interval, half-spread % of premium
+
+sym        spot  $/contr fits1? cl-fit wing                    dte  achOTM%  strk-gap  hspr%  spr%     OI  ADV$M floors  
+AG        17.17      228 YES    YES    AG270115C00021000       189     22.3       1/1    8.8    18    n/a  201.8 ok       [silver_deficit]
+AMSC      35.91      695 YES    YES    AMSC270115C00045000     189     25.3       1/1    7.9    16    n/a   37.7 ok       [ai_capex_power]
+ATKR      72.52      288 YES    YES    ATKR270115C00100000     189     37.9       5/5    4.3     9    n/a   26.8 ok       [ai_capex_power]
+CCJ       95.76     1335 no     YES    CCJ270617C00120000      342     25.3       5/5    6.0    12    n/a  300.8 ok       [nuclear_fuel]
+CDE       16.08      255 YES    YES    CDE270319C00020000      252     24.4   2.5/2.5    9.8    20    n/a  768.3 ok       [silver_deficit]
+CEG      252.43     2220 no     no     CEG270319C00320000      252     26.8     10/10    4.5     9    n/a  987.6 ok       [ai_capex_power]
+ERO       25.40      415 YES    YES    ERO270319C00030000      252     18.1       5/5    8.4    17    n/a   35.3 ok       [copper_supply]
+ETN      409.21     3845 no     no     ETN270617C00510000      342     24.6     10/10    6.4    13    n/a  968.6 ok       [ai_capex_power]
+FCX       61.63      630 YES    YES    FCX270319C00075000      252     21.7       5/5    9.5    19    n/a  976.6 ok       [copper_supply]
+FLNC      15.82      435 YES    YES    FLNC270115C00020000     189     26.4       1/1    5.7    11    n/a  197.3 ok       [ai_capex_power]
+FLY       24.42      610 YES    YES    FLY270219C00031000      224     26.9       1/1    8.2    16    n/a  198.2 ok       [space_smallcap]
+FRO       37.73      222 YES    YES    FRO270115C00045000      189     19.3       5/5   10.1    20    n/a  135.6 ok       [seaborne_freight]
+GEV     1087.04     9915 no     no     GEV270115C01380000      189     27.0     20/20    4.2     8    n/a 3335.4 ok       [ai_capex_power]
+HBM       21.43      275 YES    YES    HBM270115C00025000      189     16.7     2.5/5    9.1    18    n/a  123.3 ok       [copper_supply]
+HL        15.84      192 YES    YES    HL270115C00020000       189     26.3       1/1    4.4     9    n/a  505.7 ok       [silver_deficit]
+IRDM      49.69     1575 no     YES    IRDM270115C00035000     189    -29.6       5/5   12.4    25    n/a  172.4 ok       [space_smallcap]
+KTOS      48.00      775 YES    YES    KTOS270219C00060000     224     25.0   2.5/2.5    7.1    14    n/a  287.6 ok       [space_defense]
+LHX      289.19      885 YES    YES    LHX270219C00350000      224     21.0     10/10    9.6    19    n/a  464.7 ok       [space_defense]
+LMT      518.20     2040 no     no     LMT270521C00650000      315     25.4       5/5    6.4    13    n/a  706.4 ok       [space_defense]
+LUNR      16.07      390 YES    YES    LUNR270115C00020000     189     24.5       1/1    2.6     5    n/a  283.6 ok       [space_smallcap]
+NEE       87.40      109 YES    YES    NEE270219C00110000      224     25.9       5/5   10.1    20    n/a 1031.1 ok       [ai_capex_power]
+NNE       18.76      350 YES    YES    NNE270115C00025000      189     33.3       1/1    8.6    17    n/a   63.5 ok       [nuclear_fuel]
+NOC      534.91     2380 no     no     NOC270319C00640000      252     19.6     20/20    9.7    19    n/a  550.1 ok       [space_defense]
+NVDA     209.21     1522 no     YES    NVDA270319C00260000     252     24.3       5/5    0.8     2    n/a 29049.5 ok      
+NXE        9.66      118 YES    YES    NXE270219C00012000      224     24.2       1/1   10.6    21    n/a   52.3 ok       [nuclear_fuel]
+PAAS      43.91      470 YES    YES    PAAS270319C00055000     252     25.3       5/5    6.4    13    n/a  224.8 ok       [silver_deficit]
+PL        25.77      555 YES    YES    PL270115C00032000       189     24.2       2/1    6.3    13    n/a  422.2 ok       [space_smallcap]
+PWR      659.16     6100 no     no     PWR270319C00820000      252     24.4     10/10    4.9    10    n/a 1005.1 ok       [ai_capex_power]
+RDW       10.17      222 YES    YES    RDW270115C00013000      189     27.8       1/1    3.4     7    n/a  414.2 ok       [space_smallcap]
+RKLB      80.52     1900 no     YES    RKLB270319C00100000     252     24.2       5/5    2.1     4    n/a 2914.0 ok       [space_smallcap]
+RTX      194.66      532 YES    YES    RTX270319C00240000      252     23.3     10/10    6.1    12    n/a  950.6 ok       [space_defense]
+SMCI      28.71      632 YES    YES    SMCI270319C00036000     252     25.4       1/1    6.7    13    n/a 1997.3 ok      
+SMR        8.84      216 YES    YES    SMR270219C00011000      224     24.5       1/1    5.6    11    n/a  314.4 ok       [nuclear_fuel]
+TGB        7.32       75 YES    YES    TGB270115C00010000      189     36.6       1/1    6.7    13    n/a   33.3 ok       [copper_supply]
+UEC       10.39      176 YES    YES    UEC270219C00013000      224     25.1       1/1    6.6    13    n/a  112.3 ok       [nuclear_fuel]
+UROY       2.73       80 YES    YES    UROY270115C00002500     189     -8.4   0.5/0.5    6.2    12    n/a    6.7 price    [nuclear_fuel]
+UUUU      13.59      220 YES    YES    UUUU270115C00017000     189     25.1       1/1    1.6     3    n/a  138.9 ok       [nuclear_fuel]
+VRT      321.47     5292 no     no     VRT270319C00400000      252     24.4     10/10    2.7     5    n/a 2118.6 ok       [ai_capex_power]
+ADTN      13.39      625 YES    YES    ADTN270219C00008000     224    -40.3       1/1   12.0    24    n/a   27.5 ok      
+CLFD      33.80        - no     -      (no_eligible_contract_in_tenor_window)    -        -         -      -     -      -    7.9 ok      
+KMT       33.45     1370 no     YES    KMT270115C00020000      189    -40.2   2.5/2.5   11.7    23    n/a   37.0 ok      
+TROX       6.12      330 YES    YES    TROX270115C00003000     189    -51.0       1/1    6.1    12    n/a   18.8 ok      
+TITN      18.30        - no     -      (no_eligible_contract_in_tenor_window)    -        -         -      -     -      -    4.2 ok      
+LNN      114.06        - no     -      (no_eligible_contract_in_tenor_window)    -        -         -      -     -      -   23.3 ok      
+HCC       79.19     1120 no     YES    HCC270115C00085000      189      7.3       5/5   12.5    25    n/a   62.8 ok      
+AIR      136.00     1300 no     YES    AIR270219C00155000      224     14.0       5/5   11.5    23    n/a   69.1 ok      
+TDW       71.29     1335 no     YES    TDW270115C00065000      189     -8.8       5/5   10.9    22    n/a   62.9 ok      
+VAL       76.92     1550 no     YES    VAL270219C00072500      224     -5.7   2.5/2.5   12.3    25    n/a   78.0 ok      
+NE        39.78      450 YES    YES    NE270115C00040000       189      0.6   2.5/2.5    6.7    13    n/a   70.6 ok      
+HLIT      14.02      308 YES    YES    HLIT270115C00015000     189      7.0   2.5/2.5    7.3    15    n/a   34.6 ok      
+
+=== SUMMARY: 31 candidate(s) fit one contract under the $1000 per-name cap ===
+(cheapness deliberately not shown — the IV gate disposes at decision time, CGS §7)

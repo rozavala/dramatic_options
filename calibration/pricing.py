@@ -36,6 +36,23 @@ def bs_price(
     return strike * math.exp(-r * t_years) * _norm_cdf(-d2) - spot * _norm_cdf(-d1)
 
 
+def bs_delta(*, spot: float, strike: float, t_years: float, r: float, sigma: float, kind: str) -> float:
+    """Black-Scholes delta of a European call ('C', in [0,1]) or put ('P', in [-1,0]).
+
+    Used by the calibration's delta-trigger exit (PREREG_CONVEXITY_CALIBRATION §4, 2026-06-01
+    amendment): a far-OTM option's convexity has "converted into delta" once the spot has moved
+    enough — that's the deterministic "the anticipated move played out, take it" signal. Degenerate
+    inputs collapse to the at-expiry step delta (±1 if ITM, 0 if OTM) so the caller never blows up.
+    """
+    if t_years <= 0 or sigma <= 0 or spot <= 0 or strike <= 0:
+        itm = (spot > strike) if kind == "C" else (spot < strike)
+        if not itm:
+            return 0.0
+        return 1.0 if kind == "C" else -1.0
+    d1 = (math.log(spot / strike) + (r + 0.5 * sigma * sigma) * t_years) / (sigma * math.sqrt(t_years))
+    return _norm_cdf(d1) if kind == "C" else _norm_cdf(d1) - 1.0
+
+
 def intrinsic_value(*, spot: float, strike: float, kind: str) -> float:
     """Per-share intrinsic value at expiry."""
     return max(0.0, spot - strike) if kind == "C" else max(0.0, strike - spot)

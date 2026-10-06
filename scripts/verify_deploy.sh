@@ -68,6 +68,70 @@ for _f in "${CRITICAL_FILES[@]}"; do
     fi
 done
 
+# -------------------------------------------------------------------------
+# CHECK 5: live-checkout .env present + complete (only where this env TRADES)
+# -------------------------------------------------------------------------
+# Load-bearing (PR2): the systemd units read $REPO_ROOT/.env, and a failure CAUSED by a
+# missing/incomplete .env cannot self-page (the notify@ unit reads the same empty file). So we
+# refuse to arm trading timers without a real .env — this is the deploy-time stop that makes the
+# missing-.env case safe. Gated on FORWARD_ENABLED=true (DEV trades / PROD stays inert).
+ENV_FILE="$REPO_ROOT/.env"
+
+_env_truthy() {   # FORWARD_ENABLED from .env — grep, never `source`
+    [ -f "$ENV_FILE" ] || { echo "false"; return; }
+    local v
+    v=$(grep -E '^[[:space:]]*FORWARD_ENABLED[[:space:]]*=' "$ENV_FILE" 2>/dev/null \
+        | tail -1 | cut -d= -f2- | tr -d "\"' \t\r")
+    case "$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on) echo "true" ;; *) echo "false" ;;
+    esac
+}
+_env_val() {      # value of a key in .env (empty if absent)
+    grep -E "^[[:space:]]*$1[[:space:]]*=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"' \t\r"
+}
+
+echo "  [verify] Checking live-checkout .env ($ENV_FILE)..."
+if [ "$(_env_truthy)" = "true" ]; then
+    if [ ! -f "$ENV_FILE" ]; then
+        echo "  [verify] CRITICAL: FORWARD_ENABLED=true but $ENV_FILE is missing"
+        echo "$(date --iso=s) — FAIL: .env missing on trading env" >> "$HEALTH_LOG"
+        FAILED=1
+    else
+        REQUIRED_KEYS=(GEMINI_API_KEY XAI_API_KEY \
+            ANTHROPIC_API_KEY DRY_RUN FORWARD_ENABLED PUSHOVER_API_TOKEN PUSHOVER_USER_KEY)
+        MISSING=0
+        # Alpaca keys (issue #279 item 6, STRICT): the venue-named PAPER pair, and NO legacy name (the
+        # loop refuses to start with one set). A trading env (FORWARD_ENABLED) is paper until T4.
+        _pk=$(_env_val ALPACA_PAPER_KEY_ID); _ps=$(_env_val ALPACA_PAPER_SECRET_KEY)
+        _legacy=""
+        for _lv in ALPACA_API_KEY ALPACA_SECRET_KEY ALPACA_PAPER; do
+            grep -qE "^[[:space:]]*${_lv}[[:space:]]*=" "$ENV_FILE" 2>/dev/null && _legacy="$_legacy $_lv"
+        done
+        if [ -n "$_legacy" ]; then
+            echo "  [verify] CRITICAL: legacy Alpaca name(s) in .env:$_legacy — rename (issue #279)"
+            echo "$(date --iso=s) — FAIL: .env legacy Alpaca names:$_legacy" >> "$HEALTH_LOG"
+            FAILED=1; MISSING=1
+        elif [ -n "$_pk" ] && [ -n "$_ps" ] && [[ "$_pk" != your_* ]] && [[ "$_ps" != your_* ]]; then
+            echo "  [verify] Alpaca: venue-named paper pair present"
+        else
+            echo "  [verify] CRITICAL: no Alpaca paper key pair (ALPACA_PAPER_KEY_ID/ALPACA_PAPER_SECRET_KEY)"
+            echo "$(date --iso=s) — FAIL: .env Alpaca paper pair missing/placeholder" >> "$HEALTH_LOG"
+            FAILED=1; MISSING=1
+        fi
+        for _k in "${REQUIRED_KEYS[@]}"; do
+            _v=$(_env_val "$_k")
+            if [ -z "$_v" ] || [[ "$_v" == your_* ]]; then
+                echo "  [verify] CRITICAL: .env key $_k missing or a placeholder"
+                echo "$(date --iso=s) — FAIL: .env $_k missing/placeholder" >> "$HEALTH_LOG"
+                FAILED=1; MISSING=1
+            fi
+        done
+        [ "$MISSING" -eq 0 ] && echo "  [verify] .env present with all required keys (trading env)"
+    fi
+else
+    echo "  [verify] (FORWARD_ENABLED!=true — inert env; .env key assertion skipped)"
+fi
+
 if [ "$FAILED" -eq 1 ]; then
     echo "  [verify] ❌ Verification FAILED"
     echo "$(date --iso=s) — VERIFICATION FAILED" >> "$HEALTH_LOG"

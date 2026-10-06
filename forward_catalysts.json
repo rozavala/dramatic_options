@@ -1,0 +1,45 @@
+{
+  "_comment": "PREREG_FORWARD_CATALYST_GROUNDING §2/§3 — operator-pinned forward-catalyst items. Classes: a=statutory dated event (event_date REQUIRED) · c=dated program/procurement milestone (event_date REQUIRED) · d=published input-commodity price (event_date MUST be null; public-source fail-closed per input — subscription series do NOT qualify). Class b (filed forward commitments) is EXCLUDED by §2 — one home: the fundamentals corpus. provenance must be 'operator' ('generated' is reserved; F-b). Every item: {symbol, class, claim, event_date, source, as_of, expires, provenance}. Expiry defaults at pin time (§10): a/c = event_date + 5 trading days; d = as_of + 7 days.",
+  "items": [
+    {
+      "symbol": "KMT",
+      "class": "d",
+      "claim": "US customs import unit value for tungstates (HS 284180) REVERSED in July 2026: $37.98/kg (latest published month) after the June spike to $182.38/kg — back near the Jan–Feb level and ~1.3x the 2025 average ($29.34/kg). Monthly series: Jan $32.16 · Feb $31.55 · Mar $64.32 · Apr $55.91 · May $82.66 · Jun $182.38 · Jul $37.98 (unit value = customs value / net kg; July netWgt 1,251 t vs June 392 t — the June print now reads as a low-volume mix-shift single-month anomaly, exactly the caveat pinned at re-pins #8–#11). Read honestly: the US import record does NOT support a persisting APT cost shock through the summer; the cost-pressure thesis leg is contradicted for July. Caveats: HS 284180 covers all tungstate salts (not APT-pure); customs publication lags ~2–3 months (July published ~2026-09-13 after one 0-row check).",
+      "event_date": null,
+      "source": "UN Comtrade public database, US imports of HS 284180 (comtradeapi.un.org public preview API, keyless; reporterCode=842, cmdCode=284180, flowCode=M; verified 2026-07-10)",
+      "as_of": "2026-10-04",
+      "expires": "2026-10-11",
+      "provenance": "operator"
+    },
+    {
+      "symbol": "GEV",
+      "class": "a",
+      "claim": "EPA final rule repealing most provisions of the 2024 Carbon Pollution Standards for greenhouse-gas emissions from fossil fuel-fired electric generating units takes effect 2026-11-16 (Federal Register, published 2026-09-17).",
+      "event_date": "2026-11-16",
+      "source": "Federal Register document 2026-19071, 'Partial Repeal of the Carbon Pollution Standards for Fossil Fuel-Fired Electric Generating Units' (EPA, final rule; federalregister.gov/api/v1/documents/2026-19071.json — type Rule, effective_on 2026-11-16, no corrections; verified 2026-09-27)",
+      "as_of": "2026-09-27",
+      "expires": "2026-11-23",
+      "provenance": "operator"
+    },
+    {
+      "symbol": "CEG",
+      "class": "a",
+      "claim": "EPA final rule repealing most provisions of the 2024 Carbon Pollution Standards for greenhouse-gas emissions from fossil fuel-fired electric generating units takes effect 2026-11-16 (Federal Register, published 2026-09-17).",
+      "event_date": "2026-11-16",
+      "source": "Federal Register document 2026-19071, 'Partial Repeal of the Carbon Pollution Standards for Fossil Fuel-Fired Electric Generating Units' (EPA, final rule; federalregister.gov/api/v1/documents/2026-19071.json — type Rule, effective_on 2026-11-16, no corrections; verified 2026-09-27)",
+      "as_of": "2026-09-27",
+      "expires": "2026-11-23",
+      "provenance": "operator"
+    },
+    {
+      "symbol": "NEE",
+      "class": "a",
+      "claim": "EPA final rule repealing most provisions of the 2024 Carbon Pollution Standards for greenhouse-gas emissions from fossil fuel-fired electric generating units takes effect 2026-11-16 (Federal Register, published 2026-09-17).",
+      "event_date": "2026-11-16",
+      "source": "Federal Register document 2026-19071, 'Partial Repeal of the Carbon Pollution Standards for Fossil Fuel-Fired Electric Generating Units' (EPA, final rule; federalregister.gov/api/v1/documents/2026-19071.json — type Rule, effective_on 2026-11-16, no corrections; verified 2026-09-27)",
+      "as_of": "2026-09-27",
+      "expires": "2026-11-23",
+      "provenance": "operator"
+    }
+  ]
+}

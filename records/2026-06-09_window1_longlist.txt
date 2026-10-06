@@ -1,0 +1,63 @@
+# PREREG_UNIVERSE_CURATION window #1 longlist — 2026-06-09 (post-freeze)
+# Source tags per §4: constituent files fetched tonight (URNM via stockanalysis, GRID via
+# ftportfolios, COPX via globalx, UFO via stockanalysis; NLR fetch failed -> those names tagged
+# recall). recall = LLM recall supplement, to be constituent-verified at window #2.
+# Names already in config.universe.themes are excluded (already screened: FCX/NEE/KTOS/RKLB/GEV...).
+# Screen = feasibility ONLY (cap-fit + existing floors); thesis curation = operator.
+
+# --- nuclear fuel chain / SMR (driver: AI-power nuclear demand) ---
+UEC    # URNM constituent, US-listed
+UUUU   # URNM constituent, US-listed
+NXE    # URNM constituent, US dual-listing (NYSE)
+DNN    # URNM constituent, US dual-listing (NYSE American)
+EU     # URNM constituent, US dual-listing (Nasdaq, enCore Energy)
+UROY   # URNM constituent, US dual-listing (Nasdaq, Uranium Royalty)
+URG    # URNM constituent, US dual-listing (NYSE American, Ur-Energy)
+LEU    # recall (Centrus, enrichment; NLR fetch failed)
+SMR    # recall (NuScale, SMR)
+OKLO   # recall (Oklo, SMR/microreactor)
+NNE    # operator-named (Nano Nuclear; the brief's archetype)
+LTBR   # recall (Lightbridge, fuel tech)
+BWXT   # recall (BWX Technologies, nuclear components; larger-cap - screen decides)
+
+# --- grid / electrical equipment (driver: AI-datacenter grid buildout) ---
+MYRG   # GRID constituent (electrical contractor)
+ITRI   # GRID constituent (metering)
+ATKR   # GRID constituent (conduit/electrical)
+AMSC   # GRID constituent (superconductor/grid)
+FLNC   # GRID constituent (storage)
+WLDN   # GRID constituent (energy services, small)
+MTZ    # GRID constituent (infrastructure contractor)
+PRIM   # GRID constituent (infrastructure contractor)
+AZZ    # GRID constituent (galvanizing/electrical)
+AEIS   # GRID constituent (power conversion)
+ENS    # GRID constituent (batteries/stored energy)
+ESE    # GRID constituent (utility solutions)
+BDC    # GRID constituent (connectivity/cable)
+GNRC   # GRID constituent (gensets/backup power)
+
+# --- copper (driver: electrification/datacenter copper demand) ---
+SCCO   # COPX constituent, US-listed (large - screen decides)
+HBM    # COPX constituent, US dual-listing (NYSE, Hudbay)
+ERO    # recall (Ero Copper, NYSE)
+TGB    # recall (Taseko, NYSE American)
+IE     # recall (Ivanhoe Electric, NYSE American)
+
+# --- space small/mid (driver: launch/constellation buildout) ---
+PL     # UFO constituent (Planet Labs)
+GSAT   # UFO constituent (Globalstar)
+LUNR   # UFO constituent (Intuitive Machines)
+RDW    # UFO constituent (Redwire)
+FLY    # UFO constituent (Firefly Aerospace)
+VOYG   # UFO constituent (Voyager Technologies)
+ASTS   # UFO constituent (AST SpaceMobile - big mover, screen decides)
+VSAT   # UFO constituent (Viasat)
+IRDM   # UFO constituent (Iridium)
+SATS   # UFO constituent (EchoStar)
+BKSY   # recall (BlackSky)
+SPIR   # recall (Spire Global)
+
+# --- defense small/mid (driver: defense budget/autonomy; deeper SAM.gov pull = window #2) ---
+MRCY   # recall (Mercury Systems)
+DRS    # recall (Leonardo DRS)
+AVAV   # recall (AeroVironment; higher-priced - screen decides)

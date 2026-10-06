@@ -1,0 +1,1615 @@
+{
+  "as_of": "2026-06-23T04:32:38.440654+00:00",
+  "cache_dir": "data/cache",
+  "no_fetch": true,
+  "no_llm": true,
+  "news_window_days": 90,
+  "quiet_news_cut": 3,
+  "universe": {
+    "n": 38,
+    "symbols": [
+      "AG",
+      "AMSC",
+      "ATKR",
+      "CCJ",
+      "CDE",
+      "CEG",
+      "ERO",
+      "ETN",
+      "FCX",
+      "FLNC",
+      "FLY",
+      "FRO",
+      "GEV",
+      "HBM",
+      "HL",
+      "IRDM",
+      "KTOS",
+      "LHX",
+      "LMT",
+      "LUNR",
+      "NEE",
+      "NNE",
+      "NOC",
+      "NVDA",
+      "NXE",
+      "PAAS",
+      "PL",
+      "PWR",
+      "RDW",
+      "RKLB",
+      "RTX",
+      "SMCI",
+      "SMR",
+      "TGB",
+      "UEC",
+      "UROY",
+      "UUUU",
+      "VRT"
+    ]
+  },
+  "curated_cik_map": {
+    "n_resolved": 38,
+    "n_universe": 38,
+    "unresolved_no_us_cik": [],
+    "map": {
+      "AG": "0001308648",
+      "AMSC": "0000880807",
+      "ATKR": "0001666138",
+      "CCJ": "0001009001",
+      "CDE": "0000215466",
+      "CEG": "0001868275",
+      "ERO": "0001853860",
+      "ETN": "0001551182",
+      "FCX": "0000831259",
+      "FLNC": "0001868941",
+      "FLY": "0001860160",
+      "FRO": "0000913290",
+      "GEV": "0001996810",
+      "HBM": "0001322422",
+      "HL": "0000719413",
+      "IRDM": "0001418819",
+      "KTOS": "0001069258",
+      "LHX": "0000202058",
+      "LMT": "0000936468",
+      "LUNR": "0001844452",
+      "NEE": "0000753308",
+      "NNE": "0001923891",
+      "NOC": "0001133421",
+      "NVDA": "0001045810",
+      "NXE": "0001698535",
+      "PAAS": "0000771992",
+      "PL": "0001836833",
+      "PWR": "0001050915",
+      "RDW": "0001819810",
+      "RKLB": "0001819994",
+      "RTX": "0000101829",
+      "SMCI": "0001375365",
+      "SMR": "0001822966",
+      "TGB": "0000878518",
+      "UEC": "0001334933",
+      "UROY": "0001711570",
+      "UUUU": "0001385849",
+      "VRT": "0001674101"
+    }
+  },
+  "per_source": {
+    "corpus_bls": {
+      "class": "entity_free_macro",
+      "n_records": 29,
+      "n_coords": 1
+    },
+    "corpus_capital_raises": {
+      "class": "cik_bearing",
+      "n_records": 2118,
+      "n_entities": 1273,
+      "n_in_universe": 13,
+      "n_nonuniverse": 1260,
+      "n_unknown": 0,
+      "nonuniverse_with_news": 0,
+      "nonuniverse_quiet": 0,
+      "quiet_examples": [],
+      "sample": [
+        {
+          "id": "0000096223",
+          "symbol": null,
+          "cik": "0000096223",
+          "name": "Jefferies Financial Group Inc.",
+          "in_universe": false,
+          "news_sym": "JEF",
+          "news_90d": null,
+          "n_records": 87
+        },
+        {
+          "id": "0001652044",
+          "symbol": null,
+          "cik": "0001652044",
+          "name": "Alphabet Inc.",
+          "in_universe": false,
+          "news_sym": "GOOG",
+          "news_90d": null,
+          "n_records": 13
+        },
+        {
+          "id": "0001898766",
+          "symbol": null,
+          "cik": "0001898766",
+          "name": "Trio Petroleum Corp",
+          "in_universe": false,
+          "news_sym": "TPET",
+          "news_90d": null,
+          "n_records": 11
+        },
+        {
+          "id": "0001045520",
+          "symbol": null,
+          "cik": "0001045520",
+          "name": "CANADIAN IMPERIAL BANK OF COMMERCE /CAN/",
+          "in_universe": false,
+          "news_sym": "CNDIF",
+          "news_90d": null,
+          "n_records": 10
+        },
+        {
+          "id": "0000794447",
+          "symbol": null,
+          "cik": "0000794447",
+          "name": "NEXTERA ENERGY CAPITAL HOLDINGS INC",
+          "in_universe": false,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "0000842180",
+          "symbol": null,
+          "cik": "0000842180",
+          "name": "BANCO BILBAO VIZCAYA ARGENTARIA, S.A.",
+          "in_universe": false,
+          "news_sym": "BBVXF",
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "0000869687",
+          "symbol": null,
+          "cik": "0000869687",
+          "name": "REPUBLIC OF TURKEY",
+          "in_universe": false,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "0000946644",
+          "symbol": null,
+          "cik": "0000946644",
+          "name": "AIM ImmunoTech Inc.",
+          "in_universe": false,
+          "news_sym": "AIM",
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "0001018724",
+          "symbol": null,
+          "cik": "0001018724",
+          "name": "AMAZON COM INC",
+          "in_universe": false,
+          "news_sym": "AMZN",
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "0001997652",
+          "symbol": null,
+          "cik": "0001997652",
+          "name": "Tamboran Resources Corp",
+          "in_universe": false,
+          "news_sym": "TBNRL",
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "0000033745",
+          "symbol": null,
+          "cik": "0000033745",
+          "name": "EUROPEAN INVESTMENT BANK",
+          "in_universe": false,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0000832489",
+          "symbol": null,
+          "cik": "0000832489",
+          "name": "GeoVax Labs, Inc.",
+          "in_universe": false,
+          "news_sym": "GOVX",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0000896493",
+          "symbol": null,
+          "cik": "0000896493",
+          "name": "Hyperscale Data, Inc.",
+          "in_universe": false,
+          "news_sym": "GPUS-PD",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0000906709",
+          "symbol": null,
+          "cik": "0000906709",
+          "name": "NEKTAR THERAPEUTICS",
+          "in_universe": false,
+          "news_sym": "NKTR",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0001375365",
+          "symbol": null,
+          "cik": "0001375365",
+          "name": "Super Micro Computer, Inc.",
+          "in_universe": true,
+          "news_sym": "SMCI",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0001561894",
+          "symbol": null,
+          "cik": "0001561894",
+          "name": "HA Sustainable Infrastructure Capital, Inc.",
+          "in_universe": false,
+          "news_sym": "HASI",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0001606242",
+          "symbol": null,
+          "cik": "0001606242",
+          "name": "Virtuix Holdings Inc.",
+          "in_universe": false,
+          "news_sym": "VTIX",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0001621221",
+          "symbol": null,
+          "cik": "0001621221",
+          "name": "ARTELO BIOSCIENCES, INC.",
+          "in_universe": false,
+          "news_sym": "ARTL",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0001628171",
+          "symbol": null,
+          "cik": "0001628171",
+          "name": "Revolution Medicines, Inc.",
+          "in_universe": false,
+          "news_sym": "RVMDW",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0001649989",
+          "symbol": null,
+          "cik": "0001649989",
+          "name": "Outlook Therapeutics, Inc.",
+          "in_universe": false,
+          "news_sym": "OTLK",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0001682149",
+          "symbol": null,
+          "cik": "0001682149",
+          "name": "Datavault AI Inc.",
+          "in_universe": false,
+          "news_sym": "DVLT",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0001838987",
+          "symbol": null,
+          "cik": "0001838987",
+          "name": "SunPower Inc.",
+          "in_universe": false,
+          "news_sym": "SPWRW",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "0000004515",
+          "symbol": null,
+          "cik": "0000004515",
+          "name": "AMERICAN AIRLINES, INC.",
+          "in_universe": false,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0000205317",
+          "symbol": null,
+          "cik": "0000205317",
+          "name": "FEDERATIVE REPUBLIC OF BRAZIL",
+          "in_universe": false,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0000316709",
+          "symbol": null,
+          "cik": "0000316709",
+          "name": "SCHWAB CHARLES CORP",
+          "in_universe": false,
+          "news_sym": "SCHW-PJ",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0000798941",
+          "symbol": null,
+          "cik": "0000798941",
+          "name": "FIRST CITIZENS BANCSHARES INC /DE/",
+          "in_universe": false,
+          "news_sym": "FCNCN",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0000844150",
+          "symbol": null,
+          "cik": "0000844150",
+          "name": "NatWest Group plc",
+          "in_universe": false,
+          "news_sym": "RBSPF",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0000879407",
+          "symbol": null,
+          "cik": "0000879407",
+          "name": "ARROWHEAD PHARMACEUTICALS, INC.",
+          "in_universe": false,
+          "news_sym": "ARWR",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0000890821",
+          "symbol": null,
+          "cik": "0000890821",
+          "name": "Enveric Biosciences, Inc.",
+          "in_universe": false,
+          "news_sym": "ENVB",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0000891478",
+          "symbol": null,
+          "cik": "0000891478",
+          "name": "Banco Santander, S.A.",
+          "in_universe": false,
+          "news_sym": "BCDRF",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0000910606",
+          "symbol": null,
+          "cik": "0000910606",
+          "name": "REGENCY CENTERS CORP",
+          "in_universe": false,
+          "news_sym": "REGCP",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0000912242",
+          "symbol": null,
+          "cik": "0000912242",
+          "name": "MACERICH CO",
+          "in_universe": false,
+          "news_sym": "MAC",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0000947263",
+          "symbol": null,
+          "cik": "0000947263",
+          "name": "TORONTO DOMINION BANK",
+          "in_universe": false,
+          "news_sym": "TDBCP",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0001018164",
+          "symbol": null,
+          "cik": "0001018164",
+          "name": "WILLIS LEASE FINANCE CORP",
+          "in_universe": false,
+          "news_sym": "WLFC",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0001051627",
+          "symbol": null,
+          "cik": "0001051627",
+          "name": "AXT INC",
+          "in_universe": false,
+          "news_sym": "AXTI",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0001089113",
+          "symbol": null,
+          "cik": "0001089113",
+          "name": "HSBC HOLDINGS PLC",
+          "in_universe": false,
+          "news_sym": "HBCYF",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0001136893",
+          "symbol": null,
+          "cik": "0001136893",
+          "name": "Fidelity National Information Services, Inc.",
+          "in_universe": false,
+          "news_sym": "FIS",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0001259380",
+          "symbol": null,
+          "cik": "0001259380",
+          "name": "CARMAX AUTO FUNDING LLC",
+          "in_universe": false,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0001338574",
+          "symbol": null,
+          "cik": "0001338574",
+          "name": "COOPER BUSSMANN, LLC",
+          "in_universe": false,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "0001341439",
+          "symbol": null,
+          "cik": "0001341439",
+          "name": "ORACLE CORP",
+          "in_universe": false,
+          "news_sym": "ORCL-PD",
+          "news_90d": null,
+          "n_records": 4
+        }
+      ]
+    },
+    "corpus_customer_concentration": {
+      "class": "symbol_keyed",
+      "n_records": 84,
+      "n_entities": 20,
+      "n_in_universe": 20,
+      "n_nonuniverse": 0,
+      "n_unknown": 0,
+      "nonuniverse_with_news": 0,
+      "nonuniverse_quiet": 0,
+      "quiet_examples": [],
+      "sample": [
+        {
+          "id": "NVDA",
+          "symbol": "NVDA",
+          "cik": "0001045810",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "NVDA",
+          "news_90d": null,
+          "n_records": 10
+        },
+        {
+          "id": "ATKR",
+          "symbol": "ATKR",
+          "cik": "0001666138",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "ATKR",
+          "news_90d": null,
+          "n_records": 8
+        },
+        {
+          "id": "NOC",
+          "symbol": "NOC",
+          "cik": "0001133421",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "NOC",
+          "news_90d": null,
+          "n_records": 7
+        },
+        {
+          "id": "LMT",
+          "symbol": "LMT",
+          "cik": "0000936468",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "LMT",
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "PL",
+          "symbol": "PL",
+          "cik": "0001836833",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "PL",
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "RDW",
+          "symbol": "RDW",
+          "cik": "0001819810",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "RDW",
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "SMCI",
+          "symbol": "SMCI",
+          "cik": "0001375365",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "SMCI",
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "AMSC",
+          "symbol": "AMSC",
+          "cik": "0000880807",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "AMSC",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "ETN",
+          "symbol": "ETN",
+          "cik": "0001551182",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "ETN",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "IRDM",
+          "symbol": "IRDM",
+          "cik": "0001418819",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "IRDM",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "LUNR",
+          "symbol": "LUNR",
+          "cik": "0001844452",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "LUNR",
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "FLNC",
+          "symbol": "FLNC",
+          "cik": "0001868941",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "FLNC",
+          "news_90d": null,
+          "n_records": 3
+        },
+        {
+          "id": "PWR",
+          "symbol": "PWR",
+          "cik": "0001050915",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "PWR",
+          "news_90d": null,
+          "n_records": 3
+        },
+        {
+          "id": "RKLB",
+          "symbol": "RKLB",
+          "cik": "0001819994",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "RKLB",
+          "news_90d": null,
+          "n_records": 3
+        },
+        {
+          "id": "RTX",
+          "symbol": "RTX",
+          "cik": "0000101829",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "RTX",
+          "news_90d": null,
+          "n_records": 3
+        },
+        {
+          "id": "CEG",
+          "symbol": "CEG",
+          "cik": "0001868275",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "CEG",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "FCX",
+          "symbol": "FCX",
+          "cik": "0000831259",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "FCX",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "FLY",
+          "symbol": "FLY",
+          "cik": "0001860160",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "FLY",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "KTOS",
+          "symbol": "KTOS",
+          "cik": "0001069258",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "KTOS",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "NEE",
+          "symbol": "NEE",
+          "cik": "0000753308",
+          "name": null,
+          "in_universe": true,
+          "news_sym": "NEE",
+          "news_90d": null,
+          "n_records": 1
+        }
+      ]
+    },
+    "corpus_eia": {
+      "class": "entity_free_macro",
+      "n_records": 11818,
+      "n_coords": 3
+    },
+    "corpus_etf_constituents": {
+      "class": "symbol_keyed",
+      "n_records": 150,
+      "n_entities": 129,
+      "n_in_universe": 26,
+      "n_nonuniverse": 102,
+      "n_unknown": 1,
+      "nonuniverse_with_news": 0,
+      "nonuniverse_quiet": 0,
+      "quiet_examples": [],
+      "sample": [
+        {
+          "id": "1164",
+          "symbol": "1164",
+          "cik": null,
+          "name": "CGN Mining Company Limited",
+          "in_universe": false,
+          "news_sym": "1164",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "BWXT",
+          "symbol": "BWXT",
+          "cik": null,
+          "name": "BWX Technologies, Inc.",
+          "in_universe": false,
+          "news_sym": "BWXT",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "CCJ",
+          "symbol": "CCJ",
+          "cik": null,
+          "name": "Cameco Corporation",
+          "in_universe": true,
+          "news_sym": "CCJ",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "DML",
+          "symbol": "DML",
+          "cik": null,
+          "name": "Denison Mines Corp.",
+          "in_universe": false,
+          "news_sym": "DML",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "DYL",
+          "symbol": "DYL",
+          "cik": null,
+          "name": "Deep Yellow Limited",
+          "in_universe": false,
+          "news_sym": "DYL",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "GRMN",
+          "symbol": "GRMN",
+          "cik": null,
+          "name": "Garmin Ltd.",
+          "in_universe": false,
+          "news_sym": "GRMN",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "IRDM",
+          "symbol": "IRDM",
+          "cik": null,
+          "name": "Iridium Communications Inc.",
+          "in_universe": true,
+          "news_sym": "IRDM",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "ISO",
+          "symbol": "ISO",
+          "cik": null,
+          "name": "IsoEnergy Ltd.",
+          "in_universe": false,
+          "news_sym": "ISO",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "KAP",
+          "symbol": "KAP",
+          "cik": null,
+          "name": "National Atomic Company Kazatomprom JSC",
+          "in_universe": false,
+          "news_sym": "KAP",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "LHX",
+          "symbol": "LHX",
+          "cik": null,
+          "name": "L3Harris Technologies, Inc.",
+          "in_universe": true,
+          "news_sym": "LHX",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "LUNR",
+          "symbol": "LUNR",
+          "cik": null,
+          "name": "Intuitive Machines, Inc.",
+          "in_universe": true,
+          "news_sym": "LUNR",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "NVDA",
+          "symbol": "NVDA",
+          "cik": null,
+          "name": "NVIDIA Corporation",
+          "in_universe": true,
+          "news_sym": "NVDA",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "NXE",
+          "symbol": "NXE",
+          "cik": null,
+          "name": "NexGen Energy Ltd.",
+          "in_universe": true,
+          "news_sym": "NXE",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "PDN",
+          "symbol": "PDN",
+          "cik": null,
+          "name": "Paladin Energy Ltd",
+          "in_universe": false,
+          "news_sym": "PDN",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "RKLB",
+          "symbol": "RKLB",
+          "cik": null,
+          "name": "Rocket Lab Corporation",
+          "in_universe": true,
+          "news_sym": "RKLB",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "SPCX",
+          "symbol": "SPCX",
+          "cik": null,
+          "name": "Space Exploration Technologies Corp.",
+          "in_universe": false,
+          "news_sym": "SPCX",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "TRMB",
+          "symbol": "TRMB",
+          "cik": null,
+          "name": "Trimble Inc.",
+          "in_universe": false,
+          "news_sym": "TRMB",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "TSLA",
+          "symbol": "TSLA",
+          "cik": null,
+          "name": "Tesla, Inc.",
+          "in_universe": false,
+          "news_sym": "TSLA",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "UEC",
+          "symbol": "UEC",
+          "cik": null,
+          "name": "Uranium Energy Corp.",
+          "in_universe": true,
+          "news_sym": "UEC",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "UUUU",
+          "symbol": "UUUU",
+          "cik": null,
+          "name": "Energy Fuels Inc.",
+          "in_universe": true,
+          "news_sym": "UUUU",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "YCA.L",
+          "symbol": "YCA.L",
+          "cik": null,
+          "name": "Yellow Cake PLC Ordinary Shares",
+          "in_universe": false,
+          "news_sym": "YCA.L",
+          "news_90d": null,
+          "n_records": 2
+        },
+        {
+          "id": "010120",
+          "symbol": "010120",
+          "cik": null,
+          "name": "LS ELECTRIC Co., Ltd.",
+          "in_universe": false,
+          "news_sym": "010120",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "0358",
+          "symbol": "0358",
+          "cik": null,
+          "name": "Jiangxi Copper Company Limited",
+          "in_universe": false,
+          "news_sym": "0358",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "052690",
+          "symbol": "052690",
+          "cik": null,
+          "name": "KEPCO Engineering & Construction Company, Inc.",
+          "in_universe": false,
+          "news_sym": "052690",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "1208",
+          "symbol": "1208",
+          "cik": null,
+          "name": "MMG Limited",
+          "in_universe": false,
+          "news_sym": "1208",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "1258",
+          "symbol": "1258",
+          "cik": null,
+          "name": "China Nonferrous Mining Corporation Limited",
+          "in_universe": false,
+          "news_sym": "1258",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "1816",
+          "symbol": "1816",
+          "cik": null,
+          "name": "CGN Power Co., Ltd.",
+          "in_universe": false,
+          "news_sym": "1816",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "2099",
+          "symbol": "2099",
+          "cik": null,
+          "name": "China Gold International Resources Corp. Ltd.",
+          "in_universe": false,
+          "news_sym": "2099",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "267260",
+          "symbol": "267260",
+          "cik": null,
+          "name": "HD Hyundai Electric Co., Ltd.",
+          "in_universe": false,
+          "news_sym": "267260",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "2899",
+          "symbol": "2899",
+          "cik": null,
+          "name": "Zijin Mining Group Company Limited",
+          "in_universe": false,
+          "news_sym": "2899",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "5711",
+          "symbol": "5711",
+          "cik": null,
+          "name": "Mitsubishi Materials Corporation",
+          "in_universe": false,
+          "news_sym": "5711",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "5713",
+          "symbol": "5713",
+          "cik": null,
+          "name": "Sumitomo Metal Mining Co., Ltd.",
+          "in_universe": false,
+          "news_sym": "5713",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "5803",
+          "symbol": "5803",
+          "cik": null,
+          "name": "Fujikura Ltd.",
+          "in_universe": false,
+          "news_sym": "5803",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "6301",
+          "symbol": "6301",
+          "cik": null,
+          "name": "Komatsu Ltd.",
+          "in_universe": false,
+          "news_sym": "6301",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "9412",
+          "symbol": "9412",
+          "cik": null,
+          "name": "SKY Perfect JSAT Corporation",
+          "in_universe": false,
+          "news_sym": "9412",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "ABBN",
+          "symbol": "ABBN",
+          "cik": null,
+          "name": "ABB Ltd",
+          "in_universe": false,
+          "news_sym": "ABBN",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "ACHR",
+          "symbol": "ACHR",
+          "cik": null,
+          "name": "Archer Aviation Inc.",
+          "in_universe": false,
+          "news_sym": "ACHR",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "AIR",
+          "symbol": "AIR",
+          "cik": null,
+          "name": "Airbus SE",
+          "in_universe": false,
+          "news_sym": "AIR",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "AMD",
+          "symbol": "AMD",
+          "cik": null,
+          "name": "Advanced Micro Devices, Inc.",
+          "in_universe": false,
+          "news_sym": "AMD",
+          "news_90d": null,
+          "n_records": 1
+        },
+        {
+          "id": "AMZN",
+          "symbol": "AMZN",
+          "cik": null,
+          "name": "Amazon.com, Inc.",
+          "in_universe": false,
+          "news_sym": "AMZN",
+          "news_90d": null,
+          "n_records": 1
+        }
+      ]
+    },
+    "corpus_federal_awards": {
+      "class": "free_text_recipient",
+      "n_records": 1500,
+      "n_entities": 157,
+      "n_in_universe": 0,
+      "n_nonuniverse": 0,
+      "n_unknown": 157,
+      "nonuniverse_with_news": 0,
+      "nonuniverse_quiet": 0,
+      "quiet_examples": [],
+      "top_recipients_by_record_count": [
+        [
+          "RAYTHEON COMPANY",
+          391
+        ],
+        [
+          "LOCKHEED MARTIN CORPORATION",
+          354
+        ],
+        [
+          "THE BOEING COMPANY",
+          189
+        ],
+        [
+          "NORTHROP GRUMMAN SYSTEMS CORPORATION",
+          64
+        ],
+        [
+          "LOCKHEED MARTIN CORP",
+          54
+        ],
+        [
+          "GENERAL ATOMICS AERONAUTICAL SYSTEMS, INC.",
+          24
+        ],
+        [
+          "SIKORSKY AIRCRAFT CORPORATION",
+          21
+        ],
+        [
+          "RAYTHEON/LOCKHEED MARTIN JAVELIN JV",
+          19
+        ],
+        [
+          "RTX CORPORATION",
+          18
+        ],
+        [
+          "HUNTINGTON INGALLS INC",
+          17
+        ],
+        [
+          "ELECTRIC BOAT CORPORATION",
+          15
+        ],
+        [
+          "NORTHROP GRUMMAN SYSTEMS CORP",
+          12
+        ]
+      ],
+      "sample": [
+        {
+          "id": "RAYTHEON COMPANY",
+          "symbol": null,
+          "cik": null,
+          "name": "RAYTHEON COMPANY",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 391
+        },
+        {
+          "id": "LOCKHEED MARTIN CORPORATION",
+          "symbol": null,
+          "cik": null,
+          "name": "LOCKHEED MARTIN CORPORATION",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 354
+        },
+        {
+          "id": "THE BOEING COMPANY",
+          "symbol": null,
+          "cik": null,
+          "name": "THE BOEING COMPANY",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 189
+        },
+        {
+          "id": "NORTHROP GRUMMAN SYSTEMS CORPORATION",
+          "symbol": null,
+          "cik": null,
+          "name": "NORTHROP GRUMMAN SYSTEMS CORPORATION",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 64
+        },
+        {
+          "id": "LOCKHEED MARTIN CORP",
+          "symbol": null,
+          "cik": null,
+          "name": "LOCKHEED MARTIN CORP",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 54
+        },
+        {
+          "id": "GENERAL ATOMICS AERONAUTICAL SYSTEMS, INC.",
+          "symbol": null,
+          "cik": null,
+          "name": "GENERAL ATOMICS AERONAUTICAL SYSTEMS, INC.",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 24
+        },
+        {
+          "id": "SIKORSKY AIRCRAFT CORPORATION",
+          "symbol": null,
+          "cik": null,
+          "name": "SIKORSKY AIRCRAFT CORPORATION",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 21
+        },
+        {
+          "id": "RAYTHEON/LOCKHEED MARTIN JAVELIN JV",
+          "symbol": null,
+          "cik": null,
+          "name": "RAYTHEON/LOCKHEED MARTIN JAVELIN JV",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 19
+        },
+        {
+          "id": "RTX CORPORATION",
+          "symbol": null,
+          "cik": null,
+          "name": "RTX CORPORATION",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 18
+        },
+        {
+          "id": "HUNTINGTON INGALLS INC",
+          "symbol": null,
+          "cik": null,
+          "name": "HUNTINGTON INGALLS INC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 17
+        },
+        {
+          "id": "ELECTRIC BOAT CORPORATION",
+          "symbol": null,
+          "cik": null,
+          "name": "ELECTRIC BOAT CORPORATION",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 15
+        },
+        {
+          "id": "NORTHROP GRUMMAN SYSTEMS CORP",
+          "symbol": null,
+          "cik": null,
+          "name": "NORTHROP GRUMMAN SYSTEMS CORP",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 12
+        },
+        {
+          "id": "ALLIANT TECHSYSTEMS OPERATIONS LLC",
+          "symbol": null,
+          "cik": null,
+          "name": "ALLIANT TECHSYSTEMS OPERATIONS LLC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 11
+        },
+        {
+          "id": "BAE SYSTEMS INFORMATION & ELECTRONIC SYSTEMS INTEGRATION INC",
+          "symbol": null,
+          "cik": null,
+          "name": "BAE SYSTEMS INFORMATION & ELECTRONIC SYSTEMS INTEGRATION INC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 10
+        },
+        {
+          "id": "BELL TEXTRON INC",
+          "symbol": null,
+          "cik": null,
+          "name": "BELL TEXTRON INC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 10
+        },
+        {
+          "id": "HUNTINGTON INGALLS INCORPORATED",
+          "symbol": null,
+          "cik": null,
+          "name": "HUNTINGTON INGALLS INCORPORATED",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 9
+        },
+        {
+          "id": "RAM-SYSTEM GMBH",
+          "symbol": null,
+          "cik": null,
+          "name": "RAM-SYSTEM GMBH",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 9
+        },
+        {
+          "id": "BELL BOEING JOINT PROJECT OFFICE",
+          "symbol": null,
+          "cik": null,
+          "name": "BELL BOEING JOINT PROJECT OFFICE",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 8
+        },
+        {
+          "id": "CORVID TECHNOLOGIES, LLC",
+          "symbol": null,
+          "cik": null,
+          "name": "CORVID TECHNOLOGIES, LLC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 8
+        },
+        {
+          "id": "KBR SERVICES, LLC",
+          "symbol": null,
+          "cik": null,
+          "name": "KBR SERVICES, LLC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 8
+        },
+        {
+          "id": "AMENTUM SERVICES, INC.",
+          "symbol": null,
+          "cik": null,
+          "name": "AMENTUM SERVICES, INC.",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 7
+        },
+        {
+          "id": "BAE SYSTEMS LAND & ARMAMENTS L.P.",
+          "symbol": null,
+          "cik": null,
+          "name": "BAE SYSTEMS LAND & ARMAMENTS L.P.",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 7
+        },
+        {
+          "id": "L3HARRIS TECHNOLOGIES INTEGRATED SYSTEMS L.P.",
+          "symbol": null,
+          "cik": null,
+          "name": "L3HARRIS TECHNOLOGIES INTEGRATED SYSTEMS L.P.",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 7
+        },
+        {
+          "id": "MASSACHUSETTS INSTITUTE OF TECHNOLOGY",
+          "symbol": null,
+          "cik": null,
+          "name": "MASSACHUSETTS INSTITUTE OF TECHNOLOGY",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 7
+        },
+        {
+          "id": "UNITED LAUNCH SERVICES, LLC",
+          "symbol": null,
+          "cik": null,
+          "name": "UNITED LAUNCH SERVICES, LLC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 7
+        },
+        {
+          "id": "BATH IRON WORKS CORPORATION",
+          "symbol": null,
+          "cik": null,
+          "name": "BATH IRON WORKS CORPORATION",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "GENERAL DYNAMICS LAND SYSTEMS INC.",
+          "symbol": null,
+          "cik": null,
+          "name": "GENERAL DYNAMICS LAND SYSTEMS INC.",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 6
+        },
+        {
+          "id": "AEROVIRONMENT, INC",
+          "symbol": null,
+          "cik": null,
+          "name": "AEROVIRONMENT, INC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "DYNETICS, INC.",
+          "symbol": null,
+          "cik": null,
+          "name": "DYNETICS, INC.",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "GENERAL ELECTRIC COMPANY",
+          "symbol": null,
+          "cik": null,
+          "name": "GENERAL ELECTRIC COMPANY",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "HONEYWELL INTERNATIONAL INC.",
+          "symbol": null,
+          "cik": null,
+          "name": "HONEYWELL INTERNATIONAL INC.",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "VECTRUS SYSTEMS LLC",
+          "symbol": null,
+          "cik": null,
+          "name": "VECTRUS SYSTEMS LLC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 5
+        },
+        {
+          "id": "BECHTEL PLANT MACHINERY, INC.",
+          "symbol": null,
+          "cik": null,
+          "name": "BECHTEL PLANT MACHINERY, INC.",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "SIERRA NEVADA COMPANY, LLC",
+          "symbol": null,
+          "cik": null,
+          "name": "SIERRA NEVADA COMPANY, LLC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "TEXTRON AVIATION DEFENSE LLC",
+          "symbol": null,
+          "cik": null,
+          "name": "TEXTRON AVIATION DEFENSE LLC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 4
+        },
+        {
+          "id": "AEROJET ROCKETDYNE COLEMAN AEROSPACE INC",
+          "symbol": null,
+          "cik": null,
+          "name": "AEROJET ROCKETDYNE COLEMAN AEROSPACE INC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 3
+        },
+        {
+          "id": "AUSTAL USA, LLC",
+          "symbol": null,
+          "cik": null,
+          "name": "AUSTAL USA, LLC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 3
+        },
+        {
+          "id": "BAE SYSTEMS INFORMATION AND ELECTRONIC SYSTEMS INTEGRATION INC.",
+          "symbol": null,
+          "cik": null,
+          "name": "BAE SYSTEMS INFORMATION AND ELECTRONIC SYSTEMS INTEGRATION INC.",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 3
+        },
+        {
+          "id": "EXPRESS SCRIPTS INC",
+          "symbol": null,
+          "cik": null,
+          "name": "EXPRESS SCRIPTS INC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 3
+        },
+        {
+          "id": "HUMANA GOVERNMENT BUSINESS INC",
+          "symbol": null,
+          "cik": null,
+          "name": "HUMANA GOVERNMENT BUSINESS INC",
+          "in_universe": null,
+          "news_sym": null,
+          "news_90d": null,
+          "n_records": 3
+        }
+      ]
+    },
+    "corpus_nrc_dockets": {
+      "class": "entity_free_macro",
+      "n_records": 95,
+      "n_coords": 1
+    }
+  }
+}

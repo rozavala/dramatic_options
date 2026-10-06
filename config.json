@@ -3,14 +3,51 @@
     "paper": true,
     "live_trading_enabled": false,
     "dry_run": true,
-    "data_feed": "indicative"
+    "_comment_shared_account_reserve_usd": "PREREG_REAL_MONEY_BROKER §3a (2026-10-03, operator-agreed; finance#947 §4): at real money the live Alpaca account is shared with alpha_options and Finance. A live BUY may not take options buying power below this reserve = alpha_options' declared max risk ($2,250 index aggregate + $3,000 event-pilot premium-at-risk). Paper accounts are per-project, so the live broker alone enforces it; unset → every live buy rejected (fail-closed). Update only when a sibling project's declared max risk changes (via finance#947).",
+    "shared_account_reserve_usd": 5250
+  },
+  "data_feed": {
+    "_comment": "Data-feed provenance (the data-feed upgrade). Each role is wired to its provider — PR1 fixed the previously-DEAD knob (config.data_feed was read but never passed to a fetch, so every fetch silently used the IEX/INDICATIVE defaults). equity_bars feeds the gate's RV closes + underlying + the discovery prescreen markers (sip = the official consolidated close). option_gate is the L1 ENTRY-AUTHORIZATION IV/skew — fail-closed (a premium-feed entitlement lapse VETOES + pages, never downgrades); FLIPPED indicative->opra 2026-06-10 per PREREG_DATA_FEED_OPRA_SEQUENCING (the frozen cheapness arbiter reads the REAL chain; the 'across-session dual-read first' standard was a NAMED relaxation — the dual-read now runs CONCURRENT: INDICATIVE = the shadow arm in gate_dualread/migration 0014, both-arms coverage guard, pinned tripwires, and the date-gated veto-dualread-disagree below). option_monitor is the L2 mark path, pinned FREE/indicative (risk monitoring degrades-and-continues, never blinded). A role change is a record-segmenting data-provenance event (stamped per-run via runs.data_feed, migration 0013). dualread_disagree_veto_until: the §5 disagree-veto's dated AUTO-LAPSE (the INDICATIVE shadow never keeps indefinite veto over the gate-of-record; renewal = a dated edit). dualread_revert_enabled (#72, Phase 3): the MASTER flag for the §5 runtime REVERT latch — DEFAULT false ⇒ the dual-read executor still computes the per-class verdict and PAGES (Phases 1-2 active on the live loop) but NEVER auto-reverts option_gate. When true AND the |Δ iv/rv| wire trips (the SOLE revert trigger — structural-absence/entitlement/transient NEVER revert), the executor writes the OPRA_REVERTED sentinel forcing option_gate→indicative next cycle (operator un-latches by removing the file). ARMED 2026-06-24 (§5 freeze + OPRA deploy-gates cleared + the clean observe-L1 #285 met the precondition + operator sign-off rides this merge); the Δ-wire (the SOLE trigger) has been quiet across the soak (0 breaches / 8 sessions) ⇒ this is inert until a real |Δ iv/rv| breach. Set back to false to dis-arm; remove the OPRA_REVERTED sentinel to un-latch a fired revert. Allowed: equity_bars iex|sip; option_* indicative|opra (an unknown value fails CLOSED at config load).",
+    "equity_bars": "sip",
+    "option_gate": "opra",
+    "option_monitor": "indicative",
+    "dualread_disagree_veto_until": "2026-07-10",
+    "dualread_revert_enabled": true
   },
   "database": {
     "path": "data/dramatic_options.db"
   },
   "universe": {
-    "_comment": "Reusable price/ADV/option-liquidity filter (universe.py). The forward thematic-convexity strategy is hand-seeded via themes.json; the thematic seed map below is vestigial from the shelved divergence edge and is not read by the paper loop.",
-    "benchmarks": {"broad": "SPY", "growth": "ARKK"}
+    "_comment": "Reusable price/ADV filter (universe.py) + the T3 discovery SCAN BASKETS (config.universe.themes). Baskets are the curated, version-controlled home of the second-order/VC reasoning (operator authors them, optionally LLM-assisted OUTSIDE the loop): an 'ai_compute' basket carries not just the obvious name but the under-narrated power/grid/copper/cooling/uranium derivatives ('copper-not-rockets'). Discovery scans these for a MOTION/STRUCTURAL trigger; the IV gate decides which are CHEAP now (PREREG §4). The paper loop itself is hand-seeded via themes.json and does NOT read this map.",
+    "benchmarks": {"broad": "SPY", "growth": "ARKK"},
+    "themes": {
+      "_comment_window1": "2026-06-10 — PREREG_UNIVERSE_CURATION §11 window #1, the refresh rule's FIRST mechanical run (sources ∩ feasibility screen ∩ achieved-OTM 15–35%; see universe_register.json windows.1 + records/). Four baskets added, 17 names; NNE = operator-named-tagged AND NLR-constituent-verified. Additions-only (Rule 2: source-departure never removes).",
+      "ai_compute": ["NVDA", "SMCI", "VRT", "ETN", "GEV", "CEG", "CCJ", "FCX", "NEE", "PWR"],
+      "space_defense": ["RKLB", "LMT", "NOC", "LHX", "RTX", "KTOS"],
+      "nuclear_fuel": ["UEC", "UUUU", "NXE", "UROY", "SMR", "NNE"],
+      "grid_equipment": ["ATKR", "AMSC", "FLNC"],
+      "copper_supply": ["HBM", "ERO", "TGB"],
+      "space_smallcap": ["PL", "LUNR", "RDW", "FLY", "IRDM"],
+      "_comment_window2": "2026-06-22 — PREREG_UNIVERSE_CURATION §11 window #2 (OFF-CYCLE; §10 off-cycle deploy-warrant met — cap-fittable ∩ council-confirmed under_narrated, the parallel-research silver/freight survivors). Sources SIL/SLVP/BOAT constituents ∩ feasibility ∩ achieved-OTM 15–35%; STNG/SBLK BAND-EXCLUDED (illiquid far-OTM wings: STNG near-ATM 9.2%, SBLK ITM-only −5.7%, like window #1's LTBR/IE). The names read under_narrated=True where the AI-power/nuclear cluster read False (the gen_rescore/survivor council re-scores); at_inflection is the remaining market-dependent leg. See universe_register.json windows.2. Additions-only.",
+      "silver_deficit": ["PAAS", "HL", "CDE", "AG"],
+      "seaborne_freight": ["FRO"],
+      "_comment_window3offcycle": "2026-07-10 — PREREG_UNIVERSE_CURATION §11 OFF-CYCLE admission (§10 deploy-warrant met — cap-fittable [$195/contract, 24.6% achieved OTM, mid-session screen] ∩ council-confirmed under_narrated=TRUE [2026-07-07 two-slates triage]; the window-#2 precedent). Rule-5 premise-currency pull PASSED 2026-07-10 (mechanism current: statutory refrigerant transition + TiO2 trough; revenue accel +1.8% mildly turning; RPO/capex still contracting = the not-yet inflection leg; quiet: 16 headlines/90d maintenance-grade; PFAS overhang NOTED — $450M DOJ settlement 06-24 + NY AG suit 07-09, the standing risk). Operator: 'Sure, let's admit off cycle now on CC.' See universe_register.json windows + records/2026-07-10_cc_offcycle_admission.md. Additions-only.",
+      "refrigerant_transition": ["CC"],
+      "_comment_window3": "2026-08-03 — PREREG_UNIVERSE_CURATION §11 window #3 MAIN run (unlocked by the §5 four-scan read closing after the 2026-08-02 L0; sweep-then-veto form, operator-authorized 2026-08-03). The mechanical sweep over the 4 staged themes + the neighbor survivor (records/2026-08-03_window3_admission_sweep.md): ONE pass = VIAV (VIAV270416C45, dte 256, 24.6% achieved OTM in the 15-35% band, $915 <= $1k cap — reproduces the 07-10 read's 28.2%; ADV $175.5M). Operator: 'let's admit, right?' (2026-08-03). ADTN/CLFD/CALX/TROX/LNN/AGCO band-broken or over-cap, KRO ADV-dead, TITN 14.4% near-miss NOT admitted, HLIT/TWI/KMT tenor-floor (re-open on Jun-2027/Jan-2028 listings ~Sept). Additions-only.",
+      "fiber_buildout": ["VIAV"],
+      "_comment_window4": "2026-08-20 — PREREG_UNIVERSE_CURATION §11 window #4 (OFF-CYCLE; the MRNA +177% intismeran P3 event 08-19 opened the thesis question; operator adopted the AI-drafted mrna_oncology_platform thesis + decided 'I would do both' = admit the screen's clean fit + park the blocked names). In-window sweep 2026-08-20 13:41 UTC: MRK the ONLY clean fit (MRK270617C180, $890, 20.5% achieved OTM, 301dte, ADV $1.25B); BNTX flipped to a clean fit in-window ($945, 29.3%) but the decision word covered MRK-only — held for the operator (probe_themes fuel meanwhile, with TEM $1,038 near-miss); MRVI/AVTR/PSNL band-broken (ITM-fallback, coarse chains — confirmed in-window, not an off-hours artifact); NTRA/IOVA tenor-fail -> ~Sept recheck. MRNA itself EXCLUDED as already-priced (premise-currency Rule 5). See universe_register.json windows.4 + records/2026-08-20_mrna_oncology_window_admission.md. Additions-only.",
+      "mrna_oncology": ["MRK"],
+      "_comment_window5": "2026-08-20 — PREREG_UNIVERSE_CURATION §11 window #5 (OFF-CYCLE, same-day as #4; operator adopted FIVE AI-drafted sector theses — water_pfas, aviation_mro, radiopharma_isotopes, us_shipbuilding, ag_cycle_trough — 'Sure, I'll like these five. let's get them all in using the same process'). The process disposed: in-window re-screen 14:12 UTC admitted ONLY ag_cycle_trough = TITN ($127, 29.1% OTM, the window-3 14.4% near-miss grown into the band) + MOS ($120, 32.1%). CF flipped OUT in-window (spot pop → $1,240 over cap; the in-window read governs — near-miss ledger with AGCO/AIR/HEI/BWXT/MWA). The other FOUR sectors = feasibility-bounded measured negatives (water: ITM/ATM-fallback structural across all 10 names; aviation: AIR moved away, SARO tenor-less, VSE data-dead; radiopharma: BWXT near-miss + ASPI tenor + TLX ADV; shipbuilding: thin expression as predicted) — theses adopted but NO admissible expression today; recheck doors in the record, NO register entries, NO empty baskets. See universe_register.json windows.5 + records/2026-08-20_window5_five_sector_admission.md. Additions-only.",
+      "ag_cycle_trough": ["TITN", "MOS"],
+      "_comment_window6": "2026-08-31 — PREREG_UNIVERSE_CURATION §11 window #6 (OFF-CYCLE): ⭐ the REACH layer's FIRST NET-NEW admission (FLY was already-in-universe) — the channel→digest→card→admission chain closed end-to-end. KKR surfaced W35 via TWO DISTINCT CHANNELS (AviTrader MRO [Apollo joins KKR in Atlantic Aviation] + Energy Storage News [KKR/HMC Australian BESS financing] — the charter's corroboration bar), machine-drafted card, operator ADOPTED ('let's include KKR', 2026-08-30). In-window admission screen 2026-08-31 13:37 UTC: KKR270521C00135000, $705, 24.0% achieved OTM, 263dte, ADV $483.6M (provisional 08-30 read $710/28.8% — stable expression). Diversified-mega-cap caveat pinned (the MRK precedent — under_narrated is the council's binding question). See universe_register.json windows.6 + records/2026-08-31_kkr_window6_admission.md. Additions-only.",
+      "alt_capital_deployment": ["KKR"],
+      "_comment_window7": "2026-09-08 — PREREG_UNIVERSE_CURATION §11 window #7 (OFF-CYCLE): the Sept TENOR RECHECK's first admission. Operator word 'let's admit those FIG and SARO' (2026-09-06, on the provisional Sunday read FIG $470/24.4% · SARO $142/20.9% + the CC-drafted theses presented the same day). Mon 09-07 Labor Day → the in-window read Tue 09-08. THREE reads: 13:38 + 13:41 both selected OUT-OF-BAND fallbacks (FIG C25 8.4% $575; SARO C22.5 −9.0% ITM $470 — the in-band long-dated strikes had no eligible two-sided quote in the first minutes after the open); the pre-declared LAST read 15:07 UTC governs: FIG270416C00030000 $375, 28.7% achieved OTM, 220dte, spread 8%, ADV $382.6M → ADMITTED; SARO270416C00022500 $455/−8.5% ITM → NEAR-MISS (recorded, not admitted — the CF/AIR precedent; a 2024-IPO chain still too thin at the long tenor; recheck door Sun 09-13 provisional + Mon 09-14 in-window; aviation_mro stays a thesis without an expression — no empty basket). Pinned: FIG is the least copper-not-rockets name in the universe (heavily narrated) — the council's under_narrated leg is expected to veto; that is the seam, not the admission. See universe_register.json windows.7 + records/2026-09-08_window7_fig_saro_admission.md. Additions-only.",
+      "_comment_window8": "2026-09-16 — PREREG_UNIVERSE_CURATION §11 window #8 (OFF-CYCLE): the W37 reach survivor KLAR (Klarna Group plc; orphan_watch/424B4 — options class listed). Operator word 2026-09-16 ~00:15 UTC ('admit KLAR') on the 09-13 card (provisional $142/26.5%/187d). FIRST in-window read Wed 09-16 13:37 UTC = the read of record: KLAR270319C00017500 $148, 25.7% achieved OTM, 184dte, spread 17%, ADV $105.0M → ADMITTED (a first read that prints IN band governs; only an out-of-band first read defers to the pre-declared last read). Thesis-first, feasibility-only — the card's 'cheap participation' clause was struck. See universe_register.json windows.8 + records/2026-09-16_window8_klar_admission.md. Additions-only.",
+      "design_software_ai": ["FIG"],
+      "_comment_window9": "2026-09-21 — PREREG_UNIVERSE_CURATION §11 window #9 (OFF-CYCLE): the W38 reach survivors NTSK (Netskope) + STUB (StubHub), both orphan_watch/424B4 new listings. Operator word 2026-09-21 ~04:10 UTC ('let's include both survivors'). TWO in-window reads pre-declared; the 13:37 read fell OUT OF BAND for BOTH (NTSK Jun-2027 C17.5 −1.0% ATM $525 — the selector CROSSED EXPIRIES; STUB Apr-2027 C5 −14.6% ITM $175) on quote eligibility at the open, not a repricing (spot barely moved) — the FIG lesson reproduced. The pre-declared LAST read 15:07 UTC governs: STUB270416C00007500 $73, 27.0% achieved OTM, 207dte, spread 21%, ADV $38.2M → ADMITTED; NTSK270617C00020000 $445 at 11.9% achieved OTM → below the 15% floor → NEAR-MISS, recorded not admitted (the TITN-14.4% precedent), and the 09-21 word LAPSES for NTSK — cyber_sase stays a thesis without an expression (no empty basket). See universe_register.json windows.9 + records/2026-09-21_window9_ntsk_stub_admission.md. Additions-only.",
+      "bnpl_payments": ["KLAR"],
+      "live_events_marketplace": ["STUB"]
+    }
   },
   "eligibility": {
     "_comment": "Live option-tradability floor (universe.check_eligibility mode='live'). The convexity loop also runs options_tradability.py for the per-contract bid/ask + OI gate (PREREG_THEMATIC_CONVEXITY §3).",
@@ -23,47 +60,103 @@
     }
   },
   "convexity_book": {
-    "_comment": "Frozen risk frame — PREREG_THEMATIC_CONVEXITY §5. Operator decisions 2026-05-31. account_equity is a paper nominal until a broker supplies it.",
+    "_comment": "Frozen risk frame — PREREG_THEMATIC_CONVEXITY §5. Operator decisions 2026-05-31; per-cluster cap added by the 2026-06-03 amendment. account_equity is a paper nominal until a broker supplies it. cluster_fraction caps aggregate ENTRY-premium per correlation cluster (a name in <=1 cluster; keyed on a deterministic symbol->cluster map, NEVER a theme/basket label — a label can be LLM-set). 0.02 = 2 full names = 20% of book; graduate to 0.03 only once >=4 clusters are curated (dated re-amendment).",
     "account_equity": 100000.0,
     "book_fraction": 0.10,
     "per_name_fraction": 0.01,
-    "max_open_positions": 15
+    "max_open_positions": 15,
+    "cluster_fraction": 0.02,
+    "clusters": {
+      "_comment": "Correlation-budget partition (PREREG §5 amendment 2026-06-03; curated via the trailing-return correlation diagnostic 2026-06-04), documented BY DRIVER so future names route correctly. ai_capex_power = the AI-datacenter power-demand bet (CEG nuclear-gen + NEE utility + CCJ uranium; FCX dropped — copper datacenter-exposure is a sliver of its demand). RE-EXAMINED 2026-06-04: CCJ-NEE pairwise corr is only 0.045, but that is SPOKE-vs-SPOKE — membership is each name's link to the DRIVER, not whether two spokes co-move; uranium-fuel + utility-delivery + electrical-equipment are different supply-side spokes of ONE AI-power-demand bet (nuclear is a MORE direct AI-power spoke than copper ever was; NEE carries a large UNREGULATED renewables/development arm, not a pure regulated utility); cluster mean 0.40 >> 0.26 universe median = cohesive -> KEPT both. Trim a spoke on tail/catalyst evidence (the FCX pattern), never on a single daily-correlation print. space_defense = defense/space-budget driver; EXTENDED 2026-06-04 with the defense primes LMT/NOC/LHX/RTX (the scan basket already held them, the cluster did not — the diagnostic surfaced them at 0.50-0.68 SHARED-driver, resid~=raw so NOT market beta; KTOS bridged to LHX at 0.52). RKLB is the loosest member (0.38-0.45, still > the 0.26 median; national-security launch shares the driver) — KEPT (conservative over-cluster + tail co-dependence on a defense/geopolitical catalyst), the future-split-on-evidence candidate. RE-PARTITIONED 2026-06-10 (window #1, PREREG_UNIVERSE_CURATION §11 Rule 4 — operator-authorized by the PR merge; book EMPTY so the occupancy recompute = $0, no open position disturbed): (1) NEW nuclear_fuel cluster = the global nuclear-fuel/reactor-cycle driver (demand base = the world reactor fleet + SMR pipeline, broader than AI datacenters) — CCJ MIGRATES there from ai_capex_power for driver coherence (uranium names must share ONE budget; splitting uranium across two clusters would be the false-diversification this cap exists to stop). (2) ai_capex_power gains the window-1 grid names ATKR/AMSC/FLNC — the same electrical-equipment-for-AI-power spoke class as VRT/ETN/PWR (conservative over-cluster). (3) NEW copper_supply cluster = the copper-price driver; FCX (unclustered since 2026-06-03) JOINS with HBM/ERO/TGB — a tightening. (4) the RKLB split-on-evidence FIRES: NEW space_smallcap cluster = the launch/constellation-economics driver (RKLB MIGRATES, + PL/LUNR/RDW/FLY/IRDM); space_defense keeps the budget-driver names KTOS/LMT/NOC/LHX/RTX. Five clusters × $2,000 = the full $10,000 book = the §10 ≥5-independent-groups geometry. The correlation diagnostic remains the backstop; cluster_fraction UNCHANGED at 0.02 (graduation to 0.03 stays its own dated re-amendment). WINDOW #2 (2026-06-22, off-cycle): +silver_deficit (PAAS/HL/CDE/AG — the silver-miner correlation cluster) +seaborne_freight (FRO; STNG/SBLK band-excluded) = SEVEN clusters available; the $10k book still fills AT MOST 5 ($10k/$2k), so the cap geometry is unchanged — more independent groups than the book can fill = more selectivity, never more exposure. cluster_fraction stays 0.02. WINDOW #3 MAIN (2026-08-03): +fiber_capex (VIAV — the fiber/optical-network buildout capex driver: test-and-measurement demand from fiber deployment [AI backbone + BEAD]; a DIFFERENT driver from ai_capex_power's electrical-power-equipment spoke — routing VIAV there would misprice its correlation budget) = NINE clusters; the book still fills AT MOST 5, geometry unchanged; cluster_fraction stays 0.02. WINDOW #4 (2026-08-20, off-cycle): +mrna_oncology (MRK — the individualized-neoantigen-therapy platform-commercialization driver [intismeran P3 melanoma win 08-19 + Keytruda-LOE franchise extension]; a medical/regulatory driver shared with NO existing cluster — MRK's defense-adjacent Animal Health/vaccines overlap with space_defense primes is nil) = TEN clusters; the book still fills AT MOST 5; cluster_fraction stays 0.02. WINDOW #5 (2026-08-20, off-cycle, same-day): +ag_cycle (TITN equipment-dealer + MOS fertilizer — ONE farm-income/ag-cycle driver; conservative over-cluster: equipment demand and nutrient application both hang off farm economics even though MOS carries a supply-side nat-gas/potash leg) = ELEVEN clusters; the book still fills AT MOST 5; cluster_fraction stays 0.02. WINDOW #6 (2026-08-31, off-cycle): +alt_capital_deployment (KKR — the alternative-asset/infrastructure capital-deployment-cycle driver: fee-related earnings + deployment pace into infra/aviation/storage; a FINANCIAL-platform driver shared with no real-asset cluster we hold — routing it into ai_capex_power/space/ag would misprice its correlation budget) = TWELVE clusters; the book still fills AT MOST 5; cluster_fraction stays 0.02. WINDOW #7 (2026-09-08, off-cycle): +design_software_ai (FIG — an AI-native design/collaboration SOFTWARE-platform driver [seat expansion + AI-credit monetization]; a software driver shared with NO existing cluster — routing it into ai_capex_power would confuse the AI-power-demand bet with an AI-application bet) = THIRTEEN clusters; the book still fills AT MOST 5; cluster_fraction stays 0.02. WINDOW #8 (2026-09-16, off-cycle): +bnpl_payments (KLAR — a consumer-payments/BNPL NETWORK driver [merchant-side scale + consumer-credit economics]; shared with NO existing cluster — not alt_capital_deployment [KKR is a capital-deployment platform, not a consumer-credit network] and not design_software_ai) = FOURTEEN clusters; the book still fills AT MOST 5; cluster_fraction stays 0.02. WINDOW #9 (2026-09-21, off-cycle): +live_events_marketplace (STUB — a live-events/TICKETING MARKETPLACE driver [event demand x take rate on a two-sided marketplace]; shared with NO existing cluster — NOT bnpl_payments, whose driver is consumer credit, and not design_software_ai) = FIFTEEN clusters; the book still fills AT MOST 5; cluster_fraction stays 0.02. NTSK was a near-miss at the last read (11.9% achieved OTM) so cyber_sase was NOT created — a thesis without an expression never gets an empty basket.",
+      "ai_capex_power": ["VRT", "PWR", "GEV", "ETN", "CEG", "NEE", "ATKR", "AMSC", "FLNC"],
+      "space_defense": ["KTOS", "LMT", "NOC", "LHX", "RTX"],
+      "nuclear_fuel": ["CCJ", "UEC", "UUUU", "NXE", "UROY", "SMR", "NNE"],
+      "copper_supply": ["FCX", "HBM", "ERO", "TGB"],
+      "space_smallcap": ["RKLB", "PL", "LUNR", "RDW", "FLY", "IRDM"],
+      "silver_deficit": ["PAAS", "HL", "CDE", "AG"],
+      "seaborne_freight": ["FRO"],
+      "chem_transition": ["CC"],
+      "fiber_capex": ["VIAV"],
+      "mrna_oncology": ["MRK"],
+      "ag_cycle": ["TITN", "MOS"],
+      "alt_capital_deployment": ["KKR"],
+      "design_software_ai": ["FIG"],
+      "bnpl_payments": ["KLAR"],
+      "live_events_marketplace": ["STUB"]
+    }
   },
   "convexity_gate": {
-    "_comment": "Frozen IV/cheap-convexity gate — PREREG_THEMATIC_CONVEXITY §4. No historical IV exists (forward-only chains) → cheapness is measured vs the underlying's trailing realized vol (from bars) + the live skew shape. Thresholds changed only by documented operator edit, never to justify a trade.",
+    "_comment": "Frozen IV/cheap-convexity gate — PREREG_THEMATIC_CONVEXITY §4. No historical IV exists (forward-only chains) → cheapness is measured vs the underlying's trailing realized vol (from bars) + the live skew shape. Thresholds changed only by documented operator edit, never to justify a trade. The skew_abs_max_volpts/iv_rv_sanity_max/iv_floor_annualized/wing_atm_ratio_min_k keys are the cheapness-watch §2.1.8 degenerate_iv bounds (report-time MEASUREMENT only — they do NOT touch the live gate; the live gate's degenerate fail-close is the §2.4 stub, its own pre-reg). Pinned BLIND, once, from physics + the live gate-pass distribution (PREREG_CHEAPNESS_WATCH §2.1.8); the three clip-axis bounds (skew_abs_max, iv_floor, wing_atm_ratio_min_k) are a SINGLE cheap-wing-clip budget — fire only on near-zero/stale quotes, never on a real low-IV wing; iv_rv_sanity_max (high-side) is the only clip-free disjunct.",
     "iv_rv_max": 1.2,
     "otm_skew_max_volpts": 10.0,
     "rv_window_days": 252,
     "tenor_min_days": 180,
     "tenor_max_days": 365,
-    "target_moneyness": 0.25
+    "target_moneyness": 0.25,
+    "otm_side_guard": true,
+    "skew_abs_max_volpts": 100,
+    "iv_rv_sanity_max": 5.0,
+    "iv_floor_annualized": 0.03,
+    "wing_atm_ratio_min_k": 0.15
   },
   "convexity_exits": {
     "_comment": "Frozen L2 exit rules — PREREG_THEMATIC_CONVEXITY §6a. Deterministic, no LLM (the fast reflex, SPEC §3). profit_take_multiple: close when the mark reaches N× the entry premium. time_stop_dte: close when ≤ N calendar days to expiry (avoid the gamma/theta endgame). Otherwise hold to expiry (venture style → most expire worthless = −premium). profit_take_multiple RAISED 4.0→10.0 on 2026-06-01 (operator-authorized, calibration-cited — see PREREG §6a): 4× clipped the convex tail (p99 ~4.5× vs ~10× uncapped) at ~0 cost to the mean.",
     "profit_take_multiple": 10.0,
-    "time_stop_dte": 21
+    "time_stop_dte": 21,
+    "min_close_bid": 0.05
   },
   "kill_rule": {
     "_comment": "Frozen — PREREG_THEMATIC_CONVEXITY §6. Halts NEW entries (not force-close) on either condition. The KILL file/env switch is always-on, separately, every cycle.",
     "book_drawdown_halt": 0.20,
     "dry_months_halt": 9
   },
+  "forward_catalysts": {
+    "_comment": "PREREG_FORWARD_CATALYST_GROUNDING (FROZEN 2026-07-09) — the forward-catalyst grounding channel, §1 ground-never-permission: dated public forward evidence enriches hand-seed ContextPacks; it never scores/gates/admits/sizes. Items are operator-pinned in forward_catalysts.json (ships EMPTY — the channel is live-inert until the operator pins an item). §10 pins: max_items=K=3 per pack; staleness_days=N=30 (re-verification flag, item still renders); max_block_chars enforces the §7 ≤400-token pack bound (~4 chars/token). Origin scope v0: hand-seed packs only — sentinel grounding byte-unchanged (§5-read safety). §4 counters stamp into runs.note; the forward_catalyst_v1 capability stamp rides runs.model_mix (record-segmenting from deploy).",
+    "enabled": true,
+    "path": "forward_catalysts.json",
+    "max_items": 3,
+    "staleness_days": 30,
+    "max_block_chars": 1600,
+    "_comment_sentinel_scope": "Channel prereg §11 amendment (operator word 2026-10-02, PR #280): the council's SENTINEL packs receive the operator-pinned block too (the §5 four-scan read it waited on closed 2026-08-02). The discovery framer's pack never does (the §6 leash); grounded unchanged; F-c becomes a live guard. Record-segmenting: model_mix.forward_catalysts = forward_catalyst_v1+sentinel_v1.",
+    "sentinel_scope": true
+  },
   "council": {
     "_comment": "T2 — the LLM theme-judgment council (SPEC §5, PREREG §2 hard seam). The council only PROPOSES themes; the deterministic gates below still DISPOSE. Conviction is recorded + forward-scored ONLY — it NEVER sizes a position and NEVER overrides a veto. The three roles run across DISTINCT providers for decorrelated debate. Provider SDKs are lazy-imported; `orchestrator.py --demo` (and all tests) use a deterministic FakeRouter needing no keys. enabled=false falls back to the T1 hand-seeded loop (themes.json consumed directly). cost_cap_usd is a GENEROUS PROVISIONAL fail-closed cap while per-cycle cost is being measured — the real ceiling + run cadence are an operator decision AFTER seeing the printed per-cycle ledger. MODEL IDs + prices_per_mtok ($ per million tokens) verified against provider docs 2026-06-01 (Balanced tier); models/prices move fast — re-verify periodically (a stale model id fails closed: SDK error → RouterError → 0 entries). prices_per_mtok keys not currently mapped are kept so the ledger stays accurate if a role is remapped.",
     "enabled": true,
     "roles": {
-      "proposer": {"provider": "gemini", "model": "gemini-3.5-flash"},
+      "proposer": {"provider": "gemini", "model": "gemini-3.6-flash"},
       "adversary": {"provider": "xai", "model": "grok-4.3"},
       "strategist": {"provider": "anthropic", "model": "claude-opus-4-8"}
+    },
+    "_comment_roles_fallback": "2026-08-27 (the 08-26 anthropic spend-cap incident, rec #3; operator: 'go all the way with the three recommendations, now'). The pinned UNDERSTUDY fires ONLY after the primary exhausts its retries (outage/quota); a 4th provider preserves 3-way heterogeneity (never grok/gemini — role collision). Model id verified LIVE against the OpenAI models endpoint 2026-08-27 (dated snapshot, pinned-stable-beats-latest); price verified same day. Per-call attribution is honest in council_agent_outputs.provider/model (the proposal-level model_mix states the configured primary); the runs.model_mix roles_fallback stamp makes the CAPABILITY record-segmenting from deploy. A fallback-judged night is a SEGMENT datum — do not pool its strategist Brier with opus nights.",
+    "roles_fallback": {
+      "strategist": {"provider": "openai", "model": "gpt-5.2-2025-12-11"}
     },
     "cost_cap_usd": 5.0,
     "conviction_floor": "MODERATE",
     "conviction_to_prob": {"LOW": 0.55, "MODERATE": 0.65, "HIGH": 0.75, "EXTREME": 0.85},
     "timeout_s": 60,
     "max_retries": 2,
+    "max_tokens": 2048,
+    "parse_fail_page_rate": 0.5,
+    "monthly_spend_page_usd": {"anthropic": 10.0, "gemini": 10.0, "xai": 10.0},
+    "gemini": {"thinking_level": "minimal", "json_mode": true},
+    "openai": {"json_mode": true},
     "max_candidates": 12,
+    "_comment_cheap_reserve": "PREREG gate_cheap_reserve (FROZEN 2026-07-02, operator-signed; records/2026-07-02_gate_cheap_reserve_PREREG_DRAFT.md §9): K=3 of the 11 sentinel slots are RESERVED for gate-cheap union names the inflection_score salience rank would truncate out of council judgment (the 4th anti-quietness bias point — PAAS class). Composition-only: prompts/gates/sizing untouched (seam-guard tests); eligibility = the prior-cycle gate-of-record cheap read (cheapness_watch primary, gate_dualread-opra fallback) aged <= cheap_reserve_staleness_td WEEKDAYS, fail-closed; within-reserve rank = least-recently-judged -> lowest iv_rv -> symbol. 0 = OFF (byte-identical old slice). Stamped union_rank:cheap_reserve_v1 in runs.model_mix from deploy.",
+    "cheap_reserve_slots": 3,
+    "cheap_reserve_staleness_td": 5,
+    "_comment_fairness": "FAIRNESS reserve (2026-08-11 amendment to the gate_cheap_reserve composition; operator-decided '2 reserved slots' after the starvation evidence — IRDM 0-for-14 incl. a fresh structural filing, VIAV admitted 08-03/surfaced 08-09/never judged, 34 active candidates vs 12 slots; records/2026-08-11_fairness_reserve_amendment.md). M=2 of the sentinel slots reserved for names the salience rank starves REGARDLESS of cheapness: rank = fresh-event-on-active-lineage FIRST (a new filing is judged the next L1 — the LUNR-gap close) -> least-recently-judged (never-judged first) -> symbol. Composition-only (prompts/gates/sizing untouched); 0 = OFF (byte-identical). Stamped union_rank:cheap_reserve_v1+fairness_v1 from deploy = record-segmenting.",
+    "fairness_slots": 2,
+    "_comment_direction_coherence": "PREREG_DIRECTION_COHERENCE (FROZEN 2026-09-24 on the operator's word): a SENTINEL framed BEARISH is withheld from the candidate union when its latest filed quarter shows revenue growing (qtr_yoy > 0) AND accelerating (qtr_yoy_accel > 0) — natural zeros, nothing tuned. Composition-only; hand-seeds and bullish framings untouched; missing data never withholds; the SAME withheld set is removed from the shadow + 3A unions so every contrast stays paired. Stamped union_rank +dircoherence_v1 = record-segmenting. enabled=false = byte-identical off.",
+    "direction_coherence": {"enabled": true},
+    "_comment_pack_provenance": "PREREG_EVIDENCE_GROUNDING amendment A1 (operator word 2026-10-02, PR #280; Finding B of 2026-09-29): a sentinel's council pack says OPERATOR_THESIS '(none on file ...)' and renders the discovery framer's skeptical text on its own labelled DISCOVERY_SUMMARY line. grounded unchanged; hand-seeds unchanged; the framer's own pack byte-identical. Record-segmenting: model_mix.pack_provenance = provenance_v1.",
+    "pack_provenance": true,
+    "_comment_fundamentals_staleness": "Issue #269 (2026-09-25) — TELEMETRY ONLY: after each L1 council pass, flag names whose corpus (read this cycle) reflects an older filing than their newest 10-Q/10-K/20-F/40-F on EDGAR, filed >3 days before the run (NEE: Q2 10-Q filed 2026-07-24 never reached SEC companyfacts). Never changes the context pack or a verdict; no record segmentation; fail-soft. enabled=false = off.",
+    "fundamentals_staleness": {"enabled": true},
     "news_lookback_days": 90,
     "prices_per_mtok": {
+      "gemini-3.6-flash": {"in": 1.5, "out": 7.5},
       "gemini-3.5-flash": {"in": 1.5, "out": 9.0},
       "grok-4.3": {"in": 1.25, "out": 2.5},
       "claude-opus-4-8": {"in": 5.0, "out": 25.0},
@@ -71,8 +164,75 @@
       "gemini-3.1-flash-lite": {"in": 0.25, "out": 1.5},
       "claude-sonnet-4-6": {"in": 3.0, "out": 15.0},
       "claude-haiku-4-5": {"in": 1.0, "out": 5.0},
-      "grok-build-0.1": {"in": 1.0, "out": 2.0}
+      "grok-build-0.1": {"in": 1.0, "out": 2.0},
+      "gpt-5.2-2025-12-11": {"in": 0.875, "out": 7.0}
     }
+  },
+  "discovery": {
+    "_comment": "T3 sentinel inflection discovery (weekly L0). DISCOVERS candidates → the council JUDGES → the deterministic gates DISPOSE (hard seam unchanged). The prescreen is a MOTION/STRUCTURAL funnel — it makes NO cheapness/alpha claim (cheapness is the IV gate's job, fresh + authoritative); inflection_score is a FUNNEL ranking, never a tradeable signal (PREREG §2). markers.* are the disjunctive absolute floors (surface iff |momentum|≥mom_floor OR rv_slope≥rv_slope_floor OR a structural event) + the within-basket rank knobs — funnel knobs, NOT a frozen gate. max_scan_names bounds the cold-cache data pass (C1); scan_top_k bounds the LLM framer (PR2). sentinel_max_slots reserves book/slots for hand-seed convictions so auto-traded discoveries can't starve them (load-bearing). framer model is DECORRELATED from the council roles (else the council just ratifies it). cost_cap_usd is a GENEROUS PROVISIONAL fail-closed cap — the real ceiling is an operator decision after seeing the printed per-scan ledger (T2 precedent).",
+    "enabled": true,
+    "max_scan_names": 200,
+    "scan_top_k": 8,
+    "n_random_controls": 5,
+    "sentinel_ttl_days": 35,
+    "sentinel_max_slots": 6,
+    "_comment_null_caps": "2026-07-02 (iii)-COMPLETE null-book cap relief (FBN §4 activation addendum; fork picked PRE-BURST, operator-delegated — records/2026-07-02_burst_prediction_PINNED.md). Applies to the SIMULATED shadow+3A books ONLY (shadow_book.py/fixed_basket.py; the real book's frozen frame is byte-untouched): book cap → 100% equity, cluster caps OFF, count cap 100. The per-name $1k cap is RETAINED (the per-position normalizer FBN §5's metric needs). Vintage 2b opens at the first post-deploy L1 (Fri 2026-07-03).",
+    "null_book_fraction": 1.0,
+    "null_cluster_fraction": 0,
+    "null_max_open_positions": 100,
+    "reference_horizon_days": 180,
+    "cost_cap_usd": 3.0,
+    "framer": {"provider": "gemini", "model": "gemini-3.1-flash-lite"},
+    "markers": {
+      "mom_lookback": 252, "mom_skip": 21, "mom_recent_lookback": 63,
+      "rv_recent": 21, "rv_base": 252, "rv_mid_window": 63,
+      "adv_window": 20, "mom_floor": 0.15, "rv_slope_floor": 0.25,
+      "fresh_mom_floor": 0.20, "fresh_rv_rising_floor": 0.10, "dir_recent_epsilon": 0.02,
+      "event_bonus": 1.0, "min_price": 3.0, "min_adv_usd": 3000000.0
+    },
+    "events": {
+      "_comment": "The structural-filing surface leg (PREREG_EVENT_LEG, frozen 2026-06-10) — the disjunctive gate's quiet-compatible door, a REACHABILITY trigger with NO alpha claim (the FSSD 424B5 grave). forms = the pinned BASE set, matched by EXACT MEMBERSHIP form ∈ {base, base+'/A'} (never a prefix — S-11/S-1MEF/S-3MEF/S-3D/S-3DPOS and S-3ASR [WKSI routine, deliberately excluded] must not match; the foreign mirror excludes F-3ASR/F-3MEF/F-10EF/F-10POS; 424B1/B2/B3/B4 excluded). Domestic raises = 424B5/S-1/S-3; the Canadian MJDS/FPI mirror (HBM/ERO/TGB/NXE file these — smoke-verified 2026-06-10) = F-1/F-3/F-10/SUPPL; ownership = BOTH 13D literals (the 13D/G modernization renamed the form mid-record: legacy 'SC 13D' + current 'SCHEDULE 13D', both observed in-universe). lookback_days = a CLOSED [as_of-14d, as_of] window (~two weekly scans). Funnel knobs, dated-edit-only; the form-set hash is stamped into runs.note per scan.",
+      "enabled": true,
+      "forms": ["424B5", "S-1", "S-3", "F-1", "F-3", "F-10", "SUPPL", "SC 13D", "SCHEDULE 13D"],
+      "lookback_days": 14
+    }
+  },
+  "reach": {
+    "_comment": "The offline reach-channel operator tools (records/2026-07-14_reach_channels_charter_RATIFIED.md). drafter = the Stage-B survivor-card thesis-drafting role (card_drafts.py, behind scripts/survivor_cards_run.py --draft): ONE bounded LLM call per screen survivor, grounded on PRINTS only (fundamentals/filings/news/premise numbers) with the surfacing item as a POINTER never evidence (the §2/§3b reconciliation). cost_cap_usd is the hard per-RUN fail-closed cap (router boundary; cap hit → remaining survivors ship undrafted, counted). Kill-before-spend applies (risk.kill_switch_active). Never a trade/auth path; nothing here can stale the §5 clock.",
+    "drafter": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "max_tokens": 2048,
+      "cost_cap_usd": 0.5
+    }
+  },
+  "fixed_basket": {
+    "_comment": "The no-gate / fixed-basket NULL books (PREREG_FIXED_BASKET_NULL.md) — test the IV GATE itself (the existing real/shadow pair only tests the council). PR2a ships book 3A ('union_nogate'): gate-OFF over the SAME candidate union the shadow book sees, cap-ON, every L1, so shadow−3A is the FSSD null≈signal control on the edge. PR2b adds 3B (whole basket, equal-weight, weekly) + the shares null. Simulated-only, NEVER the broker, fail-soft (a null bug never halts the real cycle). enabled=false disables the no-gate books; the real loop is unaffected.",
+    "enabled": true
+  },
+  "shares_basket": {
+    "_comment": "The SHARES descriptive null (PREREG_FIXED_BASKET_NULL §2/§5, PR2c) — convexity vs LINEAR. An append-only entry log over the option-eligible basket names (weekly L0, motion-derived direction, equal-weight = one unit); signed returns are computed at REPORT time from bars at the horizon set below, with the §6 terminal-event survivorship guard. DESCRIPTIVE only — shown ALONGSIDE the option tails, NEVER scored against them; forward, never a pass-gate. Simulated, NEVER the broker, fail-soft. horizons mirror the calibration tenor sweep (the convex book holds ~250d median, not 180d).",
+    "enabled": true,
+    "horizons": [180, 270, 365]
+  },
+  "cluster_diagnostic": {
+    "_comment": "Report-not-gate cluster-cap curation BACKSTOP (PREREG §5). Trailing-return correlation over the names the system trades/considers; flags co-moving pairs NOT co-clustered so the operator can curate convexity_book.clusters. It NEVER edits the map (hard seam) and NEVER gates a trade. Tuned for SENSITIVITY (a false negative under-protects the cap): union flag max(raw,resid,spearman), top_n SORTED not hard-filtered (the threshold highlights, never drops a near-miss), Pearson treated as a LOWER BOUND on the tail co-dependence a convex book concentrates. window_days matched to the ~250d convex hold (the cap's horizon); residual strips residual_benchmark beta = the shared-driver attribution, NOT the gatekeeper (residual β is noisy on the free feed); min_overlap is the reporting floor — below it a name is invisible, covered instead by the cap's conservative over-cluster default. All PINNED (§7). Read-only over the warm cache (client=None ⇒ no fetch); fail-soft in L0.",
+    "enabled": true,
+    "window_days": 252,
+    "secondary_window_days": 63,
+    "high_corr_threshold": 0.7,
+    "min_overlap": 63,
+    "top_n": 25,
+    "residual_benchmark": "SPY"
+  },
+  "basket_quality": {
+    "_comment": "Report-not-gate basket-curation diagnostic (IMPLEMENTATION_PLAN.md:171; PREREG_FIXED_BASKET_NULL 74-79). Closes the survivorship -> basket-curation loop: per curated scan basket (config.universe.themes), ties what it PRODUCED (surfaced sentinels, framer verdicts, traded outcomes, forward returns) back to the roster so the operator can curate the basket BY HAND (hard seam — it never edits universe.themes, never gates a trade, writes no DB row, no migration). It is the sibling that makes 3B-absolute's curation contamination auditable (heavy drift -> discount 3B-absolute; real-3B stays clean). Cache-only (NO-FETCH, client=None), fail-soft in L0. FORWARD READ is SPLIT by horizon semantics: reference_forward is horizon-indexed (stock returns, surfaced-never-traded + controls, §6 terminal guard reused per horizon — the §6-correct multi-horizon read, NOT the stored 180d); traded_outcomes is pooled (option realized-multiple resolves once at the ~250d exit). horizons mirror the calibration/shares tenor sweep. MATURITY-GATED (load-bearing for the null hierarchy: 3B runs over the live basket, so outcome-conditioned pruning on a thin record would make the contamination adaptive): outcome/never-productive flags need window_age >= max(horizon) AND the per-metric min thresholds; default is KEEP; only data-dead + degenerate-basket flags are evidence-independent. basket != cluster — the correlation diagnostic curates convexity_book.clusters, this curates universe.themes. PINNED (never tuned to a gap).",
+    "enabled": true,
+    "horizons": [180, 270, 365],
+    "min_resolved_references_for_flag": 20,
+    "min_traded_outcomes_for_flag": 10,
+    "min_live_names_per_basket": 2,
+    "top_n_per_name": 40
   },
   "execution": {
     "_comment": "Real Alpaca paper order path (broker.AlpacaPaperBroker). SENDING is gated by safety.dry_run: dry_run=true (default) logs the intended order + simulates the fill — nothing is transmitted; dry_run=false actually submits to the PAPER endpoint. cancel_unfilled: at reconcile, cancel a still-resting limit (it re-evaluates next cycle) instead of leaving it open.",

@@ -23,6 +23,12 @@
 > (the council, risk model, execution funnel, reuse map all still apply) — but where this
 > doc says "the edge is divergence" or "validate the edge in backtest before capital," read
 > `PREREG_THEMATIC_CONVEXITY.md` instead. The non-negotiable guardrails (§13) are unchanged.
+> **Build status** (canonical: `CLAUDE.md` / `IMPLEMENTATION_PLAN.md` / `DEPLOYMENT.md`) — as of
+> 2026-06 the forward loop runs on systemd timers (L1 daily full cycle, L2 intraday monitor) and
+> **T3 sentinel discovery** is operationalizing as a weekly **L0** scan (PR3; §C cold-cache timing
+> verified, held unarmed until the live-loop §A check). The "discovery" section below describes the
+> shelved *v1* narrative-clustering discovery — for T3's motion/structural funnel read
+> `IMPLEMENTATION_PLAN.md` §T3 + `discovery.py`.
 
 ---
 
@@ -137,7 +143,9 @@ reactive on exit (slow exits compound losses and bleed theta). Anything fast is
   adaptive limit walking, liquidity gate, missed-order persistence.
 - **`monitor`** — the L2 fast loop (intraday exits, falsifier checks).
 - **`observability`** — funnel diagnostics, debate forensics, abstention monitor, **cost
-  ledger per stage** (first-class — the whole design is a cost argument).
+  ledger per stage** (first-class — the whole design is a cost argument). _BUILT 2026-06-05
+  (§5b PR-A): `dashboard.py` + `dashboard_data.py` + `breach_audit.py` — a read-only Streamlit
+  surface (`?mode=ro` / NO-FETCH / fail-soft) with a T4-readiness scoreboard spine._
 - **`data/`** — adapters (§8).
 
 ---
@@ -186,7 +194,9 @@ lacks numeric content.
   output of sizing, never a target.** Do not implement any "maximize leverage" path —
   overbetting a positive-edge game still leads to ruin.
 - **Portfolio caps:** max concurrent positions; max per name; max per theme/sector; max
-  aggregate premium-at-risk (gross).
+  aggregate premium-at-risk (gross). *(The per-theme/**cluster** cap landed 2026-06-03 — PREREG §5
+  amendment, `clusters.py` + `convexity_book.cluster_fraction`: a deterministic operator-curated
+  `symbol→cluster` correlation budget so a correlated basket can't pose as diversified.)*
 - **Drawdown circuit breaker:** warn / halt / panic thresholds (config).
 - **Daily-loss halt.** **Kill switch** (file or env) checked every cycle.
 - **Broker treated as unreliable:** fail-closed on ambiguity, aggressive reconciliation,

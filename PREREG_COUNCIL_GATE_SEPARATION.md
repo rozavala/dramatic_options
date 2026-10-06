@@ -1,0 +1,365 @@
+# PREREG — Council/Gate cheapness-separation (FROZEN 2026-06-09)
+
+**Status: FROZEN 2026-06-09** (committed before the re-score number is seen; the §5 decision rule + the
+principle + the ~0-1 yield expectation are now IN FORCE). The sequence is: **operator red-team → FREEZE (commit) this pre-reg incl.
+the §5 decision rule → run the thesis-only re-score → act per the frozen rule → OPRA precondition (§6) →
+code.** The rule is frozen **before** the re-score number is seen — the anti-HARKing firewall (cf. the
+divergence/FSSD graves).
+
+## 1. The bug (corroboration, NOT the justification)
+
+The council currently adjudicates **cheapness** itself, via an `rv_slope`/`momentum` **proxy**, and that
+pre-empts the deterministic IV gate — so the frozen cheap-convexity edge (`PREREG_THEMATIC_CONVEXITY §4`)
+**has never once run** (`convexity_eval` = 0 across 4 live L1s). The council rejects "vol rising → no longer
+cheap" from the markers, before the real chain is ever measured.
+
+**Divergence test (2026-06-09, read-only, real names):** the real-chain gate would pass **11/16** of the
+universe as cheap right now (IV/RV <= 1.2, skew <= 10, INDICATIVE); **8/16 sit in the harm quadrant**
+(gate-cheap but the proxy would reject). This corroborates that the seam **has bite** — it is **not** the
+load-bearing number (see §3).
+
+## 2. The honest yield (pre-committed BEFORE the re-score — inoculation against the "loosen the filter" slide)
+
+The read-only classification of the 8 harm-quadrant names found only **2 (NEE, RKLB)** rejected on cheapness
+**alone** — but that checked only the **structural** leg. The **full §4 thesis mandate** is structural **AND
+under-narrated AND at-a-genuine-inflection**, and under it the ~2 is **optimistic**: RKLB (+194% momentum,
+"extended") plausibly **fails** at-genuine-inflection (the inflection already happened) **and** under-narrated
+(a name up 194% isn't unloved); NEE (momentum +0.40, "move starting") may pass inflection but is the
+**OPRA-boundary-fragile** one (§6). The other 6: 4 carried a legitimate **thesis** objection (CCJ/KTOS/RTX
+"already consensus"; SMCI "fad / mean-reverting / not a fresh inflection") that **survives** the
+re-architecture, 1 grounding-drop (FCX "ungrounded"), 1 unaccounted (CEG, no council proposal).
+
+**==> Pre-committed yield expectation under the FULL §4 mandate: ~0-1 names** from the current universe —
+**NOT 8, and likely below the structural-only ~2.** A result of ~0-1, or even 0, is the **scarcity finding
+arriving a step early** (§5 decision rule), **NOT** a failure. Loosening the conviction floor or the thesis
+criteria to raise yield is explicitly **forbidden** (§7).
+
+Mapped to the §5 freeze-gate (no silent disagreement): **0 = scarcity** (proceed on principle, no near-term
+trade), **1 = confirms** (proceed) — both within this ~0-1 expectation; **>= 2 trips the selectivity flag**
+(above expectation -> investigate, do not bank).
+
+## 3. The justification (load-bearing — the PRINCIPLE, not the count)
+
+**Separation of concerns.** The IV gate is the frozen, pre-registered **cheapness** edge (`§4`). The council's
+mandate (hard seam) is to **propose themes** (thesis), and the deterministic gates **dispose**. The council
+judging cheapness on a marker proxy is a **seam violation**: it does the gate's job, *worse* (a proxy, not the
+real chain), and pre-empts the gate so the actual edge never runs. **Legitimacy test** (the advisor's firewall
+— "would you make this even at ZERO extra trades?"): **YES** — correct separation of concerns regardless of
+trade count. This passes; the change rests here, not on §1/§2's numbers.
+
+## 4. The exact behavioral change
+
+- **Council -> THESIS ONLY (ALL roles, not just the strategist).** Cheapness reasoning currently enters via
+  (a) the shared `_COMMON` system prompt — "ONLY when implied vol has not yet priced the move" (`council/agents.py:25`),
+  injected into ALL three roles — and (b) the **adversary**'s objection set — "already ... priced" / "the move is
+  behind it" (`agents.py:42`). **Both are removed:** `_COMMON` keeps "the deterministic IV gate DISPOSES on
+  cheapness" but drops the "implied vol not yet priced" criterion; the adversary objects on THESIS grounds only
+  (already-consensus / fad / not-a-real-inflection), never on priced/vol. The proposer (Inflection Analyst) and
+  strategist role keys are already thesis-shaped (inflection / structural / under-narrated) and come out clean once
+  `_COMMON` + the adversary are fixed. Net: the council judges THESIS — real / structural / under-narrated (not
+  consensus) / at-a-genuine-inflection / direction — NOT "is the convexity cheap / is vol rising."
+- **The IV gate is the SOLE cheapness arbiter** — unchanged, frozen (`§4`), on the **real chain** (OPRA, §6).
+- **Both must agree** (the hard seam, intact): council includes on thesis >= MODERATE **AND** the gate passes
+  on cheapness -> the deterministic sizing/caps/structure then dispose. Conviction still never sizes.
+- Forensics: the council's `structural_vs_fad` / under-narrated / inflection judgments are recorded +
+  forward-scored (Brier), exactly as today, minus the cheapness leg.
+
+## 5. The freeze-gate — a pre-committed decision rule (FROZEN before the re-score)
+
+The thesis-only re-score is the freeze-gate, and its number must be read against a rule committed **without
+having seen it** — otherwise the latitude this pre-reg exists to close reopens at the worst point.
+
+**The re-score:** re-run the council on the 8 harm-quadrant names **and the full universe**, under the **FULL
+§4 thesis mandate** — structural **AND** under-narrated **AND** at-a-genuine-inflection (NOT just "is the theme
+structural"; the §2 classification checked only structural and is therefore optimistic). Ephemeral DB, **no
+live-record touch**; count how many reach >= MODERATE on thesis grounds. (This also confirms the council *can*
+express >= MODERATE at all.) **The re-score MUST preview the EXACT config production will ship** (the edited
+`_COMMON` + adversary from §4, applied to all roles) — if it previews thesis-only-strategist while production
+drops cheapness from all roles (or vice versa), the freeze-gate validates the wrong configuration.
+
+**Decision rule (pre-committed, all three outcomes — bands NON-OVERLAPPING, consistent with §2's ~0-1):**
+- **exactly 1** (~ the expected NEE flip) -> CONFIRMS; proceed to the OPRA precondition (§6), then code.
+- **0** -> the council's **floor**, not the cheapness seam, is the binding constraint on the current loud
+  universe — it holds no genuine under-narrated-at-inflection cheap name right now. This is the **scarcity
+  finding, NOT a failure**: **proceed on the principle** (the gate should be the sole cheapness arbiter
+  regardless), **expect no near-term trade**, do **NOT** loosen the floor or criteria (§7), and treat it as
+  **elevating the funnel re-targeting (§8) to the next frontier.**
+- **>= 2** (above the ~0-1 expectation) -> **SELECTIVITY FLAG**: the thesis-only council is *less* selective
+  than the classification predicted (e.g. it included RKLB despite +194%) -> investigate the discrepancy (is the
+  thesis-only mandate under-specified / too permissive?); do **NOT** bank it as upside; do **NOT** proceed until
+  understood + the mandate re-tightened.
+
+## 6. OPRA confirmation (a hard precondition — and it re-checks the BOUNDARY names)
+
+The re-architecture relies on the gate's cheapness reads being trustworthy. They are currently INDICATIVE.
+Before the council defers cheapness to the gate, **PR3 (OPRA) must confirm the gate-cheap reads on the real
+chain — specifically the boundary names**: **NEE (IV/RV 1.17)** is the headline flip *and* closest to the 1.2
+line; a 1-vol-pt INDICATIVE->OPRA difference (inside the probe's observed 0.3-1.4 range) can flip it to
+gate-**expensive**, erasing the flip. (RTX 1.14 was a thesis-reject regardless.) So OPRA / PR2-PR3 move from
+"readiness, off the trading path" to an explicit **precondition** of this change. The seam fix does **not**
+ship on INDICATIVE.
+
+## 7. Out of scope / explicitly forbidden (the HARKing leash)
+
+Every change here increases throughput toward entries — the gradient the manufacturing-trades HARKing rides.
+Forbidden in this pre-reg: **loosening the conviction floor**; **loosening the IV-gate thresholds**;
+**re-curating baskets so the council/gate will pass them** (reverse-selection); **raising yield by relaxing
+the thesis criteria**. The risk frame (book 10% / name 1% / cluster 2% / <= 15) bounds the 0->some-entries
+regime change and is unchanged.
+
+## 8. What this does NOT fix (kept honest, front and centre)
+
+The genuine **quiet-cheap** thematic profile (e.g. NNE: IV/RV 0.94, momentum +0.06, flat rv_slope) is **rare**,
+**not in the universe**, and **invisible to a motion funnel** (it's quiet by construction). The seam fix runs
+on whatever discovery surfaces — currently **loud, consensus** names — so it will not reach the NNEs. **The
+seam fix is correct-but-modest, not the unlock.** Even executed perfectly it likely lands ~0-2 trades; its
+value beyond the count is that **the frozen IV-gate edge finally runs at all.** Re-targeting the discovery
+funnel (rank thematic candidates on **quietness + cheapness**, not motion) is a **separate, larger,
+separately-pre-registered** design question, and the real next frontier (and only *there* does the LLM
+theme-expander become the right source rather than a demoted one). Do **not** bundle it into this pre-reg.
+
+## 9. Known-open items (out of scope here, named so they don't vanish)
+
+- **The third anti-quietness leg — evidence-grounding.** Hand-seeds / thin-news names drop "ungrounded, no
+  numeric evidence" (FCX, every run), which penalizes exactly the under-narrated names the thesis wants (quiet
+  names have thin news). Like the funnel (§8), this is a real leg of the anti-quietness bias, **NOT fixed
+  here** — deferred to its own consideration, named so it isn't lost.
+- **CEG pipeline gap.** CEG is gate-cheap (IV/RV 1.09) yet has **no council proposal** — a gate-cheap name that
+  never reached the council. One-line check: discovery gap (never surfaced) vs timing (surfaced on a scan whose
+  L1 we haven't read). A small pipeline hole worth confirming, not a blocker.
+
+## 10. POST-FREEZE RECORD (appended 2026-06-09) — the §5 freeze-gate FIRED: ≥2 → SELECTIVITY FLAG
+
+*Append-only. §§1–9 above are the frozen body (PR #43) and are unchanged. This section records the
+freeze-gate's outcome and its pre-committed consequences; it closes latitude, it adds none.*
+
+### 10.1 Two runs — population reconciliation
+
+- **Run 1 (superseded — NOT §5-compliant).** 2026-06-09, earlier session; ephemeral, live router, ~$0.13.
+  Population = the **11 then-active sentinels** (the 2026-06-03 scan's RKLB/VRT/PWR/KTOS/GEV/ETN/CCJ/SMCI
+  + the 2026-06-07 scan's RTX/NEE/LHX) — a motion-filtered subset, NOT §5's "the 8 harm-quadrant names
+  and the full universe." Result **1 of 11 ≥ MODERATE (GEV, structural)**, read at the time as "1 =
+  CONFIRMS"; per-name verdicts / config text / cost were not fully captured. Superseded for population
+  non-compliance + capture gaps (flagged in red-team review before any doc cited it).
+- **Run 2 — the §5-COMPLIANT RUN OF RECORD.** **2026-06-09 21:52 UTC**, operator-approved, ephemeral
+  (in-memory candidates, NO live-record touch), live router, cost **$0.22**. Population = the **full
+  16-name universe** (⊇ the 8 harm-quadrant names): NVDA, SMCI, VRT, ETN, GEV, CEG, CCJ, FCX, NEE, PWR,
+  RKLB, LMT, NOC, LHX, RTX, KTOS — every name marker-grounded (origin-aware sentinel context), direction
+  = the motion-derived `discovery.direction_of`, forced past the motion floor (§5 scores the full
+  universe), `council.max_candidates` 12→20 so nothing truncates. Models (config-pinned): proposer
+  `gemini/gemini-3.5-flash` (thinking_level=minimal, json_mode), adversary `xai/grok-4.3`, strategist
+  `anthropic/claude-opus-4-8`. Conviction floor: MODERATE. Harness:
+  `scripts/probe_rescore_thesis_only.py` (committed with this append; prints the previewed prompts and
+  all per-name verdicts on every run).
+
+**Result: 5 of 16 reached ≥ MODERATE — NVDA, VRT, CCJ, FCX, KTOS (all MODERATE, structural). GEV = LOW
+/ fad ("already-consensus, heavily-narrated, crowded momentum") — run 1's sole survivor did NOT survive
+the run of record. → the frozen §5 band: ≥2 = SELECTIVITY FLAG.**
+
+### 10.2 The previewed config (and the named capture gap)
+
+The run previewed the exact §4 all-roles edit against `council/agents.py`: (a) `_COMMON` dropped the
+cheapness criterion "ONLY when implied vol has not yet priced the move" (keeping "a deterministic
+IV/cheap-convexity gate DISPOSES and can veto you"); (b) `ADVERSARY_SYSTEM` dropped the priced /
+move-is-behind-it objections, keeping thesis grounds (already-consensus / fad / not-a-real-inflection).
+Proposer/strategist role keys unchanged (already thesis-shaped). **Capture gap, named:** the edited
+prompt strings were applied ephemerally and reverted, and run 2's stdout (which printed them plus all 16
+per-name verdicts) was not tee'd to a file — so the verbatim previewed prompt text and the 11
+non-survivors' individual verdicts are not retained; the count, band, survivors, GEV verdict, cost,
+time, population, and models above are the operator-witnessed record. The committed harness reprints
+prompts + all verdicts on every run, so the next gate run is fully captured by construction.
+
+### 10.3 Reading per the frozen rule
+
+≥2 = the thesis-only council is LESS selective than §2 predicted (~0-1): the survivors include names the
+full §4 mandate (structural AND under-narrated AND at-a-genuine-inflection) should reject — NVDA
+(already-consensus AI), VRT (momentum +1.95 / rel +1.71, extended), CCJ (extended). Diagnosis: the
+previewed prompts enforce "structural" but do NOT enforce "under-narrated" / "at-a-genuine-inflection"
+as hard criteria. **Per the pre-committed rule: investigate + re-tighten the mandate; do NOT bank; do
+NOT proceed** to §6/OPRA or code until re-tightened and re-scored. GEV's run-1→run-2 flip
+(MODERATE→LOW) is population difference + run-to-run LLM variance on a borderline name — itself the
+demonstration that an uncommitted 1-of-11 could not carry a freeze (cite-before-record, vindicated).
+
+### 10.4 Pre-committed next gate (recorded BEFORE that re-score runs)
+
+The re-tightening session edits the thesis-only mandate so under-narrated + at-a-genuine-inflection are
+HARD veto criteria (tighten-only; §7 still forbids loosening floor/gate/criteria/baskets), then re-runs
+this same harness **on this same 16-name population** (pinned here for before/after comparability,
+regardless of any later universe curation), read against the same §5 bands: **0 = scarcity / 1 =
+confirms → unblocks §6; ≥2 again = investigate again — prompts are NOT iterated until the number fits.**
+One re-tightening pass per re-score; every run is appended here.
+
+### 10.5 Stale-premise retirement + companion findings
+
+- §1's "the frozen edge has never once run (`convexity_eval` = 0)" is now historical: at L1 **#111**
+  (2026-06-09 19:45 UTC) the live (old-config) council included RKLB MODERATE → the IV gate RAN and
+  PASSED (iv/rv 1.066, skew 0.08) → the **cluster cap vetoed** the entry (space_defense $2,000 < one
+  RKLB contract $2,866). The same run live-corroborated §1's suppression mechanism: GEV was rated LOW
+  on the cheapness proxy ("momentum already reflected, negative rv_slope").
+- Companion read-only cap check (`scripts/probe_gev_cap_check.py`, 2026-06-09): one GEV 25%-OTM
+  180–365d call ≈ **$8,125/contract** vs the $1,000 per-name cap (and 4× the $2,000 cluster cap) →
+  `convexity_position_size` = 0, un-enterable. Every gate-cheap name whose single contract fits $1,000
+  is a thesis-reject (FCX $772 / NEE $162 / KTOS $990). **Near-term yield of the re-architecture on the
+  current universe = ZERO, independent of this selectivity flag.** The cap-vs-contract-granularity
+  mismatch and the universe/funnel re-target (§8) are known-opens, each its own future pre-registered
+  session; per §7 the caps are NOT raised to force entries.
+- §9's CEG pipeline gap is RESOLVED-BENIGN: CEG is a random CONTROL (deliberately never proposed) and
+  its markers (momentum +0.14 < the 0.15 floor; rv_slope 0.157 < 0.25) would not have surfaced it —
+  another quiet-cheap name the motion floor excludes (reinforces §8), not a pipeline bug.
+- Layer distinction, kept explicit: council-≥MODERATE (this re-score) ≠ gate-cheap (the chain probes,
+  `scripts/probe_opra_dualread.py`). The five survivors are a council-selectivity reading, not a
+  tradeability reading.
+
+### 10.6 Expected-vs-actual identity + §6 status
+
+§2/§6 expected the single flip to be **NEE**; run 1's actual was **GEV** (the §6 boundary re-target
+NEE→GEV, after PR1's IEX→SIP RV change took NEE off the boundary, 1.17 IEX-RV → ~1.09 SIP-RV); run 2
+has **no GEV** and five different survivors. GEV's OPRA reads were gathered en route (gate-cheap on
+both feeds: 1.155 IND / 1.135 OPRA mid-day; 1.138/1.140 at the close) but are now moot for §6. **The §6
+boundary-name discharge is OPEN** — to be re-discharged by name against whatever survives the
+re-tightened mandate. The drafted OPRA-sequencing pre-reg ("ACCELERATE") is **not frozen**; any future
+freeze must cite THIS committed record, not run 1.
+
+### 10.7 The RE-TIGHTENED preview config — frozen BEFORE the next re-score (appended 2026-06-10)
+
+*The §10.4 remedy, committed before the number is seen (cite-before-record). The config below is
+the EXACT all-roles preview the next §5-compliant re-score runs — and the exact config a future
+PR-B ships (post-OPRA, §6 sequencing unchanged). "Hard" means schema + deterministic enforcement,
+not vocabulary (the parse-fix discipline applied to criteria). The prompts contain NO ticker
+names, NO references to the pinned 16, NO numeric thresholds (anti-Goodhart on the gate
+population — the markers carry the numbers; the model judges qualitatively). The legitimacy
+distinction this rests on: the same momentum marker feeds two different judgments — "is vol cheap
+/ is the move priced" (the GATE's question, forbidden) vs "did the inflection already happen" (a
+THESIS-TIMING question, the council's job). Re-tightening makes the council better at ITS
+question; it does not reopen the gate's.*
+
+**The three frozen prompt strings (sha256/16 pinned; the run must hash-match):**
+
+- **`_COMMON`** (all roles) — `d96f18ebc865a384`:
+  "You are part of a disciplined options council that trades long-dated, far-OTM, defined-risk
+  convexity on secular themes. You PROPOSE on THESIS ONLY; a deterministic IV/cheap-convexity
+  gate DISPOSES on cheapness and can veto you — never judge whether vol or optionality is cheap
+  or priced. A theme qualifies ONLY if ALL THREE hold: (1) STRUCTURAL — a real, durable driver,
+  not a fad; (2) UNDER-NARRATED — not already the market's consensus story; a name at the center
+  of a dominant, widely-covered narrative does not qualify however correct the thesis; (3) AT A
+  GENUINE INFLECTION — the change is happening NOW: if the large move has already happened, the
+  inflection is BEHIND the name and it does not qualify unless the evidence shows a NEW, distinct
+  inflection. Reason only from the EVIDENCE provided. If the evidence lacks numeric content,
+  return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH,
+  EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else."
+- **`ADVERSARY_SYSTEM`** = `_COMMON` + — `dc3d21ca8f6444cb`:
+  " ROLE: Devil's Advocate. You argue AGAINST the proposed direction — make the strongest honest
+  case ON THESIS GROUNDS that the proposed trade is wrong: already consensus (the story is widely
+  told), a fad (not structural), or not a genuine inflection (the move already happened / no
+  fresh change). Never argue from option pricing or volatility — cheapness is the deterministic
+  gate's job. JSON keys: counter_case (string, cite evidence), weakest_point (the single biggest
+  hole in the proposal), is_fad (bool), already_consensus (bool), inflection_passed (bool — true
+  if the move is behind the name), confidence (your confidence in the COUNTER case), cited
+  (array)."
+- **`STRATEGIST_SYSTEM`** = `_COMMON` + — `ecbf363c9802289d`:
+  " ROLE: Master Strategist. Weigh the FOR case against the AGAINST case and decide whether to
+  propose this trade to the deterministic gates. Be a conviction dampener at extremes. The three
+  criteria are HARD: you may set include=true ONLY if structural_vs_fad='structural' AND
+  under_narrated=true AND at_inflection=true — each asserted on the evidence, not by default.
+  JSON keys: include (bool), theme, symbol, direction ('bullish'|'bearish'), conviction,
+  structural_vs_fad, under_narrated (bool), at_inflection (bool), weakest_point, summary (one or
+  two sentences; this becomes the trade thesis)."
+- `PROPOSER_SYSTEM`'s role text is unchanged (already thesis-shaped); it inherits the new
+  `_COMMON`.
+
+**The deterministic enforcement (the actual hard veto):** an `include=true` that does not carry
+`structural_vs_fad=='structural' AND under_narrated is True AND at_inflection is True` is coerced
+to `include=false` (a criteria-veto, recorded — distinct from `parse_error`). **Survivor count =
+include ∧ conviction ≥ MODERATE ∧ tri-criteria-pass.** Preview/production equivalence: the
+preview applies this rule in the harness post-pass; PR-B ships the identical rule in
+`parse_strategist`/`select_for_trade` (+ the FakeRouter/key-set lock-step test) — same rule, same
+point in effect.
+
+**Pre-committed predictions (the NEE→GEV identity lesson — recorded before the run):** expected
+**0–1 of 16** survivors; the five prior survivors fail on named legs — NVDA (under_narrated=false:
+the dominant AI narrative), VRT + CCJ (at_inflection=false: extended), KTOS (under_narrated=false:
+consensus defense); **FCX is the single plausible survivor** (unloved copper, structural, not
+extended); GEV stays out. Expected-vs-actual recorded either way.
+
+**Run protocol (one pass, §10.4):** the SAME pinned 16 (`scripts/probe_rescore_thesis_only.py
+UNIVERSE`), live router, ephemeral/no-live-record, output tee'd and committed under `records/`,
+~$0.25. Band actions: **0 = scarcity / 1 = confirms → the OPRA-sequencing pre-reg unblocks (its
+own next session); ≥2 = STOP + investigate — no second prompt pass.** The result is §10.8,
+whatever it is.
+
+### 10.8 The re-tightened re-score RESULT — 0/16 = SCARCITY (run 2026-06-10 06:48 UTC; appended same day)
+
+**Result: 0 of 16 survive the §10.7 enforced rule (include ∧ ≥MODERATE ∧ tri-criteria) → the
+frozen band: 0 = SCARCITY → proceed on the principle; expect no near-term council-driven trade
+from the pinned 16; the OPRA-sequencing pre-reg UNBLOCKS (its own session).** Raw
+include∧≥MODERATE before enforcement: 0; criteria-vetoes: 0. One pass, per §10.4 — no prompt was
+re-touched after seeing the number.
+
+**Run record:** the SAME pinned 16; live router (gemini-3.5-flash / grok-4.3 / claude-opus-4-8);
+ephemeral, no live-record touch; cost **$0.0707 / 20 calls** (the tri-criteria now gate at the
+proposer, so most names never reach the adversary/strategist — deliberation got cheaper);
+**sha256/16 MATCH all three §10.7 pins** (d96f18ebc865a384 / dc3d21ca8f6444cb / ecbf363c9802289d,
+printed in the tee); full output committed at `records/2026-06-10_retightened_rescore.txt`.
+
+**The shape, scrutinized before banking (the #37 discipline — a 100%-NEUTRAL cycle must prove it
+isn't a parse bug in costume):** 14 of 16 were PROPOSER abstentions (genuine NEUTRAL, dropped
+before adversary/strategist spend); 2 full round-trips — **NVDA: LOW, structural=true,
+under_narrated=false, at_inflection=false → tri-fail (the designed verdict, exactly the §10.3
+failure case fixed)**; VRT: strategist NEUTRAL citing the extended momentum (+1.95). Parse health
+was discharged with a one-call probe on a NON-16 name (ATKR — never re-sampling the pinned
+population): `parse_error=False`, `finish_reason=STOP`, 784-char well-formed JSON, and a REASONED
+abstention.
+
+**The load-bearing finding inside the 0:** the dominant abstention reason (per the probe's
+verbatim text and the run's pattern) is that **marker-only grounding cannot support the hardened
+tri-criteria assertions** — the model declines to assert under-narrated / at-a-genuine-inflection
+from price/vol markers alone, and the mandate now (correctly) demands evidence rather than vibes.
+This CONFIRMS §9's evidence-grounding leg as the binding constraint on council yield (the
+"yield is partly GROUNDING-limited" observation in the §10 record, now demonstrated under the
+full mandate): the next-frontier work is grounding (fundamental/numeric corpus for sentinels) +
+the funnel — NOT further mandate tuning, and NOT floor/gate loosening (§7).
+
+**Expected-vs-actual (the §10.7 predictions):** predicted 0–1 → actual **0** ✓ (in-band). NVDA
+failed exactly as predicted (under-narrated=false). VRT failed at-inflection via a reasoned
+strategist NEUTRAL ✓-in-substance. CCJ/KTOS/GEV/FCX never reached deliberation (proposer
+abstained) — the predicted FCX single-survivor did NOT materialize: the marker pack shows FCX
+momentum +0.51 (the "not extended" prior was stale) and the proposer declined to assert the
+criteria from markers alone. Identity lesson logged again: band predictions hold; per-name
+identity predictions remain unreliable.
+
+**Consequences:** (1) the §4 re-architecture's council side is now VALIDATED at the mandate level
+(the previewed config is selective to the frozen expectation); (2) the OPRA-sequencing pre-reg
+(the converged "accelerate" plan) is UNBLOCKED and must cite THIS §10.7+§10.8 record; (3) PR-B
+(production prompt surgery) ships only per §6 sequencing (OPRA live first), carrying the §10.7
+config verbatim + the enforcement rule in `parse_strategist`/`select_for_trade` + the
+FakeRouter/key-set lock-step; (4) the theme-generation stub's ordering condition is MET on the
+mandate side (0/1 achieved) — its remaining gates are its own pre-reg + the generation-layer
+design constraints.
+
+### 10.9 PR-B classification note — missing-vs-null-vs-false (dated 2026-06-10, rides the PR-B build; non-loosening)
+
+The §10.7 enforcement text ("an `include=true` that does not carry [the tri-pass] is coerced…")
+and the §10.8 preview harness (`.get()` → `None` → tri-fail → veto) leave the classification of
+an ABSENT tri key on an include row ambiguous between criteria-veto and parse-failure. §10.8's
+0/16 (zero raw includes) never exercised the edge. PR-B resolves it, two-round red-teamed:
+
+- **Key ABSENT on an `include=true ∧ non-NEUTRAL` row → `parse_error`** (the #37 discipline:
+  truncation or a provider that stops emitting the §10.7 booleans is non-compliance and must
+  grade as DEGRADED — the inert-apparatus class — at `council_l1_health`, never read as 100%
+  "deliberated" vetoes; the automated parse-fail page remains proposer-scoped, pre-existing).
+  This is deliberately STRICTER than the preview's `.get()` treatment of absence — a named,
+  dated, fail-louder divergence; it can only reduce inclusion.
+- **Key present with `null`/`false`/anything-not-`True` → criteria-veto** (an explicit
+  non-assertion is a deliberated non-qualifying include; truncation never emits selective
+  nulls — matches the preview's semantics for null). The veto coerces `include=false`, preserves
+  conviction (Brier substrate), and is recorded distinct from `parse_error`
+  (`criteria_veto: true` in the strategist raw + rationale).
+- **`structural_vs_fad` is NOT parse-required on the strategist** — it is shape-required at the
+  proposer, and the debate-layer strategist-or-proposer fallback is sanctioned, exactly as the
+  preview computed tri (the preview's fallback-survivor edge case remains a survivor; pinned as
+  a test).
+- **Placement:** `parse_strategist` = shape/presence guard; `debate.run_candidate` = the single
+  coercion point (both raws in scope → the fallback applies); `select_for_trade` = the
+  preview-verbatim survivor expression (include ∧ ≥floor ∧ tri-pass; `None` fails closed;
+  exact string equality + `is True` identity, no normalization). The survivor-count definition
+  is unchanged.

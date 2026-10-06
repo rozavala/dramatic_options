@@ -61,7 +61,9 @@ def _conviction_responder(by_symbol: dict):
                                "already_consensus": False, "confidence": "MODERATE", "cited": []})
         return json.dumps({"include": True, "theme": c["theme"], "symbol": c["symbol"],
                            "direction": c["direction"], "conviction": conv,
-                           "structural_vs_fad": "structural", "weakest_point": "w", "summary": "s"})
+                           "structural_vs_fad": "structural",
+                           "under_narrated": True, "at_inflection": True,
+                           "weakest_point": "w", "summary": "s"})
 
     return responder
 
@@ -183,6 +185,27 @@ def test_end_to_end_persists_proposals_and_threads_ids(convexity_db, monkeypatch
     # statuses: FCX traded (linked), NVDA reached the gates but was vetoed (still 'proposed')
     statuses = {r["symbol"]: r["status"] for r in conn.execute("SELECT symbol, status FROM council_proposals")}
     assert statuses["FCX"] == "traded" and statuses["NVDA"] == "proposed"
+
+
+def test_markers_asof_derived_from_sentinel_row_not_supplied(convexity_db, monkeypatch):
+    """Wiring-path guard (migration 0016 / finding #1): council_to_themes DERIVES markers_asof from the
+    sentinel row's last_seen_at (= the markers' as-of) — a sentinel proposal stamps it, a hand-seed stamps
+    NULL. The trap this guards (the name=basket harness-masking lesson): a test that SUPPLIES markers_asof
+    as a literal can't catch the wiring failing to DERIVE it via sentinel_by_id."""
+    _no_kill(monkeypatch)
+    conn = convexity_db
+    # a real sentinel row — last_seen_at = the markers' as-of (2026-06-03), the value to be stamped
+    sid = state.record_sentinel_candidate(conn, run_id=None, as_of="2026-06-03T02:03:00+00:00",
+                                          symbol="VRT", direction="bullish", basket="ai_compute",
+                                          inflection_score=1.0, markers={"momentum": 2.0})
+    candidates = [Theme("ai_compute", "VRT", "bullish", "t", source="sentinel", sentinel_id=sid),
+                  Theme("copper", "FCX", "bullish", "t")]  # hand-seed: no sentinel → markers_asof NULL
+    council_to_themes(conn, candidates=candidates, router=FakeRouter(), config=CONFIG,
+                      clock=CLOCK, demo=True, run_id=None)
+    rows = {r["symbol"]: r["markers_asof"]
+            for r in conn.execute("SELECT symbol, markers_asof FROM council_proposals")}
+    assert rows["VRT"] == "2026-06-03T02:03:00+00:00"   # DERIVED from the sentinel row, not supplied
+    assert rows["FCX"] is None                           # hand-seed → no markers → NULL
 
 
 # ── 7-8. Forward resolution fires at close (and stays unresolved without spot) ─

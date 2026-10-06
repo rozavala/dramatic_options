@@ -15,12 +15,16 @@ use fakes/Synthetic.
 
 from __future__ import annotations
 
+import logging
 import math
 from datetime import date, datetime, timedelta
 from typing import Protocol
 
 from convexity_gate import Contract
 from options_tradability import parse_osi
+
+log = logging.getLogger(__name__)
+DEFAULT_MARK_FAILURE_BUDGET = 3
 
 SNAPSHOT_SOURCE = "option_chain_snapshot"
 
@@ -79,14 +83,17 @@ class ChainProvider(Protocol):
 class AlpacaChainProvider:
     """Live provider over the read-only ``AlpacaClient`` wrapper."""
 
-    def __init__(self, client) -> None:  # noqa: ANN001 — AlpacaClient, duck-typed
+    def __init__(self, client, *, equity_feed=None, option_feed=None) -> None:  # noqa: ANN001
         self._client = client
+        self._equity_feed = equity_feed  # alpaca DataFeed (RV/underlying bars); None → client default (IEX)
+        self._option_feed = option_feed  # alpaca OptionsFeed (the gate's chain); None → client default (INDICATIVE)
 
     def closes(self, symbol: str, *, window: int) -> list[float]:
         from datetime import datetime
 
         start = datetime.now().astimezone() - timedelta(days=int(window * 1.6) + 10)
-        bars = self._client.get_stock_bars(symbol, start=start)
+        kw = {} if self._equity_feed is None else {"feed": self._equity_feed}
+        bars = self._client.get_stock_bars(symbol, start=start, **kw)
         data = getattr(bars, "data", {}) or {}
         rows = data.get(symbol, [])
         return [float(b.close) for b in rows if getattr(b, "close", None)]
@@ -96,7 +103,8 @@ class AlpacaChainProvider:
         return c[-1] if c else None
 
     def chain(self, symbol: str) -> list[Contract]:
-        raw = self._client.get_option_chain(symbol)
+        kw = {} if self._option_feed is None else {"feed": self._option_feed}
+        raw = self._client.get_option_chain(symbol, **kw)
         items = raw.items() if hasattr(raw, "items") else []
         out: list[Contract] = []
         for osym, snap in items:
@@ -125,6 +133,8 @@ class AlpacaChainProvider:
 class QuoteProvider(Protocol):
     def option_mid(self, contract_symbol: str) -> float | None: ...
 
+    def option_bid(self, contract_symbol: str) -> float | None: ...
+
 
 class AlpacaQuoteProvider:
     """Marks an option to its current mid via the read-only Alpaca chain snapshot.
@@ -134,16 +144,42 @@ class AlpacaQuoteProvider:
     no-historical-options wall (PREREG §4). Caches one chain pull per underlying per call-set.
     """
 
-    def __init__(self, client) -> None:  # noqa: ANN001 — AlpacaClient, duck-typed
+    def __init__(self, client, *, option_feed=None,  # noqa: ANN001 — AlpacaClient, duck-typed
+                 failure_budget: int | None = DEFAULT_MARK_FAILURE_BUDGET) -> None:
         self._client = client
+        self._option_feed = option_feed  # alpaca OptionsFeed (L2 marks); None → client default (INDICATIVE)
         self._cache: dict[str, dict[str, tuple[float | None, float | None]]] = {}
+        # Mark budget (the 2026-09-11 Alpaca-outage lesson): during a provider outage EVERY chain
+        # pull times out (~21s each), and 39 shadow marks × 21s blew the L2 unit's TimeoutStartSec
+        # → a unit kill + a page for what was only stale marks. After ``failure_budget`` CONSECUTIVE
+        # chain-pull failures the provider trips: the remaining marks this run return None (counted
+        # ``unmarked`` by every monitor, a warning) instead of each paying the timeout. Positions stay
+        # unmarked, never mis-marked; exits never fire on a None. A success resets the streak.
+        # ``None`` disables the breaker. One provider is built per run, so the trip is per-run.
+        self._failure_budget = failure_budget
+        self._consecutive_failures = 0
+        self.tripped = False
+        self.skipped = 0
 
     def _underlying_quotes(self, underlying: str) -> dict[str, tuple[float | None, float | None]]:
-        if underlying not in self._cache:
-            quotes = self._client.option_quote_tuples(underlying)
-            self._cache[underlying] = {
-                q["symbol"]: (q.get("bid"), q.get("ask")) for q in quotes
-            }
+        if underlying in self._cache:
+            return self._cache[underlying]
+        if self.tripped:
+            self.skipped += 1
+            return {}
+        kw = {} if self._option_feed is None else {"feed": self._option_feed}
+        try:
+            quotes = self._client.option_quote_tuples(underlying, **kw)
+        except Exception as e:
+            self._consecutive_failures += 1
+            if self._failure_budget is not None and self._consecutive_failures >= self._failure_budget:
+                self.tripped = True
+                log.warning("mark budget exhausted: %d consecutive chain-pull failures (last %s: %s) — "
+                            "remaining marks this run are skipped (left unmarked, never mis-marked)",
+                            self._consecutive_failures, underlying, e)
+            raise
+        self._consecutive_failures = 0
+        self._cache[underlying] = {q["symbol"]: (q.get("bid"), q.get("ask")) for q in quotes}
         return self._cache[underlying]
 
     def option_mid(self, contract_symbol: str) -> float | None:
@@ -159,14 +195,35 @@ class AlpacaQuoteProvider:
             return None
         return 0.5 * (bid + ask)
 
+    def option_bid(self, contract_symbol: str) -> float | None:
+        """Current bid — the marketable price a SELL_TO_CLOSE crosses to (T2.5 honest exit)."""
+        info = parse_osi(contract_symbol)
+        if info is None:
+            return None
+        ba = self._underlying_quotes(info["root"]).get(contract_symbol)
+        if ba is None:
+            return None
+        bid, _ask = ba
+        return bid if (bid is not None and bid >= 0) else None
+
 
 class StaticQuoteProvider:
-    """Offline quote provider: a fixed ``{contract_symbol: mid}`` map (tests / replay)."""
+    """Offline quote provider: a fixed ``{contract_symbol: mid}`` map (tests / replay).
 
-    def __init__(self, marks: dict[str, float]) -> None:
+    ``bids`` is an optional ``{contract_symbol: bid}`` map for the SELL_TO_CLOSE path; when
+    omitted, ``option_bid`` falls back to the mid (fine for tests that don't exercise closes).
+    """
+
+    def __init__(self, marks: dict[str, float], bids: dict[str, float] | None = None) -> None:
         self._marks = marks
+        self._bids = bids
 
     def option_mid(self, contract_symbol: str) -> float | None:
+        return self._marks.get(contract_symbol)
+
+    def option_bid(self, contract_symbol: str) -> float | None:
+        if self._bids is not None:
+            return self._bids.get(contract_symbol)
         return self._marks.get(contract_symbol)
 
 
@@ -227,6 +284,15 @@ class SyntheticChainProvider:
         for c in self.chain(info["root"]):
             if c.symbol == contract_symbol and c.bid is not None and c.ask is not None:
                 return 0.5 * (c.bid + c.ask)
+        return None
+
+    def option_bid(self, contract_symbol: str) -> float | None:
+        info = parse_osi(contract_symbol)
+        if info is None:
+            return None
+        for c in self.chain(info["root"]):
+            if c.symbol == contract_symbol and c.bid is not None:
+                return c.bid
         return None
 
 

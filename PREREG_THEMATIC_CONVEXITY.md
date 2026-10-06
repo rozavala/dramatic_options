@@ -19,6 +19,22 @@
 
 ## 1. Strategy (frozen definition)
 
+> **Amendment 2026-06-01 — thesis framing clarified (no rule change to this sleeve).** The
+> operator clarified the intent: buy the **mispriced far extreme** of an option (long-dated, far
+> strike) whose price is wrong **if an anticipated trend changes**, and the long tenor is
+> **runway** for that thesis, not a 6–12-month holding *commitment*. The natural reading is "exit
+> when the mispricing corrects." For the **far-OTM sleeve this resolves to: keep holding the
+> tail.** A calibration head-to-head (`PREREG_CONVEXITY_CALIBRATION` §4 amendment) tested a
+> delta-trigger "exit-when-the-move-played-out" rule against hold-the-tail and graded it
+> **EV-inferior on OTM**: it caps the convex tail you paid for (p99 ~14× → ~1.8× at δ=0.5) and
+> raises the break-even hit-rate from **19% → ~50–68%** — and the GBM-no-jumps bias *favored* the
+> early exit, yet it still lost. So the OTM book's edge **is** the fat tail; §6a exits below are
+> **unchanged** (this is the hold-the-tail venture sleeve). The **reprice-capture** behavior the
+> operator wants is a genuinely *different edge* (high-delta, no tail to forfeit) and is **deferred
+> to a separately-pre-registered ITM sleeve** — its own financing/extrinsic gate (a skew test would
+> mis-fire on ITM by put-call parity), its own reprice + invalidation exits — to be built once
+> forward evidence warrants it (not on the GBM harness alone). See the v2 `IMPLEMENTATION_PLAN`.
+
 1. Identify a secular theme at **inflection** — a real tailwind the market hasn't narrated
    yet, or a real headwind/rollover before consensus turns.
 2. Express it with **long-dated (6–12 month), far-OTM, defined-risk** options (calls for
@@ -92,6 +108,39 @@ separately-pre-registered change.)
 Frozen values (T0): `τ_ivrv = 1.2`, `τ_skew = 10.0` vol pts, `rv_window_days = 252`,
 tenor window `[180, 365]` days, `target_moneyness = 0.25` (≈25% OTM).
 
+<!-- #276 option-1 conformance amendment -->
+**Conformance amendment (2026-09-29, approved by Rodrigo via Marcus; PR #277).** The structure selector now
+reads `config.json:convexity_gate.otm_side_guard = true`: it admits only strictly out-of-the-money contracts
+for the thesis direction and fails closed with no structure when no eligible OTM contract exists. This is the
+minimal option-1 side guard, not the separately-scoped 15–35% admission band (option 2). Enabling the switch
+changes `frame_version` and therefore starts a new recorded segment. The six pre-existing wrong-side null-book
+positions are retained and tagged outside-frame; tail reports show both with and without those positions.
+Confirmed directly by the operator in session on 2026-09-30 ("Go ahead"). Follow-up PR: tests for the tagging, and the dashboard performance panel lists the tagged positions (`outside_frame`).
+
+
+**Data-provenance amendment (2026-06-08) — `equity_bars` IEX→SIP (the data-feed upgrade, PR1).** The
+gate's `RV_h` is computed from daily closes; PR1 moves those closes from the free **IEX** feed (~2–3% of
+consolidated volume; its last print ≠ the official close) to the paid **SIP** consolidated feed (Algo
+Trader Plus, confirmed live on the paper key). This is a **gate-INPUT change**, not a non-event: `IV_atm/RV`
+shifts, so a candidate near `τ_ivrv = 1.2` can flip — the SIP close is the *more-correct* input, so such a
+flip is the **expected effect, not a regression**. The same `equity_bars` switch also feeds the **discovery
+prescreen markers** (`data/market.py`), so the surfaced candidate funnel can shift too (the volume/ADV
+markers were most undercounted on IEX). The **option** feeds are unchanged in PR1: `option_gate` stays
+**INDICATIVE** (L1 entry authorization) and `option_monitor` stays free — `option_gate` flips
+INDICATIVE→**OPRA** in a later, separately-noted amendment (PR3) once the PR2 dual-read confirms
+across-session agreement. Stamped per-run via `runs.data_feed` (migration 0013). The frozen thresholds
+(`τ_ivrv`, `τ_skew`, …) are **UNCHANGED** — this changes the *data source*, not the gate.
+
+> **SUPERSESSION NOTE (2026-06-10, dated — the original sentence above is left visible per the
+> never-rewrite-frozen-text rule):** the "once the PR2 dual-read confirms across-session agreement"
+> precondition is RELAXED by `PREREG_DATA_FEED_OPRA_SEQUENCING.md` (frozen 2026-06-10): the
+> `option_gate` flips INDICATIVE→OPRA NOW, with the dual-read running CONCURRENT
+> (measure-while-live, pinned tripwires + a fail-closed revert path) instead of gating. This is a
+> named relaxation of a documented evidence standard — the beneficiary is the re-architecture
+> timeline (the HARK gradient, named) — defended on the principle that the frozen cheapness
+> arbiter must read the REAL chain, which survives the legitimacy test at zero extra trades
+> (yield is zero-and-validated: CGS §10.8). The frozen thresholds remain UNCHANGED.
+
 ## 5. Risk frame (frozen) — FIRST-CLASS; the discipline
 
 Operator decisions, set 2026-05-31, in `config.json:convexity_book`:
@@ -109,6 +158,51 @@ Operator decisions, set 2026-05-31, in `config.json:convexity_book`:
   zero — append-only. This is the only honest basis for ever judging edge vs. luck, and it
   counters the bias toward remembering the winners.
 
+**Amendment 2026-06-03 — per-theme/cluster exposure cap (operator-authorized, §C-instance-cited).**
+The per-name 1% cap treats every underlying as independent, so a basket of *correlated* names reads as
+"diversified" when it is one bet. The first live discovery scan (2026-06-03) made this concrete: 7 of 8
+surfaced sentinels were a single AI-capex-into-power bet (VRT/PWR/GEV/ETN datacenter power + CCJ uranium
++ RKLB/KTOS space-defense) spanning **two** scan baskets — at 1%/name they would have loaded **7% of the
+10% book** into one trade the log would record as "7 diversified positions." This adds a **cluster-level
+entry-premium cap**:
+
+- **Cluster cap.** Aggregate **entry** premium-at-risk across a *correlation cluster* ≤
+  `cluster_fraction` × account equity (`config.json:convexity_book.cluster_fraction = 0.02` = **2 full
+  names** = 20% of book). It composes with the existing caps:
+  `alloc = min(per_name_cap, book_remaining, cluster_remaining)`. Graduate to 0.03 only once **≥4
+  clusters** are curated (two clusters at 0.03 = 60% of book in two correlated bets) — itself a dated
+  re-amendment.
+- **Cluster = an operator-curated, DETERMINISTIC `symbol → cluster` partition** (a name in **≤1**
+  cluster), documented **by driver** so future names route correctly. It is **never** keyed on a
+  theme/basket *label* (a sentinel's label can be set by the LLM framer; letting that move a risk cap
+  would breach the §2 hard seam). Shipped: `ai_capex_power` (AI-datacenter power demand) =
+  VRT/PWR/GEV/ETN/CCJ/CEG/NEE (CEG/NEE folded in, CCJ kept, **FCX dropped** — copper variance is
+  diluted; a power/uranium ETF like URA would co-cluster); `space_defense` (defense/space budgets) =
+  RKLB/KTOS/LMT/NOC/LHX/RTX (**extended 2026-06-04** — the trailing-return correlation diagnostic
+  `cluster_diagnostic.py` surfaced the defense primes LMT/NOC/LHX/RTX as a 0.50–0.68 SHARED-driver cluster
+  the scan basket already held but the cluster didn't; RKLB the loosest member = future-split-on-evidence,
+  the FCX pattern). The diagnostic is the ongoing **report-not-gate curation backstop** (it never edits the
+  map — hard seam). Overlap / `cluster_fraction < per_name_fraction` / a malformed map **fail closed** (raise
+  at load); an **absent** map is inert (every name a singleton) — an optional additive control must not
+  fail-closed-to-zero-trades on absence.
+- **Direction-agnostic, no netting.** The cap sums premium-at-risk regardless of direction (defined
+  risk: you can lose all of it); it does **not** net long/short — a netting model would need clean beta
+  the free feed can't give. Clusters are curated to be directionally coherent; a mixed-direction cluster
+  logs a non-fatal warning.
+- **Committed basis (incl. pending).** The cluster cap counts `status IN (open, closing, pending)` —
+  unlike the book cap's open/closing basis — so a same-cycle just-submitted (`DRY_RUN=false` resting
+  limit, reconciled only in the monitor pass) mate is counted and a tight cluster cannot over-admit on
+  its next mate the same cycle. The ~10-slot book absorbs that window; a 2-slot cluster cannot.
+- **Gates new entries, never force-closes** a pre-cap over-budget cluster (mirrors §6). Applies
+  **identically to the brain-off shadow book** (a deterministic cap; only the council selection differs).
+  **Breach = an entry admitted in violation of the THEN-LIVE frame**, not "book currently within caps":
+  each run stamps its frame version (`runs.frame_version`, migration 0009) and each cluster decision
+  stamps the per-decision occupancy/cap/equity into the survivorship log, so the T4 breach audit
+  recomputes within-cap-ness at the admission rather than trusting the enforcement code.
+
+This only **tightens** the frame (the lowest-risk §5 edit) and makes no edge claim — pure concentration
+risk-control. Converged over the operator's R2/R3/R4 plan red-team. *(Operator-authorized 2026-06-03.)*
+
 ## 6. Kill rule (frozen)
 
 Halt **new entries** for human review if **either**:
@@ -118,6 +212,41 @@ Halt **new entries** for human review if **either**:
 Plus the always-on `KILL` file / env switch, checked every cycle (fail-closed). Open
 positions are not force-closed by the kill rule; it stops *new* risk pending review.
 Thresholds in `config.json:kill_rule`.
+
+**Posture-review trigger (dated amendment 2026-07-02, operator-authorized; pinned BLIND — 0
+positions resolved anywhere at pin time).** The two clauses above both presuppose premium at
+risk ("draws down", "bleeds") — on a book with **zero entries ever**, neither clock starts, so
+the waiting posture itself had no pre-registered falsifier (found 2026-07-01,
+`records/2026-07-01_shadow_null_arm_saturation_DIAGNOSIS.md` §7). Amendment:
+
+- **The entries-side clock anchors at forward-loop go-live (2026-06-02)**, not at first entry.
+- **Interim checkpoint — 2026-11-02** (the opening of the first structural resolution window
+  for the June-2026 null vintage): a scheduled posture LOOK (dashboard/record note, no
+  automatic action) — placed so a censored-but-healthy-looking state cannot accumulate unseen
+  for the full window (the 2026-06/07 lesson).
+- **Review trigger — D = 2027-03-02** (9 months from go-live, symmetric with the frozen
+  9-month bleed constant): if the real book has had **zero entries ever** by D, a mandatory
+  operator **posture review** triggers — hold-with-re-dated-trigger, open the
+  criteria-reconsideration branch (IMPLEMENTATION_PLAN §T4 fork 3), or stand down.
+- **Review-not-kill:** the trigger is a decision point, NOT an automatic halt and NOT evidence
+  the edge is absent (§7 discipline unchanged). **Reachability pinned honestly:** any
+  "0 resolved null positions" reading is vacuously true before ~Nov–Dec 2026; before then the
+  zero-entries leg alone carries the trigger.
+
+> **Ownership addendum (2026-07-02, after the merge — provenance made explicit).** The merge of
+> the amendment above was executed on the operator's transmitted directive, but the line-item
+> values were not each explicitly operator-pinned at merge time: **D = 2027-03-02** was proposed
+> by CC (2026-07-01) and endorsed by the advisor; the **interim checkpoint 2026-11-02** was
+> proposed by the advisor with the choice explicitly left to the operator ("your pin either
+> way") and was included by CC's judgment, flagged in-session but not operator-worded.
+> Merge-as-ratification is a named failure mode in this project, distinct from explicit
+> operator ownership. **RATIFIED 2026-07-02 by the operator's explicit instruction** — the
+> operator was presented all three values with keep-or-strike offered on the checkpoint, and
+> answered "go ahead with whatever you feel is correct, so let's merge": explicit,
+> informed authorization with the keep/strike choice DELEGATED to CC, which retained the
+> **2026-11-02 interim checkpoint** per its standing recommendation. Ownership of
+> **D = 2027-03-02**, the checkpoint, and the go-live clock anchor is the operator's,
+> exercised in that delegated form on that date.
 
 ## 6a. Exit rules (frozen) — the L2 reflex, deterministic, no LLM
 
@@ -163,9 +292,16 @@ disproof until the kill rule actually trips.
 
 T0 freezes §§1–7. **T1** implements the minimal paper loop against this contract
 (hand-seeded themes → both gates → defined-risk structure → flat-by-slots sizing → logged
-paper position + survivorship log). The council (T2) and sentinels (T3) are **not** built
-yet; this contract governs them when they are. Any change to a frozen threshold or gate
-structure is a documented edit to this doc + `config.json`, dated, never retroactive.
+paper position + survivorship log). The council (T2) is built; **sentinels (T3) are in build —
+PR1 (the deterministic discovery core) has landed.** T3 adds a discovery layer **upstream** of the
+council and **changes no frozen gate**: it only widens the *candidate set*, and every discovered
+candidate still faces the unchanged §3 eligibility + §4 IV gate + §5 sizing/caps + §6 kill. Its
+prescreen thresholds are a candidate **funnel** (like eligibility), config-tunable, NOT
+pre-registered frozen gates; **prescreen rank is a funnel, never a tradeable signal** (the reused
+divergence plumbing is not a revived edge). *(The per-theme/cluster exposure cap foreseen here LANDED
+2026-06-03 as the §5 amendment above — the `ai_compute`-style cluster made the per-name cap false
+diversification on the very first live scan.)* Any change to a frozen
+threshold or gate structure is a documented edit to this doc + `config.json`, dated, never retroactive.
 
 ---
 

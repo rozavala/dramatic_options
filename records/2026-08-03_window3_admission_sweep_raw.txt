@@ -1,0 +1,23 @@
+as_of=2026-08-03T13:47:19.027100+00:00 quotes_live=True
+
+== bead_fiber_buildout
+  ADTN  price=PASS(spot $8.52 >= $3 floor) | adv=PASS(ADV $21.3M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(ADTN270219C00004000 dte 200, achieved OTM -53.1% (band 15-35%), $485/contract vs $1000 cap — achieved OTM outside band)
+  CLFD  price=PASS(spot $30.63 >= $3 floor) | adv=PASS(ADV $5.9M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(CLFD270319C00017500 dte 228, achieved OTM -42.9% (band 15-35%), $1495/contract vs $1000 cap — achieved OTM outside band; over per-name cap)
+  CALX  price=PASS(spot $37.18 >= $3 floor) | adv=PASS(ADV $53.0M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(CALX270219C00037500 dte 200, achieved OTM 0.9% (band 15-35%), $570/contract vs $1000 cap — achieved OTM outside band)
+  HLIT  price=PASS(spot $11.56 >= $3 floor) | adv=PASS(ADV $16.7M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(no structure (no_eligible_contract_in_tenor_window))
+
+== tio2_trough
+  TROX  price=PASS(spot $5.85 >= $3 floor) | adv=PASS(ADV $13.3M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(TROX270219C00001000 dte 200, achieved OTM -82.9% (band 15-35%), $490/contract vs $1000 cap — achieved OTM outside band)
+  KRO   price=PASS(spot $6.04 >= $3 floor) | adv=FAIL(ADV $2.4M < $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(no structure (no_eligible_contract_in_tenor_window))
+
+== ag_equipment_trough
+  TITN  price=PASS(spot $17.48 >= $3 floor) | adv=PASS(ADV $3.2M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(TITN270319C00020000 dte 228, achieved OTM 14.4% (band 15-35%), $215/contract vs $1000 cap — achieved OTM outside band)
+  LNN   price=PASS(spot $114.68 >= $3 floor) | adv=PASS(ADV $13.9M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(LNN270319C00100000 dte 228, achieved OTM -12.8% (band 15-35%), $2085/contract vs $1000 cap — achieved OTM outside band; over per-name cap)
+  AGCO  price=PASS(spot $105.31 >= $3 floor) | adv=PASS(ADV $92.6M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(AGCO270219C00110000 dte 200, achieved OTM 4.5% (band 15-35%), $1155/contract vs $1000 cap — achieved OTM outside band; over per-name cap)
+  TWI   price=PASS(spot $7.38 >= $3 floor) | adv=PASS(ADV $3.2M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(no structure (no_eligible_contract_in_tenor_window))
+
+== carbide_cost_shock
+  KMT   price=PASS(spot $34.44 >= $3 floor) | adv=PASS(ADV $28.5M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=FAIL(no structure (no_eligible_contract_in_tenor_window))
+
+== neighbor_viav
+  VIAV  price=PASS(spot $36.11 >= $3 floor) | adv=PASS(ADV $175.5M >= $3.0M floor) | optionable=FAIL(no options class) | band_fit=PASS(VIAV270416C00045000 dte 256, achieved OTM 24.6% (band 15-35%), $915/contract vs $1000 cap)

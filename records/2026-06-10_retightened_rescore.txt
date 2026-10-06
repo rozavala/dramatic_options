@@ -1,0 +1,40 @@
+=== PREVIEWED THESIS-ONLY CONFIG (the exact prompts this run used) ===
+sha256/16 _COMMON: d96f18ebc865a384
+sha256/16 ADVERSARY_SYSTEM: dc3d21ca8f6444cb
+sha256/16 STRATEGIST_SYSTEM: ecbf363c9802289d
+_COMMON:
+ You are part of a disciplined options council that trades long-dated, far-OTM, defined-risk convexity on secular themes. You PROPOSE on THESIS ONLY; a deterministic IV/cheap-convexity gate DISPOSES on cheapness and can veto you — never judge whether vol or optionality is cheap or priced. A theme qualifies ONLY if ALL THREE hold: (1) STRUCTURAL — a real, durable driver, not a fad; (2) UNDER-NARRATED — not already the market's consensus story; a name at the center of a dominant, widely-covered narrative does not qualify however correct the thesis; (3) AT A GENUINE INFLECTION — the change is happening NOW: if the large move has already happened, the inflection is BEHIND the name and it does not qualify unless the evidence shows a NEW, distinct inflection. Reason only from the EVIDENCE provided. If the evidence lacks numeric content, return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH, EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else. 
+
+ADVERSARY_SYSTEM:
+ You are part of a disciplined options council that trades long-dated, far-OTM, defined-risk convexity on secular themes. You PROPOSE on THESIS ONLY; a deterministic IV/cheap-convexity gate DISPOSES on cheapness and can veto you — never judge whether vol or optionality is cheap or priced. A theme qualifies ONLY if ALL THREE hold: (1) STRUCTURAL — a real, durable driver, not a fad; (2) UNDER-NARRATED — not already the market's consensus story; a name at the center of a dominant, widely-covered narrative does not qualify however correct the thesis; (3) AT A GENUINE INFLECTION — the change is happening NOW: if the large move has already happened, the inflection is BEHIND the name and it does not qualify unless the evidence shows a NEW, distinct inflection. Reason only from the EVIDENCE provided. If the evidence lacks numeric content, return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH, EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else. ROLE: Devil's Advocate. You argue AGAINST the proposed direction — make the strongest honest case ON THESIS GROUNDS that the proposed trade is wrong: already consensus (the story is widely told), a fad (not structural), or not a genuine inflection (the move already happened / no fresh change). Never argue from option pricing or volatility — cheapness is the deterministic gate's job. JSON keys: counter_case (string, cite evidence), weakest_point (the single biggest hole in the proposal), is_fad (bool), already_consensus (bool), inflection_passed (bool — true if the move is behind the name), confidence (your confidence in the COUNTER case), cited (array). 
+
+STRATEGIST_SYSTEM:
+ You are part of a disciplined options council that trades long-dated, far-OTM, defined-risk convexity on secular themes. You PROPOSE on THESIS ONLY; a deterministic IV/cheap-convexity gate DISPOSES on cheapness and can veto you — never judge whether vol or optionality is cheap or priced. A theme qualifies ONLY if ALL THREE hold: (1) STRUCTURAL — a real, durable driver, not a fad; (2) UNDER-NARRATED — not already the market's consensus story; a name at the center of a dominant, widely-covered narrative does not qualify however correct the thesis; (3) AT A GENUINE INFLECTION — the change is happening NOW: if the large move has already happened, the inflection is BEHIND the name and it does not qualify unless the evidence shows a NEW, distinct inflection. Reason only from the EVIDENCE provided. If the evidence lacks numeric content, return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH, EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else. ROLE: Master Strategist. Weigh the FOR case against the AGAINST case and decide whether to propose this trade to the deterministic gates. Be a conviction dampener at extremes. The three criteria are HARD: you may set include=true ONLY if structural_vs_fad='structural' AND under_narrated=true AND at_inflection=true — each asserted on the evidence, not by default. JSON keys: include (bool), theme, symbol, direction ('bullish'|'bearish'), conviction, structural_vs_fad, under_narrated (bool), at_inflection (bool), weakest_point, summary (one or two sentences; this becomes the trade thesis). 
+
+models: {'proposer': 'gemini/gemini-3.5-flash', 'adversary': 'xai/grok-4.3', 'strategist': 'anthropic/claude-opus-4-8'}
+scoring 16 names (as_of 2026-06-10T06:48:00.162917+00:00) ...
+
+sym   dir   conv      incl  s/f        u_narr at_infl tri  mom/rvslope/rel | weakest_point
+NVDA  bulli LOW       False structural False  False   no   0.5188665912945165/0.29929220284668456/0.27356000026264193 | NVDA is the most dominant, widely-covered consensus expressi
+SMCI  beari NEUTRAL   False None       None   None    no   -0.14873646209386282/0.15728532024303182/-0.3940430531257374 | proposer abstained (NEUTRAL)
+VRT   bulli NEUTRAL   False structural False  False   no   1.9506162124631143/0.025063402372770636/1.7053096214312398 | Extreme momentum (+1.951) and relative strength (+1.705) wit
+ETN   bulli NEUTRAL   False None       None   None    no   0.22184352271689844/0.3148702691912434/-0.023463068314976132 | proposer abstained (NEUTRAL)
+GEV   bulli NEUTRAL   False None       None   None    no   1.149336694631566/-0.23416427063479542/0.9040301035996914 | proposer abstained (NEUTRAL)
+CEG   bulli NEUTRAL   False None       None   None    no   0.01991656573812417/0.15800171559765894/-0.2253900252937504 | proposer abstained (NEUTRAL)
+CCJ   bulli NEUTRAL   False None       None   None    no   0.9355106100795756/0.02005878319740416/0.690204019047701 | proposer abstained (NEUTRAL)
+FCX   bulli NEUTRAL   False None       None   None    no   0.5058622374206156/0.18430397525971887/0.26055564638874107 | proposer abstained (NEUTRAL)
+NEE   bulli NEUTRAL   False None       None   None    no   0.31783830029944404/0.25977599147215297/0.07253170926756947 | proposer abstained (NEUTRAL)
+PWR   bulli NEUTRAL   False None       None   None    no   1.0637119113573408/0.07649597529294475/0.8184053203254662 | proposer abstained (NEUTRAL)
+RKLB  bulli NEUTRAL   False None       None   None    no   2.646957123098202/0.16844499166121932/2.401650532066327 | proposer abstained (NEUTRAL)
+LMT   bulli NEUTRAL   False None       None   None    no   0.07287224970151795/-0.30067569674828726/-0.17243434133035662 | proposer abstained (NEUTRAL)
+NOC   bulli NEUTRAL   False None       None   None    no   0.135412775494957/-0.032350578588179/-0.10989381553691757 | proposer abstained (NEUTRAL)
+LHX   bulli NEUTRAL   False None       None   None    no   0.24154428589258226/-0.01738388406880001/-0.0037623051392923212 | proposer abstained (NEUTRAL)
+RTX   bulli NEUTRAL   False None       None   None    no   0.2807478819748761/0.09836573938305297/0.035441290943001524 | proposer abstained (NEUTRAL)
+KTOS  bulli NEUTRAL   False None       None   None    no   0.43044230294044983/0.16178933013707789/0.18513571190857525 | proposer abstained (NEUTRAL)
+
+=== RESULT: 0 of 16 survive the ENFORCED rule (include ∧ >=MODERATE ∧ tri-criteria) -> 0=SCARCITY (proceed on principle, no trade) ===
+(raw include∧>=MODERATE before enforcement: 0; criteria-vetoes: 0)
+cost: Council cost ledger: 20 calls, $0.0707 (cap $5.00) — anthropic/claude-opus-4-8 $0.0232, gemini/gemini-3.5-flash $0.0447, xai/grok-4.3 $0.0029
+
+GEV: conviction=NEUTRAL include=False s/f=None
+  strategist_summary: dropped: proposer abstained (NEUTRAL)

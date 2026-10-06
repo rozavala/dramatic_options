@@ -72,11 +72,31 @@ def realized_vol(closes: list[float] | None, *, window: int, annualization: floa
     return math.sqrt(var) * math.sqrt(annualization)
 
 
-def atm_iv(chain: list[Contract], underlying_price: float | None, kind: str, expiry: date) -> float | None:
-    """IV of the nearest-the-money contract of ``kind`` at ``expiry`` (or None)."""
+def occ_root(contract_symbol: str) -> str:
+    """The OCC option root: everything before the fixed 15-char tail (YYMMDD + C/P + 8-digit
+    strike). A root that differs from the underlying ticker (e.g. ``CDE2``) is a
+    corporate-action-ADJUSTED class: non-standard deliverables (a different payoff object —
+    calibration finding #3) and unquotable on the loop's underlying-keyed endpoints (the
+    2026-07-06 3A/CDE2 mark failure). Lives here (not ``structure``) because ``structure``
+    imports from this module; ``structure.occ_root`` re-exports it."""
+    return str(contract_symbol)[:-15].upper()
+
+
+def atm_iv(chain: list[Contract], underlying_price: float | None, kind: str, expiry: date,
+           *, root: str | None = None) -> float | None:
+    """IV of the nearest-the-money contract of ``kind`` at ``expiry`` (or None).
+
+    ``root``: when given, contracts whose OCC root differs are EXCLUDED before the
+    nearest-strike scan — an adjusted class's nominal strike is a different payoff object, and
+    its feed IV is computed against the WRONG deliverable, so one adjusted contract sitting
+    nearest the money corrupts BOTH gate legs (iv_rv and skew). Live 2026-07-07 (dual-read
+    material-flip page, run #458): CDE spot 16.04 → nearest 2027-01-15 call was
+    ``CDE1270115C00017000`` iv=2.74 (274%) vs the standard-class ``CDE270115C00015000``
+    iv=0.70 → OPRA read iv_rv 4.00 / skew −222vp on a clean 0.98 name."""
     if not underlying_price or underlying_price <= 0:
         return None
-    cands = [c for c in chain if c.kind == kind and c.expiry == expiry and c.iv and c.iv > 0]
+    cands = [c for c in chain if c.kind == kind and c.expiry == expiry and c.iv and c.iv > 0
+             and (root is None or occ_root(c.symbol) == root)]
     if not cands:
         return None
     best = min(cands, key=lambda c: abs(c.strike - underlying_price))
@@ -98,7 +118,11 @@ def is_cheap_convexity(
     """
     reasons: list[str] = []
     wing_iv = wing.iv
-    a_iv = atm_iv(chain, underlying_price, wing.kind, wing.expiry)
+    # ATM peer restricted to the wing's own OCC class: the wing is always standard-class
+    # (structure.select_structure filters adjusted roots), so this keeps adjusted-class contracts
+    # out of the ATM read too — the 2026-07-07 residual of the CDE2 defect (#160 guarded
+    # select_structure; the gate's ATM estimator was the remaining unfiltered chain reader).
+    a_iv = atm_iv(chain, underlying_price, wing.kind, wing.expiry, root=occ_root(wing.symbol))
 
     if rv is None or rv <= 0:
         reasons.append("no_realized_vol")

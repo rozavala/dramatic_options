@@ -12,12 +12,27 @@ minimum. Router/budget errors propagate to ``council.propose`` (fail-closed).
 
 from __future__ import annotations
 
+import logging
 import random
 
 from council import agents
 from council.filters import apply_filter
 from council.proposal import AgentOutput, CouncilProposal, normalize_conviction
 from themes import VALID_DIRECTIONS, Theme
+
+log = logging.getLogger("council.debate")
+
+
+def _parsed(role: str, resp, parser, symbol: str) -> dict:
+    """Parse a role response, threading the forensic finish_reason/thoughts into the fallback and
+    logging LOUD on a parse/shape failure (the per-call signal; the cycle-level page is in the
+    orchestrator). A failure still resolves NEUTRAL → fail-closed, never traded."""
+    raw = parser(resp.text, finish_reason=resp.finish_reason, thoughts_tokens=resp.thoughts_tokens)
+    if raw.get("parse_error"):
+        log.warning("council %s parse-fail %s/%s for %s: %s (finish=%s, thoughts=%s)", role,
+                    resp.provider, resp.model, symbol, raw.get("validation_error"),
+                    resp.finish_reason, resp.thoughts_tokens)
+    return raw
 
 
 def _model_mix(router) -> dict:
@@ -28,12 +43,24 @@ def _model_mix(router) -> dict:
     return mix
 
 
-def _neutral_proposal(candidate: Theme, *, reason: str, agent_outputs, model_mix, cost_usd) -> CouncilProposal:
+def _fundamentals_telemetry(pack) -> dict:
+    """§9 §5d fill telemetry that rides the proposal rationale on EVERY path (incl. early-exit, so
+    an empty-corpus OR-leg MISS is visible to the grader). origin lets the grader split OR-leg
+    health (hand-seed) from sentinel enrichment coverage."""
+    return {"n_lines": len(getattr(pack, "fundamentals", []) or []),
+            "status": getattr(pack, "fundamentals_status", None) or "empty",
+            "origin": getattr(pack, "origin", "hand-seed")}
+
+
+def _neutral_proposal(candidate: Theme, pack, *, reason: str, agent_outputs, model_mix, cost_usd
+                      ) -> CouncilProposal:
     return CouncilProposal(
         theme=candidate.name, symbol=candidate.symbol, direction=candidate.direction,
         conviction="NEUTRAL", structural_vs_fad=None, weakest_point=reason,
-        strategist_summary=f"dropped: {reason}", rationale={"dropped": reason},
+        strategist_summary=f"dropped: {reason}",
+        rationale={"dropped": reason, "fundamentals": _fundamentals_telemetry(pack)},
         agent_outputs=agent_outputs, cost_usd=cost_usd, model_mix=model_mix, include=False,
+        sentinel_id=candidate.sentinel_id,
     )
 
 
@@ -48,13 +75,13 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
 
     # Early exit (no LLM spend): ungrounded evidence → NEUTRAL drop (SPEC §5).
     if not pack.grounded:
-        return _neutral_proposal(candidate, reason="ungrounded (no numeric evidence)",
+        return _neutral_proposal(candidate, pack, reason="ungrounded (no numeric evidence)",
                                  agent_outputs=[], model_mix=mix, cost_usd=0.0)
 
     # 1. Proposer — argues FOR the candidate's direction.
     sys, user = agents.proposer_prompt(pack)
     presp = router.call(role="proposer", system=sys, user=user)
-    praw = agents.parse_proposer(presp.text)
+    praw = _parsed("proposer", presp, agents.parse_proposer, candidate.symbol)
     pconf, pfr = apply_filter([str(praw.get("inflection_thesis", "")), *map(str, praw.get("cited", []))],
                               pack, confidence=praw.get("confidence"))
     proposer_ao = AgentOutput(
@@ -62,14 +89,14 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
         None, praw, flagged_unsupported=pfr.flagged, cost_usd=presp.cost_usd,
     )
     if pconf == "NEUTRAL":  # proposer abstained → drop without spending on adversary/strategist
-        return _neutral_proposal(candidate, reason="proposer abstained (NEUTRAL)",
+        return _neutral_proposal(candidate, pack, reason="proposer abstained (NEUTRAL)",
                                  agent_outputs=[proposer_ao], model_mix=mix, cost_usd=presp.cost_usd)
 
     # 2. Adversary — argues AGAINST the proposed direction (direction-relative).
     against_stance = agents.OPPOSITE.get(candidate.direction, "opposite")
     sys, user = agents.adversary_prompt(pack, praw)
     aresp = router.call(role="adversary", system=sys, user=user)
-    araw = agents.parse_adversary(aresp.text)
+    araw = _parsed("adversary", aresp, agents.parse_adversary, candidate.symbol)
     aconf, afr = apply_filter([str(araw.get("counter_case", "")), str(araw.get("weakest_point", "")),
                                *map(str, araw.get("cited", []))], pack, confidence=araw.get("confidence"))
     adversary_ao = AgentOutput(
@@ -82,9 +109,28 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     for_first = rng.random() < 0.5
     sys, user = agents.strategist_prompt(pack, praw, araw, for_first=for_first)
     sresp = router.call(role="strategist", system=sys, user=user)
-    sraw = agents.parse_strategist(sresp.text)
+    sraw = _parsed("strategist", sresp, agents.parse_strategist, candidate.symbol)
     sconf, sfr = apply_filter([str(sraw.get("summary", "")), str(sraw.get("weakest_point", ""))],
                               pack, confidence=sraw.get("conviction"))
+
+    # CGS §10.7 deterministic enforcement — the single coercion point (the only layer with BOTH
+    # raws in scope, so the sanctioned strategist-or-proposer structural_vs_fad fallback applies,
+    # exactly as the §10.8 preview computed tri). Comparison semantics verbatim: exact string
+    # equality + `is True` identity (an explicit null/false is a deliberated NON-assertion → veto;
+    # an ABSENT key on an include row was already a parse_error upstream). Conviction is preserved
+    # (Brier substrate); the veto is recorded DISTINCT from parse_error, before AgentOutput
+    # captures sraw so it persists to council_agent_outputs.raw.
+    sf_resolved = sraw.get("structural_vs_fad") or praw.get("structural_vs_fad")
+    tri_pass = (str(sf_resolved) == "structural"
+                and sraw.get("under_narrated") is True and sraw.get("at_inflection") is True)
+    if bool(sraw.get("include", False)) and not tri_pass:
+        sraw["include"] = False
+        sraw["criteria_veto"] = True
+        sraw["criteria_veto_reason"] = (
+            f"include=true but tri-criteria fail (s/f={sf_resolved} "
+            f"u_narr={sraw.get('under_narrated')} at_infl={sraw.get('at_inflection')})")
+        log.info("council criteria-veto %s: %s", candidate.symbol, sraw["criteria_veto_reason"])
+
     strategist_ao = AgentOutput(
         "strategist", sresp.provider, sresp.model, sconf, str(sraw.get("direction", candidate.direction)),
         str(sraw.get("weakest_point", "")) or None, sraw, flagged_unsupported=sfr.flagged,
@@ -110,11 +156,19 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
                          "structural_vs_fad": praw.get("structural_vs_fad")},
             "adversary": {"counter_case": araw.get("counter_case"), "weakest_point": araw.get("weakest_point"),
                           "already_consensus": araw.get("already_consensus"), "is_fad": araw.get("is_fad"),
-                          "confidence": aconf},
-            "strategist": {"summary": sraw.get("summary"), "conviction": sconf, "include": sraw.get("include")},
+                          "inflection_passed": araw.get("inflection_passed"), "confidence": aconf},
+            "strategist": {"summary": sraw.get("summary"), "conviction": sconf, "include": sraw.get("include"),
+                           "under_narrated": sraw.get("under_narrated"),
+                           "at_inflection": sraw.get("at_inflection"),
+                           "criteria_veto": bool(sraw.get("criteria_veto", False))},
+            "fundamentals": _fundamentals_telemetry(pack),
         },
         agent_outputs=[proposer_ao, adversary_ao, strategist_ao],
         cost_usd=total_cost,
         model_mix=mix,
         include=bool(sraw.get("include", False)),
+        sentinel_id=candidate.sentinel_id,
+        under_narrated=sraw.get("under_narrated") if isinstance(sraw.get("under_narrated"), bool) else None,
+        at_inflection=sraw.get("at_inflection") if isinstance(sraw.get("at_inflection"), bool) else None,
+        criteria_veto=bool(sraw.get("criteria_veto", False)),
     )

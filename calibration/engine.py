@@ -15,7 +15,10 @@ The exits mirror the live §6a rules so one grid cell == the live structure:
   - hold       : value at expiry = intrinsic
   - time_stop  : close (re-price) when ≤ time_stop_dte days remain
   - profit_take: close when mark ≥ profit_take_mult × entry premium
-  - live       : profit_take OR time_stop, else expiry  (the live combined rule)
+  - live       : profit_take OR time_stop, else expiry  (the OLD venture combined rule)
+  - delta      : close when |delta| ≥ delta_exit_threshold (the "move played out"), else expiry
+  - reprice    : delta OR profit_take(backstop) OR time_stop, else expiry  (the NEW OTM rule,
+                 2026-06-01 amendment — delta is primary, 10× profit-take is a backstop)
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from calibration.pricing import bs_price, intrinsic_value, simulate_gbm_path
+from calibration.pricing import bs_delta, bs_price, intrinsic_value, simulate_gbm_path
 
 
 @dataclass(frozen=True)
@@ -32,10 +35,11 @@ class Structure:
     moneyness: float        # OTM fraction (0.25 = 25% OTM)
     tenor_days: int
     kind: str               # "C" | "P"
-    exit_rule: str          # hold | time_stop | profit_take | live
+    exit_rule: str          # hold | time_stop | profit_take | live | delta | reprice
     sigma_entry_mult: float  # σ_entry = mult × σ_real
     profit_take_mult: float = 4.0
     time_stop_dte: int = 21
+    delta_exit_threshold: float | None = None  # close when |delta| ≥ this (the "move played out")
 
 
 @dataclass
@@ -85,9 +89,15 @@ def simulate_option_on_path(
         # mark mid-life via BS at the held entry vol (PREREG §3 simplification)
         mark = bs_price(spot=spot, strike=strike, t_years=t_rem, r=r, sigma=sigma_entry, kind=structure.kind)
 
-        if rule in ("profit_take", "live") and mark >= profit_target:
+        # Delta trigger (primary "take it" for the reprice rule): the far-OTM convexity has
+        # converted into delta = the anticipated spot move played out. Banks it AFTER the move.
+        if rule in ("delta", "reprice") and structure.delta_exit_threshold is not None:
+            delta = bs_delta(spot=spot, strike=strike, t_years=t_rem, r=r, sigma=sigma_entry, kind=structure.kind)
+            if abs(delta) >= structure.delta_exit_threshold:
+                return ((mark - cost) / entry, spot / spot0 - 1.0, "delta")
+        if rule in ("profit_take", "live", "reprice") and mark >= profit_target:
             return ((mark - cost) / entry, spot / spot0 - 1.0, "profit_take")
-        if rule in ("time_stop", "live") and dte <= structure.time_stop_dte:
+        if rule in ("time_stop", "live", "reprice") and dte <= structure.time_stop_dte:
             return ((mark - cost) / entry, spot / spot0 - 1.0, "time_stop")
 
     # held to expiry → intrinsic

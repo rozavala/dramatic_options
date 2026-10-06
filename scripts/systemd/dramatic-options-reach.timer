@@ -1,0 +1,18 @@
+# Dramatic Options — weekly reach timer. TEMPLATE (no placeholders; installed + enabled by
+# deploy.sh only where FORWARD_ENABLED=true; PROD stays installed-but-disabled).
+#
+# Sun 09:40 ET = after the 08:00 ET L0 (the digest's orphan cohort and the cards' screens read
+# fresh weekend state) and off every trading grid (weekend; the loop submits nothing). ISO note:
+# a Sunday run stamps the week just ENDING (Sunday = ISO day 7) — the canonical weekly label.
+# Persistent=false ON PURPOSE: a catch-up firing on a Monday+ boot would stamp the NEW ISO week
+# (the 2026-07-20 mislabel class); a missed box-Sunday is instead caught by the review layer.
+[Unit]
+Description=Dramatic Options weekly reach digest + cards timer (Sun 09:40 ET)
+
+[Timer]
+OnCalendar=Sun 09:40 America/New_York
+Persistent=false
+Unit=dramatic-options-reach.service
+
+[Install]
+WantedBy=timers.target

@@ -76,3 +76,53 @@ def test_total_never_exceeds_per_name_cap():
         d = convexity_position_size(**BASE, open_positions_count=0, open_premium_total=0.0,
                                     entry_premium_per_share=prem)
         assert d.total_premium <= 100_000.0 * 0.01 + 1e-6
+
+
+# ── cluster_remaining bound (PREREG §5 amendment) ────────────────────────────────────────────────
+
+def test_cluster_remaining_none_is_identical_to_no_cluster():
+    base = convexity_position_size(**BASE, open_positions_count=0, open_premium_total=0.0,
+                                   entry_premium_per_share=2.0)
+    clustered = convexity_position_size(**BASE, open_positions_count=0, open_premium_total=0.0,
+                                        entry_premium_per_share=2.0, cluster_remaining=None)
+    assert clustered == base  # frozen dataclass equality — byte-identical when unclustered
+
+
+def test_cluster_cap_exhausted_blocks():
+    d = convexity_position_size(**BASE, open_positions_count=2, open_premium_total=2_000.0,
+                                entry_premium_per_share=2.0, cluster_remaining=0.0)
+    assert d.contracts == 0
+    assert any("cluster cap exhausted" in r for r in d.reasons)
+
+
+def test_cluster_remaining_below_one_contract_blocks():
+    # Cluster has $300 left, but a $758 contract can't fit — the cluster is the binding cap.
+    d = convexity_position_size(**BASE, open_positions_count=2, open_premium_total=2_000.0,
+                                entry_premium_per_share=7.58, cluster_remaining=300.0)
+    assert d.contracts == 0
+    assert any("cluster" in r for r in d.reasons)
+
+
+def test_cluster_is_the_tightest_of_the_three_caps():
+    # per-name $1000, book huge, cluster $250 → cluster binds → 1 contract ($200).
+    d = convexity_position_size(**BASE, open_positions_count=0, open_premium_total=0.0,
+                                entry_premium_per_share=2.0, cluster_remaining=250.0)
+    assert d.contracts == 1 and d.total_premium == 200.0
+    assert "cluster left" in d.reasons[0]
+
+
+def test_cluster_allows_bounded_partial():
+    # Cluster room $500 (< per-name $1000); $200 contracts → 2 ($400), cluster-bounded partial.
+    d = convexity_position_size(**BASE, open_positions_count=1, open_premium_total=500.0,
+                                entry_premium_per_share=2.0, cluster_remaining=500.0)
+    assert d.contracts == 2 and d.total_premium == 400.0
+
+
+def test_equal_weight_contracts_is_per_name_only_no_book_or_cluster():
+    from convexity_sizing import equal_weight_contracts
+    ew = lambda prem: equal_weight_contracts(account_equity=100_000.0, per_name_fraction=0.01,  # noqa: E731
+                                             entry_premium_per_share=prem)
+    assert ew(2.0) == 5      # $1000 per-name cap // $200/contract
+    assert ew(7.58) == 1     # $758/contract → 1
+    assert ew(11.0) == 0     # $1100/contract > $1000 per-name cap → can't afford one
+    assert equal_weight_contracts(account_equity=0.0, per_name_fraction=0.01, entry_premium_per_share=2.0) == 0

@@ -74,3 +74,33 @@ def test_broker_without_status_surface_is_noop(convexity_db):
     _pending(convexity_db, contract="FCX261218C00080000", oid="o5")
     n = reconcile_pending(conn=convexity_db, broker=object(), clock=CLOCK, config=CONFIG)
     assert n == 0
+
+
+def test_fill_pages(convexity_db, monkeypatch):
+    # The 07-01 PL fill reconciled SILENTLY and went unnoticed for three days
+    # (records/2026-07-04_first_real_entry_ERRATUM.md §3.2) — a real-book fill must page.
+    import notify
+
+    sent = []
+    monkeypatch.setattr(notify, "send", lambda title, body: sent.append((title, body)))
+    _pending(convexity_db, contract="FCX261218C00080000", oid="o9", contracts=2)
+    broker = FakeBroker({"o9": {"state": "filled", "filled_avg_price": 3.10, "filled_qty": 2}})
+    reconcile_pending(conn=convexity_db, broker=broker, clock=CLOCK, config=CONFIG)
+    assert len(sent) == 1 and sent[0][0] == "REAL-BOOK FILL"
+    assert "FCX261218C00080000" in sent[0][1]
+
+
+def test_fill_page_failure_never_breaks_reconcile(convexity_db, monkeypatch):
+    import notify
+
+    def _boom(*a, **k):
+        raise RuntimeError("pushover down")
+
+    monkeypatch.setattr(notify, "send", _boom)
+    pid = _pending(convexity_db, contract="FCX261218C00080000", oid="o10")
+    broker = FakeBroker({"o10": {"state": "filled", "filled_avg_price": 3.10, "filled_qty": 1}})
+    n = reconcile_pending(conn=convexity_db, broker=broker, clock=CLOCK, config=CONFIG)
+    assert n == 1
+    row = convexity_db.execute(
+        "SELECT status FROM convexity_positions WHERE id=?", (pid,)).fetchone()
+    assert row["status"] == "open"

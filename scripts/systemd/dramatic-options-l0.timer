@@ -1,0 +1,19 @@
+# Dramatic Options — L0 weekly discovery timer. TEMPLATE (no placeholders here, but installed +
+# enabled by deploy.sh only where FORWARD_ENABLED=true; PROD stays installed-but-disabled).
+#
+# Sun 08:00 ET is deliberately OFF-MARKET and off the L1 (Mon..Fri 15:45) and L2 (Mon..Fri
+# 09..16:00/30) grids — discovery reads as-of (Friday-close) data and submits NOTHING, so a
+# weekend run is safe AND the fresh sentinels are waiting for the Monday L1 council to judge.
+# Weekly cadence matches the discovery design (a weekly L0 scan; IMPLEMENTATION_PLAN T3).
+# Persistent=true: a scan missed because the box was down fires on next boot — safe because the
+# scan is idempotent (sentinels upsert by (symbol,direction) lineage) and never trades.
+[Unit]
+Description=Dramatic Options L0 weekly sentinel discovery timer (Sun 08:00 ET)
+
+[Timer]
+OnCalendar=Sun 08:00 America/New_York
+Persistent=true
+Unit=dramatic-options-l0.service
+
+[Install]
+WantedBy=timers.target

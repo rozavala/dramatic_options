@@ -17,8 +17,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+import clusters
 import state
-from broker import Broker
+from broker import Broker, make_client_order_id
 from clock import Clock
 from convexity_data import ChainProvider
 from convexity_gate import is_cheap_convexity, realized_vol
@@ -83,6 +84,7 @@ def run_paper_cycle(
     themes: list[Theme] | None = None,
     run_id: int | None = None,
     chain_cache=None,
+    shadow_provider: ChainProvider | None = None,
 ) -> CycleResult:
     """Run one paper cycle over the active themes. Returns a CycleResult.
 
@@ -120,7 +122,23 @@ def run_paper_cycle(
     # paper-account equity — a sandbox figure that drifts with unrelated paper fills and would
     # make the per-slot slice (and thus entries) non-deterministic. Live (T4) reconciles the
     # notional against real equity before any capital. Broker equity is logged, not sized on.
-    account_equity = float(book.get("account_equity") or broker.account_equity())
+    # Issue #279: there is NO fallback to broker equity. At real money the account is shared (~$250k of
+    # unrelated holdings), so sizing off it would silently multiply every cap. Unset → no entries (paged).
+    account_equity = float(book.get("account_equity") or 0.0)
+    if account_equity <= 0:
+        result.halted = True
+        result.notes.append("convexity_book.account_equity is not configured — no entries (issue #279: "
+                            "the book never sizes off whole-account broker equity).")
+        log.error("convexity_book.account_equity not configured — halting NEW entries (fail-closed).")
+        return result
+
+    # Correlation-cluster exposure cap (PREREG §5 amendment 2026-06-03): an operator-curated
+    # symbol→cluster map caps aggregate ENTRY-premium per correlated cluster — the per-name cap alone
+    # reads a correlated basket (e.g. the AI-capex-into-power names) as false diversification. Inert
+    # without a positive cluster_fraction (then every name is its own singleton). load raises on a
+    # malformed map (overlap / cap < per-name) — fail-closed.
+    cluster_fraction = float(book.get("cluster_fraction") or 0.0)
+    cluster_map = clusters.load_cluster_map(config) if cluster_fraction > 0 else {}
 
     # Dedup: one open position per underlying for T1 (one name per theme). Re-running the loop
     # must not stack duplicate bets on a theme that is already on.
@@ -134,6 +152,13 @@ def run_paper_cycle(
             max_contract_price=100.0,
             min_oi=elig.get("min_option_open_interest"),
         )
+
+    # The OPRA dual-read (PREREG_DATA_FEED_OPRA_SEQUENCING §5): the date-gated disagree-veto is
+    # computed once per cycle; one entitlement page per run (the soft-trip precedent), not per name.
+    import gate_dualread as _dualread
+
+    dualread_veto_active = _dualread.disagree_veto_active(config, as_of)
+    entitlement_paged = False
 
     for theme in themes:
         if not theme.active:
@@ -151,29 +176,114 @@ def run_paper_cycle(
             _process_theme(
                 theme, config=config, conn=conn, provider=provider, broker=broker,
                 eligibility=_eligibility, account_equity=account_equity, gate=gate, book=book,
+                cluster_map=cluster_map, cluster_fraction=cluster_fraction,
                 as_of=as_of, as_of_dt=as_of_dt, as_of_iso=as_of_iso, run_id=run_id,
                 result=result, chain_cache=chain_cache,
+                shadow_provider=shadow_provider, dualread_veto_active=dualread_veto_active,
             )
         except Exception as e:  # noqa: BLE001 — fail-closed: log, never open on error
             result.errors += 1
+            # PREREG_DATA_FEED_OPRA_SEQUENCING §7: an ENTITLEMENT lapse on the premium gate feed is
+            # a distinct, page-worthy veto — never a silent downgrade (the candidate drops either
+            # way; the gate is fail-closed by construction). Transient/other errors keep the
+            # existing 'error' decision.
+            from feeds import classify_feed_error
+
+            kind = classify_feed_error(e)
+            decision = "veto-feed-entitlement" if kind == "entitlement" else "error"
             state.record_convexity_eval(
                 conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
-                direction=theme.direction, decision="error", proposal_id=theme.proposal_id,
-                reasons=[str(e)],
+                direction=theme.direction, decision=decision, proposal_id=theme.proposal_id,
+                reasons=[f"{kind}: {e}"],
             )
-            log.error("Theme %s (%s) errored: %s", theme.name, theme.symbol, e)
+            if kind == "entitlement" and not entitlement_paged:
+                entitlement_paged = True
+                try:
+                    import notify
+
+                    notify.send("OPRA gate entitlement lapse",
+                                f"premium feed fetch refused ({theme.symbol}): {e}")
+                except Exception:  # noqa: BLE001 — paging must never break the cycle
+                    log.warning("entitlement page failed to send")
+            log.error("Theme %s (%s) errored (%s): %s", theme.name, theme.symbol, kind, e)
+
+    # Non-fatal mixed-direction warning per cluster (the cap sums premium-at-risk regardless of
+    # direction; a coherent cluster is single-direction — PREREG §5 / R2 2d). Per-cluster occupancy %
+    # is surfaced visibly by the orchestrator's book summary.
+    for cname, members in cluster_map.items():
+        dirs = state.cluster_open_directions(conn, members)
+        if len(dirs) > 1:
+            log.warning(
+                "Cluster %s holds mixed directions %s — cap sums them as additive risk "
+                "(clusters are assumed directionally coherent)", cname, sorted(dirs),
+            )
 
     log.info(
         "Paper cycle: evaluated=%d opened=%d vetoed=%d skipped=%d errors=%d",
         result.evaluated, result.opened, result.vetoed, result.skipped, result.errors,
     )
+    # A REAL-BOOK ENTRY is the rarest healthy event the system produces — page it (the 2026-07-01
+    # PL entry went unnoticed for THREE DAYS because only failures paged;
+    # records/2026-07-04_first_real_entry_ERRATUM.md §3.2). Entries are rare-by-design, so the
+    # page cost is ~zero; paging must never break the cycle.
+    if result.opened > 0:
+        try:
+            import notify
+
+            notify.send(
+                "REAL-BOOK ENTRY",
+                f"{result.opened} position(s) submitted/opened this cycle "
+                f"(ids {result.opened_ids}) — run #{run_id}.",
+            )
+        except Exception:  # noqa: BLE001 — paging must never break the cycle
+            log.warning("entry page failed to send")
     return result
 
 
 def _process_theme(
     theme: Theme, *, config, conn, provider, broker, eligibility, account_equity, gate, book,
-    as_of, as_of_dt, as_of_iso, run_id, result: CycleResult, chain_cache=None,
+    cluster_map, cluster_fraction, as_of, as_of_dt, as_of_iso, run_id, result: CycleResult,
+    chain_cache=None, shadow_provider=None, dualread_veto_active=False,
 ) -> None:
+    # Correlation-cluster exposure cap (PREREG §5 amendment) — COARSE check FIRST, before the slot
+    # reservation: a structurally-full cluster records the structural ``veto-cluster-cap`` (the true
+    # binding constraint) over the transient ``veto-sentinel-slots``, keeping the survivorship log's
+    # reason honest for a future reason-segmented score (R2 2b/R3). ``cluster_state`` is the
+    # per-decision breach-audit substrate — recompute within-cap-ness at the admission, never trust the
+    # enforcement code (R4 2a). None cluster ⇒ unclustered singleton ⇒ cap inert (per-name still binds).
+    cluster = clusters.cluster_of(theme.symbol, cluster_map)
+    cluster_remaining = cluster_state = None
+    if cluster is not None:
+        members = clusters.members_of(cluster, cluster_map)
+        cluster_premium = state.cluster_open_premium(conn, members)
+        cluster_cap = account_equity * cluster_fraction
+        cluster_remaining = cluster_cap - cluster_premium
+        cluster_state = {"cluster": cluster, "premium": cluster_premium, "cap": cluster_cap,
+                         "equity": account_equity, "remaining": cluster_remaining}
+        if cluster_remaining <= 0:
+            result.vetoed += 1
+            state.record_convexity_eval(
+                conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+                direction=theme.direction, decision="veto-cluster-cap", proposal_id=theme.proposal_id,
+                reasons=[f"cluster {cluster!r} at/over budget (${cluster_premium:.0f} >= ${cluster_cap:.0f})"],
+                cluster_state=cluster_state,
+            )
+            return
+
+    # Discovery slot reservation (PREREG §5 / P1): a sentinel-origin candidate may not consume more
+    # than config.discovery.sentinel_max_slots of the book's live positions, so auto-traded
+    # discoveries can't starve hand-seed convictions. Hand-seed (sentinel_id None) is unbounded here.
+    max_slots = config.get("discovery", {}).get("sentinel_max_slots")
+    if (theme.sentinel_id is not None and max_slots is not None
+            and state.count_open_sentinel_positions(conn) >= int(max_slots)):
+        result.vetoed += 1
+        state.record_convexity_eval(
+            conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+            direction=theme.direction, decision="veto-sentinel-slots", proposal_id=theme.proposal_id,
+            reasons=[f"sentinel slot reservation full (>= {max_slots} open discovery positions)"],
+        )
+        return
+
     underlying_price = provider.underlying_price(theme.symbol)
     chain = provider.chain(theme.symbol)
     # Accrue the IV baseline (PREREG §4b): persist this cycle's snapshot, append-only.
@@ -194,6 +304,8 @@ def _process_theme(
         direction=theme.direction,
         as_of=as_of,
         underlying_price=underlying_price,
+        underlying_symbol=theme.symbol,
+        require_otm_side=bool(gate.get("otm_side_guard", False)),
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)),
@@ -214,6 +326,34 @@ def _process_theme(
         iv_rv_max=float(gate.get("iv_rv_max", 1.2)),
         otm_skew_max_volpts=float(gate.get("otm_skew_max_volpts", 10.0)),
     )
+    # The OPRA dual-read, INLINE arm (PREREG_DATA_FEED_OPRA_SEQUENCING §5–§6): record the
+    # of-record verdict + the additive INDICATIVE shadow read for every gate-evaluated name.
+    # Fail-SOFT — a shadow failure becomes a structured=0 note row, never a blocked evaluation.
+    shadow_row = None
+    if shadow_provider is not None:
+        import gate_dualread as _dualread
+
+        try:
+            _dualread.record_arm(
+                conn, run_id=run_id, as_of_iso=as_of_iso, symbol=theme.symbol, feed="opra",
+                source="inline",
+                row={"structured": True, "iv_rv": verdict.iv_rv_ratio,
+                     "otm_skew": verdict.otm_skew_volpts, "cheap": bool(verdict.cheap),
+                     "wing": structure.contract.symbol},
+            )
+            try:
+                shadow_row = _dualread.shadow_gate_eval(
+                    shadow_provider, symbol=theme.symbol, direction=theme.direction, rv=rv,
+                    underlying_price=underlying_price, gate=gate, eligibility=eligibility)
+                _dualread.record_arm(conn, run_id=run_id, as_of_iso=as_of_iso,
+                                     symbol=theme.symbol, feed="indicative", source="inline",
+                                     row=shadow_row)
+            except Exception as e:  # noqa: BLE001 — the shadow arm never blocks
+                _dualread.record_arm(conn, run_id=run_id, as_of_iso=as_of_iso,
+                                     symbol=theme.symbol, feed="indicative", source="inline",
+                                     error=str(e))
+        except Exception as e:  # noqa: BLE001 — dual-read persistence itself is fail-soft
+            log.warning("dual-read recording failed for %s: %s", theme.symbol, e)
     if not verdict.cheap:
         result.vetoed += 1
         state.record_convexity_eval(
@@ -224,8 +364,39 @@ def _process_theme(
         )
         return
 
-    # 3. Flat-by-slots sizing under the frozen caps.
+    # The §5 disagree-veto (date-gated, auto-lapsing): the OPRA gate-of-record says CHEAP but the
+    # INDICATIVE shadow arm disagrees (vetoes or can't structure) → no entry pending investigation.
+    # The shadow can only TIGHTEN — it never authorizes — and the rule lapses at the dated
+    # close-out (config.data_feed.dualread_disagree_veto_until) unless renewed by a dated edit.
+    if (dualread_veto_active and shadow_row is not None
+            and not (shadow_row.get("structured") and shadow_row.get("cheap"))):
+        result.vetoed += 1
+        state.record_convexity_eval(
+            conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+            direction=theme.direction, eligible=True, gate_cheap=True,
+            iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
+            decision="veto-dualread-disagree", proposal_id=theme.proposal_id,
+            reasons=[f"OPRA cheap but INDICATIVE shadow disagrees: {shadow_row}"],
+        )
+        return
+
+    # 3. Sizing under the frozen caps. FINE cluster check first — a cluster with room but < one
+    # contract records the structural veto-cluster-cap (not a generic veto-sizing); otherwise the
+    # cluster budget tightens the greedy allocation to a bounded partial (composes into sizing's min()).
     from convexity_sizing import convexity_position_size
+
+    premium_per_contract = structure.entry_premium * 100.0
+    if cluster_remaining is not None and cluster_remaining < premium_per_contract:
+        result.vetoed += 1
+        state.record_convexity_eval(
+            conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+            direction=theme.direction, eligible=True, gate_cheap=True,
+            iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
+            decision="veto-cluster-cap", proposal_id=theme.proposal_id,
+            reasons=[f"cluster {cluster!r} budget ${cluster_remaining:.0f} < one contract ${premium_per_contract:.0f}"],
+            cluster_state=cluster_state,
+        )
+        return
 
     sizing = convexity_position_size(
         account_equity=account_equity,
@@ -235,6 +406,7 @@ def _process_theme(
         open_positions_count=state.count_open_convexity_positions(conn),
         open_premium_total=state.convexity_book_open_premium(conn),
         entry_premium_per_share=structure.entry_premium,
+        cluster_remaining=cluster_remaining,
     )
     if sizing.contracts < 1:
         result.vetoed += 1
@@ -243,13 +415,43 @@ def _process_theme(
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-sizing", proposal_id=theme.proposal_id, reasons=list(sizing.reasons),
+            cluster_state=cluster_state,
         )
         return
+
+    # 3b. Foreign-quantity check (issue #279; finance#947 §3). The live account is shared and Alpaca nets
+    # per OCC contract, so before opening, the venue quantity in THIS contract must equal what this
+    # project's journal explains. A mismatch (another project holds it) or an unreadable venue → no entry.
+    # A broker with no venue (the simulated PaperBroker) has no ``venue_quantity`` and skips the check.
+    if callable(getattr(broker, "venue_quantity", None)):
+        venue_qty = broker.venue_quantity(structure.contract.symbol)
+        journal_qty = state.journal_contract_quantity(conn, structure.contract.symbol)
+        if venue_qty is None or venue_qty != journal_qty:
+            result.vetoed += 1
+            why = ("venue quantity unreadable" if venue_qty is None
+                   else f"venue holds {venue_qty} but this journal explains {journal_qty}")
+            state.record_convexity_eval(
+                conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+                direction=theme.direction, eligible=True, gate_cheap=True,
+                iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
+                decision="veto-foreign-quantity", proposal_id=theme.proposal_id,
+                reasons=[f"{structure.contract.symbol}: {why} (shared account, fail-closed)"],
+            )
+            log.error("foreign-quantity veto %s: %s", structure.contract.symbol, why)
+            try:
+                import notify
+                notify.send("Foreign quantity — entry refused",
+                            f"{structure.contract.symbol}: {why}. Reconcile across projects before resuming "
+                            "(finance#947 §6).", priority=1)
+            except Exception:  # noqa: BLE001 — paging never breaks the cycle
+                log.warning("foreign-quantity page failed to send")
+            return
 
     # 4. Paper fill (simulated at mid).
     fill = broker.submit_paper(
         contract_symbol=structure.contract.symbol, qty=sizing.contracts, side="buy",
         limit_price=structure.entry_premium,
+        client_order_id=make_client_order_id("open", structure.contract.symbol, str(as_of)),
     )
     if not fill.filled:
         result.vetoed += 1
@@ -287,12 +489,16 @@ def _process_theme(
     # Link the council proposal to the position it became (T2 forward-scoring substrate).
     if theme.proposal_id is not None:
         state.link_proposal_position(conn, theme.proposal_id, pos_id)
+        # T3: a sentinel that actually TRADED is now linked (sentinel.proposal_id set) → it resolves
+        # at close (monitor) rather than via the never-traded reference-return sweep.
+        if theme.sentinel_id is not None:
+            state.link_sentinel_proposal(conn, theme.sentinel_id, theme.proposal_id)
     state.record_convexity_eval(
         conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
         direction=theme.direction, eligible=True, gate_cheap=True,
         iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
         decision=("submit-pending" if pending else "open"), position_id=pos_id,
-        proposal_id=theme.proposal_id, reasons=list(verdict.reasons),
+        proposal_id=theme.proposal_id, reasons=list(verdict.reasons), cluster_state=cluster_state,
     )
     result.opened += 1
     result.opened_ids.append(pos_id)

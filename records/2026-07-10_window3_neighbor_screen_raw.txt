@@ -1,0 +1,21 @@
+=== feasibility screen (PREREG_UNIVERSE_CURATION §2) @ 2026-07-10 16:23 UTC ===
+floors (existing only): 1 contract <= $1000 | tenor 180-365d | spread <= 25% | OI >= 50 (when present) | price >= $3 | ADV >= $3M
+info-only columns: cluster-fit ($2000), achieved OTM%, strike interval, half-spread % of premium
+
+sym        spot  $/contr fits1? cl-fit wing                    dte  achOTM%  strk-gap  hspr%  spr%     OI  ADV$M floors  
+CALX      40.03      615 YES    YES    CALX270115C00040000     189     -0.1   2.5/2.5    7.3    15    n/a   43.9 ok      
+COMM   ERR no underlying price
+VIAV      42.88     1065 no     YES    VIAV270416C00055000     280     28.2       5/5    9.9    20    n/a  431.6 ok      
+LITE     775.01     9950 no     no     LITE270115C01220000     189     57.4     10/10    5.0    10    n/a 4207.3 ok      
+CIEN     463.18     9635 no     no     CIEN270319C00580000     252     25.2     10/10    3.5     7    n/a 1423.7 ok      
+CC        17.66      195 YES    YES    CC270115C00022000       189     24.6       1/1    7.7    15    n/a   55.2 ok      
+KRO        5.92        - no     -      (no_eligible_contract_in_tenor_window)    -        -         -      -     -      -    1.8 ADV     
+AGCO     115.44     1515 no     YES    AGCO270219C00115000     224     -0.4       5/5   10.2    20    n/a   81.6 ok      
+CNH       10.49        - no     -      (no_eligible_contract_in_tenor_window)    -        -         -      -     -      -  111.1 ok      
+ALG      163.81        - no     -      (no_eligible_contract_in_tenor_window)    -        -         -      -     -      -   32.3 ok      
+DE       592.93     3700 no     no     DE270617C00740000       342     24.8     20/20   10.8    22    n/a  754.8 ok      
+TWI        7.29      480 YES    YES    TWI270115C00002500      189    -65.7     -/2.5   12.5    25    n/a    4.4 ok      
+GBX       47.03        - no     -      (no_eligible_contract_in_tenor_window)    -        -         -      -     -      -   29.8 ok      
+
+=== SUMMARY: 3 candidate(s) fit one contract under the $1000 per-name cap ===
+(cheapness deliberately not shown — the IV gate disposes at decision time, CGS §7)

@@ -57,3 +57,67 @@ def test_persist_same_day_replaces_not_stacks(tmp_path):
     recs = cache.read_between(SNAPSHOT_SOURCE, "FCX", None, afternoon)
     assert len(recs) == 1  # same day → replaced
     assert recs[0]["underlying_price"] == 46.5  # the later snapshot won
+
+
+# ── provider feed wiring (the data-feed upgrade) ───────────────────────────────
+class _FakeClient:
+    """Records the ``feed=`` kwarg passed to each read so the provider wiring is assertable offline."""
+
+    def __init__(self):
+        self.bars_feed = "UNSET"
+        self.chain_feed = "UNSET"
+        self.quote_feed = "UNSET"
+
+    def get_stock_bars(self, symbol, start, end=None, **kw):
+        self.bars_feed = kw.get("feed", None)
+
+        class _B:
+            data = {}
+
+        return _B()
+
+    def get_option_chain(self, symbol, **kw):
+        self.chain_feed = kw.get("feed", None)
+        return {}
+
+    def option_quote_tuples(self, underlying, **kw):
+        self.quote_feed = kw.get("feed", None)
+        return []
+
+
+def test_chain_provider_passes_configured_feeds():
+    from convexity_data import AlpacaChainProvider
+
+    c = _FakeClient()
+    p = AlpacaChainProvider(c, equity_feed="SIP_SENTINEL", option_feed="OPRA_SENTINEL")
+    p.closes("AAPL", window=5)
+    p.chain("AAPL")
+    assert c.bars_feed == "SIP_SENTINEL"    # RV/underlying bars use the equity feed
+    assert c.chain_feed == "OPRA_SENTINEL"  # the gate's chain uses the option feed
+
+
+def test_chain_provider_defaults_omit_feed_for_backward_compat():
+    from convexity_data import AlpacaChainProvider
+
+    c = _FakeClient()
+    p = AlpacaChainProvider(c)  # no feeds → client defaults (IEX/INDICATIVE); feed kwarg NOT passed
+    p.closes("AAPL", window=5)
+    p.chain("AAPL")
+    assert c.bars_feed is None
+    assert c.chain_feed is None
+
+
+def test_quote_provider_passes_configured_feed():
+    from convexity_data import AlpacaQuoteProvider
+
+    c = _FakeClient()
+    AlpacaQuoteProvider(c, option_feed="MON_SENTINEL")._underlying_quotes("AAPL")
+    assert c.quote_feed == "MON_SENTINEL"
+
+
+def test_quote_provider_default_omits_feed():
+    from convexity_data import AlpacaQuoteProvider
+
+    c = _FakeClient()
+    AlpacaQuoteProvider(c)._underlying_quotes("AAPL")
+    assert c.quote_feed is None

@@ -1,0 +1,22 @@
+# Dramatic Options — Pushover pager for a failed unit. TEMPLATE: deploy.sh renders
+# __REPO_ROOT__ / __USER__ / __GROUP__. Instantiated by OnFailure=dramatic-options-notify@%n
+# on the L1/L2 units; %i is the failed unit's name (e.g. dramatic-options-l1.service).
+#
+# EnvironmentFile uses the `-` prefix on purpose (R3): a missing/incomplete .env must NOT make
+# the PAGER itself hard-fail — it loads what it can and notify.py no-ops cleanly if PUSHOVER_*
+# is unset. (Note the self-defeating case this implies: if the failure CAUSE is a missing .env,
+# this unit also finds no keys and pages nothing — which is exactly why verify_deploy.sh's
+# deploy-time .env assertion is load-bearing, not nice-to-have.) SupplementaryGroups grants
+# journal read so the `journalctl -u %i` tail in the page isn't empty.
+[Unit]
+Description=Dramatic Options Pushover pager for failed unit %i
+
+[Service]
+Type=oneshot
+User=__USER__
+Group=__GROUP__
+SupplementaryGroups=systemd-journal
+WorkingDirectory=__REPO_ROOT__
+EnvironmentFile=-__REPO_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__REPO_ROOT__/venv/bin/python -u notify.py --systemd-failure %i

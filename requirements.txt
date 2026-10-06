@@ -14,4 +14,9 @@ requests==2.34.2
 # so CI / `orchestrator.py --demo` / tests (FakeRouter) need none of these installed.
 anthropic==0.105.2
 openai==2.38.0
+# PIN EXACT: GeminiProvider depends on google-genai 2.x field names that are version-coupled —
+# `GenerateContentConfig.thinking_config` / `response_mime_type` and `ThinkingConfig.thinking_level`
+# (the Gemini-3.x "minimal thinking" knob that fixes the #37 proposer thinking-starvation). A bump
+# that renames these passes the offline (mocked) tests but breaks live SILENTLY → re-run the
+# `@pytest.mark.live` council round-trip after any upgrade.
 google-genai==2.7.0

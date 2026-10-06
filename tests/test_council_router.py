@@ -54,7 +54,7 @@ class _StubProvider:
         self._calls += 1
         if self._calls <= self._fail_times:
             raise RuntimeError("transient")
-        return self._text, self._in, self._out
+        return self._text, self._in, self._out, {"finish_reason": "STOP", "thoughts_tokens": None}
 
 
 def test_router_records_cost_and_returns_response():
@@ -80,6 +80,63 @@ def test_router_exhausts_retries_then_raises():
     r = Router(providers={"anthropic": _StubProvider("anthropic", fail_times=99)},
                roles={"strategist": ROLES["strategist"]}, prices={}, ledger=led, max_retries=1)
     with pytest.raises(RouterError):
+        r.call(role="strategist", system="s", user="u")
+
+
+FALLBACK = {"strategist": {"provider": "openai", "model": "gpt-5.2-2025-12-11"}}
+
+
+def test_router_fallback_fires_only_after_primary_exhausts_retries():
+    # The 2026-08-27 understudy: primary dead (quota 400 class) → the pinned fallback answers,
+    # and the response/ledger attribute the ACTUAL provider+model (honest per-call attribution).
+    led = CostLedger()
+    fb = _StubProvider("openai", text='{"conviction": "NEUTRAL"}', in_tok=1_000_000, out_tok=0)
+    r = Router(providers={"anthropic": _StubProvider("anthropic", fail_times=99), "openai": fb},
+               roles={"strategist": ROLES["strategist"]}, roles_fallback=FALLBACK,
+               prices={"gpt-5.2-2025-12-11": {"in": 2.0, "out": 1.0}}, ledger=led, max_retries=1)
+    out = r.call(role="strategist", system="s", user="u")
+    assert out.provider == "openai" and out.model == "gpt-5.2-2025-12-11"
+    assert out.cost_usd == pytest.approx(2.0)
+    assert led.total_usd == pytest.approx(2.0)
+
+
+def test_router_fallback_untouched_when_primary_succeeds():
+    led = CostLedger()
+    fb = _StubProvider("openai")
+    r = Router(providers={"anthropic": _StubProvider("anthropic"), "openai": fb},
+               roles={"strategist": ROLES["strategist"]}, roles_fallback=FALLBACK,
+               prices={}, ledger=led, max_retries=0)
+    out = r.call(role="strategist", system="s", user="u")
+    assert out.provider == "anthropic" and fb._calls == 0  # byte-identical primary path
+
+
+def test_router_fallback_also_failing_raises_with_both_errors():
+    led = CostLedger()
+    r = Router(providers={"anthropic": _StubProvider("anthropic", fail_times=99),
+                          "openai": _StubProvider("openai", fail_times=99)},
+               roles={"strategist": ROLES["strategist"]}, roles_fallback=FALLBACK,
+               prices={}, ledger=led, max_retries=0)
+    with pytest.raises(RouterError, match="primary already failed"):
+        r.call(role="strategist", system="s", user="u")
+
+
+def test_router_no_fallback_for_unmapped_role_raises_as_before():
+    led = CostLedger()
+    r = Router(providers={"gemini": _StubProvider("gemini", fail_times=99)},
+               roles={"proposer": ROLES["proposer"]}, roles_fallback=FALLBACK,
+               prices={}, ledger=led, max_retries=0)
+    with pytest.raises(RouterError):
+        r.call(role="proposer", system="s", user="u")
+
+
+def test_build_router_fallback_key_missing_disables_understudy_fail_soft():
+    # A missing FALLBACK key must never fail-closed the council — understudy off, loudly.
+    cfg = {"council": {"roles": {"strategist": {"provider": "anthropic", "model": "m"}},
+                       "roles_fallback": FALLBACK}}
+    r = build_router(cfg, {"anthropic": "k"})  # no openai key
+    assert r._roles_fallback == {}
+    with pytest.raises(RouterError):  # primary-dead still fail-closed, as before
+        r._providers["anthropic"] = _StubProvider("anthropic", fail_times=99)
         r.call(role="strategist", system="s", user="u")
 
 
@@ -121,3 +178,75 @@ def test_fake_router_is_deterministic_and_free():
 def test_fake_router_custom_responder():
     fr = FakeRouter(responder=lambda role, system, user: json.dumps({"role": role}))
     assert json.loads(fr.call(role="adversary", system="s", user="u").text) == {"role": "adversary"}
+
+
+# ── OpenAIProvider token-param swap (gpt-5 / o-series reject max_tokens) ──────────────────────
+from types import SimpleNamespace  # noqa: E402
+
+
+class _FakeOAIError(Exception):
+    def __init__(self, msg, status_code=400):
+        super().__init__(msg)
+        self.status_code = status_code
+
+
+class _FakeCompletions:
+    """Records the create() kwargs; ``reject_max_tokens`` simulates gpt-5/o-series (400 on max_tokens)."""
+
+    def __init__(self, *, reject_max_tokens):
+        self.calls = []
+        self._reject = reject_max_tokens
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self._reject and "max_tokens" in kwargs:
+            raise _FakeOAIError("Unsupported parameter: 'max_tokens' is not supported with this model. "
+                                "Use 'max_completion_tokens' instead.")
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'), finish_reason="stop")],
+            usage=SimpleNamespace(prompt_tokens=12, completion_tokens=7))
+
+
+def _oai_provider_with_fake(*, reject_max_tokens):
+    from council.router import OpenAIProvider
+    prov = OpenAIProvider("k", name="openai", json_mode=True)
+    comp = _FakeCompletions(reject_max_tokens=reject_max_tokens)
+    prov._client = SimpleNamespace(chat=SimpleNamespace(completions=comp))  # bypass lazy SDK import
+    return prov, comp
+
+
+def test_openai_provider_swaps_to_max_completion_tokens_on_400():
+    # gpt-5/o-series: max_tokens 400s → swap to max_completion_tokens and retry, byte-for-byte same prompt.
+    prov, comp = _oai_provider_with_fake(reject_max_tokens=True)
+    text, intok, outtok, meta = prov.complete(
+        model="gpt-5.4", system="reply with ONE json object", user="u", timeout_s=5, max_tokens=64)
+    assert json.loads(text) == {"ok": True} and (intok, outtok) == (12, 7) and meta["finish_reason"] == "stop"
+    assert len(comp.calls) == 2
+    assert "max_tokens" in comp.calls[0] and "max_completion_tokens" not in comp.calls[0]
+    assert comp.calls[1].get("max_completion_tokens") == 64 and "max_tokens" not in comp.calls[1]
+
+
+def test_openai_provider_keeps_max_tokens_for_compatible_models():
+    # grok/perplexity/gpt-4.x accept max_tokens → no swap, single call (the unchanged path).
+    prov, comp = _oai_provider_with_fake(reject_max_tokens=False)
+    text, *_ = prov.complete(model="grok-4.3", system="reply with json", user="u", timeout_s=5, max_tokens=64)
+    assert json.loads(text) == {"ok": True}
+    assert len(comp.calls) == 1 and comp.calls[0].get("max_tokens") == 64
+
+
+def test_build_router_threads_gemini_thinking_knobs():
+    # The P0 fix is config-driven: the gemini provider must receive thinking_level + json_mode so a 3.x
+    # thinking model doesn't starve its output budget (SDKs lazy → no network).
+    config = {"council": {"roles": {"proposer": {"provider": "gemini", "model": "gemini-3.5-flash"}},
+                          "gemini": {"thinking_level": "minimal", "json_mode": True}}}
+    prov = build_router(config, llm_keys={"gemini": "g"})._providers["gemini"]
+    assert prov._thinking_level == "minimal" and prov._json_mode is True
+
+
+def test_build_router_per_role_knob_overrides_provider_default():
+    # P3-#11: a per-role knob overrides the council.<provider> default (the expansion path).
+    config = {"council": {"roles": {"proposer": {"provider": "gemini", "model": "m",
+                                                 "thinking_level": "low", "json_mode": False}},
+                          "gemini": {"thinking_level": "minimal", "json_mode": True}}}
+    prov = build_router(config, llm_keys={"gemini": "g"})._providers["gemini"]
+    assert prov._thinking_level == "low" and prov._json_mode is False
