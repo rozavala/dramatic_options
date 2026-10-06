@@ -69,7 +69,8 @@ def evidence_text(pack) -> str:
     agent quotes from a rendered block — exactly the citations each corpus exists to enable —
     would flag as unsupported and dampen conviction (the PR #55 lesson, recursively)."""
     from council.context import catalyst_evidence_strings, fundamental_evidence_tokens
-    return " ".join([pack.operator_thesis or "", getattr(pack, "framer_summary", None) or "", *pack.headlines,
+    return " ".join([pack.operator_thesis or "", getattr(pack, "framer_summary", None) or "",
+                     getattr(pack, "operator_falsifier", None) or "", *pack.headlines,
                      *fundamental_evidence_tokens(pack), *catalyst_evidence_strings(pack)])
 
 

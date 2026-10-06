@@ -196,6 +196,9 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
             # PREREG_EVIDENCE_GROUNDING amendment A1 (2026-10-02): a sentinel's framer text is labelled
             # DISCOVERY_SUMMARY, not OPERATOR_THESIS — a pack-shape change, record-segmenting from deploy.
             mix["pack_provenance"] = "provenance_v1"
+            if config.get("council", {}).get("register_thesis", False):
+                # Amendment A2 (2026-10-06): sentinel packs show the operator's register thesis for the basket.
+                mix["pack_provenance"] = "provenance_v1+register_thesis_v1"
         if catalysts is not None:
             # §4 anti-silent-dormancy counters (the event-leg precedent — journald rotates, the
             # runs row doesn't). reverse_conversion_n is a §6 paired-contrast property and joins
