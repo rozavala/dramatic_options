@@ -100,3 +100,17 @@ def test_web_unit_carries_the_env_identity_and_deploy_renders_it():
     deploy = (REPO / "deploy.sh").read_text()
     assert 's|__ENV_NAME__|${ENV_NAME}|g' in deploy
     json.dumps(pwa.manifest())                              # serializable
+
+
+def test_web_dashboard_binds_localhost_only_behind_the_tailnet_https_proxy():
+    run = (REPO / "scripts/dashboard_web_run.sh").read_text()
+    assert "--host 127.0.0.1 --port 8602" in run
+    assert "0.0.0.0" not in run and "tailscale ip" not in run   # never a wildcard; the proxy owns the tailnet port
+
+
+def test_web_dashboard_is_armed_on_every_env():
+    deploy = (REPO / "deploy.sh").read_text()
+    body = deploy[deploy.index("apply_web_dashboard() {"):]
+    body = body[:body.index("\n}\n")]
+    assert 'sudo systemctl enable --now "$WEB_SERVICE"' in body
+    assert "disable --now \"$WEB_SERVICE\"" not in body.split("npm or dashboard_web/ui missing")[-1]
