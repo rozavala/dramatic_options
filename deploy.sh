@@ -114,6 +114,7 @@ render_unit() {
     sed -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
         -e "s|__USER__|$(id -un)|g" \
         -e "s|__GROUP__|$(id -gn)|g" \
+        -e "s|__ENV_NAME__|${ENV_NAME}|g" \
         "$1"
 }
 
@@ -181,9 +182,11 @@ apply_dashboard() {
     fi
 }
 
-# Arm the LONG-RUNNING web dashboard (dashboard_web/: FastAPI + React SPA on :8602). Mirrors apply_dashboard
-# — armed where this env OBSERVES (DEV always / forward_enabled at T4), else installed-but-stopped — equally
-# FAIL-SOFT and OUTSIDE the verify gate. Builds the SPA here (fail-soft): a build failure leaves the prior
+# Arm the LONG-RUNNING web dashboard (dashboard_web/: FastAPI + React SPA on 127.0.0.1:8602, reached via the
+# box's tailnet-only `tailscale serve --https=8602`). ARMED ON EVERY ENV, PROD included before T4 (operator
+# 2026-10-06: "enable PROD even though there's nothing yet, just to have it ready") — it is read-only and
+# keyless with no trading path, so the installed PROD app is ready at T4. Unlike apply_dashboard (Streamlit,
+# still DEV/forward_enabled-only). FAIL-SOFT and OUTSIDE the verify gate. Builds the SPA here (fail-soft): a build failure leaves the prior
 # dist or serves API-only (server.py mounts dist only if present), never blocking trading. Every command is
 # guarded so `set -e` can't trip on it. Guards on the wrapper's PRESENCE (a rollback across the introducing
 # commit has no wrapper → don't enable a unit whose ExecStart is gone).
@@ -201,14 +204,9 @@ apply_web_dashboard() {
     else
         echo "  Web dashboard: npm or dashboard_web/ui missing — skipping build (API-only if started)."
     fi
-    if [ "$(forward_enabled)" = "true" ] || [ "$ENV_NAME" = "DEV" ]; then
-        echo "  Web dashboard: enabling + starting ($WEB_SERVICE)."
-        sudo systemctl enable --now "$WEB_SERVICE" \
-            || echo "  WARNING: web dashboard enable --now failed (fail-soft — trading is unaffected)"
-    else
-        echo "  Web dashboard: installed but stopped on $ENV_NAME (start when needed: systemctl start $WEB_SERVICE)."
-        sudo systemctl disable --now "$WEB_SERVICE" 2>/dev/null || true
-    fi
+    echo "  Web dashboard: enabling + starting ($WEB_SERVICE) on $ENV_NAME."
+    sudo systemctl enable --now "$WEB_SERVICE" \
+        || echo "  WARNING: web dashboard enable --now failed (fail-soft — trading is unaffected)"
 }
 
 # Stop scheduling AND any in-flight oneshot so a `git reset` never lands under a live cycle (R4).

@@ -2,8 +2,8 @@
 # TEMPLATE: deploy.sh renders __REPO_ROOT__ / __USER__ / __GROUP__ at install time (DEV=rodrigo / PROD=console).
 #
 # Mirrors dramatic-options-dashboard.service (the Streamlit one, :8601). Long-running (Type=simple);
-# deploy.sh enables+starts it where `forward_enabled || ENV_NAME=DEV` (DEV always armed; PROD auto-arms at
-# T4), else installs-but-stops it. Fail-soft + OUTSIDE the verify/rollback gate (a dashboard hiccup never
+# deploy.sh enables+starts it on EVERY env, PROD included before T4 (2026-10-06 — read-only, keyless, no
+# trading path); binds 127.0.0.1:8602, reached via the box's tailnet-only `tailscale serve --https=8602`. Fail-soft + OUTSIDE the verify/rollback gate (a dashboard hiccup never
 # touches trading).
 #
 # READ-ONLY + KEYLESS: deliberately NO EnvironmentFile, plus DRAMATIC_SKIP_DOTENV=1 → config_loader loads
@@ -23,6 +23,8 @@ Group=__GROUP__
 WorkingDirectory=__REPO_ROOT__
 Environment=PYTHONUNBUFFERED=1
 Environment=DRAMATIC_SKIP_DOTENV=1
+# The installable app's identity (PROD vs DEV; dashboard_web/api/pwa.py) — not a secret, rendered by deploy.sh.
+Environment=DRAMATIC_ENV=__ENV_NAME__
 ExecStart=__REPO_ROOT__/scripts/dashboard_web_run.sh
 Restart=on-failure
 RestartSec=10

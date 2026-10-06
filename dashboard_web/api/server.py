@@ -135,6 +135,31 @@ def curation_draft(req: CurationDraftRequest) -> dict:
     raise HTTPException(status_code=400, detail="kind must be 'screen' or 'theme'")
 
 
+# Installable app (2026-10-06; the alpha_options console pattern): manifest, icons and the service worker are
+# routes, so they vary by DRAMATIC_ENV (PROD and DEV installs never collide). Defined BEFORE the SPA mount.
+import pwa  # noqa: E402 — sits beside server.py (uvicorn --app-dir dashboard_web/api)
+from fastapi.responses import JSONResponse, Response  # noqa: E402
+
+
+@app.get("/manifest.webmanifest")
+def manifest() -> JSONResponse:
+    return JSONResponse(pwa.manifest(), media_type="application/manifest+json")
+
+
+@app.get("/icons/icon-{size}.png")
+def icon(size: int) -> Response:
+    if size not in pwa.ICON_SIZES:
+        raise HTTPException(status_code=404, detail="no such icon")
+    return Response(pwa.icon_png(size, pwa.dramatic_env()), media_type="image/png")
+
+
+@app.get("/sw.js")
+def service_worker() -> Response:
+    # Scope "/" and always revalidated, so a fix to the worker lands at once.
+    return Response(pwa.SERVICE_WORKER_JS, media_type="application/javascript",
+                    headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+
+
 # Production: serve the built SPA same-origin so the UI and /api share ONE port (no Vite/CORS in prod).
 # Mounted LAST so the /api/* routes above win; only mounted if a build exists (dev has no dist → uses the
 # Vite proxy instead). StaticFiles is read-only; html=True serves index.html at "/".
