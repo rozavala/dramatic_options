@@ -38,6 +38,10 @@ class Theme:
     # pre-news discovery is not NEUTRAL-dropped for lack of coverage. Hand-seed themes leave it
     # None (they ground on news + operator thesis, unchanged).
     markers: dict | None = None
+    # The config.universe.themes basket a sentinel was scanned from (None for hand-seeds). The exact key the
+    # council uses to find the operator's register thesis (PREREG_EVIDENCE_GROUNDING amendment A2) — never
+    # inferred from the framer's free-text theme label.
+    basket: str | None = None
 
 
 class ThemeError(ValueError):
