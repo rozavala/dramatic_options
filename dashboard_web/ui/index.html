@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dramatic Options — observability</title>
+    <!-- Installable app (served by the API per DRAMATIC_ENV: PROD and DEV are two distinct apps). -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#1c1b18" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <!-- Fonts are self-hosted (bundled via @fontsource in src/main.tsx) — no external CDN, so the UI is
          fully offline-capable, matching the no-public-egress posture. -->
   </head>
