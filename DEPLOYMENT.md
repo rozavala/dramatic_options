@@ -79,15 +79,16 @@ disabled), **no real-money broker path in code** (`AlpacaPaperBroker` hardcodes 
 
 ## Observability dashboard (read-only)
 
-A long-running **systemd service** (`dramatic-options-dashboard.service`, `Type=simple`) — distinct from the
-oneshot L0/L1/L2 trading units. `deploy.sh apply_dashboard` **enables + starts** it where `forward_enabled ||
-ENV_NAME=DEV` (DEV always — observe even a paused book; PROD auto-arms at T4 go-live), else installs-but-stops
-it (start when needed: `sudo systemctl start dramatic-options-dashboard`).
+**The web dashboard is the dashboard** (`dramatic-options-web.service`, `dashboard_web/`: FastAPI + the React
+SPA, an installable app per environment). It binds **127.0.0.1:8602** and is reached through each box's
+tailnet-only HTTPS proxy (`tailscale serve --https=8602`) — see the web-dashboard bullet below.
 
-- **Bind:** `scripts/dashboard_run.sh` resolves the per-box **Tailscale IP** at start (polls ~60s; **fail-closed**
-  — never a wildcard/public bind) and runs `streamlit run dashboard.py --server.port 8601` (we hold the **86xx
-  block** — 8601 Streamlit / 8602 web — kept clear of real_options' **85xx** dashboards on 8501/8502, which bind
-  `0.0.0.0` and so claim a port on every interface). Reach it at `all-options-<env>.tail57521e.ts.net:8601`.
+**The Streamlit dashboard (`dramatic-options-dashboard.service`, :8601) is RETIRED (2026-10-06, operator).**
+Its unit template and `scripts/dashboard_run.sh` are removed; `deploy.sh apply_dashboard` now only ensures the
+old unit is stopped and disabled on every box. `dashboard.py` stays as the panel-parity reference the web API
+is tested against (`dashboard_web/api/test_snapshot_parity.py`) and can still be run by hand
+(`streamlit run dashboard.py`), so `requirements-dashboard.txt` keeps streamlit.
+
 - **Keyless:** the unit omits `EnvironmentFile` **and** sets `DRAMATIC_SKIP_DOTENV=1`, so
   `config_loader.load_config` loads `config.json` tunables but **never reads `.env`** — the read-only process
   holds no broker/LLM/Pushover keys. Confirm on the box:
@@ -109,8 +110,8 @@ it (start when needed: `sudo systemctl start dramatic-options-dashboard`).
 | `.github/workflows/deploy.yml` | CI/CD trigger: `main`→DEV, `production`→PROD (runs `./deploy.sh`) |
 | `deploy.sh` | lifecycle: verify-gated install + timer arming, with rollback that re-syncs units |
 | `scripts/verify_deploy.sh` | health gate (disk, imports, critical files, **live-checkout `.env`**) |
-| `scripts/systemd/*.{service,timer}` | unit templates (L0, L1, L2, notify@, dashboard) rendered at install |
-| `scripts/dashboard_run.sh` | dashboard launch wrapper — resolves the tailnet IP (fail-closed), binds 8601 |
+| `scripts/systemd/*.{service,timer}` | unit templates (L0, L1, L2, reach, notify@, web) rendered at install |
+| `scripts/dashboard_web_run.sh` | web dashboard launch wrapper — binds 127.0.0.1:8602 (behind `tailscale serve`) |
 | `requirements-dashboard.txt` | dashboard-only deps (streamlit); installed by deploy STEP 3, not in CI's base job |
 | `notify.py` | Pushover sender (in-app + `--systemd-failure` for `OnFailure`) |
 | `scripts/sync_worktree.sh` | keeps the `…-claude` worktree in sync |

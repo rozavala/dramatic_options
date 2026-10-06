@@ -160,26 +160,13 @@ apply_timers() {
     fi
 }
 
-# Arm the LONG-RUNNING dashboard service. Distinct from apply_timers: armed where this env OBSERVES — DEV
-# always (watch even a paused book), PROD once it goes live (forward_enabled=true at T4) — else installed but
-# stopped (start when needed). FAIL-SOFT by design: a dashboard problem must NEVER fail or roll back the
-# trading deploy, so this swallows errors and is never in the verify gate. Guards on the wrapper's PRESENCE
-# (a rollback ACROSS the introducing commit has no wrapper → don't enable a unit whose ExecStart is gone).
+# RETIRED 2026-10-06 (operator): the Streamlit dashboard (:8601) is superseded by the web dashboard / installable
+# app (dashboard_web/, :8602). This keeps it stopped and disabled on every env, so a box that still has the old
+# unit installed never runs it again. FAIL-SOFT, outside the verify gate. dashboard.py stays in the tree as the
+# panel-parity reference (dashboard_web/api/test_snapshot_parity.py) and can still be run by hand.
 apply_dashboard() {
-    if [ ! -f scripts/dashboard_run.sh ]; then
-        echo "  Dashboard: no scripts/dashboard_run.sh in this tree — leaving it stopped."
-        sudo systemctl disable --now "$DASHBOARD_SERVICE" 2>/dev/null || true
-        return 0
-    fi
-    chmod +x scripts/dashboard_run.sh 2>/dev/null || true   # repair an exec bit stripped on the box
-    if [ "$(forward_enabled)" = "true" ] || [ "$ENV_NAME" = "DEV" ]; then
-        echo "  Dashboard: enabling + starting ($DASHBOARD_SERVICE)."
-        sudo systemctl enable --now "$DASHBOARD_SERVICE" \
-            || echo "  WARNING: dashboard enable --now failed (fail-soft — trading is unaffected)"
-    else
-        echo "  Dashboard: installed but stopped on $ENV_NAME (start when needed: systemctl start $DASHBOARD_SERVICE)."
-        sudo systemctl disable --now "$DASHBOARD_SERVICE" 2>/dev/null || true
-    fi
+    echo "  Streamlit dashboard: retired — ensuring $DASHBOARD_SERVICE is stopped and disabled."
+    sudo systemctl disable --now "$DASHBOARD_SERVICE" 2>/dev/null || true
 }
 
 # Arm the LONG-RUNNING web dashboard (dashboard_web/: FastAPI + React SPA on 127.0.0.1:8602, reached via the
@@ -295,8 +282,9 @@ if [ -f requirements.txt ]; then
 else
     echo "  No requirements.txt — skipping"
 fi
-# The §5b dashboard's deps (streamlit) — kept OUT of requirements.txt so the trading runtime stays lean;
-# installed here so the live venv can run dramatic-options-dashboard.service. (CI's test-dashboard job
+# The dashboard deps — kept OUT of requirements.txt so the trading runtime stays lean; installed here so the
+# live venv can run dramatic-options-web.service (fastapi/uvicorn). streamlit stays for running the retired
+# dashboard.py by hand (the service itself is retired, 2026-10-06). (CI's test-dashboard job
 # installs the same combined set, so a dep conflict fails CI rather than only the box.)
 [ -f requirements-dashboard.txt ] && pip install -r requirements-dashboard.txt
 
