@@ -220,10 +220,15 @@ def run_executor(report: dict, config: dict, *, notify, write_sentinel=None) -> 
               f"The OPRA/INDICATIVE iv_rv disagreement breached the rolling-5 wire "
               f"(the sole revert trigger). {action}.", priority=1)
 
+    last_detail = ((report.get("sessions") or [{}])[-1] or {}).get("flip_detail", {}) or {}
     for name in verdict["material_flip"]["pages"]:
+        why = last_detail.get(name)
         _page(notify, "OPRA dual-read: material cheap-flip — investigate",
-              f"{name}: OPRA and INDICATIVE disagree on `cheap` on an existing wing "
-              f"(|Δ iv/rv| ≥ floor), recurring on the rolling-5. Investigate; no revert.")
+              f"{name}: OPRA and INDICATIVE disagree on `cheap` on the same wing this session — the first "
+              f"flip of a new episode (|Δ iv/rv| ≥ the materiality floor). "
+              + (f"Differs on {why}. " if why else "")
+              + "OPRA is the gate of record (INDICATIVE can only tighten), so no entry rides on it. Pages once "
+                "per episode, re-arms after 4 clean sessions. Investigate; no revert.")
 
     for name in verdict["gap_structural"]["pages"]:
         _page(notify, "OPRA dual-read: coverage-feasibility",

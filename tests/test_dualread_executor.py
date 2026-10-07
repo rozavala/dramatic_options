@@ -502,3 +502,34 @@ def test_runtime_panel_entitlement_feed_wide_no_debounce(convexity_db):
     e = r["classes"]["entitlement"]
     assert e["tripped"] is True and e["sessions"] == 1 and e["pages"] == [] and e["revert"] is False
     assert r["revert_latch"]["authorized"] is False  # entitlement never authorizes a revert
+
+
+# ── 2026-10-06 UROY page: say WHICH test the feeds read differently; no "recurring" claim ──────────
+
+def test_flip_detail_names_the_differing_test():
+    import dashboard_data as dd
+    o = {"iv_rv": 1.0073, "otm_skew": 10.58}
+    i = {"iv_rv": 1.0325, "otm_skew": 8.80}
+    assert dd._flip_detail(o, i, 1.2, 10.0) == "skew: OPRA 10.58 vs INDICATIVE 8.80 (limit 10)"
+    assert dd._flip_detail({"iv_rv": 1.25, "otm_skew": 5}, {"iv_rv": 1.1, "otm_skew": 5}, 1.2, 10.0) \
+        .startswith("iv/rv: OPRA 1.25 vs INDICATIVE 1.10")
+    assert "another gate input" in dd._flip_detail({"iv_rv": 1.0, "otm_skew": 1}, {"iv_rv": 1.0, "otm_skew": 2},
+                                                   1.2, 10.0)
+
+
+def test_flip_page_says_first_flip_and_the_reason():
+    sent = []
+
+    class _N:
+        @staticmethod
+        def send(title, msg, priority=0):
+            sent.append((title, msg))
+
+    report = {"tripwires": {}, "gap_partition": {},
+              "sessions": [{"material_flips": ["UROY"], "opra_wing": ["UROY"],
+                            "flip_detail": {"UROY": "skew: OPRA 10.58 vs INDICATIVE 8.80 (limit 10)"}}]}
+    dx.run_executor(report, {}, notify=_N)
+    msgs = [m for t, m in sent if "cheap-flip" in t]
+    assert len(msgs) == 1
+    assert "first flip of a new episode" in msgs[0] and "skew: OPRA 10.58" in msgs[0]
+    assert "recurring on the rolling-5" not in msgs[0]
