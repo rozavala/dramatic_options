@@ -20,9 +20,9 @@ import tempfile
 import time
 from datetime import UTC, datetime
 
-from dotenv import load_dotenv
+from _live_env import load_live_env
 
-load_dotenv("/home/rodrigo/dramatic_options/.env")
+load_live_env()
 
 import orchestrator  # noqa: E402
 from config_loader import load_config  # noqa: E402
