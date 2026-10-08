@@ -39,9 +39,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
+from _live_env import load_live_env
 
-load_dotenv("/home/rodrigo/dramatic_options/.env")  # live keys (live checkout); never committed
+load_live_env()  # live keys (live checkout); never committed
 os.environ.setdefault("EDGAR_USER_AGENT", "dramatic-options-reach rozavala@gmail.com")
 
 import requests  # noqa: E402

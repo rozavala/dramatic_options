@@ -23,9 +23,9 @@ import argparse
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from dotenv import load_dotenv
+from _live_env import load_live_env
 
-load_dotenv("/home/rodrigo/dramatic_options/.env")
+load_live_env()
 
 import clusters  # noqa: E402
 from config_loader import load_config, require_alpaca_credentials  # noqa: E402
