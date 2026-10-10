@@ -32,9 +32,9 @@ import argparse
 import random
 import sys
 
-from dotenv import load_dotenv
+from _live_env import load_live_env
 
-load_dotenv("/home/rodrigo/dramatic_options/.env")
+load_live_env()
 
 import orchestrator  # noqa: E402
 import restricted as restricted_list  # noqa: E402

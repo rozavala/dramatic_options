@@ -296,3 +296,17 @@ show PASS on a contract that would then fail the admission read — and invite a
 fails a selection below 200 days with the reason spelled out (`runway: dte N < 200`). The admission read of
 record still governs; a test pins the two floors to the same value.
 
+## Rule 0 dated amendment (2026-10-06, operator word) — one display-only read of the register
+
+Rule 0 says the register is "never loaded by the loop". Amended, narrowly: the council's context pack may read
+each theme's **`council_thesis`** (a new, operator-adopted, council-facing one-liner) and its **`falsifier`**,
+keyed by theme/basket, to show a sentinel candidate the operator's admission hypothesis
+(PREREG_EVIDENCE_GROUNDING amendment A2). **Nothing else changes.**
+- Admission, basket membership, cluster routing, sizing, gating and vetoes still read
+  `config.universe.themes` / `config.convexity_book.clusters` only.
+- The raw `thesis` field is never read by the loop.
+- `council_thesis` is a register field like any other: changed only by a dated operator amendment, and
+  carrying the structural claim only (no price, cheapness, narration or process notes).
+- The 14 initial `council_thesis` lines were drafted by CC from each theme's adopted thesis and adopted by
+  the operator with this amendment.
+

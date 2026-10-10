@@ -20,7 +20,7 @@ rich-IV / steep-call-skew corner the gate exists to reject).
 ## Canonical (the lineage — fully written up elsewhere)
 
 - **divergence v1** — insider-buying / fundamentals "delivery" signal. UNPROVEN across 4
-  Bonferroni-penalized iterations; primary-horizon rank-IC ≈ 0. See `CLAUDE.md` Phase-1 gate table.
+  Bonferroni-penalized iterations; primary-horizon rank-IC ≈ 0. Gate table and write-up below.
 - **FSSD v2** — 424B5 forced-supply × short-sale friction. §8 audit PASSED but Stage-1 k=1 FAILED:
   event CAR −1.91% ≈ random-date null −1.78% (the decisive null≈signal kill). See `PREREG_FSSD.md`.
 
@@ -64,3 +64,33 @@ Not edges, but recorded to avoid re-proposing the same gate-infeasible expressio
   linear book-value grind, not an OTM-convex jump.
 - **Equity spin-off completion** — no-history thin chains priced RICH (uncertainty premium); the gate
   rejects by construction.
+
+---
+
+## Lineage write-ups (moved from `CLAUDE.md`)
+
+**Divergence (v1) history:** The point-in-time data layer (Alpaca + EDGAR + bulk insider + XBRL fundamentals), divergence signal, and walk-forward backtest harness are built, tested, and green. **The edge gate FAILED across four Bonferroni-penalized iterations** (substance: event-presence → signed insider net-buy → reported revenue YoY) on a properly-powered, multi-regime, momentum-neutral test (44–47 periods, 61 names, 2020–24): primary-horizon (h=21) rank-IC stayed ≈0, every Bonferroni CI spans 0. An early +0.075 on a narrow 30-period window did not survive added power/regimes — fragile. Verified the null is real (substance density 96–100%; real-data momentum positive control IC ≈ +0.10), not a measurement artifact. Per the pre-committed stopping rule the deterministic divergence approach is set aside (no k=5); per guardrail §5 **no live-shaped behavior is built on the unvalidated edge**; the lockbox was never opened. See the §"Phase 1 gate result" below. The fork now is: a *new* edge hypothesis on the (working) harness, OR forward-test divergence via the un-backtestable Phase-3 council, OR reconsider the greenfield system. ← update this line as phases complete.
+
+**FSSD (Forced-Supply Secondary Drift, 424B5 × short-sale friction) — see `PREREG_FSSD.md`:** the §8 eligible-N audit PASSED (friction∩optionable∩tradable corner 28≥24 months) but the Stage-1 gross-CAR gate FAILED at k=1 (explore 2019–22, h=10td): top-friction-decile mean CAR −1.91%, Bonferroni CI [−4.64%, +0.67%] spans 0, and — decisively — the **null control (random in-name dates) −1.78% ≈ the signal −1.91%**, so conditioning on the 424B5 event adds ~nothing over the friction characteristic (the drift belongs to high-SI/low-float small-caps generally, not the supply event). STOPPED per the pre-registered rule (no k=2, no Stage-2 options-data spend). The §8b corner also showed a ~52% median put bid/ask spread (borrow-in-the-puts), which would have sunk Stage-2 net-of-borrow regardless. Harness extended & reusable: `data/edgar_index` · `data/finra_si` · `data/shares_out` · `data/prospectus` · `friction` · `options_tradability` · `fssd_stage1` (survivorship-clean event-study CAR with trailing-decile, period-bootstrap, null+positive controls). **Two graded negatives confirm the harness is the durable asset; the fork is unchanged — a *new* edge hypothesis, OR forward-test divergence via the Phase-3 council, OR reconsider greenfield.**
+
+### Phase 1 gate result (2026-05-30) — v1 divergence edge UNPROVEN
+
+Pre-registered, banded, multiple-testing-aware gate (SPEC §2a). Primary horizon h=21td.
+
+| Run | periods | h=21 rank-IC | Bonferroni CI | verdict |
+|---|---|---|---|---|
+| 34 names, 2022–24 (k=1) | 30 | +0.075 | spans 0 | fragile (didn't replicate) |
+| 61 names, 2020–24 (k=2) | 47 | +0.023 | spans 0 | FAIL |
+| + insider net-buy substance (k=3) | 47 | −0.048 | spans 0 | FAIL |
+| + revenue-YoY substance (k=4) | 44 | −0.057 | spans 0 | FAIL |
+
+Four iterations (k=1→4), each Bonferroni-penalized; substance evolved event-presence → signed
+insider net-buy → reported revenue YoY (the strongest deterministic "delivery" proxy). The
+h=21 IC never escaped 0; the only positive (+0.075) was the narrow-window artifact that didn't
+replicate. Per the pre-committed stopping rule the **deterministic divergence approach is set
+aside** (no k=5); the lockbox was never opened. Diagnostics holding across all four runs:
+substance density 96–100% (not thin), real-data positive control alive (momentum→fwd IC
+≈ +0.10), divergence decorrelated from momentum — so the null is real, not a plumbing artifact.
+The harness (point-in-time, no-lookahead, pre-registration, period-bootstrap, momentum-
+neutralization, null + real-data positive controls) is the durable deliverable — reusable for
+a *new* edge hypothesis, or for forward-testing divergence via the Phase-3 council.

@@ -143,6 +143,12 @@ def propose(
     lookback = int(council.get("news_lookback_days", 90))
     as_of = clock.now()
 
+    # Amendment A2: the operator's register theses, read once per cycle for display in sentinel packs only.
+    reg_theses = None
+    if council.get("register_thesis", False) and council.get("pack_provenance", False):
+        import register_theses as _register_theses
+        reg_theses = _register_theses.load()
+
     proposals: list[CouncilProposal] = []
     for candidate in list(candidates)[:max_candidates]:
         pack = (
@@ -152,7 +158,8 @@ def propose(
                                     fundamentals=fundamentals, analyst=analyst, catalysts=catalysts,
                                     sentinel_provenance=bool(council.get("pack_provenance", False)),
                                     sentinel_catalysts=bool((config.get("forward_catalysts") or {})
-                                                            .get("sentinel_scope", False)))
+                                                            .get("sentinel_scope", False)),
+                                    register_theses=reg_theses)
         )
         try:
             proposals.append(run_candidate(candidate, pack, router, rng=rng))

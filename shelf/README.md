@@ -48,7 +48,7 @@ CI** (`testpaths=["tests"]` doesn't reach `shelf/tests`; ruff `exclude` includes
 To run them, from the repo root (so both `shelf/` and root are importable):
 
 ```bash
-cd /home/rodrigo/dramatic_options-claude
+cd <path-to-your-dramatic_options-checkout>
 PYTHONPATH=shelf venv/bin/python -m pytest shelf/tests -q
 ```
 

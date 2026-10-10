@@ -152,6 +152,8 @@
     "direction_coherence": {"enabled": true},
     "_comment_pack_provenance": "PREREG_EVIDENCE_GROUNDING amendment A1 (operator word 2026-10-02, PR #280; Finding B of 2026-09-29): a sentinel's council pack says OPERATOR_THESIS '(none on file ...)' and renders the discovery framer's skeptical text on its own labelled DISCOVERY_SUMMARY line. grounded unchanged; hand-seeds unchanged; the framer's own pack byte-identical. Record-segmenting: model_mix.pack_provenance = provenance_v1.",
     "pack_provenance": true,
+    "_comment_register_thesis": "PREREG_EVIDENCE_GROUNDING amendment A2 + PREREG_UNIVERSE_CURATION Rule 0 dated amendment (operator 2026-10-06): a sentinel's council pack shows the operator's REGISTER thesis for its basket — the council-facing `council_thesis` one-liner only (structural claim; no price, no cheapness, no process notes) plus the falsifier — instead of '(none on file)'. Display only; admission/routing/sizing never read the register. Record-segmenting: model_mix.pack_provenance = provenance_v1+register_thesis_v1.",
+    "register_thesis": true,
     "_comment_fundamentals_staleness": "Issue #269 (2026-09-25) — TELEMETRY ONLY: after each L1 council pass, flag names whose corpus (read this cycle) reflects an older filing than their newest 10-Q/10-K/20-F/40-F on EDGAR, filed >3 days before the run (NEE: Q2 10-Q filed 2026-07-24 never reached SEC companyfacts). Never changes the context pack or a verdict; no record segmentation; fail-soft. enabled=false = off.",
     "fundamentals_staleness": {"enabled": true},
     "news_lookback_days": 90,

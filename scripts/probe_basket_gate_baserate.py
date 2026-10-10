@@ -16,7 +16,7 @@ those per-name rows are also APPENDED to records/gate_baserate_surfaced.csv (rec
 scan #1, on the gate-of-record feed — the comparison never mixes sweep and real-loop
 evaluations). Pass --db to enable (read-only ?mode=ro), e.g.
     PYTHONPATH=. venv/bin/python scripts/probe_basket_gate_baserate.py \
-        --db /home/rodrigo/dramatic_options/data/dramatic_options.db
+        --db <live-checkout>/data/dramatic_options.db
 
 Run weekly (Sundays, beside L0). Wiring into L0 as a fail-soft step is deferred (§6, named).
 Read-only against the DB; appends only to its own records CSV; never imported by the loop.
@@ -32,9 +32,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from dotenv import load_dotenv
+from _live_env import load_live_env
 
-load_dotenv("/home/rodrigo/dramatic_options/.env")
+load_live_env()
 
 from config_loader import load_config, require_alpaca_credentials  # noqa: E402
 from convexity_data import AlpacaChainProvider  # noqa: E402

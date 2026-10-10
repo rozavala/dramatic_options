@@ -66,6 +66,10 @@ class ContextPack:
     # set, the pack labels it honestly instead of rendering it as OPERATOR_THESIS. Default None ⇒
     # byte-identical render (the framer's own pack never sets it — the §6 leash).
     framer_summary: str | None = None
+    # Register thesis (amendment A2): when set, OPERATOR_THESIS is the operator's admission hypothesis for the
+    # candidate's BASKET (``register_theme``), with its falsifier. Default None ⇒ byte-identical render.
+    register_theme: str | None = None
+    operator_falsifier: str | None = None
 
     @property
     def fundamentals_present(self) -> bool:
@@ -85,10 +89,15 @@ class ContextPack:
         return (base or self.fundamentals_present) if self.origin == "hand-seed" else base
 
     def as_prompt_block(self) -> str:
-        lines = [
-            f"CANDIDATE: {self.symbol} {self.direction} {self.theme}",
-            f"OPERATOR_THESIS: {self.operator_thesis}",
-        ]
+        if self.register_theme is None:
+            thesis_line = f"OPERATOR_THESIS: {self.operator_thesis}"
+        else:
+            thesis_line = (f"OPERATOR_THESIS (the operator's admission hypothesis for basket "
+                           f"'{self.register_theme}' — a basket-level view, not a verdict on this candidate or "
+                           f"its direction; judge the candidate on the evidence): {self.operator_thesis}")
+        lines = [f"CANDIDATE: {self.symbol} {self.direction} {self.theme}", thesis_line]
+        if self.operator_falsifier:
+            lines.append(f"OPERATOR_FALSIFIER: {self.operator_falsifier}")
         if self.framer_summary is not None:
             lines.append("DISCOVERY_SUMMARY (written by the automated discovery screener, a deliberate "
                          f"skeptic reading price markers — NOT the operator's view): {self.framer_summary}")
@@ -327,6 +336,7 @@ def sentinel_context_pack(
     fundamentals: list[dict] | None = None, fundamentals_status: str | None = None,
     analyst_count: int | None = None,
     provenance: bool = False, forward_catalysts: list[dict] | None = None,
+    register_entry: dict | None = None,
 ) -> ContextPack:
     """Origin-aware grounding for a DISCOVERED (source='sentinel') candidate: ground on its
     deterministic MARKERS, not news (T3 PR2). Without this both the framer and the council would
@@ -348,9 +358,14 @@ def sentinel_context_pack(
     # provenance (council path only; the framer never passes it): the framer's text moves to its own
     # honestly-labelled line and OPERATOR_THESIS says plainly that none is on file.
     framer_summary = (candidate.thesis or None) if provenance else None
+    # Amendment A2 (council path only, on top of A1's provenance): the operator's register thesis for the
+    # candidate's basket replaces "(none on file)" when one exists.
+    reg = register_entry if (provenance and register_entry and register_entry.get("thesis")) else None
     return ContextPack(
         symbol=candidate.symbol, theme=candidate.name, direction=candidate.direction,
-        operator_thesis=SENTINEL_NO_OPERATOR_THESIS if provenance else fallback,
+        operator_thesis=(reg["thesis"] if reg else SENTINEL_NO_OPERATOR_THESIS) if provenance else fallback,
+        register_theme=(getattr(candidate, "basket", None) if reg else None),
+        operator_falsifier=(reg.get("falsifier") if reg else None),
         framer_summary=framer_summary, forward_catalysts=list(forward_catalysts or []),
         headlines=lines, coverage_count=len(lines), has_numeric=_has_numeric(lines),
         as_of=as_of, notes=["sentinel: grounded on deterministic markers, not news"],
@@ -371,6 +386,7 @@ def build_context_pack(
     catalysts=None,
     sentinel_provenance: bool = False,
     sentinel_catalysts: bool = False,
+    register_theses: dict | None = None,
 ) -> ContextPack:
     """Assemble current grounding for one candidate. ``news`` is a duck-typed object exposing
     ``headlines_asof(symbol, as_of) -> list[{'headline': str, 'ts': str, ...}]``
@@ -410,6 +426,7 @@ def build_context_pack(
         return sentinel_context_pack(
             candidate, as_of=as_of, fundamentals=fund_lines, fundamentals_status=fund_status,
             analyst_count=analyst_count, provenance=sentinel_provenance, forward_catalysts=sent_fwd,
+            register_entry=(register_theses or {}).get(getattr(candidate, "basket", None) or ""),
         )
 
     headlines: list[str] = []

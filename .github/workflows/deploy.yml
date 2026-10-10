@@ -58,6 +58,16 @@ jobs:
             echo "ENV_NAME=DEV" >> $GITHUB_ENV
           fi
 
+      # DEV runs on a home machine with no public address: join the tailnet as tag:ci so the
+      # ssh below reaches DROPLET_HOST_DEV (its 100.x tailnet IP). PROD keeps the public path.
+      - name: Connect to tailnet (DEV only)
+        if: github.ref_name != 'production'
+        uses: tailscale/github-action@v4.2.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
       - name: Configure known_hosts (pin server identity)
         run: |
           mkdir -p ~/.ssh

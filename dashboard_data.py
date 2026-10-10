@@ -1292,6 +1292,19 @@ def _gap_note_class(note: str | None) -> str:
     return "structural"
 
 
+def _flip_detail(o: dict, i: dict, iv_rv_max: float, skew_max: float) -> str:
+    """Which gate test(s) the OPRA and INDICATIVE reads land on opposite sides of — display only (the flip
+    wire itself is unchanged). E.g. ``skew: OPRA 10.58 vs INDICATIVE 8.80 (limit 10.0)``."""
+    parts = []
+    for label, key, limit in (("iv/rv", "iv_rv", iv_rv_max), ("skew", "otm_skew", skew_max)):
+        a, b = o.get(key), i.get(key)
+        if a is None or b is None:
+            continue
+        if (float(a) <= limit) != (float(b) <= limit):
+            parts.append(f"{label}: OPRA {float(a):.2f} vs INDICATIVE {float(b):.2f} (limit {limit:g})")
+    return "; ".join(parts) or "same side of both limits — another gate input differs"
+
+
 def gate_dualread_report(conn, config: dict | None = None) -> dict:
     """The §5 named surface (PREREG_DATA_FEED_OPRA_SEQUENCING): per-session dual-read stats,
     both-arms coverage (a silently-empty shadow arm must not read as agreement), the rolling-5
@@ -1301,8 +1314,11 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
     reported, an uncomputable delta counts fail-closed), and the disagree-veto's dated auto-lapse."""
     import statistics
 
-    rows = _rows(conn, "SELECT run_id, symbol, feed, source, structured, iv_rv, cheap, wing, note "
+    rows = _rows(conn, "SELECT run_id, symbol, feed, source, structured, iv_rv, otm_skew, cheap, wing, note "
                        "FROM gate_dualread ORDER BY run_id, symbol, feed")
+    gate_cfg = (config or {}).get("convexity_gate", {}) or {}
+    iv_rv_max = float(gate_cfg.get("iv_rv_max", 1.2))
+    skew_max = float(gate_cfg.get("otm_skew_max_volpts", 10.0))
     sessions: dict[int, dict[str, dict[str, dict]]] = {}
     for r in rows:
         sessions.setdefault(r["run_id"], {}).setdefault(r["symbol"], {})[r["feed"]] = r
@@ -1312,6 +1328,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
         deltas: list[float] = []
         flips: list[str] = []
         material_flips: list[str] = []
+        flip_detail: dict[str, str] = {}  # which gate test the two feeds read differently (display only)
         gaps: list[str] = []
         gap_structural: list[str] = []   # §5 coverage-gap split (#72): OPRA-correct absence
         gap_transient: list[str] = []    #   per-name fetch instability
@@ -1351,6 +1368,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
                     wing_mismatch.append(sym)
                 if int(o.get("cheap") or 0) != int(i.get("cheap") or 0):
                     flips.append(sym)
+                    flip_detail[sym] = _flip_detail(o, i, iv_rv_max, skew_max)
                     # only a MEASURED-small disagreement is exempt from the wire
                     if d is None or d >= GATE_FLIP_MATERIALITY_FLOOR:
                         material_flips.append(sym)
@@ -1358,7 +1376,7 @@ def gate_dualread_report(conn, config: dict | None = None) -> dict:
             "run_id": rid, "names": n,
             "median_d_ivrv": round(statistics.median(deltas), 4) if deltas else None,
             "max_d_ivrv": round(max(deltas), 4) if deltas else None,
-            "flips": flips, "material_flips": material_flips, "coverage_gaps": gaps,
+            "flips": flips, "material_flips": material_flips, "flip_detail": flip_detail, "coverage_gaps": gaps,
             "gap_structural": gap_structural, "gap_transient": gap_transient,
             "entitlement": entitlement, "opra_wing": opra_wing, "wing_mismatch": wing_mismatch,
             "opra_coverage": round(opra_ok / n, 3) if n else None,

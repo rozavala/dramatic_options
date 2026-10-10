@@ -19,9 +19,9 @@ scripts/probe_rescore_thesis_only.py); spends ~$0.2 of live LLM calls. TEE THE O
 """
 from __future__ import annotations
 
-from dotenv import load_dotenv
+from _live_env import load_live_env
 
-load_dotenv("/home/rodrigo/dramatic_options/.env")
+load_live_env()
 
 import discovery  # noqa: E402
 import orchestrator  # noqa: E402
