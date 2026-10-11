@@ -198,7 +198,8 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
             mix["pack_provenance"] = "provenance_v1"
             if config.get("council", {}).get("register_thesis", False):
                 # Amendment A2 (2026-10-06): sentinel packs show the operator's register thesis for the basket.
-                mix["pack_provenance"] = "provenance_v1+register_thesis_v1"
+                # v1.1 (2026-10-12): the basket-line wording clarifies coverage and the falsifier deadline.
+                mix["pack_provenance"] = "provenance_v1+register_thesis_v1.1"
         if catalysts is not None:
             # §4 anti-silent-dormancy counters (the event-leg precedent — journald rotates, the
             # runs row doesn't). reverse_conversion_n is a §6 paired-contrast property and joins

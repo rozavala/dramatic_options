@@ -92,12 +92,17 @@ class ContextPack:
         if self.register_theme is None:
             thesis_line = f"OPERATOR_THESIS: {self.operator_thesis}"
         else:
+            # A2.1 (2026-10-12): the two readings the council fell into in A2's first week — the thesis cited
+            # as evidence the story is consensus, and the falsifier's deadline read as a present requirement.
             thesis_line = (f"OPERATOR_THESIS (the operator's admission hypothesis for basket "
                            f"'{self.register_theme}' — a basket-level view, not a verdict on this candidate or "
-                           f"its direction; judge the candidate on the evidence): {self.operator_thesis}")
+                           f"its direction, and NOT evidence of how widely the story is covered: judge "
+                           f"under-narration on the coverage data; judge the candidate on the evidence): "
+                           f"{self.operator_thesis}")
         lines = [f"CANDIDATE: {self.symbol} {self.direction} {self.theme}", thesis_line]
         if self.operator_falsifier:
-            lines.append(f"OPERATOR_FALSIFIER: {self.operator_falsifier}")
+            lines.append("OPERATOR_FALSIFIER (a kill condition with a deadline — its conditions not being met "
+                         f"today does not mean the thesis has failed): {self.operator_falsifier}")
         if self.framer_summary is not None:
             lines.append("DISCOVERY_SUMMARY (written by the automated discovery screener, a deliberate "
                          f"skeptic reading price markers — NOT the operator's view): {self.framer_summary}")
