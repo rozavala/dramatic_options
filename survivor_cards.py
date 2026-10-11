@@ -384,7 +384,9 @@ def extract_candidates(
             continue
         if _distinct_story_channels(exs, symbol) >= 2:
             continue  # repeated independent (cross-channel) mention corroborates the week
-        name_tokens = _distinctive_name_tokens((titles or {}).get(symbol))
+        # A company whose distinctive name token IS its ticker (MARA Holdings → "mara") cannot corroborate itself:
+        # the W41 card minted MARA from "Glencore Receives RIGI Approval for MARA" (Glencore's MARA copper project).
+        name_tokens = _distinctive_name_tokens((titles or {}).get(symbol)) - {symbol.lower()}
         kept = [ex for ex in prose_exact
                 if name_tokens & frozenset(_NAME_WORD_RE.findall(ex.title.lower()))]
         pruned = [ex for ex in prose_exact if ex not in kept]

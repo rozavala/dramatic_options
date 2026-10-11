@@ -63,3 +63,14 @@ def test_the_script_never_writes_the_pin_file():
     src = (REPO / "scripts" / "catalyst_pin_suggestions.py").read_text()
     assert "forward_catalysts.json\").write" not in src and ".write_text" in src     # only --out writes
     assert src.count("write_text(") == 1
+
+
+def test_the_w41_keyword_noise_no_longer_matches():
+    rows = [_row("2026-20630", "2026-11-09", "Cut Flowers Regulations; Removal of Chrysanthemum White Rust-Related "
+                 "Provisions", "agricultural imports", slug="agriculture-department"),
+            _row("2026-20464", "2026-11-12", "Radio Broadcasting Services; Selmer, Tennessee", "vacant space",
+                 slug="federal-communications-commission")]
+    baskets = {"ag_cycle_trough": ["MOS"], "space_smallcap": ["RKLB"]}
+    assert cps.suggest(rows, baskets, TODAY) == []
+    hit = [_row("x", "2026-12-01", "Licensing of commercial space launch and reentry", slug="federal-aviation-administration")]
+    assert cps.suggest(hit, baskets, TODAY)[0]["baskets"] == ["space_smallcap"]

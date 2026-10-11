@@ -47,9 +47,12 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
     "grid_equipment": ("transformer", "transmission", "interconnection", "grid", "energy storage", "switchgear"),
     "ai_compute": ("data center", "datacenter", "generating unit", "power plant", "electric utilit"),
     "refrigerant_transition": ("refrigerant", "hydrofluorocarbon", "HFC", "AIM Act"),
-    "ag_cycle_trough": ("fertilizer", "farm", "crop", "agricultural", "phosphate", "potash"),
-    "space_smallcap": ("launch", "reentry", "satellite", "spectrum", "direct-to-device", "space"),
-    "space_defense": ("defense", "missile", "launch"),
+    # 2026-10-11: "agricultural" (a cut-flowers rule) and "space" (a radio allotment) matched noise — both lists
+    # are now concrete terms only.
+    "ag_cycle_trough": ("fertilizer", "phosphate", "potash", "nitrogen fertilizer", "farm equipment", "tractor"),
+    "space_smallcap": ("commercial space", "space launch", "launch vehicle", "spaceport", "reentry", "satellite",
+                       "orbital", "direct-to-device"),
+    "space_defense": ("missile", "defense procurement", "space launch", "launch vehicle"),
     "fiber_buildout": ("broadband", "BEAD", "fiber", "middle mile"),
     "copper_supply": ("copper", "critical mineral"),
     "silver_deficit": ("silver", "photovoltaic", "solar"),
