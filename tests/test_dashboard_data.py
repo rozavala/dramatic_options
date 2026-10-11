@@ -904,3 +904,40 @@ def test_fundamentals_staleness_panel_reads_the_record(convexity_db):
     assert p["runs"][1]["lagging"] == [] and p["runs"][0]["checked"] == 19
     empty = dd.fundamentals_staleness_panel(convexity_db, n=0)
     assert empty == {"runs": [], "latest_lagging": []}
+
+
+# ── issue #302: run mode + the book's OWN P&L (never the shared account's equity) ───────────────────
+
+def _pos(conn, *, status, mark=None, epc=100.0, contracts=2, realized=None, closed_at=None):
+    conn.execute(
+        "INSERT INTO convexity_positions (opened_at, theme, symbol, direction, structure_kind, contract_symbol,"
+        " expiry, strike, dte, moneyness, contracts, entry_premium_per_contract, total_premium, status, mark,"
+        " realized_pnl, closed_at) VALUES ('2026-07-01','t','PL','bullish','C','PLX','2027-01-15',40,300,0.25,"
+        " ?,?,?,?,?,?,?)", (contracts, epc, epc * contracts, status, mark, realized, closed_at))
+
+
+def test_book_pnl_is_the_books_own_journal(convexity_db):
+    _pos(convexity_db, status="open", mark=0.20, epc=690.0, contracts=1)          # the live PL shape: −$670
+    _pos(convexity_db, status="open", mark=None)                                 # unmarked → counted, not zeroed
+    _pos(convexity_db, status="closed", realized=150.0, closed_at="2026-09-01T20:00:00+00:00")
+    _pos(convexity_db, status="closed", realized=-200.0, closed_at="2026-09-01T21:00:00+00:00")
+    _pos(convexity_db, status="closed", realized=500.0, closed_at="2026-09-03T20:00:00+00:00")
+    _pos(convexity_db, status="pending", mark=5.0)                               # not filled → excluded
+    b = dd.book_pnl(convexity_db)
+    assert b["unrealized_usd"] == -670.0 and b["unmarked"] == 1 and b["positions_open"] == 2
+    assert b["realized_usd"] == 450.0 and b["positions_closed"] == 3
+    assert b["pnl_series"] == [{"day": "2026-09-01", "realized": -50.0, "cumulative": -50.0, "closed": 2},
+                               {"day": "2026-09-03", "realized": 500.0, "cumulative": 450.0, "closed": 1}]
+    assert "never the shared broker account" in b["source"]
+
+
+def test_account_panel_carries_the_book_block_beside_the_account_equity(convexity_db):
+    out = dd.account_panel(convexity_db, {"convexity_book": {"account_equity": 100000.0, "book_fraction": 0.1}})
+    assert set(out["book"]) >= {"realized_usd", "unrealized_usd", "pnl_series", "source"}
+
+
+def test_header_reports_the_latest_cycle_mode(convexity_db):
+    assert dd.header_status(convexity_db)["mode"] is None
+    convexity_db.execute("INSERT INTO runs (started_at, mode, note) VALUES ('2026-10-09T19:45:00+00:00','PAPER','x')")
+    convexity_db.execute("INSERT INTO runs (started_at, mode, note) VALUES ('2026-10-09T20:00:00+00:00','DISCOVERY','x')")
+    assert dd.header_status(convexity_db)["mode"] == "PAPER"          # DISCOVERY runs never count as the mode
