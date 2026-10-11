@@ -908,7 +908,7 @@ def test_fundamentals_staleness_panel_reads_the_record(convexity_db):
 
 # ── issue #302: run mode + the book's OWN P&L (never the shared account's equity) ───────────────────
 
-def _pos(conn, *, status, mark=None, epc=100.0, contracts=2, realized=None, closed_at=None):
+def _book_pos(conn, *, status, mark=None, epc=100.0, contracts=2, realized=None, closed_at=None):
     conn.execute(
         "INSERT INTO convexity_positions (opened_at, theme, symbol, direction, structure_kind, contract_symbol,"
         " expiry, strike, dte, moneyness, contracts, entry_premium_per_contract, total_premium, status, mark,"
@@ -917,12 +917,12 @@ def _pos(conn, *, status, mark=None, epc=100.0, contracts=2, realized=None, clos
 
 
 def test_book_pnl_is_the_books_own_journal(convexity_db):
-    _pos(convexity_db, status="open", mark=0.20, epc=690.0, contracts=1)          # the live PL shape: −$670
-    _pos(convexity_db, status="open", mark=None)                                 # unmarked → counted, not zeroed
-    _pos(convexity_db, status="closed", realized=150.0, closed_at="2026-09-01T20:00:00+00:00")
-    _pos(convexity_db, status="closed", realized=-200.0, closed_at="2026-09-01T21:00:00+00:00")
-    _pos(convexity_db, status="closed", realized=500.0, closed_at="2026-09-03T20:00:00+00:00")
-    _pos(convexity_db, status="pending", mark=5.0)                               # not filled → excluded
+    _book_pos(convexity_db, status="open", mark=0.20, epc=690.0, contracts=1)          # the live PL shape: −$670
+    _book_pos(convexity_db, status="open", mark=None)                                 # unmarked → counted, not zeroed
+    _book_pos(convexity_db, status="closed", realized=150.0, closed_at="2026-09-01T20:00:00+00:00")
+    _book_pos(convexity_db, status="closed", realized=-200.0, closed_at="2026-09-01T21:00:00+00:00")
+    _book_pos(convexity_db, status="closed", realized=500.0, closed_at="2026-09-03T20:00:00+00:00")
+    _book_pos(convexity_db, status="pending", mark=5.0)                               # not filled → excluded
     b = dd.book_pnl(convexity_db)
     assert b["unrealized_usd"] == -670.0 and b["unmarked"] == 1 and b["positions_open"] == 2
     assert b["realized_usd"] == 450.0 and b["positions_closed"] == 3
