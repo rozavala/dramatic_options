@@ -295,7 +295,11 @@ def header_status(conn, *, now: datetime | None = None) -> dict:
         return {"at": ts, "age_hours": None if age is None else round(age, 1),
                 "status": status, "stale": status != "ONLINE"}
 
+    # Run mode of the latest trading cycle (issue #302): "PAPER" or "LIVE" — the venue the loop ran on, read
+    # from the journal, never inferred from config. None before any cycle.
+    mode = _scalar(conn, "SELECT mode FROM runs WHERE mode IN ('PAPER','LIVE') ORDER BY id DESC LIMIT 1")
     return {
+        "mode": mode,
         "schema_version": schema,
         "schema_expected": SCHEMA_EXPECTED,
         # Warn ONLY if the DB is BEHIND what a panel renders (schema < expected → the rendered data is
@@ -389,6 +393,44 @@ def account_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
                   "cluster_cap": round(frame_equity * float(book.get("cluster_fraction", 0.0) or 0.0), 2),
                   "max_open": int(book.get("max_open_positions", 15))},
         "headroom": round(book_budget - open_premium, 2),
+        # The convexity book's OWN money (issue #302). broker_equity / equity_series above are the WHOLE Alpaca
+        # account — at real money it is shared with the operator's stock, Finance and alpha_options (#279), so
+        # they are never this book's balance or P&L. This is computed from the book's own journal rows only.
+        "book": book_pnl(conn),
+    }
+
+
+def book_pnl(conn) -> dict:
+    """The real convexity book's own P&L from its journal (issue #302) — never the shared account's equity.
+
+    ``realized_usd`` = Σ realized_pnl over closed positions. ``unrealized_usd`` = Σ (mark × 100 − entry
+    premium per contract) × contracts over open/closing positions WITH a mark (``unmarked`` counts the rest,
+    so a missing mark is visible, never a silent zero). ``pnl_series`` = per close-day realized P&L with a
+    running cumulative. Unrealized has NO history: marks are overwritten each monitor run, not stored per
+    day — so the series is realized-only, and says so."""
+    closed = _rows(conn, "SELECT date(closed_at) AS day, SUM(realized_pnl) AS pnl, COUNT(*) AS n "
+                         "FROM convexity_positions WHERE status='closed' AND realized_pnl IS NOT NULL "
+                         "GROUP BY date(closed_at) ORDER BY day")
+    live = _rows(conn, "SELECT mark, entry_premium_per_contract AS epc, contracts, total_premium "
+                       "FROM convexity_positions WHERE status IN ('open','closing')")
+    marked = [r for r in live if r["mark"] is not None]
+    unrealized = sum((float(r["mark"]) * 100.0 - float(r["epc"])) * int(r["contracts"]) for r in marked)
+    cum = 0.0
+    series = []
+    for r in closed:
+        cum += float(r["pnl"])
+        series.append({"day": r["day"], "realized": round(float(r["pnl"]), 2), "cumulative": round(cum, 2),
+                       "closed": int(r["n"])})
+    return {
+        "realized_usd": round(cum, 2),
+        "unrealized_usd": round(unrealized, 2),
+        "open_premium_usd": round(sum(float(r["total_premium"]) for r in live), 2),
+        "positions_open": len(live),
+        "unmarked": len(live) - len(marked),
+        "positions_closed": sum(int(r["n"]) for r in closed),
+        "pnl_series": series,
+        "pnl_series_basis": "realized by close day (unrealized marks are not stored per day)",
+        "source": "convexity_positions (this book's journal) — never the shared broker account",
     }
 
 
