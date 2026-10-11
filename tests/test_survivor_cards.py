@@ -850,3 +850,18 @@ def test_same_phrase_with_explicit_cashtag_still_counts():
     ]
     out = sc.extract_candidates(items, frozenset({"ROAD"}), titles={"ROAD": "Construction Partners, Inc."}, notes=[])
     assert "ROAD" in out
+
+
+def test_a_ticker_cannot_corroborate_itself_the_w41_mara_homonym():
+    # W41: "Glencore Receives RIGI Approval for MARA" (Glencore's MARA copper project) minted MARA Holdings because
+    # its only distinctive registry-name token ("mara") IS the ticker. A name token equal to the symbol no longer
+    # corroborates; a real distinctive token still does.
+    known = frozenset({"MARA"})
+    titles = {"MARA": "MARA Holdings, Inc."}
+    notes: list[str] = []
+    out = sc.extract_candidates([_item("Glencore Receives RIGI Approval for MARA", channel="newsletters",
+                                       source="Engineering & Mining Journal")], known, titles=titles, notes=notes)
+    assert out == {} and notes
+    titles2 = {"MARA": "MARA Holdings Bitcoin Miner"}
+    out2 = sc.extract_candidates([_item("Bitcoin miner MARA expands", channel="newsletters")], known, titles=titles2)
+    assert set(out2) == {"MARA"}
