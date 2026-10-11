@@ -63,7 +63,7 @@ def test_a_sentinel_pack_shows_the_basket_thesis_and_the_framer_summary():
     pack = build_context_pack(FIG, news=None, as_of=AS_OF, sentinel_provenance=True, register_theses=reg)
     block = pack.as_prompt_block()
     assert "OPERATOR_THESIS (the operator's admission hypothesis for basket 'design_software_ai'" in block
-    assert reg["design_software_ai"]["thesis"] in block and "OPERATOR_FALSIFIER:" in block
+    assert reg["design_software_ai"]["thesis"] in block and "OPERATOR_FALSIFIER (a kill condition" in block
     assert SKEPTIC in block and "DISCOVERY_SUMMARY" in block
     shown = reg["design_software_ai"]["thesis"] + " " + reg["design_software_ai"]["falsifier"]
     assert not FORBIDDEN.search(shown)                                       # what the council reads as content
@@ -121,3 +121,20 @@ def test_the_council_loads_theses_only_with_both_switches(monkeypatch):
 def test_live_config_turns_it_on():
     cfg = json.loads((REPO / "config.json").read_text())
     assert cfg["council"]["register_thesis"] is True and cfg["council"]["pack_provenance"] is True
+
+
+def test_a2_1_wording_heads_off_the_two_first_week_misreadings():
+    # 2026-10-06..09: the adversary cited the operator's thesis as proof the story is consensus (TGB, ERO x2,
+    # HBM), and roles read the falsifier's deadline conditions as present-tense requirements (MRK, TITN).
+    reg = register_theses.load()
+    block = build_context_pack(FIG, news=None, as_of=AS_OF, sentinel_provenance=True,
+                               register_theses=reg).as_prompt_block()
+    assert "NOT evidence of how widely the story is covered" in block
+    assert "judge under-narration on the coverage data" in block
+    assert "its conditions not being met today does not mean the thesis has failed" in block
+
+
+def test_the_stamp_segments_the_wording_change():
+    src = (REPO / "orchestrator.py").read_text()
+    assert '"provenance_v1+register_thesis_v1.1"' in src
+
