@@ -255,3 +255,23 @@ A guard pins these exclusions (`tests/test_register_thesis.py`). The raw `thesis
 
 **Record segmentation.** `runs.model_mix.pack_provenance = "provenance_v1+register_thesis_v1"` from the first
 L1 after deploy. Never pool strategist Brier or the council-marginal read across it.
+
+### A2.1 (2026-10-12 — DRAFT, takes effect when merged) — basket-line wording after the first week
+
+**Observed in A2's first four sessions (2026-10-06..09; nightly banners):**
+- The adversary cited the operator's thesis as evidence that a story is CONSENSUS, i.e. not under-narrated
+  (TGB 10-06; ERO and HBM 10-07; ERO again 10-09). The thesis is a hypothesis about the basket, not a coverage
+  measurement.
+- Roles read the falsifier's DEADLINE conditions as present-tense requirements (MRK 10-09: "the operator's
+  own falsifier … is absent from the 2026-06-30 filings", on an Aug-2027 condition; TITN 10-08/09).
+- Productive uses outnumbered both (≥ 15): the falsifier as the at_inflection yardstick, and the thesis as the
+  structural claim.
+
+**Change (wording only; same content, same evidence pool):**
+- The basket line adds "and NOT evidence of how widely the story is covered: judge under-narration on the
+  coverage data".
+- The falsifier line becomes "OPERATOR_FALSIFIER (a kill condition with a deadline — its conditions not
+  being met today does not mean the thesis has failed): …".
+
+**Record segmentation.** `runs.model_mix.pack_provenance = "provenance_v1+register_thesis_v1.1"` from the
+first L1 after deploy. Never pool across the v1 → v1.1 boundary.

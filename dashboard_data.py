@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -256,7 +257,34 @@ def system_status(snap: dict) -> dict:
 
 
 # ── A · header / heartbeat / op-health ──────────────────────────────────────────────────────────
-def header_status(conn, *, now: datetime | None = None) -> dict:
+# Upcoming actions (issue #306): the next fire of the systemd timer each job actually runs on. The council
+# deliberates inside the L1 cycle, so it shares the L1 timer. Unit names match deploy.sh's SERVICE_PREFIX.
+NEXT_RUN_TIMERS = {"cycle": "dramatic-options-l1.timer", "council": "dramatic-options-l1.timer",
+                   "discovery": "dramatic-options-l0.timer"}
+_NEXT_ELAPSE = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC")
+
+
+def timer_next_at(unit: str, *, run: Callable = subprocess.run) -> str | None:
+    """The timer's next fire as ``YYYY-MM-DD HH:MM:SS`` UTC (the runs.started_at format), read from systemd.
+    ``None`` when the timer is not active (PROD's disabled timers, a CI box, no systemd) or on any error —
+    a monitoring read, so it degrades, never raises. The timer fires on market holidays too; the cycle then
+    exits early, so ``next_at`` is when the job is scheduled, not a promise it trades."""
+    try:
+        out = run(["systemctl", "show", unit, "--property=ActiveState,NextElapseUSecRealtime",
+                   "--timestamp=utc"], capture_output=True, text=True, timeout=3)
+    except Exception:  # noqa: BLE001 — fail-soft
+        return None
+    if getattr(out, "returncode", 1) != 0:
+        return None
+    props = dict(ln.split("=", 1) for ln in str(out.stdout).splitlines() if "=" in ln)
+    if props.get("ActiveState") != "active":
+        return None
+    m = _NEXT_ELAPSE.search(props.get("NextElapseUSecRealtime", ""))
+    return m.group(1) if m else None
+
+
+def header_status(conn, *, now: datetime | None = None,
+                  next_at: Callable[[str], str | None] = timer_next_at) -> dict:
     """Schema + heartbeats + KILL. NOTE: L1 (full cycle) and L2 (monitor) BOTH record mode='PAPER'
     note='paper cycle' (orchestrator.py:488), so they are NOT distinguishable by mode. We surface
     ``last_cycle`` (the L1/L2 loop liveness — a runs row fires even on an empty book) separately from
@@ -293,9 +321,16 @@ def header_status(conn, *, now: datetime | None = None) -> dict:
         else:
             status = "ONLINE"
         return {"at": ts, "age_hours": None if age is None else round(age, 1),
-                "status": status, "stale": status != "ONLINE"}
+                "status": status, "stale": status != "ONLINE", "next_at": nexts.get(key)}
 
+    by_unit = {unit: next_at(unit) for unit in set(NEXT_RUN_TIMERS.values())}  # one systemd read per timer
+    nexts = {key: by_unit[unit] for key, unit in NEXT_RUN_TIMERS.items()}
+
+    # Run mode of the latest trading cycle (issue #302): "PAPER" or "LIVE" — the venue the loop ran on, read
+    # from the journal, never inferred from config. None before any cycle.
+    mode = _scalar(conn, "SELECT mode FROM runs WHERE mode IN ('PAPER','LIVE') ORDER BY id DESC LIMIT 1")
     return {
+        "mode": mode,
         "schema_version": schema,
         "schema_expected": SCHEMA_EXPECTED,
         # Warn ONLY if the DB is BEHIND what a panel renders (schema < expected → the rendered data is
@@ -389,6 +424,44 @@ def account_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
                   "cluster_cap": round(frame_equity * float(book.get("cluster_fraction", 0.0) or 0.0), 2),
                   "max_open": int(book.get("max_open_positions", 15))},
         "headroom": round(book_budget - open_premium, 2),
+        # The convexity book's OWN money (issue #302). broker_equity / equity_series above are the WHOLE Alpaca
+        # account — at real money it is shared with the operator's stock, Finance and alpha_options (#279), so
+        # they are never this book's balance or P&L. This is computed from the book's own journal rows only.
+        "book": book_pnl(conn),
+    }
+
+
+def book_pnl(conn) -> dict:
+    """The real convexity book's own P&L from its journal (issue #302) — never the shared account's equity.
+
+    ``realized_usd`` = Σ realized_pnl over closed positions. ``unrealized_usd`` = Σ (mark × 100 − entry
+    premium per contract) × contracts over open/closing positions WITH a mark (``unmarked`` counts the rest,
+    so a missing mark is visible, never a silent zero). ``pnl_series`` = per close-day realized P&L with a
+    running cumulative. Unrealized has NO history: marks are overwritten each monitor run, not stored per
+    day — so the series is realized-only, and says so."""
+    closed = _rows(conn, "SELECT date(closed_at) AS day, SUM(realized_pnl) AS pnl, COUNT(*) AS n "
+                         "FROM convexity_positions WHERE status='closed' AND realized_pnl IS NOT NULL "
+                         "GROUP BY date(closed_at) ORDER BY day")
+    live = _rows(conn, "SELECT mark, entry_premium_per_contract AS epc, contracts, total_premium "
+                       "FROM convexity_positions WHERE status IN ('open','closing')")
+    marked = [r for r in live if r["mark"] is not None]
+    unrealized = sum((float(r["mark"]) * 100.0 - float(r["epc"])) * int(r["contracts"]) for r in marked)
+    cum = 0.0
+    series = []
+    for r in closed:
+        cum += float(r["pnl"])
+        series.append({"day": r["day"], "realized": round(float(r["pnl"]), 2), "cumulative": round(cum, 2),
+                       "closed": int(r["n"])})
+    return {
+        "realized_usd": round(cum, 2),
+        "unrealized_usd": round(unrealized, 2),
+        "open_premium_usd": round(sum(float(r["total_premium"]) for r in live), 2),
+        "positions_open": len(live),
+        "unmarked": len(live) - len(marked),
+        "positions_closed": sum(int(r["n"]) for r in closed),
+        "pnl_series": series,
+        "pnl_series_basis": "realized by close day (unrealized marks are not stored per day)",
+        "source": "convexity_positions (this book's journal) — never the shared broker account",
     }
 
 
@@ -985,11 +1058,19 @@ def _book_table(conn, sql: str, params: tuple = ()) -> list[dict]:
     return _rows(conn, sql, params)
 
 
-def positions_panel(conn, *, stale_pending_cycles: int = 6) -> dict:
+def _time_stop_on(expiry: Any, time_stop_dte: int) -> str | None:
+    """The first calendar day the L2 time-stop fires (``dte <= time_stop_dte``, monitor.py), or None."""
+    try:
+        return (date.fromisoformat(str(expiry)[:10]) - timedelta(days=time_stop_dte)).isoformat()
+    except (TypeError, ValueError):
+        return None
+
+
+def positions_panel(conn, *, stale_pending_cycles: int = 6, time_stop_dte: int = 21) -> dict:
     """All 5 books — open + recent closed. Surfaces pending/closing distinctly + STALE-PENDING (a resting limit
     unfilled across many cycles = the v2 analog of a missed order; a dedicated queue is unbuilt in v2)."""
     real_open = _book_table(conn, "SELECT p.id, p.symbol, p.direction, p.contract_symbol, p.status, p.dte, "
-                                  "p.contracts, p.total_premium, p.mark, p.marked_at, p.opened_at, p.theme, "
+                                  "p.expiry, p.contracts, p.total_premium, p.mark, p.marked_at, p.opened_at, p.theme, "
                                   "cp.run_id AS origin_run, cp.conviction AS origin_conviction "
                                   "FROM convexity_positions p LEFT JOIN council_proposals cp "
                                   "ON p.proposal_id = cp.id WHERE p.status IN ('open','closing','pending') "
@@ -998,6 +1079,8 @@ def positions_panel(conn, *, stale_pending_cycles: int = 6) -> dict:
                                     "exit_reason, closed_at FROM convexity_positions WHERE status='closed' "
                                     "ORDER BY closed_at DESC LIMIT 25")
     pending = _book_table(conn, "SELECT id, symbol, opened_at FROM convexity_positions WHERE status='pending'")
+    for p in real_open:  # issue #306: the known exit date — the L2 time-stop closes at <= time_stop_dte days
+        p["time_stop_on"] = _time_stop_on(p.get("expiry"), time_stop_dte)
     return {
         "real_open": real_open,
         "real_closed": real_closed,

@@ -91,7 +91,8 @@ def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
             "account": dd.safe(dd.account_panel, conn, config),
             "regime": dd.safe(dd.regime_panel, conn, config),
             "sentinels": dd.safe(dd.sentinels_panel, conn),
-            "positions": dd.safe(dd.positions_panel, conn),
+            "positions": dd.safe(dd.positions_panel, conn, time_stop_dte=int(
+                config.get("convexity_exits", {}).get("time_stop_dte", 21))),
             "council": dd.safe(dd.council_panel, conn, config),
             "deliberation": dd.safe(dd.latest_run_deliberation, conn),
             "performance": dd.safe(dd.performance_panel, conn),
