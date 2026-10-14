@@ -1,6 +1,6 @@
 # 2026-10-14 — Window #10 (off-cycle) DRAFT: BNTX · BWXT · NTSK
 
-**Status: WORD GIVEN (2026-10-14 ~00:25 UTC); screen pending. Nothing is admitted until an in-band read and the merge.** Admission needs, per name: the operator's word on the thesis below, and
+**Status: WORD GIVEN (2026-10-14 ~03:33 UTC); screen pending. Nothing is admitted until an in-band read and the merge.** Admission needs, per name: the operator's word on the thesis below, and
 an in-window read in band, under the cap and with ≥ 200 days of runway (PREREG_UNIVERSE_CURATION §2, §11, §12).
 Theses are CC-drafted in true form from the filed corpus, the bench and the records. The operator adopts by
 giving the word without amending, amends, or strikes a name (the 2026-07-14 convention: AI-drafted,
@@ -8,7 +8,7 @@ operator-adopted, never a blind pin).
 
 ## Decision provenance (TRUE form)
 
-**Operator word (2026-10-14 ~00:25 UTC):** *"Sure, let's take all three if that's your recommendation"*, given on
+**Operator word (2026-10-14 ~03:33 UTC):** *"Sure, let's take all three if that's your recommendation"*, given on
 CC's recommendation in this record as drafted: all three names, BWXT routed to `nuclear_fuel` (CC's
 recommendation over `space_defense`), the `mrna_oncology` council_thesis amendment and the `cyber_sase`
 council_thesis as proposed. Given before the 13:37 UTC read, so the reads below are the screen of record.
