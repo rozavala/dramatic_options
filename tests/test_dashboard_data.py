@@ -12,6 +12,7 @@ import os
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -593,6 +594,61 @@ def test_position_provenance_columns(convexity_db):
     real_open = dd.positions_panel(conn)["real_open"]
     assert len(real_open) == 1
     assert real_open[0]["origin_run"] == rid and real_open[0]["origin_conviction"] == "HIGH"
+
+
+def test_open_positions_carry_expiry_and_time_stop_date(convexity_db):
+    # Issue #306: the known exit date. The L2 time-stop closes at dte <= time_stop_dte (calendar days).
+    _pos(convexity_db, "PL", 690.0, status="open")
+    row = dd.positions_panel(convexity_db)["real_open"][0]
+    assert row["expiry"] == "2027-01-15" and row["time_stop_on"] == "2026-12-25"
+    assert dd.positions_panel(convexity_db, time_stop_dte=10)["real_open"][0]["time_stop_on"] == "2027-01-05"
+    assert dd._time_stop_on(None, 21) is None and dd._time_stop_on("garbage", 21) is None
+
+
+# ── upcoming actions (issue #306): next_at from the systemd timers ─────────────────────────────
+
+def _systemctl(stdout, returncode=0):
+    calls = []
+
+    def run(cmd, **_kw):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=returncode, stdout=stdout)
+    return run, calls
+
+
+def test_timer_next_at_reads_the_active_timer():
+    run, calls = _systemctl("ActiveState=active\nNextElapseUSecRealtime=Wed 2026-10-14 19:45:00 UTC\n")
+    assert dd.timer_next_at("dramatic-options-l1.timer", run=run) == "2026-10-14 19:45:00"
+    assert calls[0][:3] == ["systemctl", "show", "dramatic-options-l1.timer"] and "--timestamp=utc" in calls[0]
+
+
+@pytest.mark.parametrize("stdout,rc", [
+    ("ActiveState=inactive\nNextElapseUSecRealtime=\n", 0),       # PROD: timers disabled → no next run
+    ("ActiveState=active\nNextElapseUSecRealtime=\n", 0),         # active but nothing scheduled
+    ("", 1),                                                        # no such unit / no systemd
+])
+def test_timer_next_at_is_none_when_not_armed(stdout, rc):
+    run, _ = _systemctl(stdout, rc)
+    assert dd.timer_next_at("dramatic-options-l0.timer", run=run) is None
+
+
+def test_timer_next_at_fails_soft_on_error():
+    def boom(*_a, **_k):
+        raise FileNotFoundError("systemctl")
+    assert dd.timer_next_at("dramatic-options-l1.timer", run=boom) is None
+
+
+def test_header_next_at_per_job(convexity_db):
+    seen = []
+
+    def fake(unit):
+        seen.append(unit)
+        return {"dramatic-options-l1.timer": "2026-10-14 19:45:00",
+                "dramatic-options-l0.timer": "2026-10-18 12:00:00"}[unit]
+    h = dd.header_status(convexity_db, next_at=fake)
+    assert h["cycle"]["next_at"] == h["council"]["next_at"] == "2026-10-14 19:45:00"   # council runs in L1
+    assert h["discovery"]["next_at"] == "2026-10-18 12:00:00"
+    assert sorted(seen) == ["dramatic-options-l0.timer", "dramatic-options-l1.timer"]  # one read per timer
 
 
 # ── keyless dashboard invariants (S1: the dashboard process must hold NO broker/LLM secrets) ──────
