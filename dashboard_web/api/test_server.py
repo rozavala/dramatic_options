@@ -44,6 +44,30 @@ def test_health_is_json_not_static() -> None:
     assert r.json() == {"ok": True}
 
 
+def test_version_reports_head_start_and_env(monkeypatch) -> None:
+    """Issue #307: GET /api/version in the alpha_options shape — the commit the process started from, when it
+    started, and its env. Read once at import, so a restart onto a new commit is visible to the hub."""
+    import re
+
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("DRAMATIC_ENV", "PROD")
+    with TestClient(server.app) as client:
+        r = client.get("/api/version")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("application/json")
+    body = r.json()
+    assert set(body) == {"head", "started_at", "env"} and body["env"] == "prod"
+    assert body["head"] is None or re.fullmatch(r"[0-9a-f]{40}", body["head"])
+    assert body["started_at"].endswith("+00:00")
+
+
+def test_checkout_head_fails_soft(monkeypatch) -> None:
+    def boom(*_a, **_k):
+        raise FileNotFoundError("git")
+    monkeypatch.setattr(server.subprocess, "run", boom)
+    assert server._checkout_head() is None
+
+
 def test_snapshot_route_serves_json() -> None:
     """/api/snapshot is handled by the API (returns a JSON dict), not swallowed by a static file."""
     from fastapi.testclient import TestClient
