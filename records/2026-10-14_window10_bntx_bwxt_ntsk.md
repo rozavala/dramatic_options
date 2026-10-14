@@ -1,6 +1,6 @@
-# 2026-10-14 — Window #10 (off-cycle) DRAFT: BNTX · BWXT · NTSK
+# 2026-10-14 — Window #10 (off-cycle): BNTX · BWXT · NTSK
 
-**Status: WORD GIVEN (2026-10-14 ~03:33 UTC); screen pending. Nothing is admitted until an in-band read and the merge.** Admission needs, per name: the operator's word on the thesis below, and
+**Status: NTSK in band at the 13:37 read (admitted on merge); BNTX and BWXT out of band at 13:37, so the 15:07 LAST read governs them.** Admission needs, per name: the operator's word on the thesis below, and
 an in-window read in band, under the cap and with ≥ 200 days of runway (PREREG_UNIVERSE_CURATION §2, §11, §12).
 Theses are CC-drafted in true form from the filed corpus, the bench and the records. The operator adopts by
 giving the word without amending, amends, or strikes a name (the 2026-07-14 convention: AI-drafted,
@@ -35,8 +35,19 @@ council wall. An admission adds names the council can judge, not names it will p
 | 10-14 00:02 (provisional, off-hours) | BNTX | BNTX270820C00115000 | $89.01 | 29.2% | 311 | $915 | provisional only |
 | 10-14 00:02 (provisional, off-hours) | BWXT | BWXT270521C00170000 | $138.86 | 22.4% | 220 | $950 | provisional only |
 | 10-14 00:02 (provisional, off-hours) | NTSK | NTSK270917C00025000 | $21.15 | 18.2% | 339 | $520 | provisional only |
-| 10-14 13:37 | | | | | | | |
+| 10-14 13:37 | BNTX | BNTX270521C00100000 | $89.82 | **11.3%** | 219 | **$1,010** | **OUT** (over cap and below the 15% floor) → the 15:07 LAST read governs |
+| 10-14 13:37 | BWXT | BWXT270521C00165000 | $138.62 | 19.0% | 219 | **$1,100** | **OUT** (over cap) → the 15:07 LAST read governs |
+| 10-14 13:37 | NTSK | NTSK270617C00025000 | $20.98 | **19.2%** | 246 | **$395** | **IN BAND — read of record, ADMITTED** (spread 23%, ADV $119.4M) |
 | 10-14 15:07 (LAST) | | | | | | | |
+
+**13:37 notes.** Band = achieved OTM 15–35% (PREREG_UNIVERSE_CURATION §11), cap $1,000, runway ≥ 200 dte.
+- **BNTX** fell from the provisional Aug-2027 C115 (29.2%, $915) to the **May-2027 C100 at 11.3%, $1,010**: the
+  selector crossed expiries in the first minutes after the open, the FIG/NTSK pattern of quote eligibility at
+  the open, while spot barely moved ($89.01 → $89.82). **Premise currency:** $89.82 against $108–111 in late
+  August, so no sympathy reprice.
+- **BWXT** moved from the provisional May-2027 C170 ($950, 22.4%) to the C165 at $1,100 with spot flat ($138.86
+  → $138.62): the same open-quote shape, and the name's usual position near the cap line.
+- **NTSK** printed in band on the Jun-2027 C25 at $395, 19.2%, 246 days: admitted at this read under the word.
 
 ## BWXT — BWX Technologies · basket/cluster `nuclear_fuel` (existing)
 

@@ -46,7 +46,8 @@ def test_the_loader_reads_council_thesis_never_the_raw_thesis(tmp_path):
 
 def test_the_live_register_loads_and_falsifiers_lose_their_process_notes():
     out = register_theses.load()
-    assert len(out) == 14
+    themes = json.loads((REPO / "universe_register.json").read_text())["themes"]
+    assert out and set(out) == set(themes)  # every register theme loads (14 at A2, +1 per new basket since)
     for k, v in out.items():
         assert v["falsifier"] and "Draft-dated" not in v["falsifier"] and "AI-drafted" not in v["falsifier"], k
         assert "premise-currency" not in v["falsifier"] and not v["falsifier"].startswith("The card's"), k
