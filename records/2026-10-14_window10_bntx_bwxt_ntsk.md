@@ -1,6 +1,6 @@
 # 2026-10-14 — Window #10 (off-cycle): BNTX · BWXT · NTSK
 
-**Status: NTSK in band at the 13:37 read (admitted on merge); BNTX and BWXT out of band at 13:37, so the 15:07 LAST read governs them.** Admission needs, per name: the operator's word on the thesis below, and
+**Status: NTSK ADMITTED on merge (in band at the 13:37 read of record). BNTX and BWXT NEAR-MISS (over the $1,000 cap at the 15:07 LAST read); the operator's word lapses for both. Universe 47 → 48; clusters 15 → 16.** Admission needs, per name: the operator's word on the thesis below, and
 an in-window read in band, under the cap and with ≥ 200 days of runway (PREREG_UNIVERSE_CURATION §2, §11, §12).
 Theses are CC-drafted in true form from the filed corpus, the bench and the records. The operator adopts by
 giving the word without amending, amends, or strikes a name (the 2026-07-14 convention: AI-drafted,
@@ -38,7 +38,9 @@ council wall. An admission adds names the council can judge, not names it will p
 | 10-14 13:37 | BNTX | BNTX270521C00100000 | $89.82 | **11.3%** | 219 | **$1,010** | **OUT** (over cap and below the 15% floor) → the 15:07 LAST read governs |
 | 10-14 13:37 | BWXT | BWXT270521C00165000 | $138.62 | 19.0% | 219 | **$1,100** | **OUT** (over cap) → the 15:07 LAST read governs |
 | 10-14 13:37 | NTSK | NTSK270617C00025000 | $20.98 | **19.2%** | 246 | **$395** | **IN BAND — read of record, ADMITTED** (spread 23%, ADV $119.4M) |
-| 10-14 15:07 (LAST) | | | | | | | |
+| 10-14 15:07 (LAST, READ OF RECORD) | BNTX | BNTX270820C00105000 | $88.89 | 18.1% | 310 | **$1,175** | **NEAR-MISS** (in band, over cap): the word lapses |
+| 10-14 15:07 (LAST, READ OF RECORD) | BWXT | BWXT270521C00165000 | $137.37 | 20.1% | 219 | **$1,100** | **NEAR-MISS** (in band, over cap): the word lapses |
+| 10-14 15:07 (information only) | NTSK | NTSK270617C00025000 | $20.54 | 21.7% | 246 | $395 | the 13:37 read of record stands: **ADMITTED** |
 
 **13:37 notes.** Band = achieved OTM 15–35% (PREREG_UNIVERSE_CURATION §11), cap $1,000, runway ≥ 200 dte.
 - **BNTX** fell from the provisional Aug-2027 C115 (29.2%, $915) to the **May-2027 C100 at 11.3%, $1,010**: the
@@ -48,6 +50,18 @@ council wall. An admission adds names the council can judge, not names it will p
 - **BWXT** moved from the provisional May-2027 C170 ($950, 22.4%) to the C165 at $1,100 with spot flat ($138.86
   → $138.62): the same open-quote shape, and the name's usual position near the cap line.
 - **NTSK** printed in band on the Jun-2027 C25 at $395, 19.2%, 246 days: admitted at this read under the word.
+
+**15:07 notes (the LAST read; no re-reads after it).** The quotes settled into band for both remaining names,
+but neither fits the cap:
+- **BNTX** $1,175 on the Aug-2027 C105 (18.1%, 310 days). Its 25%-OTM nine-month structure has now printed on
+  both sides of $1,000 across nine reads since 08-19 ($1,195 provisional → $945 → $1,185 → $1,140, $1,165,
+  $1,155 provisional → $915 provisional overnight → $1,010 / $1,175 today). Fit is week-to-week noise at the cap line, not a stable property. Back to the
+  near-miss ledger; the `mrna_oncology` council_thesis amendment is **not** applied (it was conditional on
+  BNTX's admission).
+- **BWXT** $1,100 on the May-2027 C165 (20.1%, 219 days), the same contract as 13:37. Near-miss; the
+  `nuclear_fuel` routing decided today stands on the record for any later window.
+- A later admission of either needs a fresh word and a fresh in-window screen (the cadence rule of
+  `records/2026-08-24_bntx_admission_addendum.md`: the weekly Sunday review, no cap-line camping).
 
 ## BWXT — BWX Technologies · basket/cluster `nuclear_fuel` (existing)
 
@@ -113,12 +127,12 @@ council wall. An admission adds names the council can judge, not names it will p
   (5) The 09-21 open read fell out of band on quote eligibility (the FIG lesson); the 15:07 read exists for that.
 - **Cluster routing:** `cyber_sase`, shared with no existing cluster (as drafted 09-21).
 
-## What an admission changes (applied only after the word and an in-band read)
+## What the merge changes (NTSK only)
 
-- `config.json` `universe.themes` and `convexity_book.clusters`: BWXT → `nuclear_fuel`; BNTX →
-  `mrna_oncology`; NTSK → new `cyber_sase`. Universe 47 → up to 50; clusters 15 → up to 16.
-- `universe_register.json`: `windows.10` with each screen of record; a `cyber_sase` theme entry (thesis,
-  council_thesis, falsifier); the `mrna_oncology` council_thesis amendment if BNTX is admitted.
-- First council exposure: the names enter the weekly discovery scan (Sun 10-18 L0). They reach a council slot
-  only if the scan surfaces them, so the earliest council read is Mon 10-19.
+- `config.json` `universe.themes` and `convexity_book.clusters`: NTSK → new `cyber_sase`. Universe 47 → 48;
+  clusters 15 → 16 (the book still fills at most 5).
+- `universe_register.json`: `windows.10` (NTSK admitted, BNTX and BWXT near-miss) and the `cyber_sase` theme
+  entry (thesis, council_thesis, falsifier).
+- First council exposure: NTSK enters the weekly discovery scan (Sun 10-18 L0). It reaches a council slot
+  only if the scan surfaces it, so the earliest council read is Mon 10-19.
 - Not changed: the gate, sizing, risk frame, prompts.

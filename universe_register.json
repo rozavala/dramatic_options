@@ -439,7 +439,23 @@
           "operator": "'Sure, let's take all three if that's your recommendation' (2026-10-14 ~03:33 UTC)"
         }
       },
-      "notes": "One NEW cluster (cyber_sase — a network-security platform driver shared with no existing cluster; not design_software_ai, not ai_capex_power) = SIXTEEN clusters; the book still fills at most 5."
+      "near_miss": {
+        "BNTX": {
+          "basket_would_be": "mrna_oncology (with MRK)",
+          "per_contract_usd": 1175,
+          "achieved_otm_pct": 18.1,
+          "screen": "BNTX270820C00105000 · dte 310 · 18.1% achieved OTM · $1,175 > $1,000 cap · spread 25% · ADV $93.3M · spot $88.89 (in-window 2026-10-14 15:07 UTC, the LAST read); the 13:37 read fell to BNTX270521C00100000 11.3% $1,010; provisional 00:02 UTC $915/29.2%/311d",
+          "disposition": "The 2026-10-14 word LAPSES. Nine reads since 08-19 straddle the cap line; a later admission needs a fresh word on a fresh screen at the weekly cadence (no cap-line camping). The mrna_oncology council_thesis amendment was conditional on admission and is not applied."
+        },
+        "BWXT": {
+          "basket_would_be": "nuclear_fuel (routing decided 2026-10-14 over space_defense)",
+          "per_contract_usd": 1100,
+          "achieved_otm_pct": 20.1,
+          "screen": "BWXT270521C00165000 · dte 219 · 20.1% achieved OTM · $1,100 > $1,000 cap · spread 18% · ADV $177.8M · spot $137.37 (in-window 2026-10-14 15:07 UTC, the LAST read); 13:37 the same contract at $1,100 / 19.0%; provisional 00:02 UTC $950/22.4%/220d",
+          "disposition": "The 2026-10-14 word LAPSES. A later admission needs a fresh word on a fresh screen."
+        }
+      },
+      "notes": "One NEW cluster (cyber_sase — a network-security platform driver shared with no existing cluster; not design_software_ai, not ai_capex_power) = SIXTEEN clusters; the book still fills at most 5. NTSK enters the discovery scan baskets only (universe 47→48); first scan = the 2026-10-18 L0."
     }
   }
 }
