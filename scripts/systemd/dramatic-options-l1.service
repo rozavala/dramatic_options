@@ -28,4 +28,6 @@ Environment=PYTHONUNBUFFERED=1
 # guarantee is enforced by the orchestrator's post-council market-open RE-CHECK (PR2 R7), not
 # by this timeout — so moving the L1 time or this value never risks a post-close submit.
 TimeoutStartSec=1800
-ExecStart=__REPO_ROOT__/venv/bin/python -u orchestrator.py
+# Started as `-m orchestrator`, never `orchestrator.py`: other projects on the shared hosts clean up with
+# `pkill -9 -f orchestrator.py` (Real Options deploy.sh), and that pattern SIGKILLed our L2 on 2026-10-15.
+ExecStart=__REPO_ROOT__/venv/bin/python -u -m orchestrator
