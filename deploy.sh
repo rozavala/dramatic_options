@@ -140,10 +140,15 @@ install_units() {
         render_unit "$src" > "$tmp"
         if ! diff -q "$tmp" "$SYSTEMD_DST/$name" >/dev/null 2>&1; then
             echo "  Installing unit: $name"
-            if sudo -n cp "$tmp" "$SYSTEMD_DST/$name"; then
+            # Two sudo shapes: classic sudo (PROD) allows the wildcard rule
+            # `NOPASSWD: /usr/bin/cp /tmp/* /etc/systemd/system/*`; sudo-rs (DEV) refuses wildcards in
+            # arguments, so it carries one exact `NOPASSWD: /usr/bin/tee /etc/systemd/system/<unit>` per unit.
+            if sudo -n cp "$tmp" "$SYSTEMD_DST/$name" 2>/dev/null \
+                    || sudo -n tee "$SYSTEMD_DST/$name" < "$tmp" > /dev/null; then
                 UNITS_CHANGED=1
             else
-                echo "  ERROR: could not install $name (needs NOPASSWD: /usr/bin/cp /tmp/* /etc/systemd/system/*)"
+                echo "  ERROR: could not install $name (needs NOPASSWD: /usr/bin/cp /tmp/* /etc/systemd/system/*,"
+                echo "         or on sudo-rs: NOPASSWD: /usr/bin/tee $SYSTEMD_DST/$name)"
                 UNITS_FAILED="$UNITS_FAILED $name"
             fi
         fi
