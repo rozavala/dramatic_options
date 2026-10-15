@@ -12,6 +12,8 @@ import configparser
 import re
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 SYSTEMD = REPO / "scripts" / "systemd"
 DEPLOY = REPO / "deploy.sh"
@@ -144,14 +146,18 @@ def _deploy_function(name: str) -> str:
     return m.group(0)
 
 
-def _run_install_units(tmp_path, *, sudo_ok: bool) -> tuple[str, str]:
+def _run_install_units(tmp_path, *, sudo_ok: bool, allow: str = "cp") -> tuple[str, str]:
     import subprocess
 
     src, dst = tmp_path / "src", tmp_path / "dst"
     src.mkdir(), dst.mkdir()
     (src / "dramatic-options-l1.service").write_text("ExecStart=__REPO_ROOT__/venv/bin/python -u -m orchestrator\n")
-    fake_sudo = ('sudo() { [ "$1" = "-n" ] && shift; if [ "$1" = "cp" ]; then ' +
-                 ('command cp "$2" "$3"' if sudo_ok else "return 1") + "; fi; return 0; }\n")
+    # A fake sudo that permits only the ``allow`` command (cp = classic sudo's wildcard rule; tee = sudo-rs's
+    # exact per-unit rules) and refuses everything else, the way a missing NOPASSWD rule does.
+    ok_cp = 'command cp "$2" "$3"' if sudo_ok and allow == "cp" else "return 1"
+    ok_tee = 'command tee "$2"' if sudo_ok and allow == "tee" else "return 1"
+    fake_sudo = ('sudo() { [ "$1" = "-n" ] && shift; case "$1" in cp) ' + ok_cp + ";; tee) " + ok_tee +
+                 ";; *) return 0;; esac; }\n")
     script = (f'set -e\nSYSTEMD_SRC="{src}"\nSYSTEMD_DST="{dst}"\nREPO_ROOT=/r\nENV_NAME=DEV\n' + fake_sudo +
               _deploy_function("render_unit") + _deploy_function("install_units") +
               'install_units\necho "FAILED=[$UNITS_FAILED] CHANGED=$UNITS_CHANGED"\n')
@@ -168,8 +174,9 @@ def test_install_units_records_a_unit_it_could_not_install(tmp_path):
     assert "ERROR: could not install dramatic-options-l1.service" in stdout
 
 
-def test_install_units_installs_the_rendered_unit(tmp_path):
-    stdout, installed = _run_install_units(tmp_path, sudo_ok=True)
+@pytest.mark.parametrize("allow", ["cp", "tee"])   # PROD's classic-sudo wildcard rule · DEV's sudo-rs exact rules
+def test_install_units_installs_the_rendered_unit(tmp_path, allow):
+    stdout, installed = _run_install_units(tmp_path, sudo_ok=True, allow=allow)
     assert "FAILED=[] CHANGED=1" in stdout
     assert installed == "ExecStart=/r/venv/bin/python -u -m orchestrator\n"
 
