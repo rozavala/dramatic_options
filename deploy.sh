@@ -119,10 +119,15 @@ render_unit() {
 }
 
 # Render every template in $SYSTEMD_SRC and install into $SYSTEMD_DST when it differs.
-# Sets UNITS_CHANGED=1 and reloads systemd if anything changed.
+# Sets UNITS_CHANGED=1 and reloads systemd if anything changed. A unit that cannot be installed is
+# appended to UNITS_FAILED: the deploy still finishes every step (timers stay armed on the old units),
+# then exits non-zero at the end. A stale installed unit is a deploy FAILURE, never a warning — DEV's
+# missing sudo rule hid a week of drift until the 2026-10-15 pkill fix could not land (#312).
 UNITS_CHANGED=0
+UNITS_FAILED=""
 install_units() {
     UNITS_CHANGED=0
+    UNITS_FAILED=""
     if [ ! -d "$SYSTEMD_SRC" ]; then
         echo "  (no $SYSTEMD_SRC in this tree — nothing to install)"
         return 0
@@ -135,16 +140,20 @@ install_units() {
         render_unit "$src" > "$tmp"
         if ! diff -q "$tmp" "$SYSTEMD_DST/$name" >/dev/null 2>&1; then
             echo "  Installing unit: $name"
-            if sudo cp "$tmp" "$SYSTEMD_DST/$name"; then
+            if sudo -n cp "$tmp" "$SYSTEMD_DST/$name"; then
                 UNITS_CHANGED=1
             else
-                echo "  WARNING: could not install $name (check sudoers)"
+                echo "  ERROR: could not install $name (needs NOPASSWD: /usr/bin/cp /tmp/* /etc/systemd/system/*)"
+                UNITS_FAILED="$UNITS_FAILED $name"
             fi
         fi
         rm -f "$tmp"
     done
     if [ "$UNITS_CHANGED" -eq 1 ]; then
-        sudo systemctl daemon-reload || echo "  WARNING: daemon-reload failed"
+        if ! sudo systemctl daemon-reload; then
+            echo "  ERROR: daemon-reload failed"
+            UNITS_FAILED="$UNITS_FAILED (daemon-reload)"
+        fi
     fi
 }
 
@@ -345,6 +354,15 @@ if [ -f "scripts/sync_worktree.sh" ]; then
     bash scripts/sync_worktree.sh || echo "  Worktree sync issue (non-blocking)"
 else
     echo "  No worktree sync script found, skipping"
+fi
+
+# A unit that could not be installed fails the deploy, after every other step has run.
+if [ -n "$UNITS_FAILED" ]; then
+    echo ""
+    echo "--- DEPLOY FAILED: installed systemd units are STALE:$UNITS_FAILED ---"
+    echo "--- The code is at $CURR_COMMIT, but systemd still runs the previous unit files. ---"
+    echo "--- Fix the sudo rule on this host, then re-run the deploy. ---"
+    exit 1
 fi
 
 echo ""
