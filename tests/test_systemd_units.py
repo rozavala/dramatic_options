@@ -135,3 +135,46 @@ def test_dashboard_is_handled_outside_the_trading_arrays_and_gate():
     verify = (REPO / "scripts" / "verify_deploy.sh").read_text()
     crit = re.search(r"CRITICAL_FILES=\((.*?)\)", verify, re.S).group(1)
     assert "dashboard" not in crit
+
+
+def _deploy_function(name: str) -> str:
+    """The text of one shell function from deploy.sh (``name() {`` … the closing ``}`` at column 0)."""
+    m = re.search(rf"^{name}\(\) {{\n.*?^}}\n", DEPLOY.read_text(), re.S | re.M)
+    assert m, name
+    return m.group(0)
+
+
+def _run_install_units(tmp_path, *, sudo_ok: bool) -> tuple[str, str]:
+    import subprocess
+
+    src, dst = tmp_path / "src", tmp_path / "dst"
+    src.mkdir(), dst.mkdir()
+    (src / "dramatic-options-l1.service").write_text("ExecStart=__REPO_ROOT__/venv/bin/python -u -m orchestrator\n")
+    fake_sudo = ('sudo() { [ "$1" = "-n" ] && shift; if [ "$1" = "cp" ]; then ' +
+                 ('command cp "$2" "$3"' if sudo_ok else "return 1") + "; fi; return 0; }\n")
+    script = (f'set -e\nSYSTEMD_SRC="{src}"\nSYSTEMD_DST="{dst}"\nREPO_ROOT=/r\nENV_NAME=DEV\n' + fake_sudo +
+              _deploy_function("render_unit") + _deploy_function("install_units") +
+              'install_units\necho "FAILED=[$UNITS_FAILED] CHANGED=$UNITS_CHANGED"\n')
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30)
+    assert out.returncode == 0, out.stderr
+    return out.stdout, (dst / "dramatic-options-l1.service").read_text() if sudo_ok else ""
+
+
+def test_install_units_records_a_unit_it_could_not_install(tmp_path):
+    """2026-10-15: DEV's sudo allowed systemctl but not cp, so every unit install failed with a WARNING and
+    the deploy reported success while systemd ran stale units. A failed install is now recorded."""
+    stdout, _ = _run_install_units(tmp_path, sudo_ok=False)
+    assert "FAILED=[ dramatic-options-l1.service] CHANGED=0" in stdout
+    assert "ERROR: could not install dramatic-options-l1.service" in stdout
+
+
+def test_install_units_installs_the_rendered_unit(tmp_path):
+    stdout, installed = _run_install_units(tmp_path, sudo_ok=True)
+    assert "FAILED=[] CHANGED=1" in stdout
+    assert installed == "ExecStart=/r/venv/bin/python -u -m orchestrator\n"
+
+
+def test_deploy_fails_at_the_end_when_a_unit_is_stale():
+    text = DEPLOY.read_text()
+    tail = text[text.index("# STEP 9"):]
+    assert 'if [ -n "$UNITS_FAILED" ]' in tail and "exit 1" in tail.split("Deployment finished successfully")[0]
