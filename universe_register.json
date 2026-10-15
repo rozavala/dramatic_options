@@ -160,6 +160,18 @@
         "reach W38 (2026-09-20) orphan_watch/424B4 — StubHub Holdings, Inc. CIK 1337634, options class now listed; item-symbol corroborated; thesis CC-drafted 2026-09-21 in true form, operator-adopted"
       ],
       "cluster_default": "live_events_marketplace"
+    },
+    "cyber_sase": {
+      "provenance": "operator",
+      "added": "2026-10-14 (window #10, off-cycle — the window-9 near-miss, re-screened)",
+      "thesis": "The security perimeter is being rebuilt around the identity-and-edge model (SASE/SSE), and Netskope is a platform built for that shift. Quarterly revenue $220.5M, +29.1% y/y, with gross margin expanding +1.7pts to 73.9%, so the growth is not bought with unit economics; quarterly capex rose to $13.0M from $1.6M, a platform build-out (period 2026-07-31, filed 2026-09-02). PINNED CAVEATS: (1) under_narrated will very likely FAIL — a 2025 IPO in the most covered category in enterprise software; (2) the capex jump can equally be the start of a margin problem, and the falsifier keys on revenue only; (3) ONE filed quarter in the corpus; (4) post-IPO lock-up supply; (5) the 09-21 open read fell out of band on quote eligibility (the FIG lesson).",
+      "council_thesis": "The security perimeter is being rebuilt around the identity-and-edge (SASE/SSE) model; Netskope is a platform built for that shift, with quarterly revenue +29.1% y/y and gross margin up 1.7pts to 73.9% (period 2026-07-31).",
+      "falsifier": "Quarterly revenue growth in the next 10-Q (quarter ending 2026-10-31, filed ~early December) falls below +20% y/y.",
+      "direction": "bullish",
+      "sources": [
+        "reach W38 (2026-09-20) orphan_watch/424B4 — Netskope Inc. CIK 2063196; thesis CC-drafted 2026-09-21 in true form, refreshed 2026-10-14; operator word 2026-10-14 ~03:33 UTC ('Sure, let's take all three if that's your recommendation')"
+      ],
+      "cluster_default": "cyber_sase"
     }
   },
   "windows": {
@@ -407,6 +419,43 @@
         }
       },
       "notes": "One NEW cluster (live_events_marketplace — a live-events/ticketing marketplace driver shared with no existing cluster; NOT bnpl_payments, whose driver is consumer credit) = FIFTEEN clusters; the book still fills at most 5; cluster_fraction 0.02 unchanged. STUB enters the discovery scan baskets only (universe 46→47); first scan = the 2026-09-27 L0; funnel/council judge, gates/caps dispose. Method note, now twice-confirmed (FIG 09-08, NTSK/STUB 09-21): on a thin newly-listed chain the FIRST in-window read is routinely an out-of-band fallback — the selector can even cross expiries — while spot barely moves; the pre-declared LAST read of the day is the honest read of record, and no re-reads follow it. CONCENTRATION CAVEAT pinned at admission: STUB joins FIG and KLAR as a third deeply de-rated 2025 IPO (−73.1% / −80% / −69.8%) sitting in a nominally independent cluster. The by-driver map cannot see that shared shape and the trailing-correlation diagnostic cannot measure it (under a year of history each), so the correlation budget may understate the exposure if two of them ever pass the gate together. Surfaced to the operator 2026-09-21; queued into the 09-30 review."
+    },
+    "10": {
+      "date": "2026-10-14",
+      "rule": "PREREG_UNIVERSE_CURATION §11 OFF-CYCLE admission — BNTX · BWXT · NTSK from the bench (records/2026-10-13_f4_review_evidence_pack.md §6 A). Operator word 2026-10-14 ~03:33 UTC ('Sure, let's take all three if that's your recommendation') on CC-drafted theses, given before the reads. TWO in-window reads pre-declared (13:37 + 15:07 UTC LAST, anti-camping); a name in band at 13:37 is admitted at that read, the 15:07 read governs only names out of band at 13:37.",
+      "screen_records": [
+        "records/2026-10-14_window10_bntx_bwxt_ntsk.md"
+      ],
+      "admitted": {
+        "NTSK": {
+          "basket": "cyber_sase",
+          "sources": [
+            "window-9 near-miss (2026-09-21) → bench → operator word 2026-10-14; thesis CC-drafted 2026-09-21, refreshed 2026-10-14, operator-adopted"
+          ],
+          "per_contract_usd": 395,
+          "achieved_otm_pct": 19.2,
+          "tag": "rule",
+          "screen": "NTSK270617C00025000 · dte 246 · 19.2% achieved OTM · $395 ≤ $1,000 cap · spread 23% · ADV $119.4M · spot $20.98 (in-window 2026-10-14 13:37 UTC, the first pre-declared read); provisional 00:02 UTC read $520/18.2%/339d on NTSK270917C00025000",
+          "operator": "'Sure, let's take all three if that's your recommendation' (2026-10-14 ~03:33 UTC)"
+        }
+      },
+      "near_miss": {
+        "BNTX": {
+          "basket_would_be": "mrna_oncology (with MRK)",
+          "per_contract_usd": 1175,
+          "achieved_otm_pct": 18.1,
+          "screen": "BNTX270820C00105000 · dte 310 · 18.1% achieved OTM · $1,175 > $1,000 cap · spread 25% · ADV $93.3M · spot $88.89 (in-window 2026-10-14 15:07 UTC, the LAST read); the 13:37 read fell to BNTX270521C00100000 11.3% $1,010; provisional 00:02 UTC $915/29.2%/311d",
+          "disposition": "The 2026-10-14 word LAPSES. Nine reads since 08-19 straddle the cap line; a later admission needs a fresh word on a fresh screen at the weekly cadence (no cap-line camping). The mrna_oncology council_thesis amendment was conditional on admission and is not applied."
+        },
+        "BWXT": {
+          "basket_would_be": "nuclear_fuel (routing decided 2026-10-14 over space_defense)",
+          "per_contract_usd": 1100,
+          "achieved_otm_pct": 20.1,
+          "screen": "BWXT270521C00165000 · dte 219 · 20.1% achieved OTM · $1,100 > $1,000 cap · spread 18% · ADV $177.8M · spot $137.37 (in-window 2026-10-14 15:07 UTC, the LAST read); 13:37 the same contract at $1,100 / 19.0%; provisional 00:02 UTC $950/22.4%/220d",
+          "disposition": "The 2026-10-14 word LAPSES. A later admission needs a fresh word on a fresh screen."
+        }
+      },
+      "notes": "One NEW cluster (cyber_sase — a network-security platform driver shared with no existing cluster; not design_software_ai, not ai_capex_power) = SIXTEEN clusters; the book still fills at most 5. NTSK enters the discovery scan baskets only (universe 47→48); first scan = the 2026-10-18 L0."
     }
   }
 }

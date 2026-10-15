@@ -46,7 +46,8 @@
       "design_software_ai": ["FIG"],
       "_comment_window9": "2026-09-21 — PREREG_UNIVERSE_CURATION §11 window #9 (OFF-CYCLE): the W38 reach survivors NTSK (Netskope) + STUB (StubHub), both orphan_watch/424B4 new listings. Operator word 2026-09-21 ~04:10 UTC ('let's include both survivors'). TWO in-window reads pre-declared; the 13:37 read fell OUT OF BAND for BOTH (NTSK Jun-2027 C17.5 −1.0% ATM $525 — the selector CROSSED EXPIRIES; STUB Apr-2027 C5 −14.6% ITM $175) on quote eligibility at the open, not a repricing (spot barely moved) — the FIG lesson reproduced. The pre-declared LAST read 15:07 UTC governs: STUB270416C00007500 $73, 27.0% achieved OTM, 207dte, spread 21%, ADV $38.2M → ADMITTED; NTSK270617C00020000 $445 at 11.9% achieved OTM → below the 15% floor → NEAR-MISS, recorded not admitted (the TITN-14.4% precedent), and the 09-21 word LAPSES for NTSK — cyber_sase stays a thesis without an expression (no empty basket). See universe_register.json windows.9 + records/2026-09-21_window9_ntsk_stub_admission.md. Additions-only.",
       "bnpl_payments": ["KLAR"],
-      "live_events_marketplace": ["STUB"]
+      "live_events_marketplace": ["STUB"],
+      "cyber_sase": ["NTSK"]
     }
   },
   "eligibility": {
@@ -82,7 +83,8 @@
       "alt_capital_deployment": ["KKR"],
       "design_software_ai": ["FIG"],
       "bnpl_payments": ["KLAR"],
-      "live_events_marketplace": ["STUB"]
+      "live_events_marketplace": ["STUB"],
+      "cyber_sase": ["NTSK"]
     }
   },
   "convexity_gate": {
