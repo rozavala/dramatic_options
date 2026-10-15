@@ -12,6 +12,8 @@ import configparser
 import re
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 SYSTEMD = REPO / "scripts" / "systemd"
 DEPLOY = REPO / "deploy.sh"
@@ -52,14 +54,14 @@ def test_oneshot_services_share_the_safe_shape():
         assert cp["Unit"]["OnFailure"] == "dramatic-options-notify@%n.service", name
         assert cp["Service"]["EnvironmentFile"] == "__REPO_ROOT__/.env", name
         es = cp["Service"]["ExecStart"]
-        assert "__REPO_ROOT__/venv/bin/python -u orchestrator.py" in es, name
+        assert "__REPO_ROOT__/venv/bin/python -u -m orchestrator" in es, name
         text = (SYSTEMD / name).read_text()
         assert "__USER__" in text and "__GROUP__" in text, f"{name} not a render template"
 
 
 def test_l0_service_runs_discovery_with_the_measured_timeout():
     cp = _parse(SYSTEMD / "dramatic-options-l0.service")
-    assert cp["Service"]["ExecStart"].endswith("orchestrator.py --discover")
+    assert cp["Service"]["ExecStart"].endswith("-m orchestrator --discover")
     # Hang ceiling DERIVED from the §C cold-cache measurement (see the unit comment): clears the
     # realistic-healthy ~540s ceiling, SIGTERMs a broadly-degraded-provider scan (~1460s).
     assert cp["Service"]["TimeoutStartSec"] == "900"
@@ -67,11 +69,23 @@ def test_l0_service_runs_discovery_with_the_measured_timeout():
 
 def test_l1_and_l2_execstart_flags_unchanged():
     assert _parse(SYSTEMD / "dramatic-options-l1.service")["Service"]["ExecStart"].endswith(
-        "orchestrator.py"
+        "-m orchestrator"
     )
     assert _parse(SYSTEMD / "dramatic-options-l2.service")["Service"]["ExecStart"].endswith(
-        "orchestrator.py --monitor"
+        "-m orchestrator --monitor"
     )
+
+
+def test_no_unit_cmdline_matches_a_neighbours_pkill_pattern():
+    """2026-10-15: Real Options' deploy.sh runs `pkill -9 -f orchestrator.py` on the shared host, which
+    SIGKILLed our L2 mid-run. No unit of ours may carry a command line that pattern (a regex: '.' is any
+    character) can match, so a neighbour's cleanup can never kill a council session or an order submit."""
+    pattern = re.compile(r"orchestrator.py")
+    for unit in sorted(SYSTEMD.glob("*.service")):
+        for line in unit.read_text().splitlines():
+            if line.startswith("ExecStart="):
+                cmd = line.replace("__REPO_ROOT__", "/home/u/dramatic_options")
+                assert not pattern.search(cmd), f"{unit.name}: {cmd}"
 
 
 def test_l0_timer_is_weekly_offmarket_and_persistent():
@@ -123,3 +137,51 @@ def test_dashboard_is_handled_outside_the_trading_arrays_and_gate():
     verify = (REPO / "scripts" / "verify_deploy.sh").read_text()
     crit = re.search(r"CRITICAL_FILES=\((.*?)\)", verify, re.S).group(1)
     assert "dashboard" not in crit
+
+
+def _deploy_function(name: str) -> str:
+    """The text of one shell function from deploy.sh (``name() {`` … the closing ``}`` at column 0)."""
+    m = re.search(rf"^{name}\(\) {{\n.*?^}}\n", DEPLOY.read_text(), re.S | re.M)
+    assert m, name
+    return m.group(0)
+
+
+def _run_install_units(tmp_path, *, sudo_ok: bool, allow: str = "cp") -> tuple[str, str]:
+    import subprocess
+
+    src, dst = tmp_path / "src", tmp_path / "dst"
+    src.mkdir(), dst.mkdir()
+    (src / "dramatic-options-l1.service").write_text("ExecStart=__REPO_ROOT__/venv/bin/python -u -m orchestrator\n")
+    # A fake sudo that permits only the ``allow`` command (cp = classic sudo's wildcard rule; tee = sudo-rs's
+    # exact per-unit rules) and refuses everything else, the way a missing NOPASSWD rule does.
+    ok_cp = 'command cp "$2" "$3"' if sudo_ok and allow == "cp" else "return 1"
+    ok_tee = 'command tee "$2"' if sudo_ok and allow == "tee" else "return 1"
+    fake_sudo = ('sudo() { [ "$1" = "-n" ] && shift; case "$1" in cp) ' + ok_cp + ";; tee) " + ok_tee +
+                 ";; *) return 0;; esac; }\n")
+    script = (f'set -e\nSYSTEMD_SRC="{src}"\nSYSTEMD_DST="{dst}"\nREPO_ROOT=/r\nENV_NAME=DEV\n' + fake_sudo +
+              _deploy_function("render_unit") + _deploy_function("install_units") +
+              'install_units\necho "FAILED=[$UNITS_FAILED] CHANGED=$UNITS_CHANGED"\n')
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30)
+    assert out.returncode == 0, out.stderr
+    return out.stdout, (dst / "dramatic-options-l1.service").read_text() if sudo_ok else ""
+
+
+def test_install_units_records_a_unit_it_could_not_install(tmp_path):
+    """2026-10-15: DEV's sudo allowed systemctl but not cp, so every unit install failed with a WARNING and
+    the deploy reported success while systemd ran stale units. A failed install is now recorded."""
+    stdout, _ = _run_install_units(tmp_path, sudo_ok=False)
+    assert "FAILED=[ dramatic-options-l1.service] CHANGED=0" in stdout
+    assert "ERROR: could not install dramatic-options-l1.service" in stdout
+
+
+@pytest.mark.parametrize("allow", ["cp", "tee"])   # PROD's classic-sudo wildcard rule · DEV's sudo-rs exact rules
+def test_install_units_installs_the_rendered_unit(tmp_path, allow):
+    stdout, installed = _run_install_units(tmp_path, sudo_ok=True, allow=allow)
+    assert "FAILED=[] CHANGED=1" in stdout
+    assert installed == "ExecStart=/r/venv/bin/python -u -m orchestrator\n"
+
+
+def test_deploy_fails_at_the_end_when_a_unit_is_stale():
+    text = DEPLOY.read_text()
+    tail = text[text.index("# STEP 9"):]
+    assert 'if [ -n "$UNITS_FAILED" ]' in tail and "exit 1" in tail.split("Deployment finished successfully")[0]
