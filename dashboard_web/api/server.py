@@ -19,8 +19,10 @@ from __future__ import annotations
 
 import hmac
 import os
+import subprocess
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 os.environ.setdefault("DRAMATIC_SKIP_DOTENV", "1")  # keyless — must precede any config_loader import
@@ -93,6 +95,27 @@ def snapshot(nocache: int = 0) -> dict:
 def health() -> dict:
     """Liveness only — never touches the DB or the broker."""
     return {"ok": True}
+
+
+def _checkout_head() -> str | None:
+    """The commit this process started from (read once, at import). Fail-soft: no git → None."""
+    try:
+        out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=_REPO_ROOT, capture_output=True,
+                             text=True, timeout=5, check=True)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() or None
+
+
+# Issue #307 (the hub's Status view; the alpha_options shape): which commit the running process serves.
+_STARTED = {"head": _checkout_head(), "started_at": datetime.now(UTC).isoformat(timespec="seconds")}
+
+
+@app.get("/api/version")
+def version() -> dict:
+    """The commit and start time of this process, plus its env (``dev`` | ``prod``). Like /api/health it
+    never touches the DB or the broker. ``env`` is the installable app's DRAMATIC_ENV reading."""
+    return {**_STARTED, "env": pwa.dramatic_env()}
 
 
 # Repo-relative reach documents (records/cards + records/digests). Module-level so tests can
