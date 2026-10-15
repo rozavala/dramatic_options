@@ -52,14 +52,14 @@ def test_oneshot_services_share_the_safe_shape():
         assert cp["Unit"]["OnFailure"] == "dramatic-options-notify@%n.service", name
         assert cp["Service"]["EnvironmentFile"] == "__REPO_ROOT__/.env", name
         es = cp["Service"]["ExecStart"]
-        assert "__REPO_ROOT__/venv/bin/python -u orchestrator.py" in es, name
+        assert "__REPO_ROOT__/venv/bin/python -u -m orchestrator" in es, name
         text = (SYSTEMD / name).read_text()
         assert "__USER__" in text and "__GROUP__" in text, f"{name} not a render template"
 
 
 def test_l0_service_runs_discovery_with_the_measured_timeout():
     cp = _parse(SYSTEMD / "dramatic-options-l0.service")
-    assert cp["Service"]["ExecStart"].endswith("orchestrator.py --discover")
+    assert cp["Service"]["ExecStart"].endswith("-m orchestrator --discover")
     # Hang ceiling DERIVED from the §C cold-cache measurement (see the unit comment): clears the
     # realistic-healthy ~540s ceiling, SIGTERMs a broadly-degraded-provider scan (~1460s).
     assert cp["Service"]["TimeoutStartSec"] == "900"
@@ -67,11 +67,23 @@ def test_l0_service_runs_discovery_with_the_measured_timeout():
 
 def test_l1_and_l2_execstart_flags_unchanged():
     assert _parse(SYSTEMD / "dramatic-options-l1.service")["Service"]["ExecStart"].endswith(
-        "orchestrator.py"
+        "-m orchestrator"
     )
     assert _parse(SYSTEMD / "dramatic-options-l2.service")["Service"]["ExecStart"].endswith(
-        "orchestrator.py --monitor"
+        "-m orchestrator --monitor"
     )
+
+
+def test_no_unit_cmdline_matches_a_neighbours_pkill_pattern():
+    """2026-10-15: Real Options' deploy.sh runs `pkill -9 -f orchestrator.py` on the shared host, which
+    SIGKILLed our L2 mid-run. No unit of ours may carry a command line that pattern (a regex: '.' is any
+    character) can match, so a neighbour's cleanup can never kill a council session or an order submit."""
+    pattern = re.compile(r"orchestrator.py")
+    for unit in sorted(SYSTEMD.glob("*.service")):
+        for line in unit.read_text().splitlines():
+            if line.startswith("ExecStart="):
+                cmd = line.replace("__REPO_ROOT__", "/home/u/dramatic_options")
+                assert not pattern.search(cmd), f"{unit.name}: {cmd}"
 
 
 def test_l0_timer_is_weekly_offmarket_and_persistent():
