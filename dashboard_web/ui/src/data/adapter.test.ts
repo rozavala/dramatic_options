@@ -197,6 +197,36 @@ describe("fromBackend", () => {
     expect(vm.positions[0].premium).toBe("$620");
   });
 
+  it("maps each timer's next fire relative to header.now; a null next_at stays null (#306)", () => {
+    const s = synthetic();
+    const vm = fromBackend({
+      ...s,
+      header: {
+        ...s.header,
+        cycle: { ...s.header.cycle, next_at: "2026-10-14 16:32:00" },     // 30m after now (16:02 UTC)
+        council: { ...s.header.council, next_at: "2026-10-14 19:45:00" }, // 3h43m → rounds to 4h
+        discovery: { ...s.header.discovery, next_at: null },              // timer inactive (PROD)
+      },
+    });
+    expect(vm.nextRuns.cycle).toEqual({ label: "30m", at: "2026-10-14 16:32:00" });
+    expect(vm.nextRuns.council).toEqual({ label: "4h", at: "2026-10-14 19:45:00" });
+    expect(vm.nextRuns.discovery).toBeNull();
+  });
+
+  it("reads an absent next_at as not scheduled, never an error (#306)", () => {
+    expect(vm.nextRuns).toEqual({ cycle: null, council: null, discovery: null });
+  });
+
+  it("carries expiry + the time-stop close day on the real open rows, null when absent (#306)", () => {
+    const s = synthetic();
+    const row = { ...s.positions.real_open[0], expiry: "2026-01-16", time_stop_on: "2025-12-26" };
+    const vm2 = fromBackend({ ...s, positions: { ...s.positions, real_open: [row] } });
+    expect(vm2.positions[0].expiry).toBe("2026-01-16");
+    expect(vm2.positions[0].timeStop).toBe("2025-12-26");
+    expect(vm.positions[0].expiry).toBeNull();
+    expect(vm.positions[0].timeStop).toBeNull();
+  });
+
   it("composes the sentinel trigger note (reconciliation #4)", () => {
     expect(vm.sentinels[0].note.startsWith("structural")).toBe(true);
     expect(vm.sentinelSub).toBe("1 active · 3 dormant.");
