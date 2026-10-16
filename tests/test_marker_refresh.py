@@ -58,6 +58,7 @@ def test_fresh_recomputes_dates_and_keeps_the_event_leg(market):
     assert out[0] is hand                                            # hand-seeds never touched
     m = out[1].markers
     assert m["refreshed_asof"] == "2026-10-15" and m["momentum"] != PERSISTED["momentum"]
+    assert m["refreshed_at"] == AS_OF.isoformat()                    # the full stamp for markers_asof (#321)
     assert m["has_event"] is True and m["event_kind"] == "424B5"     # the L0's structural call carried over
     assert "at_surfacing" not in m
     assert sent.markers == PERSISTED                                 # the persisted markers never mutated

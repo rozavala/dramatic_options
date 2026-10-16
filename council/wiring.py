@@ -81,7 +81,8 @@ def council_to_themes(
     tradeable_ids = {id(p) for p in select_for_trade(proposals, floor=floor)}
     as_of_iso = clock.now().isoformat()
 
-    refreshed_asof = {c.sentinel_id: c.markers["refreshed_asof"] for c in candidates
+    # The full UTC timestamp, so marker_staleness can subtract it from as_of (#321); date-only as a fallback.
+    refreshed_asof = {c.sentinel_id: (c.markers.get("refreshed_at") or c.markers["refreshed_asof"]) for c in candidates
                       if getattr(c, "sentinel_id", None) is not None and (c.markers or {}).get("refreshed_asof")}
     themes = []
     n_dropped = 0

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 import statistics
-from datetime import datetime
+from datetime import UTC, datetime
 
 import state
 from council.proposal import CONVICTION_LEVELS, normalize_conviction, passes_floor
@@ -130,7 +130,10 @@ def _marker_staleness(props) -> dict:
         if not mz or not asof:
             continue
         try:
-            age = (datetime.fromisoformat(asof) - datetime.fromisoformat(mz)).total_seconds() / 86400.0
+            a, m = datetime.fromisoformat(asof), datetime.fromisoformat(mz)
+            # A bare-date stamp (the 2026-10-16 marker-refresh rows, #321) is naive: read it as UTC midnight.
+            a, m = (x if x.tzinfo else x.replace(tzinfo=UTC) for x in (a, m))
+            age = (a - m).total_seconds() / 86400.0
         except (ValueError, TypeError):
             continue
         ages.append((age, p["symbol"]))

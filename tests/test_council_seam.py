@@ -224,6 +224,28 @@ def test_markers_asof_is_the_refresh_date_when_markers_were_recomputed(convexity
     assert row["markers_asof"] == "2026-06-20"
 
 
+def test_refresh_stamps_the_full_timestamp_and_the_grader_counts_it(convexity_db, monkeypatch):
+    """#321: the refresh stamps the full UTC timestamp, so council_l1_health.marker_staleness counts the row
+    (the 2026-10-16 bare-date stamp made it read n_with_markers=0). End to end, wiring → grader."""
+    from council_health_report import council_l1_health
+
+    _no_kill(monkeypatch)
+    conn = convexity_db
+    run_id = state.record_run(conn, mode="PAPER", equity=10000)
+    sid = state.record_sentinel_candidate(conn, run_id=None, as_of="2026-06-03T02:03:00+00:00",
+                                          symbol="VRT", direction="bullish", basket="ai_compute",
+                                          inflection_score=1.0, markers={"momentum": 2.0})
+    stamp = CLOCK.now().isoformat()
+    candidates = [Theme("ai_compute", "VRT", "bullish", "t", source="sentinel", sentinel_id=sid,
+                        markers={"momentum": 1.5, "refreshed_asof": stamp[:10], "refreshed_at": stamp})]
+    council_to_themes(conn, candidates=candidates, router=FakeRouter(), config=CONFIG,
+                      clock=CLOCK, demo=True, run_id=run_id)
+    row = conn.execute("SELECT markers_asof FROM council_proposals WHERE symbol='VRT'").fetchone()
+    assert row["markers_asof"] == stamp
+    ms = council_l1_health(conn, run_id=run_id)["marker_staleness"]
+    assert ms["n_with_markers"] == 1 and ms["max_age_days"] < 0.01      # fresh: judged on markers computed now
+
+
 # ── 7-8. Forward resolution fires at close (and stays unresolved without spot) ─
 
 def _open_linked(conn, *, conviction, entry_pc, expiry, contract="FCX261218C00080000"):

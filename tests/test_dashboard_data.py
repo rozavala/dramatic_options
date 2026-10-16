@@ -715,6 +715,9 @@ def test_cheapness_watch_panel(convexity_db):
     assert p["verdict"] == "insufficient_N"                    # no qualifying breaks → no decision off noise
     assert [r["symbol"] for r in p["latest_by_name"]] == ["AG"]
     assert p["latest_by_name"][0]["as_of"] == "2026-03-02"     # the MAX(as_of) row (latest cheap state)
+    assert p["marker_refresh"] == "off" and "verdict_note" not in p
+    on = dd.cheapness_watch_panel(conn, {"council": {"marker_refresh": "both"}})   # #321: §7.1a makes it moot
+    assert on["marker_refresh"] == "both" and "moot" in on["verdict_note"] and on["verdict"] == p["verdict"]
 
 
 def test_build_screen_command_sanitizes_shell_meta():
