@@ -208,6 +208,22 @@ def test_markers_asof_derived_from_sentinel_row_not_supplied(convexity_db, monke
     assert rows["FCX"] is None                           # hand-seed → no markers → NULL
 
 
+def test_markers_asof_is_the_refresh_date_when_markers_were_recomputed(convexity_db, monkeypatch):
+    """council.marker_refresh on: the pack carried markers recomputed this cycle, so markers_asof stamps that
+    date (marker_staleness then reads ~0), not the sentinel row's last_seen_at."""
+    _no_kill(monkeypatch)
+    conn = convexity_db
+    sid = state.record_sentinel_candidate(conn, run_id=None, as_of="2026-06-03T02:03:00+00:00",
+                                          symbol="VRT", direction="bullish", basket="ai_compute",
+                                          inflection_score=1.0, markers={"momentum": 2.0})
+    candidates = [Theme("ai_compute", "VRT", "bullish", "t", source="sentinel", sentinel_id=sid,
+                        markers={"momentum": 1.5, "refreshed_asof": "2026-06-20"})]
+    council_to_themes(conn, candidates=candidates, router=FakeRouter(), config=CONFIG,
+                      clock=CLOCK, demo=True, run_id=None)
+    row = conn.execute("SELECT markers_asof FROM council_proposals WHERE symbol='VRT'").fetchone()
+    assert row["markers_asof"] == "2026-06-20"
+
+
 # ── 7-8. Forward resolution fires at close (and stays unresolved without spot) ─
 
 def _open_linked(conn, *, conviction, entry_pc, expiry, contract="FCX261218C00080000"):

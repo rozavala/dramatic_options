@@ -28,6 +28,7 @@ import direction_coherence
 import discovery
 import fixed_basket
 import fundamentals_staleness
+import marker_refresh
 import notify
 import sentinels
 import shadow_book
@@ -192,6 +193,10 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
                 # Channel prereg §11 amendment (2026-10-02): sentinel packs render the block too —
                 # a pack-shape change on the sentinel origin, record-segmenting from deploy.
                 mix["forward_catalysts"] = "forward_catalyst_v1+sentinel_v1"
+        if marker_refresh.stamp(config):
+            # council.marker_refresh (records/2026-10-16_marker_freshness_PROPOSAL.md): sentinel price markers
+            # recomputed at this L1 — a pack-shape change, record-segmenting from the first L1 it is on.
+            mix["markers"] = marker_refresh.stamp(config)
         if config.get("council", {}).get("pack_provenance", False):
             # PREREG_EVIDENCE_GROUNDING amendment A1 (2026-10-02): a sentinel's framer text is labelled
             # DISCOVERY_SUMMARY, not OPERATOR_THESIS — a pack-shape change, record-segmenting from deploy.
@@ -388,6 +393,30 @@ def entries_allowed(*, forward_enabled: bool, market_open: bool, demo: bool) -> 
     if not market_open:
         return False, "market closed (holiday/half-day/after-hours) — no entries, no LLM spend."
     return True, "ok"
+
+
+def _refresh_council_markers(conn, candidates: list, *, config: dict, client, cache, as_of, run_id) -> list:
+    """council.marker_refresh (default off): recompute the sentinels' price markers for the council pack.
+    Off, demo (no client) or any setup error → the candidates unchanged; the counts ride the run note."""
+    if marker_refresh.mode(config) == "off" or client is None or cache is None:
+        return candidates
+    try:
+        from data.market import MarketData, default_fetch_window
+
+        fetch_start, _ = default_fetch_window(as_of)
+        market = MarketData(cache, client=client, fetch_start=fetch_start, fetch_end=as_of,
+                            feed=to_equity_feed(config["data_feed"]["equity_bars"]))
+        _, benchmark = _scan_universe(config)
+        out, counts = marker_refresh.refresh_candidates(candidates, config=config, conn=conn, as_of=as_of,
+                                                        market=market, benchmark=benchmark)
+    except Exception as e:  # noqa: BLE001 — fail-soft: the persisted markers render as before
+        log.warning("marker refresh skipped (non-fatal): %s", e)
+        append_run_note(conn, run_id, f" · marker_refresh: error {type(e).__name__}")
+        return candidates
+    log.info("Marker refresh: mode=%s refreshed=%d kept=%d", counts["mode"], counts["refreshed"], counts["kept"])
+    append_run_note(conn, run_id, f" · marker_refresh: mode={counts['mode']} refreshed={counts['refreshed']} "
+                                  f"kept={counts['kept']}")
+    return out
 
 
 def _scan_universe(config: dict) -> tuple[dict[str, list[str]], str]:
@@ -817,6 +846,9 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                 candidates = coherence.apply(candidates)
                                 log.info(coherence.summary())
                                 append_run_note(conn, run_id, " · " + coherence.summary())
+                            candidates = _refresh_council_markers(conn, candidates, config=config,
+                                                                  client=client, cache=chain_cache,
+                                                                  as_of=clock.now(), run_id=run_id)
                             themes = council_to_themes(
                                 conn, candidates=candidates, router=router, config=config,
                                 clock=clock, news=news_dep, fundamentals=fund_dep,

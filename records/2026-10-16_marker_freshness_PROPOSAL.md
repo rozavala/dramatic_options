@@ -71,3 +71,23 @@ weeks old, and some of the specific numbers quoted in the rejections are no long
 
 1. Build it behind the off switch now (no record change), yes or no.
 2. At F4: adopt it, and if so, fresh-only or both.
+
+## Addendum (2026-10-16, after the switch was built): the 12-month marker moves too
+
+Running the switch's own code path read-only against live bars (scratch cache, nothing written) reproduces the
+cheapness watch's 3-month values exactly (ERO +0.44, KKR −0.13, FIG −0.04, HL +0.09, TITN +0.19). It also shows
+the **12-month** momentum, the number most "the move has already happened" rejections cite, has moved further:
+
+| Name | 12m momentum, shown (surfacing date) | 12m momentum, 2026-10-16 | Price then → now |
+|---|---|---|---|
+| ERO | +1.218 (09-13) | **+0.370** | $35.47 → $34.75 |
+| HL | +0.86 (09-20) | **+0.355** | $18.92 → $15.56 |
+| KKR | −0.24 (09-06) | −0.226 | — |
+| FIG | −0.53 (09-13) | −0.621 | — |
+| TITN | +0.46 (10-04) | +0.521 | — |
+
+The same function computed as of 2026-09-13 gives ERO +1.218, so the stored value was right for its date. Since
+then the 12-month window has rolled past the base a year ago, with the price flat. ERO's council packs have
+quoted "+1.218 12m momentum shows the large move has already happened" in all 14 sessions since 09-24; on
+current bars the figure is +37%. As in §3, CC does not claim the verdict would flip (ERO's revenue print is also
+eight months old), only that the binding judgment is quoting a number that is no longer true.
