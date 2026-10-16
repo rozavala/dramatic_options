@@ -1,4 +1,4 @@
-import type { ViewModel } from "../data/types";
+import type { TimerKey, ViewModel } from "../data/types";
 import { signal } from "../theme/tokens";
 import { StatusDot } from "./primitives";
 
@@ -10,7 +10,8 @@ const BEATS: [keyof ViewModel["beats"], string][] = [
 ];
 
 /** The one-glance status line: tonal container, headline + issues, heartbeat pills inline. The schema pill
- *  only appears when the schema is behind (a warning is worth a pill; "19/18 fine" is not). */
+ *  only appears when the schema is behind (a warning is worth a pill; "19/18 fine" is not). The timer pills
+ *  carry the next scheduled fire (#306); a null next_at (PROD's disabled timers) reads "not scheduled". */
 export function StatusBanner({ vm }: { vm: ViewModel }) {
   const s = signal[vm.level];
   const head = vm.headline.replace(/^[^\p{L}\p{N}]+/u, "").split(" — ")[0];
@@ -26,11 +27,15 @@ export function StatusBanner({ vm }: { vm: ViewModel }) {
         <div className="flex flex-wrap" style={{ gap: 8 }}>
           {beats.map(([key, label]) => {
             const lvl = vm.beatLevels[key];
+            const next = key in vm.nextRuns ? vm.nextRuns[key as TimerKey] : undefined; // undefined = not a timer pill
             return (
               <div key={key} className="flex items-center" style={{ gap: 7, padding: "5px 10px", borderRadius: 8, background: "#fff", border: "1px solid #cbd0da" }}>
                 <StatusDot level={lvl} size={6} />
                 <span style={{ fontSize: 11, color: "#414956" }}>{label}</span>
                 <span className="font-mono" style={{ fontSize: 11.5, fontWeight: 500, color: signal[lvl].text }}>{vm.beats[key]}</span>
+                {next !== undefined && (next
+                  ? <span className="font-mono" title={`${next.at} UTC`} style={{ fontSize: 11, color: "#414956" }}>· next in {next.label}</span>
+                  : <span style={{ fontSize: 11, color: "#6a7280" }}>· not scheduled</span>)}
               </div>
             );
           })}

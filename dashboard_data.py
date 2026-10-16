@@ -257,10 +257,12 @@ def system_status(snap: dict) -> dict:
 
 
 # ── A · header / heartbeat / op-health ──────────────────────────────────────────────────────────
-# Upcoming actions (issue #306): the next fire of the systemd timer each job actually runs on. The council
-# deliberates inside the L1 cycle, so it shares the L1 timer. Unit names match deploy.sh's SERVICE_PREFIX.
-NEXT_RUN_TIMERS = {"cycle": "dramatic-options-l1.timer", "council": "dramatic-options-l1.timer",
-                   "discovery": "dramatic-options-l0.timer"}
+# Upcoming actions (issue #306): the next fire of the systemd timer(s) each job actually runs on. The `cycle`
+# heartbeat counts every PAPER/LIVE run, the L2 monitor's and the L1 cycle's alike, so its next run is whichever
+# of the two timers fires first. The council deliberates only inside L1. Unit names match deploy.sh's prefix.
+NEXT_RUN_TIMERS = {"cycle": ("dramatic-options-l2.timer", "dramatic-options-l1.timer"),
+                   "council": ("dramatic-options-l1.timer",),
+                   "discovery": ("dramatic-options-l0.timer",)}
 _NEXT_ELAPSE = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC")
 
 
@@ -323,8 +325,9 @@ def header_status(conn, *, now: datetime | None = None,
         return {"at": ts, "age_hours": None if age is None else round(age, 1),
                 "status": status, "stale": status != "ONLINE", "next_at": nexts.get(key)}
 
-    by_unit = {unit: next_at(unit) for unit in set(NEXT_RUN_TIMERS.values())}  # one systemd read per timer
-    nexts = {key: by_unit[unit] for key, unit in NEXT_RUN_TIMERS.items()}
+    by_unit = {u: next_at(u) for u in sorted({u for units in NEXT_RUN_TIMERS.values() for u in units})}  # 1 read each
+    nexts = {key: min((t for t in (by_unit[u] for u in units) if t), default=None)  # same-format UTC strings
+             for key, units in NEXT_RUN_TIMERS.items()}
 
     # Run mode of the latest trading cycle (issue #302): "PAPER" or "LIVE" — the venue the loop ran on, read
     # from the journal, never inferred from config. None before any cycle.

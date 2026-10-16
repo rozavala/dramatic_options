@@ -3,7 +3,7 @@ import type { ViewModel } from "../data/types";
 import { signal } from "../theme/tokens";
 import { Card, Chip } from "./primitives";
 
-const GRID = ".9fr 1.4fr .8fr .7fr .8fr .9fr 1fr";
+const GRID = ".9fr 1.4fr .8fr .7fr .9fr .9fr .8fr .9fr 1fr";
 const Muted = ({ children }: { children: React.ReactNode }) => <span style={{ color: "#6a7280", fontWeight: 400 }}>{children}</span>;
 const Row = ({ label, value }: { label: React.ReactNode; value: React.ReactNode }) => (
   <div className="flex justify-between items-center" style={{ gap: 14, padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
@@ -36,7 +36,7 @@ export function Book({ vm }: { vm: ViewModel }) {
         {has ? (
           <>
             <div className="grid" style={{ gridTemplateColumns: GRID, gap: 10, padding: "14px 4px 9px", borderBottom: "1px solid #cbd0da", fontSize: 10.5, color: "#6a7280", textTransform: "uppercase", letterSpacing: ".6px", fontWeight: 500 }}>
-              <span>Ticker</span><span>Theme</span><span>Conviction at entry</span><span>Days left</span><span>Premium</span><span>Mark ÷ entry</span><span>Running</span>
+              <span>Ticker</span><span>Theme</span><span>Conviction at entry</span><span>Days left</span><span>Expiry</span><span>Time-stop</span><span>Premium</span><span>Mark ÷ entry</span><span>Running</span>
             </div>
             {vm.positions.map((p, i) => {
               const lv = p.mark != null ? signal[markLevel(p.mark)] : signal.mute;
@@ -48,6 +48,8 @@ export function Book({ vm }: { vm: ViewModel }) {
                   <span style={{ fontFamily: "Roboto", fontSize: 12, color: "#414956" }}>{p.theme ?? "—"}</span>
                   <span style={{ color: "#2c3645" }}>{p.conviction ?? "—"}</span>
                   <span style={{ color: "#414956" }}>{p.dte != null ? `${p.dte}d` : "—"}</span>
+                  <span style={{ color: "#414956" }}>{p.expiry ?? "—"}</span>
+                  <span style={{ color: "#414956" }}>{p.timeStop ?? "—"}</span>
                   <span style={{ color: "#2c3645" }}>{p.premium}</span>
                   <span className="flex items-center" style={{ gap: 8 }}>
                     <span style={{ fontWeight: 500, color: p.mark != null && p.mark < 1 ? signal.warn.text : lv.text }}>{p.mark != null ? `${p.mark.toFixed(2)}×` : "—"}</span>
