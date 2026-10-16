@@ -372,6 +372,8 @@ def sentinel_context_pack(
     # only in the discovery path), while build_context_pack fetches news + fundamentals FRESH each cycle. So
     # the binding `at_inflection` leg is grounded on STALE markers. See §7.1 for the MEASURED magnitude
     # (TTL-bounded; weeks) — kept there as the single source of truth so the number can't drift. Decoupled.
+    # §7.1a (2026-10-16): with council.marker_refresh on, marker_refresh.py hands this function markers recomputed
+    # at the L1 (dated via `refreshed_asof`), so the council path no longer reads the stale ones.
     markers = (getattr(candidate, "markers", None) or {})
     lines = _marker_evidence(markers)
     fallback = candidate.thesis or "discovery hypothesis (markers-grounded)"
