@@ -77,7 +77,8 @@ def refresh_candidates(candidates: list, *, config: dict, conn, as_of: datetime,
             out.append(c)
             continue
         fresh.update({k: persisted.get(k) for k in _EVENT_KEYS if k in persisted})
-        fresh["refreshed_asof"] = as_of.date().isoformat()
+        fresh["refreshed_asof"] = as_of.date().isoformat()   # rendered in the pack (markers_computed <date>)
+        fresh["refreshed_at"] = as_of.isoformat()            # stamped on council_proposals.markers_asof (#321)
         if m == "both":
             row = state.sentinel_by_id(conn, c.sentinel_id) if c.sentinel_id is not None else None
             fresh["at_surfacing"] = {k: v for k, v in persisted.items() if k not in _EVENT_KEYS}

@@ -656,6 +656,16 @@ def cheapness_watch_panel(conn, config: dict | None = None) -> dict:
     for r in latest:
         r["state"] = cheapness_watch._classify(r, bounds)   # §2.1.8 — row state agrees with the verdict
     rep["latest_by_name"] = latest
+    # §7.1a (2026-10-16): with the L1 marker refresh on, the council's markers are recomputed every cycle, so the
+    # stale-marker race this verdict measures no longer exists for the council (#321). Say so beside the verdict.
+    import marker_refresh
+
+    refresh = marker_refresh.mode(config or {})
+    rep["marker_refresh"] = refresh
+    if refresh != "off":
+        rep["verdict_note"] = (f"council.marker_refresh={refresh}: the council's markers are recomputed at every L1 "
+                               "(PREREG_FRESH_INFLECTION_FUNNEL §7.1a), so the staleness lag this verdict compares "
+                               "against is ~0 for the council — the verdict is moot as an argument about the refresh.")
     return rep
 
 
