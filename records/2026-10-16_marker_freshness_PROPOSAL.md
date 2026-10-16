@@ -1,6 +1,6 @@
-# 2026-10-16 — PROPOSAL: refresh the council's price markers at each L1 (for the F4 review; nothing adopted)
+# 2026-10-16 — PROPOSAL: refresh the council's price markers at each L1 — ADOPTED 2026-10-16 as `both`
 
-**Status: PROPOSAL for the operator. Nothing is built or switched on by this record.** Changing what the council
+**Status: ADOPTED 2026-10-16 (operator's word "Sure" to `both`, before the F4 review rather than at it; the dated amendment is PREREG_FRESH_INFLECTION_FUNNEL §7.1a). The proposal text below is kept as written.** Changing what the council
 sees is a dated amendment that re-segments the record. CC's recommendation is to decide it **at the F4 review
 (≈ 2026-11-04)**, not before (§5).
 

@@ -36,6 +36,10 @@ The header's absence is itself a signal.
     sessions: consensus-leak 0 · strategist misuse 0 · adversary falsifier misuse 2 (both 10-13).
   - `forward_catalysts.sentinel_scope` (channel prereg §11): pins render for sentinels; F-c is a live guard. The
     EPA item (2026-11-16) has been judged irrelevant/non-nuclear six times running (NEE ×2, CEG ×4), no leak.
+- **L1 marker refresh ON (2026-10-16, operator word; PREREG_FRESH_INFLECTION_FUNNEL §7.1a):** `council.marker_refresh
+  = "both"` — sentinel price markers recomputed at each L1 and dated, beside the surfacing values. Stamp
+  `runs.model_mix.markers = l1_refresh_both_v1` from the first L1 after deploy (planned 2026-10-16). The §7.1
+  catch-race trigger still reads `hold`; adopted on the input-quality ground.
 - **Frame stamp `frame-a80e6abea2b9` from run #1681 (2026-10-15).** The hash covers `convexity_book` including the
   cluster map, so window #10's `cyber_sase` cluster moved it. Every frozen risk number is unchanged; for the ITM-
   guard segment it is the same regime as `frame-a6da3dee9171`.
@@ -62,9 +66,6 @@ The header's absence is itself a signal.
 ## Staged / pending (the operator's)
 - **F4 review (≈ 2026-11-04, session 30):** the interim evidence is `records/2026-10-13_f4_review_evidence_pack.md`
   (session 14). On it, `at_inflection` binds harder than `under_narrated`. Re-run its §1–§4 at session 30.
-- **Marker freshness (proposal being drafted by CC):** the council's 12-month momentum markers are a median 31
-  days old (they refresh only when the weekly scan resurfaces a name). A change would alter the pack and is the
-  operator's word + a dated amendment.
 - **PROD reboot:** `/var/run/reboot-required` is set (up since 2026-10-06). Operator's call, away from
   alpha_options' 09:00 / 21:45 UTC jobs and Real Options' trading hours.
 - **Hub:** `version: /api/version` to be added to `rozavala/hub`'s registry for the dev/prod commit row.

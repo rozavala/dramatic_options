@@ -330,6 +330,31 @@ days, per the corrected magnitude). Until that measurement exists, it stays docu
 
 ---
 
+### §7.1a — Dated amendment (2026-10-16, operator word): the L1 marker refresh is ON, on a different ground
+
+**Operator's word (2026-10-16 ~00:50 UTC):** *"Sure"*, to CC's "Go ahead with `both`?" after the case for and
+against turning it on before the F4 review (records/2026-10-16_marker_freshness_PROPOSAL.md).
+
+- **What changes:** `council.marker_refresh = "both"` (PR #319 built it default-off). At each L1 every sentinel in
+  the council union gets its price markers recomputed from current bars (`discovery.compute_markers`), dated
+  (`markers_computed <date>`), with the markers as of surfacing beside them (`<marker> <value> at_surfacing
+  <date>`). The L0 funnel, the framer, the null unions and the persisted markers are unchanged; the structural-
+  event leg stays the L0's call.
+- **The §7.1 trigger did NOT fire, and this amendment does not pretend it did.** `cheapness_watch_panel` reads
+  `hold` (13 qualifying breaks, median cheap window 37 d vs a 20 d lag). The re-open trigger was about catching
+  an entry in time. This amendment rests on a different, stated ground: the quality of the input to the binding
+  `at_inflection` judgment. The §7.1 premise "stale-quiet ≈ still-quiet, mostly harmless" does not cover the
+  live failure, "the move has already happened" read off weeks-old markers. On live bars ERO's 12-month momentum
+  is +0.37 against the +1.218 its packs quoted for five weeks; KKR's and FIG's cited 3-month bounce has reversed.
+- **Not a loosening.** The floor, the three criteria, the prompts, the gate, sizing and the risk frame are
+  unchanged. The corrections run in both directions (ERO/HL read less moved; KKR/FIG lose their bounce).
+- **Segmentation:** `runs.model_mix.markers = l1_refresh_both_v1` from the first L1 after deploy (planned:
+  2026-10-16 19:45 UTC); `council_proposals.markers_asof` stamps the refresh date. Never pool strategist Brier or
+  the council-marginal read across it. The F4 review (≈ 2026-11-04) is unaffected in date (its 30-session count
+  runs under direction coherence) and reads the two segments separately.
+
+---
+
 ## §8 — Forward measurement, segmentation, the regime boundary (anti-HARK)
 
 1. **What "the re-target worked" means (R2-2 — corrected, not over-claimed).** The re-rank makes
