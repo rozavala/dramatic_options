@@ -643,12 +643,22 @@ def test_header_next_at_per_job(convexity_db):
 
     def fake(unit):
         seen.append(unit)
-        return {"dramatic-options-l1.timer": "2026-10-14 19:45:00",
+        return {"dramatic-options-l2.timer": "2026-10-14 19:30:00",
+                "dramatic-options-l1.timer": "2026-10-14 19:45:00",
                 "dramatic-options-l0.timer": "2026-10-18 12:00:00"}[unit]
     h = dd.header_status(convexity_db, next_at=fake)
-    assert h["cycle"]["next_at"] == h["council"]["next_at"] == "2026-10-14 19:45:00"   # council runs in L1
+    assert h["cycle"]["next_at"] == "2026-10-14 19:30:00"      # the earlier of the L2 and L1 timers
+    assert h["council"]["next_at"] == "2026-10-14 19:45:00"    # the council runs only in L1
     assert h["discovery"]["next_at"] == "2026-10-18 12:00:00"
-    assert sorted(seen) == ["dramatic-options-l0.timer", "dramatic-options-l1.timer"]  # one read per timer
+    assert sorted(seen) == ["dramatic-options-l0.timer", "dramatic-options-l1.timer",
+                            "dramatic-options-l2.timer"]       # one read per timer
+
+
+def test_header_cycle_next_at_falls_back_when_one_timer_is_off(convexity_db):
+    nxt = {"dramatic-options-l1.timer": "2026-10-16 19:45:00"}   # L2 inactive (after 16:30 ET it still reads)
+    h = dd.header_status(convexity_db, next_at=nxt.get)
+    assert h["cycle"]["next_at"] == "2026-10-16 19:45:00"
+    assert dd.header_status(convexity_db, next_at=lambda _u: None)["cycle"]["next_at"] is None   # PROD: all off
 
 
 # ── keyless dashboard invariants (S1: the dashboard process must hold NO broker/LLM secrets) ──────
