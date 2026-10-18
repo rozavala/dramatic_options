@@ -1,10 +1,8 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-10-16T00:30Z · supersedes: 2026-10-06T06:00Z (the prior text is in git history) · reflects the
-weeks of 2026-10-05 and 2026-10-12: register thesis A2 merged (#292) and its A2.1 wording (#301) · Federal Register
-pin suggestions (#294) · snapshot mode/book and /api/version + next_at for the hub (#304, #310) · reach noise fixes
-(#305) · the F4 evidence pack (#308) · window #10: NTSK admitted (#309) · the shared-host pkill fix and deploy
-hardening (#312–#314) · PROD promoted three times (#300, #311, #315).**
+**as_of: 2026-10-18T15:00Z · supersedes: 2026-10-16T00:30Z · reflects the W42 Sunday review
+(`records/2026-10-18_sunday_w42.md`): the L1 marker refresh ON (#319/#320, its telemetry #322) · KMT re-pin #17 ·
+the April-2027 tenor cliff from Monday 10-19 · Real Options' pkill fix (#4953) · NTSK's first scan.**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -32,14 +30,15 @@ The header's absence is itself a signal.
   - **A2 (boundary L1 #1575, 2026-10-06) + A2.1 (boundary L1 #1644, 2026-10-12; stamp
     `pack_provenance=provenance_v1+register_thesis_v1.1`):**
     sentinel packs show the basket's operator-adopted `council_thesis` + falsifier (PREREG_UNIVERSE_CURATION
-    Rule 0 amendment), with the A2.1 wording on coverage and the falsifier deadline. Running tally after 4
-    sessions: consensus-leak 0 · strategist misuse 0 · adversary falsifier misuse 2 (both 10-13).
+    Rule 0 amendment), with the A2.1 wording on coverage and the falsifier deadline. Running tally after 5
+    sessions: consensus-leak 0 · strategist misuse 0 · adversary falsifier misuse 3 (10-13 ×2, 10-16 borderline).
   - `forward_catalysts.sentinel_scope` (channel prereg §11): pins render for sentinels; F-c is a live guard. The
-    EPA item (2026-11-16) has been judged irrelevant/non-nuclear six times running (NEE ×2, CEG ×4), no leak.
+    EPA item (2026-11-16) has been judged irrelevant/non-nuclear seven times running (NEE ×2, CEG ×5), no leak.
 - **L1 marker refresh ON (2026-10-16, operator word; PREREG_FRESH_INFLECTION_FUNNEL §7.1a):** `council.marker_refresh
   = "both"` — sentinel price markers recomputed at each L1 and dated, beside the surfacing values. Stamp
-  `runs.model_mix.markers = l1_refresh_both_v1` from the first L1 after deploy (planned 2026-10-16). The §7.1
-  catch-race trigger still reads `hold`; adopted on the input-quality ground.
+  `runs.model_mix.markers = l1_refresh_both_v1` from L1 #1712 (2026-10-16). The §7.1 catch-race trigger still
+  reads `hold` (the cheapness-watch panel now says the verdict is moot under §7.1a); adopted on the
+  input-quality ground. Session 1: fresh values used as current, 0 surfacing values misread, no verdict flipped.
 - **Frame stamp `frame-a80e6abea2b9` from run #1681 (2026-10-15).** The hash covers `convexity_book` including the
   cluster map, so window #10's `cyber_sase` cluster moved it. Every frozen risk number is unchanged; for the ITM-
   guard segment it is the same regime as `frame-a6da3dee9171`.
@@ -66,39 +65,42 @@ The header's absence is itself a signal.
 ## Staged / pending (the operator's)
 - **F4 review (≈ 2026-11-04, session 30):** the interim evidence is `records/2026-10-13_f4_review_evidence_pack.md`
   (session 14). On it, `at_inflection` binds harder than `under_narrated`. Re-run its §1–§4 at session 30.
-- **PROD reboot:** `/var/run/reboot-required` is set (up since 2026-10-06). Operator's call, away from
+- **PROD reboot:** `/var/run/reboot-required` is still set (up since 2026-10-06). Operator's call, away from
   alpha_options' 09:00 / 21:45 UTC jobs and Real Options' trading hours.
-- **Hub:** `version: /api/version` to be added to `rozavala/hub`'s registry for the dev/prod commit row.
+- **Homonym guard, acronym class (W42):** the SMR card matched the generic "small modular reactor" acronym and
+  Holtec's "Palisades SMR, LLC". CC proposes extending the guard to industry acronyms that equal a ticker.
 
 ## Shared hosts (DEV + PROD also run Real Options and alpha_options)
 - Our L0/L1/L2 start as `python -u -m orchestrator` (#312): Real Options' `pkill -9 -f orchestrator.py` SIGKILLed
-  our L2 on 2026-10-15 14:30. Their side is rozavala/real_options#4948 (in progress: kill only PIDs whose cwd is
-  their checkout).
+  our L2 on 2026-10-15 14:30. Their side is fixed too (#4953: kill only PIDs whose cwd is their checkout; closes
+  rozavala/real_options#4948, promoted 10-16).
 - Unit installs: a unit that cannot be installed fails the deploy (#313). PROD (classic sudo) installs with
   `NOPASSWD: /usr/bin/cp /tmp/* /etc/systemd/system/*`; DEV runs **sudo-rs**, which rejects wildcards, so it has
   one exact `NOPASSWD: /usr/bin/tee /etc/systemd/system/<unit>` per unit (`/etc/sudoers.d/dramatic-options-units`,
   #314). **A new unit file needs one more line there**, and the deploy will say so.
 
 ## Dated docket
-- **2026-10-18 Sunday W42:** NTSK's first L0 scan. KMT pin #16 expires (re-verify Comtrade). FR pin suggestions.
-  Miss sweep #5. Bench tenor glance for new Jun-2027 / Jan-2028 listings (the cliff, below). BNTX/BWXT only on a
-  fresh word (weekly cadence, no cap-line camping).
-- **Tenor cliff, started 2026-10-15:** FRO/HBM/TGB lost structure on both feeds. From ~10-19 AMSC · ATKR · CC ·
-  NNE · PL · STUB · UUUU follow (April 2027 leaves the window). PL's real Jan-2027 position is unaffected.
+- **Mon 2026-10-19 — the April-2027 tenor cliff:** AMSC · CC · NNE · PL · STUB · UUUU · ERO · UROY lose structure
+  (next listed expiry Jan-2028, outside 180–365d); ATKR has nothing after April; FRO · HBM · TGB · IRDM already
+  have none. **Expressible universe ~35 of 48** (43 on 10-16). PL's real Jan-2027 position is unaffected. NTSK's
+  first council read can come the same night.
+- **2026-10-25 Sunday W43:** re-check for July-2027 listings (the October monthly expired 10-16); KMT pin #17
+  expires; marker-refresh week 1 read.
 - **2026-11-02:** posture LOOK (PREREG_THEMATIC_CONVEXITY §6 amendment).
-- **2026-11-04 (≈ session 30 under direction coherence):** the F4 review.
-- **2026-11-16:** the EPA rule's effective date.
+- **2026-11-04 (session 30 under direction coherence; 17 of 30 on 10-16):** the F4 review. Reads the
+  stale-marker and fresh-marker segments separately.
+- **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
 
 ## Board & book
-- Box: DEV = main (`d391c8a`); PROD = `production` (`dd99e5b`), inert (timers disabled, live gate closed). Both
-  healthy; units on `-m orchestrator` on both.
+- Box: DEV = main (rebooted 2026-10-17); PROD = `production` (`dd99e5b`), inert (timers disabled, live gate
+  closed). Both healthy; units on `-m orchestrator` on both.
 - Apps:
   - DEV: `https://all-options-dev.tail57521e.ts.net:8602`
   - PROD: `https://all-options-prod.tail57521e.ts.net:8602`
   - Both are tailnet-only `tailscale serve` → 127.0.0.1:8602; `/api/version` reports the running commit.
 - Universe 48 names · 16 clusters (book fills at most 5).
-- Book: real 1 (PL, $690, unrealized −$680). Null books accruing (shadow · 3A · 3B · shares). Last above-floor
+- Book: real 1 (PL, $690, unrealized −$684.50). Null books accruing (shadow · 3A · 3B · shares). Last above-floor
   conviction: run #508, 2026-07-10.
-- Open issues: 0. NVDA opra canary back above 1.0 (10-14 1.0127, 10-15 1.0204) after eight prints below (low
+- Open issues: 0. NVDA opra canary back above 1.0 (10-14 1.0127, 10-15 1.0204, 10-16 1.0315) after eight prints below (low
   0.9818).
