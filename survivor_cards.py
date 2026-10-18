@@ -96,6 +96,14 @@ TICKER_STOPWORDS: frozenset[str] = frozenset({
     "TWO", "UK", "UN", "UP", "US", "USA", "USD", "WAS", "WHO", "WHY", "YOU",
 })
 
+# Industry ACRONYMS that equal a universe ticker, where the generic sense dominates the trade press: "SMR" is
+# the small-modular-reactor acronym far more often than NuScale. For these, cross-channel repetition does NOT
+# corroborate (every nuclear channel repeats the acronym — the 2026-W42 card minted SMR from World Nuclear News
+# + an NRC notice for Holtec's "Palisades SMR, LLC"); only the company's name in the same item, a cashtag, an
+# exchange parenthetical or the orphan watch does. Not stopwords: a name-corroborated "NuScale … SMR" still
+# cards. Add a ticker here only on a live false card, as with every other entry in this module.
+ACRONYM_TICKERS: frozenset[str] = frozenset({"SMR"})
+
 # Channels whose item text is PROSE (headlines/posts written by humans): an exact-match
 # ticker-string hit there is a string, not ticker intent — the live 2026-W29 card proved a
 # stoplist can't cover domain acronyms/proper-noun collisions ("Soyuz MS-29"→Morgan Stanley,
@@ -382,7 +390,7 @@ def extract_candidates(
                        if ex.method == "exact_match" and ex.channel in PROSE_CHANNELS]
         if not prose_exact:
             continue
-        if _distinct_story_channels(exs, symbol) >= 2:
+        if symbol not in ACRONYM_TICKERS and _distinct_story_channels(exs, symbol) >= 2:
             continue  # repeated independent (cross-channel) mention corroborates the week
         # A company whose distinctive name token IS its ticker (MARA Holdings → "mara") cannot corroborate itself:
         # the W41 card minted MARA from "Glencore Receives RIGI Approval for MARA" (Glencore's MARA copper project).
