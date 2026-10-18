@@ -865,3 +865,31 @@ def test_a_ticker_cannot_corroborate_itself_the_w41_mara_homonym():
     titles2 = {"MARA": "MARA Holdings Bitcoin Miner"}
     out2 = sc.extract_candidates([_item("Bitcoin miner MARA expands", channel="newsletters")], known, titles=titles2)
     assert set(out2) == {"MARA"}
+
+
+def test_an_industry_acronym_is_not_corroborated_by_channel_repetition_the_w42_smr_card():
+    # W42: World Nuclear News items on Czech / Chinese SMRs plus the NRC notice "SMR, LLC; Palisades SMR, LLC" (Holtec)
+    # minted NuScale (SMR) through the cross-channel rule — every nuclear channel repeats the reactor acronym.
+    known = frozenset({"SMR"})
+    titles = {"SMR": "NuScale Power Corp"}
+    items = [
+        _item("Czech SMR environmental impact assessment submitted", channel="newsletters", source="WNN"),
+        _item("Hot testing of Chinese SMR under way", channel="newsletters", source="WNN"),
+        _item("SMR, LLC; Palisades SMR, LLC; Pioneer Units 1 and 2; Phased Construction Permit Application",
+              channel="agency", source="federal_register/nuclear-regulatory-commission"),
+    ]
+    notes: list[str] = []
+    assert sc.extract_candidates(items, known, titles=titles, notes=notes) == {} and notes
+    # The company's own name in the item still corroborates, and explicit ticker intent always counts.
+    named = [_item("NuScale SMR wins a design approval", channel="newsletters", source="WNN")]
+    assert set(sc.extract_candidates(named, known, titles=titles)) == {"SMR"}
+    tagged = [_item("$SMR rallies on the uprate", channel="x_lists", source="acct")]
+    assert set(sc.extract_candidates(tagged, known, titles=titles)) == {"SMR"}
+
+
+def test_cross_channel_repetition_still_corroborates_an_ordinary_ticker():
+    # The acronym rule is scoped: UEC (no acronym collision) keeps the W29 cross-channel path.
+    items = [_item("Burke Hollow startup: UEC confirms first drums", channel="newsletters", source="A"),
+             _item("UEC ramping Burke Hollow output", channel="trade_press", source="B")]
+    out = sc.extract_candidates(items, frozenset({"UEC"}), titles={"UEC": "Uranium Energy Corp"})
+    assert set(out) == {"UEC"}
