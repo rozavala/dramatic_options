@@ -107,7 +107,7 @@
       "provenance": "operator",
       "added": "2026-08-20 (window #5, off-cycle)",
       "thesis": "Ag equipment/inputs cycle trough: two years of farm-income recession have compressed dealer inventories, aged the working fleet, and cut nutrient application below agronomic norms — a mean-reversion setup with a structural floor (fleet age + soil-nutrient draw-down are not narratives, they are inventories that must eventually restock). TITN (equipment dealer — the highest-torque cycle expression) + MOS (phosphate/potash — application recovery + supply-side discipline). PINNED HONESTLY: this is a TURNAROUND-CLASS thesis, ranked LAST of the five adopted on mandate fit — it self-falsifies by success (the rally that proves the turn IS the already-priced state; premise-currency Rule 5 applies at every future window) and cycle-watching analyst coverage makes under_narrated the council's binding question, not ours.",
-      "council_thesis": "Two years of farm-income recession have compressed dealer inventories, aged the equipment fleet and cut nutrient application below agronomic norms; those inventories must restock, lifting equipment dealers (TITN) and crop-nutrient producers (MOS) when the cycle turns.",
+      "council_thesis": "Two years of farm-income recession have compressed dealer inventories, aged the equipment fleet and cut nutrient application below agronomic norms; those inventories must restock, lifting equipment dealers (TITN) and crop-nutrient producers (MOS, CF) when the cycle turns.",
       "falsifier": "By ~Aug-2027, the filed record must show equipment orders/dealer-inventory normalization (TITN same-store sales/inventory turns inflecting) or nutrient volume/price recovery (MOS shipment volumes) in quarterlies. A prolonged farm-income recession through the FY-2027 mid-year reports with no order inflection = theme dies. (Draft-dated under the operator's admission delegation — the 2026-07-07 falsifier-pin precedent.)",
       "sources": [
         "AI-drafted five-sector slate presented 2026-08-20 (ranked LAST of five on mandate fit — the ranking is in the record); operator adopted all five with 'Sure, I'll like these five. let's get them all in using the same process' — informed adoption, true form in records/2026-08-20_window5_five_sector_admission.md"
@@ -456,6 +456,38 @@
         }
       },
       "notes": "One NEW cluster (cyber_sase — a network-security platform driver shared with no existing cluster; not design_software_ai, not ai_capex_power) = SIXTEEN clusters; the book still fills at most 5. NTSK enters the discovery scan baskets only (universe 47→48); first scan = the 2026-10-18 L0."
+    },
+    "11": {
+      "date": "2026-10-19",
+      "rule": "PREREG_UNIVERSE_CURATION §11 OFF-CYCLE admission — CF · BWXT from the bench (records/2026-10-18_sunday_w42.md §7; the April-2027 tenor cliff leaves ~35 of 48 names expressible). Operator word 2026-10-18 ~20:59 UTC ('regarding CF and BWXT, yes let's admit them'), given before the reads. TWO in-window reads pre-declared (13:37 + 15:07 UTC LAST, anti-camping); both names printed in band at the 13:37 read, which is the read of record for both.",
+      "screen_records": [
+        "records/2026-10-19_window11_cf_bwxt.md"
+      ],
+      "admitted": {
+        "CF": {
+          "basket": "ag_cycle_trough",
+          "sources": [
+            "window-5 ag slate (2026-08-20, flipped out in-window) → near-miss ledger → bench Tier A → operator word 2026-10-18; the basket thesis as adopted 2026-08-20, CF the nitrogen expression of the crop-nutrient leg"
+          ],
+          "per_contract_usd": 735,
+          "achieved_otm_pct": 28.7,
+          "tag": "rule",
+          "screen": "CF270617C00155000 · dte 241 · 28.7% achieved OTM · $735 ≤ $1,000 cap · spread 20% · ADV $286.4M · spot $120.44 (in-window 2026-10-19 13:37 UTC, the first pre-declared read); provisional W42 Sunday read $975/20.0%/242d on CF270617C00145000",
+          "operator": "'regarding CF and BWXT, yes let's admit them' (2026-10-18 ~20:59 UTC)"
+        },
+        "BWXT": {
+          "basket": "nuclear_fuel",
+          "sources": [
+            "window-1 longlist + window-5 slate → window #10 near-miss (2026-10-14, over the cap) → operator word 2026-10-18; thesis CC-drafted 2026-10-14 in true form, operator-adopted; routed nuclear_fuel (the 10-14 decision over space_defense)"
+          ],
+          "per_contract_usd": 945,
+          "achieved_otm_pct": 24.3,
+          "tag": "rule",
+          "screen": "BWXT270521C00170000 · dte 214 · 24.3% achieved OTM · $945 ≤ $1,000 cap · spread 24% · ADV $168.8M · spot $136.82 (in-window 2026-10-19 13:37 UTC, the first pre-declared read); provisional W42 Sunday read $790/27.7%/215d on BWXT270521C00175000",
+          "operator": "'regarding CF and BWXT, yes let's admit them' (2026-10-18 ~20:59 UTC)"
+        }
+      },
+      "notes": "No new cluster: CF joins ag_cycle (TITN, MOS — three names, one $2,000 cluster budget), BWXT joins nuclear_fuel (eight names). SIXTEEN clusters; the book still fills at most 5. The ag_cycle_trough council_thesis now names CF beside MOS (dated amendment with this window). Universe 48→50; first scan = the 2026-10-25 L0. The frame stamp moves on merge (the cluster map is hashed); every frozen risk number is unchanged."
     }
   }
 }
