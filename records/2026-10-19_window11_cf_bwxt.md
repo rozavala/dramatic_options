@@ -1,6 +1,6 @@
 # 2026-10-19 — Window #11 (off-cycle): CF · BWXT
 
-**Status: BOTH IN BAND at the 13:37 read of record — CF and BWXT admitted on merge (word given 2026-10-18 ~20:59 UTC).** Admission needs, per name: an in-window read in band (achieved OTM 15–35%), under the $1,000 cap and with
+**Status: CF and BWXT ADMITTED on merge — both in band at the 13:37 read of record, and still in band at the 15:07 LAST read (word given 2026-10-18 ~20:59 UTC). Universe 48 → 50; clusters stay 16.** Admission needs, per name: an in-window read in band (achieved OTM 15–35%), under the $1,000 cap and with
 ≥ 200 days of runway (PREREG_UNIVERSE_CURATION §2, §11, §12). The theses are on the record already; CC re-drafted
 them in true form from the filed corpus.
 
@@ -28,7 +28,8 @@ admission adds names the council can judge, not names it will pass.
 | 10-18 W42 (provisional, Sunday) | BWXT | BWXT270521C00175000 | $137.01 | 27.7% | 215 | $790 | provisional only |
 | 10-19 13:37 (READ OF RECORD) | CF | CF270617C00155000 | $120.44 | **28.7%** | 241 | **$735** | **IN BAND — ADMITTED on merge** (spread 20%, ADV $286.4M) |
 | 10-19 13:37 (READ OF RECORD) | BWXT | BWXT270521C00170000 | $136.82 | **24.3%** | 214 | **$945** | **IN BAND — ADMITTED on merge** (spread 24%, ADV $168.8M) |
-| 10-19 15:07 (information only — both in band at 13:37) | | | | | | | |
+| 10-19 15:07 (LAST; information only) | CF | CF270617C00145000 | $118.01 | 22.9% | 241 | $925 | still in band; the 13:37 read of record stands: **ADMITTED** |
+| 10-19 15:07 (LAST; information only) | BWXT | BWXT270521C00170000 | $135.93 | 25.1% | 214 | $895 | still in band; the 13:37 read of record stands: **ADMITTED** |
 
 ## CF — CF Industries · basket `ag_cycle_trough` / cluster `ag_cycle` (existing, with TITN and MOS)
 
