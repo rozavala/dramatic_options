@@ -81,6 +81,9 @@ def council_to_themes(
     tradeable_ids = {id(p) for p in select_for_trade(proposals, floor=floor)}
     as_of_iso = clock.now().isoformat()
 
+    # The full UTC timestamp, so marker_staleness can subtract it from as_of (#321); date-only as a fallback.
+    refreshed_asof = {c.sentinel_id: (c.markers.get("refreshed_at") or c.markers["refreshed_asof"]) for c in candidates
+                      if getattr(c, "sentinel_id", None) is not None and (c.markers or {}).get("refreshed_asof")}
     themes = []
     n_dropped = 0
     for p in proposals:
@@ -92,6 +95,8 @@ def council_to_themes(
         if p.sentinel_id is not None:
             srow = state.sentinel_by_id(conn, p.sentinel_id)
             markers_asof = srow["last_seen_at"] if srow else None
+            # council.marker_refresh on: the pack carried markers recomputed THIS cycle, so stamp that date.
+            markers_asof = refreshed_asof.get(p.sentinel_id) or markers_asof
         # §6 per-proposal provenance: selection = "reserve" | "rank" rides the rationale JSON
         # (the §9-integration telemetry channel) ONLY when the reserve is active — the persisted
         # rationale stays byte-identical with the reserve off.

@@ -257,10 +257,12 @@ def system_status(snap: dict) -> dict:
 
 
 # ── A · header / heartbeat / op-health ──────────────────────────────────────────────────────────
-# Upcoming actions (issue #306): the next fire of the systemd timer each job actually runs on. The council
-# deliberates inside the L1 cycle, so it shares the L1 timer. Unit names match deploy.sh's SERVICE_PREFIX.
-NEXT_RUN_TIMERS = {"cycle": "dramatic-options-l1.timer", "council": "dramatic-options-l1.timer",
-                   "discovery": "dramatic-options-l0.timer"}
+# Upcoming actions (issue #306): the next fire of the systemd timer(s) each job actually runs on. The `cycle`
+# heartbeat counts every PAPER/LIVE run, the L2 monitor's and the L1 cycle's alike, so its next run is whichever
+# of the two timers fires first. The council deliberates only inside L1. Unit names match deploy.sh's prefix.
+NEXT_RUN_TIMERS = {"cycle": ("dramatic-options-l2.timer", "dramatic-options-l1.timer"),
+                   "council": ("dramatic-options-l1.timer",),
+                   "discovery": ("dramatic-options-l0.timer",)}
 _NEXT_ELAPSE = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC")
 
 
@@ -323,8 +325,9 @@ def header_status(conn, *, now: datetime | None = None,
         return {"at": ts, "age_hours": None if age is None else round(age, 1),
                 "status": status, "stale": status != "ONLINE", "next_at": nexts.get(key)}
 
-    by_unit = {unit: next_at(unit) for unit in set(NEXT_RUN_TIMERS.values())}  # one systemd read per timer
-    nexts = {key: by_unit[unit] for key, unit in NEXT_RUN_TIMERS.items()}
+    by_unit = {u: next_at(u) for u in sorted({u for units in NEXT_RUN_TIMERS.values() for u in units})}  # 1 read each
+    nexts = {key: min((t for t in (by_unit[u] for u in units) if t), default=None)  # same-format UTC strings
+             for key, units in NEXT_RUN_TIMERS.items()}
 
     # Run mode of the latest trading cycle (issue #302): "PAPER" or "LIVE" — the venue the loop ran on, read
     # from the journal, never inferred from config. None before any cycle.
@@ -653,6 +656,16 @@ def cheapness_watch_panel(conn, config: dict | None = None) -> dict:
     for r in latest:
         r["state"] = cheapness_watch._classify(r, bounds)   # §2.1.8 — row state agrees with the verdict
     rep["latest_by_name"] = latest
+    # §7.1a (2026-10-16): with the L1 marker refresh on, the council's markers are recomputed every cycle, so the
+    # stale-marker race this verdict measures no longer exists for the council (#321). Say so beside the verdict.
+    import marker_refresh
+
+    refresh = marker_refresh.mode(config or {})
+    rep["marker_refresh"] = refresh
+    if refresh != "off":
+        rep["verdict_note"] = (f"council.marker_refresh={refresh}: the council's markers are recomputed at every L1 "
+                               "(PREREG_FRESH_INFLECTION_FUNNEL §7.1a), so the staleness lag this verdict compares "
+                               "against is ~0 for the council — the verdict is moot as an argument about the refresh.")
     return rep
 
 

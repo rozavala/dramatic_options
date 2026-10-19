@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { fromBackend } from "../data/adapter";
 import type { ConsoleProps, Snapshot } from "../data/types";
 import { MobileApp } from "../mobile/MobileApp";
+import { Book } from "./Book";
 import { DesktopConsole } from "./DesktopConsole";
+import { StatusBanner } from "./StatusBanner";
 
 afterEach(cleanup);
 
@@ -57,5 +59,34 @@ describe("MobileApp", () => {
   it("surfaces a degraded banner on mobile too (B1)", () => {
     render(<MobileApp {...props({ vm: vmFrom({ council: { error: "boom" } }) })} />);
     expect(screen.getByText(/unavailable \(fail-soft\)/i)).toBeTruthy();
+  });
+});
+
+// #306: the upcoming-actions read — the timers' next fire on the heartbeat pills, the known exit dates on the book.
+describe("upcoming actions (#306)", () => {
+  const beat = (next_at: string | null) => ({ at: "2026-10-14T16:00:00+00:00", age_hours: 0, status: "ONLINE", stale: false, next_at });
+
+  it("shows the next fire on each timer pill when scheduled", () => {
+    const vm = vmFrom({ header: { now: "2026-10-14T16:02:00+00:00", cycle: beat("2026-10-14 16:32:00"), council: beat("2026-10-14 19:45:00"), discovery: beat("2026-10-18 12:00:00") } });
+    render(<StatusBanner vm={vm} />);
+    expect(screen.getByText("· next in 30m")).toBeTruthy();
+    expect(screen.getByText("· next in 4h")).toBeTruthy();
+    expect(screen.getByText("· next in 92h")).toBeTruthy();
+    expect(screen.queryByText("· not scheduled")).toBeNull();
+  });
+
+  it("reads a null next_at (PROD's disabled timers) as not scheduled, never an error", () => {
+    const vm = vmFrom({ header: { now: "2026-10-14T16:02:00+00:00", cycle: beat(null), council: beat(null), discovery: beat(null) } });
+    render(<StatusBanner vm={vm} />);
+    expect(screen.getAllByText("· not scheduled")).toHaveLength(3); // cycle · council · discovery — not KILL
+  });
+
+  it("renders the Expiry + Time-stop columns on the real book", () => {
+    const vm = vmFrom({ positions: { real_open: [{ id: 1, symbol: "ACME", direction: "bullish", contract_symbol: "ACME260116C00050000", status: "open", dte: 248, contracts: 1, total_premium: 620, mark: null, origin_conviction: "HIGH", theme: null, expiry: "2026-01-16", time_stop_on: "2025-12-26" }] } });
+    render(<Book vm={vm} />);
+    expect(screen.getByText("Expiry")).toBeTruthy();
+    expect(screen.getByText("Time-stop")).toBeTruthy();
+    expect(screen.getByText("2026-01-16")).toBeTruthy();
+    expect(screen.getByText("2025-12-26")).toBeTruthy();
   });
 });

@@ -281,6 +281,28 @@ def _marker_evidence(markers: dict) -> list[str]:
     happening NOW). The display labels carry the horizon; the underlying markers-dict keys are
     unchanged. Contrasting pairs are rendered adjacent."""
     lines: list[str] = []
+    # marker_refresh (council.marker_refresh, default off): markers recomputed at this L1 carry the date they
+    # were computed; "both" adds the values as of surfacing. Off → neither key exists → byte-identical lines.
+    if markers.get("refreshed_asof"):
+        lines.append(f"markers_computed {markers['refreshed_asof']}")
+    lines += _horizon_lines(markers)
+    surf = markers.get("at_surfacing")
+    if isinstance(surf, dict):
+        lines += [f"{ln} at_surfacing {markers.get('at_surfacing_asof') or 'unknown'}"
+                  for ln in _horizon_lines(surf)]
+    if markers.get("has_event"):
+        lines.append(f"structural_event {markers.get('event_kind') or 'present'}")
+    px, adv = markers.get("price"), markers.get("adv_usd")
+    if isinstance(px, (int, float)):
+        lines.append(f"price {px:.2f}")
+    if isinstance(adv, (int, float)):
+        lines.append(f"adv_usd {adv:.0f}")
+    return lines
+
+
+def _horizon_lines(markers: dict) -> list[str]:
+    """The horizon-labelled numeric marker lines, in the fixed render order."""
+    lines: list[str] = []
     for key, label in (
         ("momentum", "momentum_12m"),          # trailing 12-1 (252d, skip 21)
         ("mom_recent", "momentum_recent_3m"),  # recent 63d, no skip (freshness)
@@ -292,13 +314,6 @@ def _marker_evidence(markers: dict) -> list[str]:
         v = markers.get(key)
         if isinstance(v, (int, float)):
             lines.append(f"{label} {v:+.3f}")
-    if markers.get("has_event"):
-        lines.append(f"structural_event {markers.get('event_kind') or 'present'}")
-    px, adv = markers.get("price"), markers.get("adv_usd")
-    if isinstance(px, (int, float)):
-        lines.append(f"price {px:.2f}")
-    if isinstance(adv, (int, float)):
-        lines.append(f"adv_usd {adv:.0f}")
     return lines
 
 
@@ -357,6 +372,8 @@ def sentinel_context_pack(
     # only in the discovery path), while build_context_pack fetches news + fundamentals FRESH each cycle. So
     # the binding `at_inflection` leg is grounded on STALE markers. See §7.1 for the MEASURED magnitude
     # (TTL-bounded; weeks) — kept there as the single source of truth so the number can't drift. Decoupled.
+    # §7.1a (2026-10-16): with council.marker_refresh on, marker_refresh.py hands this function markers recomputed
+    # at the L1 (dated via `refreshed_asof`), so the council path no longer reads the stale ones.
     markers = (getattr(candidate, "markers", None) or {})
     lines = _marker_evidence(markers)
     fallback = candidate.thesis or "discovery hypothesis (markers-grounded)"

@@ -9,7 +9,7 @@
 
 import type {
   AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
-  NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
+  NextRunVM, NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
   Snapshot, SpendVM, ViewModel,
 } from "./types";
 import { directionLabel, levelFromSystem, t4RowState, verdictDisplay } from "./status";
@@ -25,6 +25,16 @@ const pct = (v: number | null | undefined): string => (v == null ? DASH : (v * 1
 const ageH = (b?: { age_hours: number | null } | null): string =>
   b && b.age_hours != null ? Math.round(b.age_hours) + "h" : DASH;
 const beatLevel = (b?: { status?: string } | null) => (b && b.status && b.status !== "ONLINE" ? "warn" : "ok");
+// #306: the timer's next fire as a relative label (the same hours convention as ageH; minutes under an hour),
+// measured from the snapshot's `now`. null (timer inactive, or an unparseable stamp) → the UI's "not scheduled".
+function nextRun(b: { next_at?: string | null } | null | undefined, now: string | undefined): NextRunVM | null {
+  if (!b?.next_at) return null;
+  const t = Date.parse(b.next_at.replace(" ", "T") + "Z");
+  const ref = now ? Date.parse(now) : Date.now();
+  if (Number.isNaN(t) || Number.isNaN(ref)) return null;
+  const mins = Math.max(0, Math.round((t - ref) / 60_000));
+  return { label: mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`, at: b.next_at };
+}
 const ci = (c?: { n?: number; p95?: number | null } | null) => ({ n: c?.n ?? 0, p95: c?.p95 ?? null });
 const usd = (v: number | null | undefined, dp = 3): string => "$" + Number(v ?? 0).toFixed(dp);
 
@@ -128,6 +138,7 @@ export function fromBackend(P: Snapshot): ViewModel {
     symbol: p.symbol, theme: p.theme ?? null, dir: p.direction, conviction: p.origin_conviction, dte: p.dte,
     premium: fmt(p.total_premium), premiumUsd: Number(p.total_premium ?? 0),
     mark: markByContract.get(p.contract_symbol) ?? p.mark ?? null, opened: p.opened_at ? String(p.opened_at).slice(0, 10) : null,
+    expiry: p.expiry ? String(p.expiry).slice(0, 10) : null, timeStop: p.time_stop_on ?? null,
   }));
   const sentinels: SentinelVM[] = (se.active ?? []).map((x) => ({ symbol: x.symbol, basket: x.basket, dir: x.direction, note: sentinelNote(x) })); // #4
 
@@ -391,6 +402,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       cycle: beatLevel(h.cycle), council: beatLevel(h.council), discovery: beatLevel(h.discovery),
       schema: h.schema_ok ? "ok" : "warn",
     },
+    nextRuns: { cycle: nextRun(h.cycle, h.now), council: nextRun(h.council, h.now), discovery: nextRun(h.discovery, h.now) },
     equity: fmt(acc.broker_equity),
     deltaFrame: `${delta >= 0 ? "+" : "−"}$${Math.abs(delta).toLocaleString("en-US")} vs frame`,
     bookBudget: fmt(acc.frame?.book_budget), headroom: fmt(acc.headroom), equitySeries: acc.equity_series ?? [],

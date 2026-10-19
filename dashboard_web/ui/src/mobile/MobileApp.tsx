@@ -357,6 +357,7 @@ function MBook({ vm }: { vm: ViewModel }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="font-mono" style={{ fontSize: 13, fontWeight: 700, color: "#141b28" }}>{p.symbol} <span style={{ fontSize: 9, fontFamily: "Roboto", color: p.dir === "bearish" ? signal.bad.text : signal.ok.text }}>{dirLabel(p.dir)}</span></div>
                   <div style={{ fontSize: 10, color: "#5f6675" }}>{[p.theme, p.conviction, p.dte != null ? `${p.dte}d` : null].filter(Boolean).join(" · ")}</div>
+                  {(p.expiry || p.timeStop) && <div className="font-mono" style={{ fontSize: 10, color: "#5f6675" }}>expiry {p.expiry ?? "—"} · time-stop {p.timeStop ?? "—"}</div>}
                 </div>
                 <div className="text-right font-mono">
                   <div style={{ fontSize: 13, fontWeight: 700, color: lv.text }}>{p.mark != null ? `${p.mark.toFixed(1)}×` : "—"}</div>

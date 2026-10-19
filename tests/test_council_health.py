@@ -327,6 +327,17 @@ def test_migration_0016_is_idempotent(convexity_db):
     assert "markers_asof" in cols
 
 
+def test_a_bare_date_markers_asof_is_read_as_utc(convexity_db):
+    """#321: the 2026-10-16 marker-refresh rows carry a bare date; it reads as UTC midnight, not a skip."""
+    conn = convexity_db
+    run_id = state.record_run(conn, mode="PAPER", equity=10000)
+    state.record_council_proposal(conn, run_id=run_id, as_of="2026-10-16T19:48:00+00:00", theme="x",
+                                  symbol="ERO", direction="bullish", conviction="NEUTRAL",
+                                  status="dropped", sentinel_id=1, markers_asof="2026-10-16")
+    ms = council_l1_health(conn, run_id=run_id)["marker_staleness"]
+    assert ms["n_with_markers"] == 1 and ms["max_age_days"] == 0.8   # 00:00 → 19:48 UTC = 0.825d, rounded
+
+
 def test_marker_asof_stamped_and_grader_surfaces_staleness(convexity_db):
     """A sentinel proposal stamps markers_asof; the grader surfaces marker-age (= as_of − markers_asof);
     a hand-seed (markers_asof NULL) is excluded — the §7.1 staleness condition is now auditable."""

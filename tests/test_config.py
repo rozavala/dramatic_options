@@ -36,13 +36,15 @@ def test_frozen_cluster_cap_matches_prereg():
     += the grid names ATKR/AMSC/FLNC; copper_supply NEW (FCX re-clustered + HBM/ERO/TGB); the RKLB
     split-on-evidence fired → space_smallcap NEW (RKLB migrated + PL/LUNR/RDW/FLY/IRDM); space_defense
     keeps the budget-driver primes + KTOS. cluster_fraction unchanged.
+    2026-10-19: nuclear_fuel += BWXT at window #11 (PREREG_UNIVERSE_CURATION §11, operator word 2026-10-18;
+    routed nuclear_fuel over space_defense on 2026-10-14 — records/2026-10-19_window11_cf_bwxt.md).
     """
     config_loader.load_config.cache_clear()
     book = config_loader.load_config()["convexity_book"]
     assert book["cluster_fraction"] == 0.02
     assert set(book["clusters"]["ai_capex_power"]) == {"VRT", "PWR", "GEV", "ETN", "CEG", "NEE", "ATKR", "AMSC", "FLNC"}
     assert set(book["clusters"]["space_defense"]) == {"KTOS", "LMT", "NOC", "LHX", "RTX"}
-    assert set(book["clusters"]["nuclear_fuel"]) == {"CCJ", "UEC", "UUUU", "NXE", "UROY", "SMR", "NNE"}
+    assert set(book["clusters"]["nuclear_fuel"]) == {"CCJ", "UEC", "UUUU", "NXE", "UROY", "SMR", "NNE", "BWXT"}
     assert set(book["clusters"]["copper_supply"]) == {"FCX", "HBM", "ERO", "TGB"}
     assert set(book["clusters"]["space_smallcap"]) == {"RKLB", "PL", "LUNR", "RDW", "FLY", "IRDM"}
     config_loader.load_config.cache_clear()

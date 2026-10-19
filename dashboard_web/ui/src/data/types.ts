@@ -10,6 +10,7 @@ import type { CouncilVerdict, DisplayState, T4Verdict } from "./status";
 /* ────────────────────────── 1 · Snapshot (panel shapes) ────────────────────────── */
 export interface Heartbeat {
   at: string | null; age_hours: number | null; status: "ONLINE" | "STALE" | "OFFLINE"; stale: boolean;
+  next_at?: string | null; // the systemd timer's next fire, "YYYY-MM-DD HH:MM:SS" UTC; null = timer not active (#306)
 }
 export interface CI { n: number; p95: number | null; ci90: [number, number] | null; flag: string | null }
 
@@ -35,6 +36,7 @@ export interface PositionRow {
   dte: number | null; contracts: number; total_premium: number; mark: number | null;
   origin_conviction: string | null; opened_at?: string | null;
   theme: string | null; // emitted by positions_panel (dashboard_data.py SELECT p.theme)
+  expiry?: string | null; time_stop_on?: string | null; // YYYY-MM-DD; time_stop_on = the 21d L2 time-stop's close day (#306)
 }
 
 // Active sentinel rows are state.active_sentinel_rows() (wide); only the fields the UI reads are named.
@@ -235,9 +237,11 @@ export interface DeliberationRow {
 
 /* ────────────────────────── 2 · ViewModel (flat render shape) ────────────────────────── */
 export type BeatKey = "kill" | "cycle" | "council" | "discovery" | "schema";
+export type TimerKey = "cycle" | "council" | "discovery";
+export interface NextRunVM { label: string; at: string } // label "3h" / "40m" (relative to header.now), at = the UTC stamp
 export interface BookCI { n: number; p95: number | null }
 export interface ClusterVM { name: string; premium: number; cap: number; dirs: string }
-export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; premiumUsd: number; mark: number | null; opened: string | null }
+export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; premiumUsd: number; mark: number | null; opened: string | null; expiry: string | null; timeStop: string | null }
 export interface SentinelVM { symbol: string; basket?: string; dir?: string; note: string }
 export interface T4ItemVM { id: number; name: string; detail: string; verdict: T4Verdict; state: DisplayState }
 export interface ProviderVM { provider: string; calls: number; parseError: number; rate: number | null }
@@ -312,6 +316,7 @@ export interface ViewModel {
   issues: { sev: "warn"; text: string }[];
   beats: Record<BeatKey, string>;
   beatLevels: Record<BeatKey, Level>;
+  nextRuns: Record<TimerKey, NextRunVM | null>; // #306 — null = timer not active (PROD) → "not scheduled"
   equity: string; deltaFrame: string; bookBudget: string; headroom: string;
   equitySeries: { day: string; equity: number }[];
   bookDD: string; bookDDlevel: Level; openN: number; maxN: number; openPrem: string;
