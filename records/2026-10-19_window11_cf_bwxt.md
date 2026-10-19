@@ -1,7 +1,6 @@
 # 2026-10-19 — Window #11 (off-cycle): CF · BWXT
 
-**Status: WORD GIVEN (2026-10-18 ~20:59 UTC); screen pending. Nothing is admitted until an in-band read and the
-merge.** Admission needs, per name: an in-window read in band (achieved OTM 15–35%), under the $1,000 cap and with
+**Status: BOTH IN BAND at the 13:37 read of record — CF and BWXT admitted on merge (word given 2026-10-18 ~20:59 UTC).** Admission needs, per name: an in-window read in band (achieved OTM 15–35%), under the $1,000 cap and with
 ≥ 200 days of runway (PREREG_UNIVERSE_CURATION §2, §11, §12). The theses are on the record already; CC re-drafted
 them in true form from the filed corpus.
 
@@ -27,8 +26,9 @@ admission adds names the council can judge, not names it will pass.
 |---|---|---|---|---|---|---|---|
 | 10-18 W42 (provisional, Sunday) | CF | CF270617C00145000 | $120.85 | 20.0% | 242 | $975 | provisional only |
 | 10-18 W42 (provisional, Sunday) | BWXT | BWXT270521C00175000 | $137.01 | 27.7% | 215 | $790 | provisional only |
-| 10-19 13:37 | | | | | | | |
-| 10-19 15:07 (LAST) | | | | | | | |
+| 10-19 13:37 (READ OF RECORD) | CF | CF270617C00155000 | $120.44 | **28.7%** | 241 | **$735** | **IN BAND — ADMITTED on merge** (spread 20%, ADV $286.4M) |
+| 10-19 13:37 (READ OF RECORD) | BWXT | BWXT270521C00170000 | $136.82 | **24.3%** | 214 | **$945** | **IN BAND — ADMITTED on merge** (spread 24%, ADV $168.8M) |
+| 10-19 15:07 (information only — both in band at 13:37) | | | | | | | |
 
 ## CF — CF Industries · basket `ag_cycle_trough` / cluster `ag_cycle` (existing, with TITN and MOS)
 
@@ -66,10 +66,10 @@ admission adds names the council can judge, not names it will pass.
   reads) → $790 (10-18 provisional).
 - **Cluster:** `nuclear_fuel`, shared with CCJ · UEC · UUUU · NXE · UROY · SMR · NNE. **No council_thesis change.**
 
-## What the merge changes (in band names only)
+## What the merge changes (both names)
 - `config.json` `universe.themes` + `convexity_book.clusters`: CF → `ag_cycle_trough` / `ag_cycle`; BWXT →
-  `nuclear_fuel`. Universe 48 → up to 50; clusters stay 16 (both join existing clusters, so the frame stamp moves —
+  `nuclear_fuel`. Universe 48 → 50; clusters stay 16 (both join existing clusters, so the frame stamp moves —
   the cluster map is in the hash — while every risk number stays unchanged).
 - `universe_register.json`: `windows.11` with each screen of record; the `ag_cycle_trough` council_thesis
-  amendment if CF is admitted.
+  amendment ("crop-nutrient producers (MOS, CF)"). `tests/test_config.py`'s dated cluster pin gains BWXT.
 - First council exposure: the Sun 10-25 L0 scan; earliest council read Mon 10-26.
