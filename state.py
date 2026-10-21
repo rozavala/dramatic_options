@@ -1042,6 +1042,30 @@ def gate_cheap_reads(conn: sqlite3.Connection, *, now, max_age_td: int = 5) -> d
     return out
 
 
+def unexpressible_symbols(conn: sqlite3.Connection, *, now, max_age_td: int = 5) -> frozenset[str]:
+    """Symbols whose most recent GATE-OF-RECORD (opra) dual-read row, aged ≤ ``max_age_td`` weekdays, found NO
+    eligible structure (``structured = 0``: no OTM contract in the tenor window). Demotion needs positive,
+    fresh evidence — no row, a stale row or a structured row ⇒ not in the set (council.demote_unexpressible).
+    Written after the council each cycle, so the read is prior-cycle, like ``gate_cheap_reads``."""
+    today = now.date() if hasattr(now, "date") else now
+    out: set[str] = set()
+    seen: set[str] = set()
+    for r in conn.execute(
+        "SELECT symbol, structured, evaluated_at FROM gate_dualread WHERE feed='opra' "
+        "ORDER BY evaluated_at DESC, id DESC"
+    ):
+        sym = str(r["symbol"]).upper()
+        if sym in seen:
+            continue
+        seen.add(sym)
+        d = _iso_date(r["evaluated_at"])
+        if d is None or _weekday_age(d, today) > max_age_td:
+            continue
+        if r["structured"] is not None and int(r["structured"]) == 0:
+            out.add(sym)
+    return frozenset(out)
+
+
 def council_last_judged(conn: sqlite3.Connection) -> dict[str, str]:
     """{SYMBOL: most recent council ``as_of``} over ALL recorded proposals (any council row —
     including drops and parse errors — consumed a judged slot; never-judged names are simply

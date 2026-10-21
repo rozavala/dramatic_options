@@ -184,6 +184,10 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
             # PREREG_DIRECTION_COHERENCE §5: a union-composition change — record-segmenting from deploy.
             mix["union_rank"] = (mix.get("union_rank", "") + "+" if mix.get("union_rank") else "") \
                 + direction_coherence.STAMP
+        if config.get("council", {}).get("demote_unexpressible", False):
+            # Expressible-first slate (2026-10-21): no-structure sentinels only backfill — composition-only,
+            # record-segmenting from the first L1 it is on.
+            mix["union_rank"] = (mix.get("union_rank", "") + "+" if mix.get("union_rank") else "") + "expressible_v1"
         if (config.get("forward_catalysts", {}) or {}).get("enabled", False):
             # Channel prereg §4: pack-shape capability stamp — record-segmenting from deploy,
             # zero migration (stamped when the channel is CONFIGURED on, item count irrelevant;
