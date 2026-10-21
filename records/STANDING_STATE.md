@@ -39,9 +39,16 @@ The header's absence is itself a signal.
   `runs.model_mix.markers = l1_refresh_both_v1` from L1 #1712 (2026-10-16). The §7.1 catch-race trigger still
   reads `hold` (the cheapness-watch panel now says the verdict is moot under §7.1a); adopted on the
   input-quality ground. Session 1: fresh values used as current, 0 surfacing values misread, no verdict flipped.
-- **Frame stamp `frame-a80e6abea2b9` from run #1681 (2026-10-15).** The hash covers `convexity_book` including the
-  cluster map, so window #10's `cyber_sase` cluster moved it. Every frozen risk number is unchanged; for the ITM-
-  guard segment it is the same regime as `frame-a6da3dee9171`.
+- **Expressible-first slate ON (2026-10-21, operator word):** `council.demote_unexpressible = true` (#329) — a
+  sentinel whose latest fresh gate-of-record read found no structure only backfills empty council slots. Stamp
+  `union_rank …+expressible_v1` from the first L1 after deploy (2026-10-21). Membership-only.
+- **PREREG_REJECTION_REASON_AUDIT FROZEN (2026-10-21, operator word):** does the timing test filter losers?
+  Timing-only vs narration-failed judgments on the miss ledger's big-move definition; first decision read at
+  n_T ≥ 30 (≈ February 2027); nothing changes automatically.
+- **Frame stamp `frame-3a810daad056` from the first run after #325 (2026-10-19; was `a80e6abea2b9` from #1681,
+  10-15).** The hash covers `convexity_book` including the cluster map, so window #10's `cyber_sase` cluster and
+  window #11's CF/BWXT additions moved it. Every frozen risk number is unchanged; for the ITM-guard segment it is
+  the same regime as `frame-a6da3dee9171`.
 - **Window #10 (2026-10-14, operator word):** NTSK admitted (`cyber_sase`, new cluster #16; $395 / 19.2% / 246d at
   the 13:37 read). BNTX ($1,175) and BWXT ($1,100) near-miss over the cap at the 15:07 LAST read; the word lapsed
   for both. BWXT's routing, if it returns, is `nuclear_fuel`. `records/2026-10-14_window10_bntx_bwxt_ntsk.md`.
@@ -99,7 +106,7 @@ The header's absence is itself a signal.
   - DEV: `https://all-options-dev.tail57521e.ts.net:8602`
   - PROD: `https://all-options-prod.tail57521e.ts.net:8602`
   - Both are tailnet-only `tailscale serve` → 127.0.0.1:8602; `/api/version` reports the running commit.
-- Universe 48 names · 16 clusters (book fills at most 5).
+- Universe 50 names · 16 clusters (book fills at most 5).
 - Book: real 1 (PL, $690, unrealized −$684.50). Null books accruing (shadow · 3A · 3B · shares). Last above-floor
   conviction: run #508, 2026-07-10.
 - Open issues: 0. NVDA opra canary back above 1.0 (10-14 1.0127, 10-15 1.0204, 10-16 1.0315) after eight prints below (low
