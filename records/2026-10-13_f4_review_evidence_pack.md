@@ -136,3 +136,24 @@ closed feed without a standalone thesis.
 
 Re-run §1–§4 on runs #1437 → the 30th session, add any admissions from option A and their first verdicts,
 and hold the review on that read.
+
+## 8. Addendum (2026-10-21): the timing test is now the only binding criterion
+
+- **L1 #1747 (2026-10-20):** the strategist set `under_narrated = true` on 6 of the 10 names it deliberated (ERO,
+  TITN, NTSK, HL, CDE, FLNC) and `at_inflection = false` on **all 10**. Since June, of ~700 flagged judgments,
+  ~20 passed `at_inflection`. The F4 question as frozen asks about `under_narrated`; the evidence now points at
+  `at_inflection`.
+- **The fresh-marker sessions (from #1712) did not move it.** With markers recomputed daily, the council reads the
+  since-surfacing decay itself as "the move is behind the name" (ERO 12m +1.218 → +0.57; HL +0.86 → +0.32).
+- **A case the review should look at, not a result:** FRO's shadow call is marked **4.1×** (opened 2026-07-06);
+  the council rejected FRO 10 times on "+1.141 12m momentum reflects a move that has already happened" and revenue
+  −8.8%. One mark, unresolved, n = 1.
+- **The question for the review (candidate wording, not adopted):** for a 6–12-month far-OTM call, should
+  `at_inflection` ask "is the turn happening now?" or "is a further large move plausible within the option's tenor,
+  and not yet priced?" Any change is a dated amendment that re-segments the record.
+- **The evidence to decide it with:** PREREG_REJECTION_REASON_AUDIT (DRAFT, PR for the operator's freeze) tests
+  whether timing-only rejections are followed by smaller moves than narration-failed ones, on the miss ledger's
+  big-move definition. Its first decision read is ~February 2027, after this review; at 11-04 it can be frozen and
+  its unmatured counts shown, not its outcomes.
+- **The shadow book at pin time:** 43 open, $36,140 premium, marked $24,476 (−32% mid-life; the first structural
+  resolution window opens 11-02). Not yet evidence either way.
