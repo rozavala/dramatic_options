@@ -47,6 +47,19 @@ def council_to_themes(
     reserve_k = int(council_cfg.get("cheap_reserve_slots", 0) or 0)
     fairness_m = int(council_cfg.get("fairness_slots", 0) or 0)
     selection: dict = {}
+    # council.demote_unexpressible (default off — byte-identical): sentinels whose latest gate-of-record read found
+    # no eligible structure (the 2026-10-19 tenor cliff) are held out of the slot composition and only BACKFILL
+    # slots left empty, so judgment goes first to names the book could actually express. Membership-only.
+    held: list = []
+    if bool(council_cfg.get("demote_unexpressible", False)) and conn is not None:
+        unx = state.unexpressible_symbols(conn, now=clock.now(),
+                                          max_age_td=int(council_cfg.get("cheap_reserve_staleness_td", 5)))
+        held = [c for c in candidates if getattr(c, "sentinel_id", None) is not None and c.symbol.upper() in unx]
+        if held:
+            held_ids = {id(c) for c in held}
+            candidates = [c for c in candidates if id(c) not in held_ids]
+            log.info("Expressible-first: held %d sentinel(s) with no eligible structure to the back: %s",
+                     len(held), sorted(c.symbol for c in held))
     if (reserve_k > 0 or fairness_m > 0) and conn is not None:
         cheap = state.gate_cheap_reads(
             conn, now=clock.now(),
@@ -74,6 +87,9 @@ def council_to_themes(
             sorted(sym for (sym, _d), v in selection.items() if v == "fairness"),
             displaced,
         )
+    if held:   # backfill only: an unexpressible name takes a slot nothing expressible wanted
+        room = max(int(council_cfg.get("max_candidates", 12)) - len(candidates), 0)
+        candidates = list(candidates) + held[:room]
     proposals = propose(candidates, router=router, config=config, clock=clock,
                         news=news, fundamentals=fundamentals, analyst=analyst,
                         catalysts=catalysts, demo=demo, rng=rng)
