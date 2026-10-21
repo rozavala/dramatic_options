@@ -1,6 +1,6 @@
 # PREREG — Rejection-reason audit: does the council's timing test filter losers?
 
-**Status: DRAFT for the operator's freeze (2026-10-21).** Freezing commits the definitions and the decision rule
+**Status: FROZEN 2026-10-21 (operator's word: "Sure", to "Shall I freeze #327 …?").** Freezing commits the definitions and the decision rule
 **before any 126-trading-bar (~6-month) outcome of a council judgment exists** (the earliest judgment,
 2026-06-02, matures in early December 2026). Nothing here changes the council, the gate, sizing or the risk frame. It is a measurement, and it
 decides nothing automatically: its verdict goes to an operator review.
