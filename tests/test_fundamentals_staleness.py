@@ -114,3 +114,16 @@ def test_et_date_handles_bare_dates_naive_and_z_timestamps():
     assert fs._et_date("2026-03-31T01:43:24Z") == "2026-03-30"      # ERO's 40-F
     assert fs._et_date("2026-08-06T00:10:01") == "2026-08-05"        # naive = UTC (SMR)
     assert fs._et_date(None) is None
+
+
+def test_a_fresh_filing_inside_the_grace_window_does_not_hide_an_older_missing_one():
+    # 2026-10-22, NEE: the corpus stops at Q1 (filed 04-23); the Q2 10-Q (07-24) never reached companyfacts, and
+    # the Q3 10-Q filed that morning sat inside the grace window — the check went quiet. It must still flag the Q2 gap.
+    now = datetime(2026, 10, 22, 19, 45, tzinfo=UTC)
+    filings = _filings(("10-Q", "2026-07-24"), ("10-Q", "2026-10-22"))
+    chk = fs.StalenessCheck(lines_of=lambda s: _lines("2026-04-23"), filings_of=lambda s: filings).run(["NEE"], now)
+    assert chk.lagging == {"NEE": {"corpus_filed": "2026-04-23", "form": "10-Q", "filed": "2026-07-24"}}
+    # a corpus that already holds Q2 is NOT lagging while only the fresh Q3 is outstanding (grace still applies)
+    chk2 = fs.StalenessCheck(lines_of=lambda s: _lines("2026-07-24"), filings_of=lambda s: filings).run(["NEE"], now)
+    assert chk2.lagging == {}
+    assert fs.newest_periodic(filings, on_or_before="2026-10-19") == ("10-Q", "2026-07-24")

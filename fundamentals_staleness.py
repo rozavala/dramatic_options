@@ -40,15 +40,18 @@ def newest_corpus_filed(lines: Iterable[dict] | None) -> str | None:
     return max(dates) if dates else None
 
 
-def newest_periodic(records: Iterable[dict] | None) -> tuple[str, str] | None:
-    """``(form, YYYY-MM-DD)`` of the newest periodic report among filing records. Amendments are excluded."""
+def newest_periodic(records: Iterable[dict] | None, *, on_or_before: str | None = None) -> tuple[str, str] | None:
+    """``(form, YYYY-MM-DD)`` of the newest periodic report among filing records, optionally only those filed
+    ``on_or_before`` a date. Amendments are excluded."""
     best: tuple[str, str] | None = None
     for r in records or ():
         form = str(r.get("form", "")).upper()
         if form not in PERIODIC_FORMS:
             continue
         day = _et_date(r.get("ts"))
-        if day and (best is None or day > best[1]):
+        if not day or (on_or_before is not None and day > on_or_before):
+            continue
+        if best is None or day > best[1]:
             best = (form, day)
     return best
 
@@ -97,7 +100,11 @@ class StalenessCheck:
                 if corpus_filed is None:
                     self.no_corpus.append(sym)
                     continue
-                periodic = newest_periodic(self.filings_of(sym))
+                # Compare against the newest report OUTSIDE the grace window, not the newest overall: a report filed
+                # inside the window must not hide an older one the corpus is still missing (2026-10-22, NEE: its Q3
+                # 10-Q, filed that morning, masked the Q2 10-Q of 07-24 the corpus never received).
+                cutoff = (now - timedelta(days=GRACE_DAYS)).date().isoformat()
+                periodic = newest_periodic(self.filings_of(sym), on_or_before=cutoff)
                 self.checked += 1
                 if is_lagging(corpus_filed, periodic, now):
                     self.lagging[sym] = {"corpus_filed": corpus_filed, "form": periodic[0], "filed": periodic[1]}
