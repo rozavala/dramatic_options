@@ -1,6 +1,6 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-10-18T15:00Z · supersedes: 2026-10-16T00:30Z · reflects the W42 Sunday review
+**as_of: 2026-10-22T02:10Z · supersedes: 2026-10-18T15:00Z · reflects the W42 Sunday review
 (`records/2026-10-18_sunday_w42.md`): the L1 marker refresh ON (#319/#320, its telemetry #322) · KMT re-pin #17 ·
 the April-2027 tenor cliff from Monday 10-19 · Real Options' pkill fix (#4953) · NTSK's first scan.**
 
@@ -86,6 +86,13 @@ The header's absence is itself a signal.
   one exact `NOPASSWD: /usr/bin/tee /etc/systemd/system/<unit>` per unit (`/etc/sudoers.d/dramatic-options-units`,
   #314). **A new unit file needs one more line there**, and the deploy will say so.
 
+## Scheduled reviews (unattended, DEV crontab — 2026-10-22)
+- Nightly L1 grade (weekdays 20:37 UTC) and Sunday review (14:23 UTC) run headless via
+  `scripts/ops/scheduled_review.sh grade|sunday` (#332) in the runner worktree, under a spend cap with write commands
+  denied: the grade is read-only; the Sunday review opens one records PR and never merges. Pushover carries the
+  HEADLINE and the resume command. Their expectations come from this file and the newest memory banner — keep both
+  current. Cloud routines can't reach the box's DB/journals/memory, so they are not used.
+
 ## Dated docket
 - **Mon 2026-10-19 — the April-2027 tenor cliff:** AMSC · CC · NNE · PL · STUB · UUUU · ERO · UROY lose structure
   (next listed expiry Jan-2028, outside 180–365d); ATKR has nothing after April; FRO · HBM · TGB · IRDM already
@@ -94,6 +101,10 @@ The header's absence is itself a signal.
 - **2026-10-25 Sunday W43:** re-check for July-2027 listings (the October monthly expired 10-16); KMT pin #17
   expires; marker-refresh week 1 read.
 - **2026-11-02:** posture LOOK (PREREG_THEMATIC_CONVEXITY §6 amendment).
+- **~2026-11-03:** one-night shadow check of the candidate council models (claude-opus-5-5 / gemini-3.8-flash /
+  grok-4.7) on real packs — parse rate, cost, latency only (no outcome scoring).
+- **2026-11-05 (after the F4 review):** the planned model refresh, all roles at once, one dated segment; plumbing in
+  #331 (`council.anthropic` knobs, refusal routing, unpriced-model guard). Gemini/xAI prices to verify at the switch.
 - **2026-11-04 (session 30 under direction coherence; 17 of 30 on 10-16):** the F4 review. Reads the
   stale-marker and fresh-marker segments separately.
 - **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
