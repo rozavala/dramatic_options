@@ -105,12 +105,24 @@ def price_call(prices: dict, model: str, input_tokens: int, output_tokens: int) 
 # ── Provider adapters (SDKs lazy-imported) ──────────────────────────────────────────────────
 
 
+class ProviderRefusal(RuntimeError):
+    """The provider declined the request (Anthropic ``stop_reason == "refusal"``). Not retried on the same model —
+    it would decline again — so the router goes straight to the pinned understudy."""
+
+
 class AnthropicProvider:
     name = "anthropic"
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, *, effort: str | None = None, max_tokens: int | None = None,
+                 timeout_s: float | None = None) -> None:
+        # Optional knobs (council.anthropic) for models whose thinking is always on (claude-opus-5-5: thinking can't
+        # be disabled, effort defaults to medium, and thinking tokens count against max_tokens). All unset ⇒ the
+        # request is byte-identical to the knob-less one (claude-opus-4-8 runs without thinking when omitted).
         self._api_key = api_key
         self._client = None
+        self._effort = effort
+        self._max_tokens = max_tokens
+        self._timeout_s = timeout_s
 
     def _ensure(self):
         if self._client is None:
@@ -121,10 +133,14 @@ class AnthropicProvider:
 
     def complete(self, *, model: str, system: str, user: str, timeout_s: float, max_tokens: int) -> tuple[str, int, int, dict]:
         client = self._ensure()
-        resp = client.messages.create(
-            model=model, max_tokens=max_tokens, system=system,
-            messages=[{"role": "user", "content": user}], timeout=timeout_s,
-        )
+        kw = dict(model=model, max_tokens=self._max_tokens or max_tokens, system=system,
+                  messages=[{"role": "user", "content": user}], timeout=self._timeout_s or timeout_s)
+        if self._effort:
+            kw["output_config"] = {"effort": self._effort}
+        resp = client.messages.create(**kw)
+        if getattr(resp, "stop_reason", None) == "refusal":
+            details = getattr(resp, "stop_details", None)
+            raise ProviderRefusal(f"anthropic {model} declined (category={getattr(details, 'category', None)})")
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         meta = {"finish_reason": getattr(resp, "stop_reason", None), "thoughts_tokens": None}
         return text, int(resp.usage.input_tokens), int(resp.usage.output_tokens), meta
@@ -348,6 +364,8 @@ class Router:
                 last_err = e
                 log.warning("router %s/%s call failed (attempt %d/%d): %s",
                             provider_name, model, attempt + 1, self._max_retries + 1, e)
+                if isinstance(e, ProviderRefusal):
+                    break   # the same model would decline again — go straight to the understudy
                 if attempt < self._max_retries:
                     time.sleep(min(2.0 ** attempt, 5.0))
         suffix = f" (primary already failed: {primary_err})" if primary_err else ""
@@ -402,7 +420,9 @@ def build_router(config: dict, llm_keys: dict, *, ledger: CostLedger | None = No
         if not key:
             raise RouterError(f"council role mapped to provider {name!r} but no API key is set (.env)")
         if name == "anthropic":
-            providers[name] = AnthropicProvider(key)
+            ak = council.get("anthropic", {}) or {}
+            providers[name] = AnthropicProvider(
+                key, effort=ak.get("effort"), max_tokens=ak.get("max_tokens"), timeout_s=ak.get("timeout_s"))
         elif name == "gemini":
             knobs = _provider_knobs(name, roles, council.get("gemini", {}))
             providers[name] = GeminiProvider(
@@ -416,6 +436,13 @@ def build_router(config: dict, llm_keys: dict, *, ledger: CostLedger | None = No
                 json_mode=bool(knobs.get("json_mode", True)))
         else:
             raise RouterError(f"unknown council provider {name!r}")
+
+    # An unpriced model is costed at $0 by price_call, which would blind the per-cycle cost cap after a model switch.
+    # Every primary and understudy model must carry a price (fail-closed, like a missing key).
+    unpriced = sorted({str(s.get("model")) for s in [*roles.values(), *roles_fallback.values()]
+                       if s.get("model") and str(s.get("model")) not in prices})
+    if unpriced:
+        raise RouterError(f"council model(s) without a prices_per_mtok entry (the cost cap would read $0): {unpriced}")
 
     if ledger is None:
         cap = council.get("cost_cap_usd")
