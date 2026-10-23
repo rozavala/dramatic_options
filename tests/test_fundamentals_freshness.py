@@ -168,6 +168,40 @@ def test_filter_supports_an_annual_revenue_citation():
     assert res.flagged == 0 and conf == "MODERATE"
 
 
+def _rpo_pack(latest_musd: float, base_musd: float, yoy: float = 0.751) -> ContextPack:
+    lines = [{"concept": "rpo", "metric": "yoy", "value": yoy, "latest_musd": latest_musd,
+              "base_musd": base_musd, "period_end": "2026-06-30", "filed": "2026-07-30"},
+             {"concept": "gross_margin", "metric": "delta_pts", "value": 1.3, "latest_musd": 16.2,
+              "base_musd": 14.9, "period_end": "2026-06-30", "filed": "2026-07-30"}]
+    return ContextPack(symbol="PWR", theme="infrastructure_saturation", direction="bullish",
+                       operator_thesis="grid backlog", headlines=["momentum_recent_3m -0.117"],
+                       coverage_count=1, has_numeric=True, fundamentals=lines, origin="sentinel")
+
+
+def test_filter_supports_a_billions_restatement_of_a_rendered_musd_figure():
+    # L1 #1798: PWR's strategist wrote 'RPO expanded +75.1% YoY to $33.55B' from the rendered
+    # '($33550.0M vs $19160.0M)' and was dampened MODERATE → LOW for it.
+    pack = _rpo_pack(33550.0, 19160.0)
+    conf, res = apply_filter(["PWR's RPO expanded +75.1% YoY to $33.55B (from $19.2B)"], pack,
+                             confidence="MODERATE")
+    assert res.flagged == 0 and conf == "MODERATE"
+    # FLNC (same night): 'RPO grew +30.6% YoY to $6.4B' from '($6400.0M vs $4900.0M)'.
+    conf, res = apply_filter(["RPO grew +30.6% YoY to $6.4B"], _rpo_pack(6400.0, 4900.0, 0.306),
+                             confidence="LOW")
+    assert res.flagged == 0 and conf == "LOW"
+
+
+def test_billions_forms_do_not_ground_an_invented_figure():
+    pack = _rpo_pack(33550.0, 19160.0)
+    conf, res = apply_filter(["RPO expanded to $41.7B"], pack, confidence="MODERATE")
+    assert res.flagged == 1 and conf == "LOW"
+    toks = fundamental_evidence_tokens(pack)
+    assert "33.55" in toks and "19.2" in toks and "19.16" in toks
+    assert "0.02" not in toks and "0.0" not in toks  # gross-margin % fields get no billions form
+    small = fundamental_evidence_tokens(_rpo_pack(220.5, 170.8))
+    assert small == ["+75.1%", "220.5", "170.8", "+1.3pts", "16.2", "14.9"]  # < $1,000M: unchanged
+
+
 # ── standing universe-wide no-regression net (live; run on-host after fundamentals.py changes) ──
 
 # v1 baseline captured 2026-06-24 from the committed (pre-PR1) fundamentals over the live universe.
