@@ -23,8 +23,8 @@ log = logging.getLogger(__name__)
 
 OPPOSITE = {"bullish": "bearish", "bearish": "bullish"}
 
-# The three council strings below are the CGS §10.7 FROZEN config (sha256/16-pinned; see
-# tests/test_council_prompts.py — the run-of-record is records/2026-06-10_retightened_rescore.txt).
+# The three council strings below are the CGS §10.7 FROZEN config as amended by §10.10 (2026-10-23, the early F4
+# review: criterion (3) re-specified to the option's horizon) — sha256/16-pinned in tests/test_council_prompts.py.
 # Thesis-only: cheapness judgment belongs SOLELY to the deterministic IV gate. Do not edit these
 # without a new pre-registered freeze.
 _COMMON = (
@@ -34,9 +34,11 @@ _COMMON = (
     "or priced. A theme qualifies ONLY if ALL THREE hold: (1) STRUCTURAL — a real, durable driver, "
     "not a fad; (2) UNDER-NARRATED — not already the market's consensus story; a name at the center "
     "of a dominant, widely-covered narrative does not qualify however correct the thesis; (3) AT A "
-    "GENUINE INFLECTION — the change is happening NOW: if the large move has already happened, the "
-    "inflection is BEHIND the name and it does not qualify unless the evidence shows a NEW, distinct "
-    "inflection. Reason only from the EVIDENCE provided. If the evidence lacks numeric content, "
+    "LIVE INFLECTION — the driver is still changing within the option's 6-12-month horizon. A move "
+    "that has already happened does NOT by itself disqualify the name; it disqualifies only if the "
+    "evidence shows the driver's change has peaked, stalled or reversed (growth decelerating, backlog "
+    "shrinking), so no further leg is likely within the horizon. Judge whether the next leg is still "
+    "ahead, not whether the last one happened. Reason only from the EVIDENCE provided. If the evidence lacks numeric content, "
     "return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH, "
     "EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else."
 )
@@ -53,12 +55,12 @@ ADVERSARY_SYSTEM = (
     _COMMON +
     " ROLE: Devil's Advocate. You argue AGAINST the proposed direction — make the strongest honest "
     "case ON THESIS GROUNDS that the proposed trade is wrong: already consensus (the story is widely "
-    "told), a fad (not structural), or not a genuine inflection (the move already happened / no "
-    "fresh change). Never argue from option pricing or volatility — cheapness is the deterministic "
-    "gate's job. JSON keys: counter_case (string, cite evidence), weakest_point (the single biggest "
-    "hole in the proposal), is_fad (bool), already_consensus (bool), inflection_passed (bool — true "
-    "if the move is behind the name), confidence (your confidence in the COUNTER case), cited "
-    "(array)."
+    "told), a fad (not structural), or not a live inflection (the driver's change has peaked, stalled "
+    "or reversed, so no further leg is likely within the horizon). Never argue from option pricing or "
+    "volatility — cheapness is the deterministic gate's job. JSON keys: counter_case (string, cite "
+    "evidence), weakest_point (the single biggest hole in the proposal), is_fad (bool), "
+    "already_consensus (bool), inflection_passed (bool — true if the driver's change has peaked, "
+    "stalled or reversed), confidence (your confidence in the COUNTER case), cited (array)."
 )
 
 STRATEGIST_SYSTEM = (

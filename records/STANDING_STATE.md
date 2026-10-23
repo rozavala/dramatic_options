@@ -1,6 +1,6 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-10-22T02:10Z · supersedes: 2026-10-18T15:00Z · reflects the W42 Sunday review
+**as_of: 2026-10-23T01:30Z · supersedes: 2026-10-22T02:10Z · reflects the W42 Sunday review
 (`records/2026-10-18_sunday_w42.md`): the L1 marker refresh ON (#319/#320, its telemetry #322) · KMT re-pin #17 ·
 the April-2027 tenor cliff from Monday 10-19 · Real Options' pkill fix (#4953) · NTSK's first scan.**
 
@@ -10,6 +10,13 @@ Maintained by CC; updated on every ruling, clock change, staged-PR change, or pe
 The header's absence is itself a signal.
 
 ## Rulings in force
+- **⭐ Criterion (3) RE-SPECIFIED (2026-10-23, the F4 review held early at session 21, operator word "B";
+  PREREG_COUNCIL_GATE_SEPARATION §10.10; `records/2026-10-23_f4_review_early.md`):** "AT A LIVE INFLECTION — the
+  driver is still changing within the option's 6-12-month horizon; a move that already happened disqualifies
+  only if the driver's change has peaked, stalled or reversed." **New prompts stamp
+  `48f6d57f1212ee54/8a4d329193c38172/6cb63ff75ae5f118` from the first L1 after deploy (10-23)** — a new record
+  segment. **Tripwire:** ≥ 6 of 12 at the floor on either of its first two sessions ⇒ operator review before the
+  third (expected 0–3).
 - **Mandate:** the §10.7 tri-criteria thesis-only council (structural ∧ under_narrated ∧ at_inflection at
   ≥ MODERATE). Hard seam, HARK leash, never-backtest-the-council all standing.
 - **PREREG_DIRECTION_COHERENCE (FROZEN 2026-09-24):**
@@ -70,8 +77,6 @@ The header's absence is itself a signal.
   fundamental-acceleration feed (closed 2026-07-01).
 
 ## Staged / pending (the operator's)
-- **F4 review (≈ 2026-11-04, session 30):** the interim evidence is `records/2026-10-13_f4_review_evidence_pack.md`
-  (session 14). On it, `at_inflection` binds harder than `under_narrated`. Re-run its §1–§4 at session 30.
 - **PROD reboot:** `/var/run/reboot-required` is still set (up since 2026-10-06). Operator's call, away from
   alpha_options' 09:00 / 21:45 UTC jobs and Real Options' trading hours.
 - **Homonym guard, acronym class (W42):** the SMR card matched the generic "small modular reactor" acronym and
@@ -105,8 +110,8 @@ The header's absence is itself a signal.
   grok-4.7) on real packs — parse rate, cost, latency only (no outcome scoring).
 - **2026-11-05 (after the F4 review):** the planned model refresh, all roles at once, one dated segment; plumbing in
   #331 (`council.anthropic` knobs, refusal routing, unpriced-model guard). Gemini/xAI prices to verify at the switch.
-- **2026-11-04 (session 30 under direction coherence; 17 of 30 on 10-16):** the F4 review. Reads the
-  stale-marker and fresh-marker segments separately.
+- **2026-11-04:** formerly the F4 date (session 30) — the review was held early on 10-23; a dated look at the
+  §10.10 segment's first two weeks instead.
 - **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
 
