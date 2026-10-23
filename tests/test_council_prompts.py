@@ -12,12 +12,14 @@ import hashlib
 
 from council import agents
 
-# The §10.7 pins (sha256 hexdigest[:16] of the EXACT strings; adversary/strategist pins are over
-# the full `_COMMON + role suffix` concatenation, matching scripts/probe_rescore_thesis_only.py).
+# The pins (sha256 hexdigest[:16] of the EXACT strings; adversary/strategist pins are over the full
+# `_COMMON + role suffix` concatenation, matching scripts/probe_rescore_thesis_only.py). §10.7 froze
+# d96f18ebc865a384 / dc3d21ca8f6444cb / ecbf363c9802289d; §10.10 (2026-10-23, the early F4 review, operator word)
+# re-specified criterion (3) to the option's horizon and froze these — the record segments on the prompts stamp.
 PINS = {
-    "_COMMON": "d96f18ebc865a384",
-    "ADVERSARY_SYSTEM": "dc3d21ca8f6444cb",
-    "STRATEGIST_SYSTEM": "ecbf363c9802289d",
+    "_COMMON": "48f6d57f1212ee54",
+    "ADVERSARY_SYSTEM": "8a4d329193c38172",
+    "STRATEGIST_SYSTEM": "6cb63ff75ae5f118",
 }
 
 

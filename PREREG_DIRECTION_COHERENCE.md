@@ -174,6 +174,9 @@ All reads are forward from the freeze.
   `under_narrated` criterion pass on names this system is able to curate and express? The review decides;
   **nothing loosens automatically**, and any change to the floor or the criteria is its own dated amendment
   that re-segments the record.
+- **F4 held early (2026-10-23, operator word):** at session 21 of 30, as a dated operational deviation of the read
+  date (the decision itself is not pre-registered and the evidence was one-sided: `at_inflection` passed 4 of 176).
+  Outcome: criterion (3) re-specified — PREREG_COUNCIL_GATE_SEPARATION §10.10; `records/2026-10-23_f4_review_early.md`.
 - **Read dates.** F2 at five sessions after deploy; F4 at the 30th L1 session after deploy; F1 first readable around h = 126 after the tenth
   withheld name, and re-read at every quarterly curation review.
 

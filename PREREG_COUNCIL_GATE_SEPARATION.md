@@ -363,3 +363,40 @@ an ABSENT tri key on an include row ambiguous between criteria-veto and parse-fa
   preview-verbatim survivor expression (include ∧ ≥floor ∧ tri-pass; `None` fails closed;
   exact string equality + `is True` identity, no normalization). The survivor-count definition
   is unchanged.
+
+### 10.10 Criterion (3) re-specified to the option's horizon — the early F4 review (dated amendment, 2026-10-23, operator word)
+
+**Operator's word (2026-10-23 ~00:50 UTC):** *"B"* — CC's option B of the early F4 review
+(`records/2026-10-23_f4_review_early.md`): hold the PREREG_DIRECTION_COHERENCE §6 F4 review at session 21 instead
+of 30, and re-specify criterion (3).
+
+**Before (§10.7, frozen 2026-06-10):** *"(3) AT A GENUINE INFLECTION — the change is happening NOW: if the large
+move has already happened, the inflection is BEHIND the name and it does not qualify unless the evidence shows a
+NEW, distinct inflection."*
+
+**After (frozen with this amendment):** *"(3) AT A LIVE INFLECTION — the driver is still changing within the
+option's 6-12-month horizon. A move that has already happened does NOT by itself disqualify the name; it
+disqualifies only if the evidence shows the driver's change has peaked, stalled or reversed (growth decelerating,
+backlog shrinking), so no further leg is likely within the horizon. Judge whether the next leg is still ahead,
+not whether the last one happened."* The adversary's role text follows ("not a live inflection (the driver's
+change has peaked, stalled or reversed …)"; `inflection_passed` = true if the driver's change has peaked, stalled
+or reversed). The proposer's role text and the strategist's role text are unchanged; the JSON keys are unchanged.
+
+- **Why:** since the direction-coherence boundary (#1437), `at_inflection` passed 4 of 176 strategist judgments
+  while `under_narrated` passed 78; it failed every deliberated name on 10-20, 10-21 and 10-22. The council was
+  rejecting long-dated far-OTM calls on whether the stock had already moved, which is not the question a 6–12-month
+  option asks. The F4 evidence pack (§2, §8) and the fresh-marker sessions (#1712 onward) showed the wording, not
+  stale inputs, binding.
+- **Unchanged:** criteria (1) and (2), the MODERATE floor, the hard tri-criteria `include` rule, thesis-only
+  (cheapness stays the IV gate's alone), the gate, sizing, the risk frame.
+- **Pins:** `_COMMON 48f6d57f1212ee54 · ADVERSARY 8a4d329193c38172 · STRATEGIST 6cb63ff75ae5f118`
+  (`tests/test_council_prompts.py`). `runs.model_mix.prompts` changes accordingly from the first L1 after deploy —
+  a NEW record segment; never pool strategist Brier or the council-marginal read across it.
+- **No gated re-score** (the §10.7 precedent ran one): the council is never backtested, and a re-score on a fixed
+  slate would only preview verdict counts. The first live sessions are the gate, with a pinned tripwire.
+- **Tripwire (pinned blind):** expected **0–3** names reaching MODERATE+ per session at first. If **≥ 6 of 12**
+  reach the floor on either of the first two sessions, the wording is too loose: an operator review is owed before
+  the third (nothing reverts automatically).
+- **The check on this decision:** PREREG_REJECTION_REASON_AUDIT (frozen 2026-10-21) scores the judgments made
+  under the §10.7 wording; its first decision read (~February 2027) shows whether the old timing test filtered
+  losers. Judgments under §10.10 are its own segment.
