@@ -349,7 +349,8 @@ def test_evidence_text_unchanged_without_catalysts():
 def test_council_prompts_unchanged_by_this_pr():
     import hashlib
 
-    from tests.test_council_prompts import PINS  # the single source of truth for the frozen prompt pins
+    # the single source of truth for the frozen prompt pins
+    from tests.test_council_prompts import PINS
 
     shas = [hashlib.sha256(s.encode()).hexdigest()[:16]
             for s in (agents._COMMON, agents.ADVERSARY_SYSTEM, agents.STRATEGIST_SYSTEM)]
