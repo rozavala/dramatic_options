@@ -1,7 +1,7 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-10-24T02:10Z · supersedes: 2026-10-23T01:30Z · adds the quote filter's $B pooling (#336, operator
-word 2026-10-24) on top of the W42 Sunday review (`records/2026-10-18_sunday_w42.md`): the L1 marker refresh ON
+**as_of: 2026-10-24T03:00Z · supersedes: 2026-10-24T02:10Z · adds the quote filter's $B pooling (#336) and the
+analyst-coverage meter's restoration (#337/#338), both operator word 2026-10-24, on top of the W42 Sunday review (`records/2026-10-18_sunday_w42.md`): the L1 marker refresh ON
 (#319/#320, its telemetry #322) · KMT re-pin #17 · the April-2027 tenor cliff from Monday 10-19 · Real Options' pkill
 fix (#4953) · NTSK's first scan.**
 
@@ -23,6 +23,16 @@ The header's absence is itself a signal.
   margin excluded). Found at L1 #1798 (PWR strategist MODERATE → LOW on `$33.55B` for the rendered `$33550.0M`; FLNC
   `$6.4B`). Stamp `runs.model_mix.quote_filter = musd_billions_v1`, record-segmenting (final convictions change; raw
   ones don't). The §10.10 tripwire is read on both raw and final convictions so the two changes stay separable.
+- **Analyst-coverage meter RESTORED (2026-10-24, operator word; #337/#338; from the first L1 after deploy, planned
+  Mon 10-26):** stockanalysis.com's `/api/symbol/s/{T}/overview` has 404'd since ~07-10, so no council pack carried
+  the §19 `ANALYST_COVERAGE` line for three months; sentinel packs fell back to `NEWS_COVERAGE: N article(s)` where
+  N was the marker-line count (15 for every name on #1798), and the agents read it as press coverage, both ways.
+  The meter now reads `/stocks/{t}/__data.json` (same buckets; 46/47 recent names resolve, TGB has none); a wired
+  meter that returns nothing renders `ANALYST_COVERAGE: unknown`, never the marker count. Stamp
+  `coverage_meter = analyst_v2` (v1 stamped through the outage); L1 log line `Coverage meter: analyst counts n/m`
+  (0 hits is a WARNING). **Record consequence:** every segment from ~07-10 to 10-23 judged `under_narrated`
+  without the meter (the F4 pack's 44% included). **Tripwire:** Monday is also §10.10's second session, so its
+  read carries both changes; restored counts are more likely to tighten `under_narrated` than loosen it.
 - **Mandate:** the §10.7 tri-criteria thesis-only council (structural ∧ under_narrated ∧ at_inflection at
   ≥ MODERATE). Hard seam, HARK leash, never-backtest-the-council all standing.
 - **PREREG_DIRECTION_COHERENCE (FROZEN 2026-09-24):**
