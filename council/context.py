@@ -204,7 +204,12 @@ def fundamental_evidence_tokens(pack) -> list[str]:
     """The §9 corpus NUMERIC tokens the council may legitimately cite — the formatted value (as
     rendered) + the $M/margin figures + the §19 analyst-coverage count. DATES are excluded on
     purpose (``period_end``/``filed`` are pure digit-noise that would let a fabricated number pass
-    ``authenticity_scan``'s digit-substring match). Used by ``filters.evidence_text``."""
+    ``authenticity_scan``'s digit-substring match). Used by ``filters.evidence_text``.
+
+    A $-figure of $1,000M or more is also pooled in billions (1 and 2 decimals): the block renders
+    ``$33550.0M`` and an agent citing it as ``$33.55B`` is quoting the evidence, not inventing it
+    (L1 #1798: PWR's strategist MODERATE → LOW on exactly that). Gross margin carries margin-% in
+    the _musd fields, so it gets no billions form."""
     toks: list[str] = []
     for ln in getattr(pack, "fundamentals", None) or []:
         v = _fmt_value(ln)
@@ -214,6 +219,8 @@ def fundamental_evidence_tokens(pack) -> list[str]:
             x = ln.get(k)
             if x is not None:
                 toks.append(str(x))
+                if ln.get("concept") != "gross_margin" and abs(x) >= 1000:
+                    toks += [f"{x / 1000:.1f}", f"{x / 1000:.2f}"]
     ac = getattr(pack, "analyst_count", None)
     if ac is not None:
         toks.append(str(ac))

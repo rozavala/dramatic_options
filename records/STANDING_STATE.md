@@ -1,8 +1,9 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-10-23T01:30Z · supersedes: 2026-10-22T02:10Z · reflects the W42 Sunday review
-(`records/2026-10-18_sunday_w42.md`): the L1 marker refresh ON (#319/#320, its telemetry #322) · KMT re-pin #17 ·
-the April-2027 tenor cliff from Monday 10-19 · Real Options' pkill fix (#4953) · NTSK's first scan.**
+**as_of: 2026-10-24T02:10Z · supersedes: 2026-10-23T01:30Z · adds the quote filter's $B pooling (#336, operator
+word 2026-10-24) on top of the W42 Sunday review (`records/2026-10-18_sunday_w42.md`): the L1 marker refresh ON
+(#319/#320, its telemetry #322) · KMT re-pin #17 · the April-2027 tenor cliff from Monday 10-19 · Real Options' pkill
+fix (#4953) · NTSK's first scan.**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -17,6 +18,11 @@ The header's absence is itself a signal.
   `48f6d57f1212ee54/8a4d329193c38172/6cb63ff75ae5f118` from the first L1 after deploy (10-23)** — a new record
   segment. **Tripwire:** ≥ 6 of 12 at the floor on either of its first two sessions ⇒ operator review before the
   third (expected 0–3).
+- **Quote filter: $B restatements pooled (2026-10-24, operator word; #336; from the first L1 after deploy):** the
+  authenticity filter's evidence pool also carries each rendered $-figure ≥ $1,000M in billions (1/2 decimals; gross
+  margin excluded). Found at L1 #1798 (PWR strategist MODERATE → LOW on `$33.55B` for the rendered `$33550.0M`; FLNC
+  `$6.4B`). Stamp `runs.model_mix.quote_filter = musd_billions_v1`, record-segmenting (final convictions change; raw
+  ones don't). The §10.10 tripwire is read on both raw and final convictions so the two changes stay separable.
 - **Mandate:** the §10.7 tri-criteria thesis-only council (structural ∧ under_narrated ∧ at_inflection at
   ≥ MODERATE). Hard seam, HARK leash, never-backtest-the-council all standing.
 - **PREREG_DIRECTION_COHERENCE (FROZEN 2026-09-24):**
