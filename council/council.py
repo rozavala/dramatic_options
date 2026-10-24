@@ -150,6 +150,7 @@ def propose(
         reg_theses = _register_theses.load()
 
     proposals: list[CouncilProposal] = []
+    coverage: list[tuple[str, int | None]] = []  # #337: the meter's per-name result, logged below
     for candidate in list(candidates)[:max_candidates]:
         pack = (
             synthetic_context_pack(candidate, as_of=as_of)
@@ -161,6 +162,8 @@ def propose(
                                                             .get("sentinel_scope", False)),
                                     register_theses=reg_theses)
         )
+        if analyst is not None and not demo:
+            coverage.append((candidate.symbol, pack.analyst_count))
         try:
             proposals.append(run_candidate(candidate, pack, router, rng=rng))
         except BudgetExceeded as e:
@@ -173,4 +176,20 @@ def propose(
             mix = {r: "/".join(router.provider_model(r)) for r in ("proposer", "adversary", "strategist")}
             proposals.append(_error_proposal(candidate, reason=f"provider_error: {e}", model_mix=mix))
 
+    if coverage:
+        log_coverage_meter(coverage)
     return proposals
+
+
+def log_coverage_meter(coverage: list[tuple[str, int | None]]) -> None:
+    """One L1 log line for the §19 analyst-coverage meter: how many judged names got a count. The
+    adapter is fail-soft, so a dead endpoint looks like a quiet one; it hid a 404 for three months
+    (#337). Zero hits on a non-empty slate is a WARNING."""
+    hits = sum(1 for _, n in coverage if n is not None)
+    unknown = [s for s, n in coverage if n is None]
+    msg = "Coverage meter: analyst counts %d/%d (unknown: %s)"
+    args = (hits, len(coverage), ", ".join(unknown) or "none")
+    if hits == 0:
+        log.warning(msg + " — the meter returned nothing; check data/analyst_coverage.py's endpoint", *args)
+    else:
+        log.info(msg, *args)

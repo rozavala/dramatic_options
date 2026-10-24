@@ -170,7 +170,7 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
             mix["roles_fallback"] = ",".join(
                 f"{r}:{s.get('provider')}/{s.get('model')}" for r, s in sorted(fb.items()))
         mix["corpus"] = "fundamentals_v2"  # §9: pack-change record-segmentation (v2 = IFRS taxonomy + tag-recency + annual fallback; zero migration)
-        mix["coverage_meter"] = "analyst_v1"  # §19: coverage proxy = analyst-count (replaced news-count); pack-change record-segmentation, zero migration
+        mix["coverage_meter"] = "analyst_v2"  # §19 meter restored on the __data.json endpoint + the unknown line (#337, 2026-10-24); v1 = the dead /api endpoint (no counts since ~07-10)
         mix["quote_filter"] = "musd_billions_v1"  # 2026-10-23: $B restatements of a rendered $M figure no longer dampen; verdict-mapping change, record-segmenting
         if int(config.get("council", {}).get("cheap_reserve_slots", 0) or 0) > 0:
             # PREREG gate_cheap_reserve §6: judged-set composition change — record-segmenting from deploy.

@@ -197,6 +197,50 @@ def test_analyst_fetch_error_is_fail_soft():
     assert pack.analyst_count is None  # degraded to None, never raised into the cycle
 
 
+# #337: the meter was wired but returned nothing → a sentinel's coverage renders as unknown, never as its
+# marker-line count shown as articles (the 07-10 → 10-24 outage printed "NEWS_COVERAGE: 15 article(s)").
+_MARKERS = {"momentum_12m": 0.4, "momentum_recent_3m": 0.1, "rel_strength_12m": 0.2}
+
+
+def test_sentinel_with_a_dead_meter_renders_coverage_unknown():
+    pack = build_context_pack(_sentinel(_MARKERS), news=_FakeNews([]), as_of=AS_OF, analyst=_FakeAnalyst(None))
+    block = pack.as_prompt_block()
+    assert pack.coverage_unknown and pack.analyst_count is None
+    assert "ANALYST_COVERAGE: unknown" in block
+    assert "NEWS_COVERAGE" not in block and "article(s)" not in block
+
+
+def test_sentinel_with_a_count_and_the_framer_path_are_unchanged():
+    pack = build_context_pack(_sentinel(_MARKERS), news=_FakeNews([]), as_of=AS_OF, analyst=_FakeAnalyst(9))
+    assert not pack.coverage_unknown and "ANALYST_COVERAGE: 9 analyst(s) covering" in pack.as_prompt_block()
+    # The framer calls sentinel_context_pack with no meter: byte-identical to before (the article line).
+    framer = sentinel_context_pack(_sentinel(_MARKERS), as_of=AS_OF)
+    assert not framer.coverage_unknown and "NEWS_COVERAGE:" in framer.as_prompt_block()
+
+
+def test_handseed_with_a_dead_meter_keeps_its_real_article_count():
+    pack = build_context_pack(_handseed(), news=_FakeNews([_rec("FCX lifts guidance 5%")]), as_of=AS_OF,
+                              analyst=_FakeAnalyst(None))
+    assert not pack.coverage_unknown and "NEWS_COVERAGE: 1 article(s)" in pack.as_prompt_block()
+
+
+def test_coverage_meter_log_line(monkeypatch):
+    import council.council as cc
+    seen: list[tuple[str, str]] = []
+
+    class _Log:
+        def info(self, msg, *a):
+            seen.append(("INFO", msg % a))
+
+        def warning(self, msg, *a):
+            seen.append(("WARNING", msg % a))
+    monkeypatch.setattr(cc, "log", _Log())
+    cc.log_coverage_meter([("PWR", 31), ("TGB", None)])
+    cc.log_coverage_meter([("PWR", None)])
+    assert seen[0] == ("INFO", "Coverage meter: analyst counts 1/2 (unknown: TGB)")
+    assert seen[1][0] == "WARNING" and seen[1][1].startswith("Coverage meter: analyst counts 0/1 (unknown: PWR)")
+
+
 def test_analyst_count_is_a_citable_evidence_token():
     from council.context import fundamental_evidence_tokens
     pack = ContextPack("S", "t", "bullish", "u", analyst_count=4)

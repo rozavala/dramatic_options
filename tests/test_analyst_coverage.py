@@ -5,7 +5,12 @@ Covers the pure bucket-sum, the fetch→PIT-cache→read round-trip, the natural
 missing analystChart, network error, no session, offline cache) → None."""
 from datetime import UTC, datetime, timedelta
 
-from data.analyst_coverage import AnalystCoverageData, sum_analyst_chart
+from data.analyst_coverage import (
+    OVERVIEW_URL,
+    AnalystCoverageData,
+    analyst_chart_from_page_data,
+    sum_analyst_chart,
+)
 from data.cache import PointInTimeCache
 
 FETCH_END = datetime(2026, 7, 1, tzinfo=UTC)
@@ -65,8 +70,23 @@ def _acd(cache, session):
     return AnalystCoverageData(cache, fetch_end=FETCH_END, session=session, rate_limit_per_sec=0)
 
 
+def _page(chart):
+    """A SvelteKit ``__data.json`` payload in the live devalue shape (#337): node 0 is the layout, the
+    page node's flat array has the root object at 0 and every member as an index into the array."""
+    flat: list = [{"marketCap": 1, "analysts": 2, "analystChart": 3}, "82.15B", "Strong Buy"]
+    if chart is None:
+        flat.append(None)
+    else:
+        flat.append({})
+        for k, v in chart.items():
+            flat[3][k] = len(flat)
+            flat.append(v)
+    return {"type": "data", "nodes": [{"type": "data", "data": [{"session": 1}, None]},
+                                      {"type": "data", "data": flat}]}
+
+
 def _ok(buckets):
-    return _Resp(200, {"status": 200, "data": {"analystChart": buckets}})
+    return _Resp(200, _page(buckets))
 
 
 # ── fetch → cache → read ────────────────────────────────────────────────────────────────────────
@@ -104,13 +124,13 @@ def test_non_200_is_none_and_left_uncached(tmp_path):
 
 
 def test_missing_analystchart_is_none(tmp_path):
-    sess = _Session(_Resp(200, {"status": 200, "data": {"analystChart": None}}))  # a thin ADR
+    sess = _Session(_Resp(200, _page(None)))  # a thin ADR (TGB on 2026-10-24)
     acd = _acd(_cache(tmp_path), sess)
     assert acd.count_asof("SIFY", FETCH_END) is None
 
 
 def test_bad_envelope_is_none(tmp_path):
-    sess = _Session(_Resp(200, {"status": 500}))  # status!=200 in body / no data
+    sess = _Session(_Resp(200, {"status": 500}))  # the retired /api envelope, or any non-page payload
     acd = _acd(_cache(tmp_path), sess)
     assert acd.count_asof("AAPL", FETCH_END) is None
 
@@ -139,3 +159,29 @@ def test_zero_coverage_caches_and_reads_zero(tmp_path):
     assert acd.count_asof("TINY", FETCH_END) == 0
     assert acd.count_asof("TINY", FETCH_END) == 0
     assert sess.calls == 1
+
+
+# ── the page-data endpoint (#337: /api/symbol/s/{T}/overview 404s from ~2026-07-10) ─────────────────
+def test_page_data_decodes_the_live_shape():
+    # PWR on 2026-10-24: 24 + 1 + 5 + 1 + 0 = 31, matching the page's "According to 31 analysts".
+    chart = analyst_chart_from_page_data(_page({"strongBuy": 24, "buy": 1, "hold": 5, "sell": 1, "strongSell": 0}))
+    assert chart == {"strongBuy": 24, "buy": 1, "hold": 5, "sell": 1, "strongSell": 0}
+    assert sum_analyst_chart(chart) == 31
+
+
+def test_page_data_redirect_or_malformed_is_none():
+    assert analyst_chart_from_page_data({"type": "redirect", "location": "/etf/urnm/"}) is None  # an ETF
+    assert analyst_chart_from_page_data({"type": "data", "nodes": [None, {"type": "skip"}]}) is None
+    assert analyst_chart_from_page_data({"type": "data", "nodes": [{"data": [{"analystChart": 99}]}]}) is None
+    assert analyst_chart_from_page_data({"type": "data", "nodes": [{"data": [{"analystChart": -1}]}]}) is None
+    assert analyst_chart_from_page_data([1, 2]) is None
+
+
+def test_fetch_uses_the_page_data_url_lowercased(tmp_path):
+    class _Rec(_Session):
+        def get(self, url, **kw):
+            self.url = url
+            return super().get(url, **kw)
+    sess = _Rec(_ok({"hold": 3}))
+    assert _acd(_cache(tmp_path), sess).count_asof("PWR", FETCH_END) == 3
+    assert sess.url == OVERVIEW_URL.format(symbol="pwr") == "https://stockanalysis.com/stocks/pwr/__data.json"
