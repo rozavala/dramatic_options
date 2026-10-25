@@ -188,3 +188,56 @@ def test_dashboard_performance_panel_lists_the_tagged_positions(convexity_db):
     perf = dd.performance_panel(convexity_db)
     assert [t["symbol"] for t in perf["outside_frame"]] == ["STUB"]
     assert perf["tails"]["shadow_all_in_frame"]["n"] == 0
+
+
+# ── #343: every gate-shaped caller selects as the gate of record does ──────────────────────────────────────
+# The feasibility probe (admission reads) and the survivor cards' band axis omitted require_otm_side, so they
+# could report a wrong-side contract the live path fails closed on (FRO C35, 33.9% ITM, 2026-10-25).
+# Exempt: two committed evidence copies whose logic is kept as run, and a one-off measurement. The two
+# weekly prereg sweeps wait on the operator's word (a dated amendment to a frozen protocol).
+_SIDE_GUARD_EXEMPT = {
+    "scripts/probe_opra_dualread.py": "committed evidence copy (2026-06-09), logic kept as run",
+    "scripts/probe_gev_cap_check.py": "committed evidence copy (2026-06-09), logic kept as run",
+    "scripts/corpus_reach_measure.py": "one-off PREREG_SEEDED_GENERATOR_DIAGNOSTIC §12 measurement",
+    "scripts/probe_miss_baserate.py": "PREREG_MISS_BASERATE (frozen 09-14): pending the operator's word",
+    "scripts/probe_basket_gate_baserate.py": "PREREG_UNIVERSE_CURATION §6 sweep: pending the operator's word",
+}
+
+
+def _select_structure_calls():
+    import ast
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    for p in sorted(root.rglob("*.py")):
+        rel = p.relative_to(root).as_posix()
+        if rel.startswith(("venv/", ".venv/", "tests/", "node_modules/")) or "/node_modules/" in rel:
+            continue
+        for n in ast.walk(ast.parse(p.read_text())):
+            if isinstance(n, ast.Call) and getattr(n.func, "id", getattr(n.func, "attr", None)) == "select_structure":
+                yield rel, n.lineno, {k.arg for k in n.keywords}
+
+
+def test_every_select_structure_caller_passes_the_side_guard():
+    calls = list(_select_structure_calls())
+    assert any(rel == "scripts/probe_basket_feasibility.py" for rel, _, _ in calls)
+    missing = [f"{rel}:{ln}" for rel, ln, kw in calls if "require_otm_side" not in kw and rel not in _SIDE_GUARD_EXEMPT]
+    assert not missing, f"select_structure without require_otm_side: {missing}"
+
+
+def test_survivor_card_band_axis_fails_closed_on_a_wrong_side_only_chain():
+    # FRO's 2026-10-25 shape: the only eligible call in the window is deep in the money (C35 vs spot 52.94).
+    import survivor_cards as sc
+    fro = [Contract(symbol="FRO270716C00035000", expiry=AS_OF + timedelta(days=264), kind="C", strike=35.0,
+                    bid=18.0, ask=19.0, iv=0.6, oi=None)]
+    market = sc.MarketAccess(spot=lambda s: 52.94, closes=lambda s, w: [], adv_usd=lambda s: 1e8,
+                             optionable=lambda s: True, chain=lambda s: fro)
+    on = sc._band_fit_axis("FRO", 52.94, market, sc.ScreenParams(), AS_OF, False)
+    assert on.status == sc.FAIL and on.detail == "no structure (no_otm_eligible_contract_in_tenor_window)"
+    off = sc._band_fit_axis("FRO", 52.94, market, sc.ScreenParams(otm_side_guard=False), AS_OF, False)
+    assert off.detail.startswith("FRO270716C00035000 ")  # without the guard the wrong-side call was selected
+
+
+def test_params_from_config_carries_the_side_guard():
+    import survivor_cards as sc
+    from config_loader import load_config
+    assert sc.params_from_config(load_config()).otm_side_guard is True
