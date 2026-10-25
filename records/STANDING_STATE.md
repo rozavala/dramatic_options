@@ -66,6 +66,10 @@ The header's absence is itself a signal.
 - **Expressible-first slate ON (2026-10-21, operator word):** `council.demote_unexpressible = true` (#329) — a
   sentinel whose latest fresh gate-of-record read found no structure only backfills empty council slots. Stamp
   `union_rank …+expressible_v1` from the first L1 after deploy (2026-10-21). Membership-only.
+- **Sentinel TTL by ET scan date (2026-10-25, operator word; #342):** `expire_stale_sentinels` compares US-Eastern
+  calendar dates (dormant when the date last seen < the run's date − 35 days), not wall-clock seconds. A lineage
+  now lives a fixed 5 missed weekly scans (dormant at the 6th) whatever the start-second jitter or DST. No
+  retroactive change: 10-25's seven dormancies hold under the new rule. Membership-relevant from the 11-01 L0.
 - **PREREG_REJECTION_REASON_AUDIT FROZEN (2026-10-21, operator word):** does the timing test filter losers?
   Timing-only vs narration-failed judgments on the miss ledger's big-move definition; first decision read at
   n_T ≥ 30 (≈ February 2027); nothing changes automatically.
@@ -124,8 +128,9 @@ The header's absence is itself a signal.
   the third; session 1 was 0 of 12, raw 1), and the first night of `coverage_meter = analyst_v2` and
   `quote_filter = musd_billions_v1`. Read raw and final convictions. The slate loses ERO/FLNC/RTX/NEE (dormant 10-25);
   TGB's predicted 10-26 return lapses (its lineage went dormant too).
-- **Sun 2026-11-01 (L0 at 13:00 UTC after DST):** TTL cutoff 09-27 13:00 ⇒ **13 lineages go dormant unless
-  re-surfaced** (AG, AMSC, HL, KLAR, KTOS, PAAS, RDW, VIAV; ATKR, CDE, FLY, FRO, STUB); the union 35 → ~22 + new.
+- **Sun 2026-11-01 (L0 at 13:00 UTC after DST):** TTL by ET date (#342) ⇒ **8 lineages go dormant unless
+  re-surfaced** (last seen 09-20: AG, AMSC, HL, KLAR, KTOS, PAAS, RDW, VIAV); the 09-27 five (ATKR, CDE, FLY, FRO,
+  STUB) run to 11-08 (the DST hour no longer costs them a scan). The union 35 → ~27 + new.
   KMT pin #18 expires. Tenor: the cliff names regain structure only with a July-2027 listing or when Jan-2028 enters
   the window (~2027-01-21).
 - **2026-11-02:** posture LOOK (PREREG_THEMATIC_CONVEXITY §6 amendment).
