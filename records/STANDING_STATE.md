@@ -66,6 +66,11 @@ The header's absence is itself a signal.
 - **Expressible-first slate ON (2026-10-21, operator word):** `council.demote_unexpressible = true` (#329) — a
   sentinel whose latest fresh gate-of-record read found no structure only backfills empty council slots. Stamp
   `union_rank …+expressible_v1` from the first L1 after deploy (2026-10-21). Membership-only.
+- **OTM side guard everywhere the gate is measured (2026-10-25, operator word; #343/#345):** the feasibility probe
+  (§2 admission reads) and the survivor cards' band axis now select as the gate of record does. The two weekly
+  sweeps were aligned by dated amendments (PREREG_MISS_BASERATE §7; PREREG_UNIVERSE_CURATION §6 amendment). The
+  boundary is the **2026-11-01 sweep**; earlier rows/aggregates stay as written. A test keeps every
+  `select_structure` caller on the guard (exempt: two evidence copies, one one-off measurement).
 - **Sentinel TTL by ET scan date (2026-10-25, operator word; #342):** `expire_stale_sentinels` compares US-Eastern
   calendar dates (dormant when the date last seen < the run's date − 35 days), not wall-clock seconds. A lineage
   now lives a fixed 5 missed weekly scans (dormant at the 6th) whatever the start-second jitter or DST. No
@@ -98,9 +103,10 @@ The header's absence is itself a signal.
   fundamental-acceleration feed (closed 2026-07-01).
 
 ## Staged / pending (the operator's)
-- **⚠ Review crontab vs DST (before Sun 2026-11-01):** the DEV crontab is UTC; the systemd timers are ET. From 11-01
-  the reach run is 14:40 UTC (Sunday review cron 14:23 → before the digest/cards exist), and from 11-02 L1 is 20:45 UTC
-  (grade cron 20:37 → before the L1 it grades). Both lines need +1 h (Sunday 15:23, grade 21:37 UTC).
+- **Review crontab vs DST — resolved without a crontab change (#341, 2026-10-25):** `scheduled_review.sh` now waits for
+  the run it reviews (today's `dramatic-options-l1` / `-reach` exit, up to 120 min, then a "NOT RUN" page). From 11-01
+  the Sunday review (14:23) waits for the 14:40 reach run, and from 11-02 the grade (20:37) waits for the 20:45 L1.
+  First live checks: Sun 11-01 and Mon 11-02.
 - **BNTX (bench Tier A):** $930 / 19.2% / 235 d on the 10-25 Sunday quote — in band, under the cap. Returns only on a
   fresh operator word and a mid-session read.
 - **NRC 2026-21801 (effective 2026-11-25, DOE/DoW-authorized reactor designs in NRC licensing):** a class-(a)-shaped

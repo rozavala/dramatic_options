@@ -8,6 +8,11 @@
 #   scheduled_review.sh sunday   Sundays 14:23 UTC   Sunday review; may open ONE records PR, never merges
 #   scheduled_review.sh <job> --dry-run              print the command, no claude call, no Pushover
 #
+# The cron times are UTC but the runs reviewed are ET-anchored systemd timers (L1 15:45 ET, reach Sun 09:40 ET), so
+# a fixed UTC time fires an hour early once DST ends (#341). Each job therefore waits for the run it reviews: today's
+# dramatic-options-l1 (grade) or dramatic-options-reach (sunday) must have exited before claude starts; after
+# WAIT_MIN minutes it pages and gives up rather than review a run that hasn't happened.
+#
 # Safety (mirrors real_options' triage_scheduled.sh): one run per job (flock); waits for load; a hard spend cap
 # (--max-budget-usd); write commands denied (grade: every git/gh write; sunday: merges and anything outside its one
 # records PR); the result goes to Pushover with the command to resume the session.
@@ -39,6 +44,30 @@ fi
 git -C "$RUNNER_DIR" fetch -q origin
 git -C "$RUNNER_DIR" checkout -q --detach origin/main
 [ -e "$RUNNER_DIR/venv" ] || ln -s "$LIVE/venv" "$RUNNER_DIR/venv"
+
+# Wait for the run this job reviews (#341): its unit exited today (UTC date) and is not running again.
+UNIT=dramatic-options-$([ "$JOB" = grade ] && echo l1 || echo reach).service
+WAIT_MIN="${DRAMATIC_REVIEW_WAIT_MIN:-120}"
+ran_today() {
+  local st ex
+  st=$(systemctl show "$UNIT" -p ActiveState --value 2>/dev/null || true)
+  ex=$(systemctl show "$UNIT" -p ExecMainExitTimestamp --value 2>/dev/null || true)
+  [ -n "$ex" ] && [ "$st" != active ] && [ "$st" != activating ] \
+    && [ "$(date -u -d "$ex" +%F 2>/dev/null)" = "$(date -u +%F)" ]
+}
+if [ "$DRY" -eq 1 ]; then
+  echo "[dry-run] would wait up to ${WAIT_MIN}m for $UNIT to have exited today (now: $(ran_today && echo yes || echo no))"
+else
+  waited=0
+  until ran_today; do
+    if [ "$waited" -ge "$WAIT_MIN" ]; then
+      push "[DEV] Dramatic $JOB NOT RUN" "$UNIT has not exited today after ${WAIT_MIN}m of waiting — nothing reviewed" 0
+      echo "$(ts) $JOB: $UNIT not run today after ${WAIT_MIN}m — giving up"; exit 0
+    fi
+    [ "$waited" -eq 0 ] && echo "$(ts) $JOB: waiting for $UNIT to finish today's run"
+    sleep 60; waited=$((waited + 1))
+  done
+fi
 
 NCPU=$(nproc)
 [ "$DRY" -eq 1 ] || for _ in $(seq 1 30); do
