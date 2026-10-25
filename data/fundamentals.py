@@ -20,6 +20,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 REV_CONCEPTS = [
     "RevenueFromContractWithCustomerExcludingAssessedTax",
@@ -30,6 +31,7 @@ REV_CONCEPTS = [
 FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
 SOURCE = "fundamentals"
 _EARLY = datetime(2003, 1, 1, tzinfo=UTC)
+_ET = ZoneInfo("America/New_York")  # SEC dates filings in US Eastern time (the #340 trigger compares ET dates)
 
 
 def _d(s: str) -> datetime:
@@ -121,6 +123,7 @@ class FundamentalsData:
         session: Any | None = None,
         cik_overrides: dict[str, str] | None = None,
         max_raw_age_days: int | None = None,
+        newest_periodic_of: Any | None = None,
     ) -> None:
         self.cache = cache
         self.edgar = edgar
@@ -133,6 +136,12 @@ class FundamentalsData:
         # §9 corpus freshness policy: None = the historical never-refetch behavior (shelved
         # callers byte-compatible); the council path passes a small number (e.g. 7).
         self.max_raw_age_days = max_raw_age_days
+        # #340 (operator word 2026-10-25, option b): ``symbol -> ET date (YYYY-MM-DD) of its newest 10-Q/10-K/20-F/
+        # 40-F on EDGAR`` (or None). A raw fetched on or before that ET date predates the filing's facts, so it is
+        # refetched whatever its age: a same-day fetch is retried the next day, then the fetch date is past the
+        # filing and the trigger stops (NEE's upstream gap costs at most two extra fetches per filing). None = off.
+        self.newest_periodic_of = newest_periodic_of
+        self.filing_refetches: list[str] = []
 
     def _cik(self, symbol: str) -> str | None:
         if self.edgar is not None:
@@ -180,7 +189,8 @@ class FundamentalsData:
 
     # ── §9 evidence-grounding corpus (PREREG_EVIDENCE_GROUNDING) ─────────────────────────────
 
-    def _raw_fresh(self, cik: str, *, force_refresh: bool = False) -> dict | None:
+    def _raw_fresh(self, cik: str, *, force_refresh: bool = False, refetch_if_fetched_by: str | None = None,
+                   symbol: str | None = None) -> dict | None:
         """Freshness-aware companyfacts loader (§4 of the grounding pre-reg).
 
         ``max_raw_age_days=None`` (default) = the historical never-refetch behavior (shelved
@@ -199,6 +209,11 @@ class FundamentalsData:
                 stale = None
             age_days = (datetime.now(UTC) - datetime.fromtimestamp(path.stat().st_mtime, UTC)).days
             fresh_enough = (self.max_raw_age_days is None or age_days <= self.max_raw_age_days)
+            if refetch_if_fetched_by is not None and fresh_enough:
+                fetched_et = datetime.fromtimestamp(path.stat().st_mtime, UTC).astimezone(_ET).date().isoformat()
+                fresh_enough = fetched_et > refetch_if_fetched_by
+                if not fresh_enough and not force_refresh:
+                    self.filing_refetches.append(symbol or cik)
             if stale is not None and fresh_enough and not force_refresh:
                 return stale
         if not self.ua:
@@ -222,6 +237,16 @@ class FundamentalsData:
         except Exception:  # noqa: BLE001 — fail-soft: grounding must never break a cycle
             return stale
 
+    def _newest_periodic(self, symbol: str) -> str | None:
+        """The #340 trigger date for ``symbol``, recorded when it would refetch; fail-soft (any error → None)."""
+        if self.newest_periodic_of is None:
+            return None
+        try:
+            filed = self.newest_periodic_of(symbol)
+        except Exception:  # noqa: BLE001 — the trigger is an enrichment; the age policy still applies
+            return None
+        return str(filed)[:10] if filed else None
+
     def corpus_asof(self, symbol: str, as_of: datetime, *, force_refresh: bool = False) -> dict:
         """The pinned evidence lines for one name (fail-soft; see CONCEPTS for the registry).
 
@@ -229,7 +254,9 @@ class FundamentalsData:
         Never raises into a cycle."""
         try:
             cik = self._cik(symbol)
-            raw = self._raw_fresh(cik, force_refresh=force_refresh) if cik else None
+            filed = self._newest_periodic(symbol) if cik else None
+            raw = (self._raw_fresh(cik, force_refresh=force_refresh, refetch_if_fetched_by=filed, symbol=symbol)
+                   if cik else None)
             facts = (raw or {}).get("facts", {})
             usg, ifr = facts.get("us-gaap", {}), facts.get("ifrs-full", {})
             # Pick the taxonomy whose REVENUE is FRESHER (us-gaap wins ties → US filers byte-identical;

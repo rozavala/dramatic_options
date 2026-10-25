@@ -169,6 +169,7 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
             # council_agent_outputs.provider/model; never pool its strategist Brier with primary nights).
             mix["roles_fallback"] = ",".join(
                 f"{r}:{s.get('provider')}/{s.get('model')}" for r, s in sorted(fb.items()))
+        mix["corpus_refresh"] = "filing_date_v1"  # #340 (2026-10-25): a raw fetched on/before the newest 10-Q/10-K's ET date refetches; record-segmenting
         mix["corpus"] = "fundamentals_v2"  # §9: pack-change record-segmentation (v2 = IFRS taxonomy + tag-recency + annual fallback; zero migration)
         mix["coverage_meter"] = "analyst_v2"  # §19 meter restored on the __data.json endpoint + the unknown line (#337, 2026-10-24); v1 = the dead /api endpoint (no counts since ~07-10)
         mix["quote_filter"] = "musd_billions_v1"  # 2026-10-23: $B restatements of a rendered $M figure no longer dampen; verdict-mapping change, record-segmenting
@@ -286,6 +287,20 @@ def _select_broker(config: dict, *, is_live: bool, api_key: str, secret_key: str
     return AlpacaPaperBroker(api_key, secret_key, dry_run=dry_run, equity=equity)
 
 
+def _newest_periodic_lookup(cache, edgar_client, now):
+    """#340: ``symbol -> ET date of its newest periodic filing on EDGAR`` for the corpus refetch trigger, over the
+    same throttled point-in-time submissions cache the fundamentals-staleness check reads (one read per name/day)."""
+    from data.filings import FilingsData
+
+    filings = FilingsData(cache, edgar=edgar_client, fetch_end=now)
+
+    def newest(symbol: str) -> str | None:
+        best = fundamentals_staleness.newest_periodic(filings.filings_asof(symbol, now))
+        return best[1] if best else None
+
+    return newest
+
+
 def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
     """(router, news, fundamentals, analyst, catalysts) for the council. Demo → deterministic
     FakeRouter + synthetic packs (news/fundamentals/analyst/catalysts=None); live → the
@@ -325,7 +340,8 @@ def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
             cache_dir = config.get("cache", {}).get("dir", "data/cache")
             edgar_client = EdgarClient(ua, cache_dir=cache_dir)
             fundamentals = FundamentalsData(cache, edgar=edgar_client, fetch_end=now, ua=ua,
-                                            max_raw_age_days=7)
+                                            max_raw_age_days=7,
+                                            newest_periodic_of=_newest_periodic_lookup(cache, edgar_client, now))
     except Exception as e:  # noqa: BLE001 — corpus is enrichment; its absence must never block entries
         log.warning("§9 fundamentals corpus unavailable (non-fatal, pre-§9 grounding): %s", e)
         fundamentals = None
@@ -861,6 +877,9 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                 run_id=run_id,
                             )
                             log.info(router.ledger.summary())
+                            if fund_dep is not None:  # #340: names whose corpus refetched because EDGAR shows a newer filing
+                                refetched = sorted(set(getattr(fund_dep, "filing_refetches", []) or []))
+                                log.info("Corpus refetch on filing: %d (%s)", len(refetched), ", ".join(refetched) or "none")
                             _stamp_council_health(conn, run_id, config, router,
                                                   catalysts=catalysts_dep)
                             # Issue #269 — TELEMETRY ONLY: names judged on an older quarter than their latest

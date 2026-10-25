@@ -66,6 +66,13 @@ The header's absence is itself a signal.
 - **Expressible-first slate ON (2026-10-21, operator word):** `council.demote_unexpressible = true` (#329) — a
   sentinel whose latest fresh gate-of-record read found no structure only backfills empty council slots. Stamp
   `union_rank …+expressible_v1` from the first L1 after deploy (2026-10-21). Membership-only.
+- **Corpus refetch on filing (2026-10-25, operator word, option b; #340):** at L1 a name's SEC companyfacts raw is
+  refetched when it was fetched on or before the ET date of the name's newest 10-Q/10-K/20-F/40-F on EDGAR, whatever
+  its age (the 7-day policy otherwise unchanged). A same-day fetch is retried the next day and then stops, so an
+  upstream gap (NEE) costs at most two extra fetches per filing. Found: RTX/NOC sat on Q2 for ~8 days after their
+  10-20 10-Qs. Stamp `runs.model_mix.corpus_refresh = filing_date_v1` from the first L1 after deploy,
+  record-segmenting (fresher packs); L1 log `Corpus refetch on filing: n (…)`. The staleness telemetry stays
+  telemetry.
 - **PREREG_REJECTION_REASON_AUDIT FROZEN (2026-10-21, operator word):** does the timing test filter losers?
   Timing-only vs narration-failed judgments on the miss ledger's big-move definition; first decision read at
   n_T ≥ 30 (≈ February 2027); nothing changes automatically.
