@@ -114,7 +114,9 @@ for basket, members in baskets.items():
             s, _why = select_structure(chain, direction=direction, as_of=today, underlying_price=spot,
                                        tenor_min_days=int(gate["tenor_min_days"]),
                                        tenor_max_days=int(gate["tenor_max_days"]),
-                                       target_moneyness=float(gate["target_moneyness"]), eligibility=_elig)
+                                       target_moneyness=float(gate["target_moneyness"]), eligibility=_elig,
+                                       # PREREG_UNIVERSE_CURATION §6 amendment (2026-10-25): the side guard
+                                       require_otm_side=bool(gate.get("otm_side_guard", False)))
             if s is None:
                 agg["no_structure"] += 1
                 continue

@@ -130,7 +130,9 @@ for sym in _symbols():
         s, why = select_structure(chain, direction="bullish", as_of=today, underlying_price=spot,
                                   tenor_min_days=int(gate["tenor_min_days"]),
                                   tenor_max_days=int(gate["tenor_max_days"]),
-                                  target_moneyness=float(gate["target_moneyness"]), eligibility=_elig)
+                                  target_moneyness=float(gate["target_moneyness"]), eligibility=_elig,
+                                  # #343: select as the gate of record does (convexity_gate.otm_side_guard, #276)
+                                  require_otm_side=bool(gate.get("otm_side_guard", False)))
         floors = []
         if spot < PRICE_FLOOR:
             floors.append("price")
