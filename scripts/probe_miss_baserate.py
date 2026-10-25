@@ -140,7 +140,9 @@ def cmd_sweep() -> None:
                                            tenor_min_days=int(gate["tenor_min_days"]),
                                            tenor_max_days=int(gate["tenor_max_days"]),
                                            target_moneyness=float(gate["target_moneyness"]),
-                                           eligibility=_elig)
+                                           eligibility=_elig,
+                                           # PREREG_MISS_BASERATE §7 (2026-10-25): the gate of record's side guard
+                                           require_otm_side=bool(gate.get("otm_side_guard", False)))
                 if s is None:
                     rows.append(mb.SweepRow(stamp, key, cohort, direction, 0, None, float(spot), gate_feed))
                     continue

@@ -310,3 +310,11 @@ keyed by theme/basket, to show a sentinel candidate the operator's admission hyp
 - The 14 initial `council_thesis` lines were drafted by CC from each theme's adopted thesis and adopted by
   the operator with this amendment.
 
+
+## §6 dated amendment (2026-10-25, operator word) — the gate base-rate sweep uses the side guard
+§6 runs "the production IV/cheap-convexity gate" over the baskets. Since 2026-09-29/30 (#276) the production
+selection passes `convexity_gate.otm_side_guard`; `scripts/probe_basket_gate_baserate.py` did not, so its
+`structured` and gate-cheap aggregates could count wrong-side contracts the live path fails closed on (#343).
+From the **2026-11-01 sweep** it passes the guard. Earlier aggregates stay as recorded. The disclosure tiers, the
+sealing and every floor are unchanged. `scripts/probe_basket_feasibility.py` (§2) and the survivor cards' band axis
+(§11) were aligned in the same change.

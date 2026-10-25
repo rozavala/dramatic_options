@@ -66,6 +66,11 @@ The header's absence is itself a signal.
 - **Expressible-first slate ON (2026-10-21, operator word):** `council.demote_unexpressible = true` (#329) — a
   sentinel whose latest fresh gate-of-record read found no structure only backfills empty council slots. Stamp
   `union_rank …+expressible_v1` from the first L1 after deploy (2026-10-21). Membership-only.
+- **OTM side guard everywhere the gate is measured (2026-10-25, operator word; #343/#345):** the feasibility probe
+  (§2 admission reads) and the survivor cards' band axis now select as the gate of record does. The two weekly
+  sweeps were aligned by dated amendments (PREREG_MISS_BASERATE §7; PREREG_UNIVERSE_CURATION §6 amendment). The
+  boundary is the **2026-11-01 sweep**; earlier rows/aggregates stay as written. A test keeps every
+  `select_structure` caller on the guard (exempt: two evidence copies, one one-off measurement).
 - **PREREG_REJECTION_REASON_AUDIT FROZEN (2026-10-21, operator word):** does the timing test filter losers?
   Timing-only vs narration-failed judgments on the miss ledger's big-move definition; first decision read at
   n_T ≥ 30 (≈ February 2027); nothing changes automatically.

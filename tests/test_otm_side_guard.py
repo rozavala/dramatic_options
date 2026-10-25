@@ -193,14 +193,12 @@ def test_dashboard_performance_panel_lists_the_tagged_positions(convexity_db):
 # ── #343: every gate-shaped caller selects as the gate of record does ──────────────────────────────────────
 # The feasibility probe (admission reads) and the survivor cards' band axis omitted require_otm_side, so they
 # could report a wrong-side contract the live path fails closed on (FRO C35, 33.9% ITM, 2026-10-25).
-# Exempt: two committed evidence copies whose logic is kept as run, and a one-off measurement. The two
-# weekly prereg sweeps wait on the operator's word (a dated amendment to a frozen protocol).
+# Exempt: two committed evidence copies whose logic is kept as run, and a one-off measurement. The two weekly
+# prereg sweeps were aligned by dated amendments (operator word 2026-10-25; boundary = the 11-01 sweep).
 _SIDE_GUARD_EXEMPT = {
     "scripts/probe_opra_dualread.py": "committed evidence copy (2026-06-09), logic kept as run",
     "scripts/probe_gev_cap_check.py": "committed evidence copy (2026-06-09), logic kept as run",
     "scripts/corpus_reach_measure.py": "one-off PREREG_SEEDED_GENERATOR_DIAGNOSTIC §12 measurement",
-    "scripts/probe_miss_baserate.py": "PREREG_MISS_BASERATE (frozen 09-14): pending the operator's word",
-    "scripts/probe_basket_gate_baserate.py": "PREREG_UNIVERSE_CURATION §6 sweep: pending the operator's word",
 }
 
 
