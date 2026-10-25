@@ -180,7 +180,7 @@ def _raw_at(tmp_path, utc: datetime, name="OLD"):
     raw_dir = tmp_path / "xbrl_raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     p = raw_dir / "CIK0009999999.json"
-    p.write_text('{"facts": {"us-gaap": {}}, "entityName": "%s"}' % name)
+    p.write_text(json.dumps({"facts": {"us-gaap": {}}, "entityName": name}))
     os.utime(p, (utc.timestamp(), utc.timestamp()))
     return p
 
