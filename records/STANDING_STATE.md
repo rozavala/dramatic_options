@@ -1,9 +1,10 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-10-24T03:00Z · supersedes: 2026-10-24T02:10Z · adds the quote filter's $B pooling (#336) and the
-analyst-coverage meter's restoration (#337/#338), both operator word 2026-10-24, on top of the W42 Sunday review (`records/2026-10-18_sunday_w42.md`): the L1 marker refresh ON
-(#319/#320, its telemetry #322) · KMT re-pin #17 · the April-2027 tenor cliff from Monday 10-19 · Real Options' pkill
-fix (#4953) · NTSK's first scan.**
+**as_of: 2026-10-25T15:00Z · supersedes: 2026-10-24T03:00Z · the W43 Sunday review (`records/2026-10-25_sunday_w43.md`,
+unattended): seven council regulars went dormant on the TTL (ERO, FLNC, RTX, NEE, NNE, TGB, FIG) · all 8 surfaced
+lineages bearish (BWXT's first scan) · no July-2027 listing, expressible 39 of 50 · KMT re-pin #18 · PROD rebooted
+(reboot-required cleared) · the acronym homonym guard (#324) live · ⚠ DST 11-01 breaks the UTC review crontab's
+timing.**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -93,10 +94,14 @@ The header's absence is itself a signal.
   fundamental-acceleration feed (closed 2026-07-01).
 
 ## Staged / pending (the operator's)
-- **PROD reboot:** `/var/run/reboot-required` is still set (up since 2026-10-06). Operator's call, away from
-  alpha_options' 09:00 / 21:45 UTC jobs and Real Options' trading hours.
-- **Homonym guard, acronym class (W42):** the SMR card matched the generic "small modular reactor" acronym and
-  Holtec's "Palisades SMR, LLC". CC proposes extending the guard to industry acronyms that equal a ticker.
+- **⚠ Review crontab vs DST (before Sun 2026-11-01):** the DEV crontab is UTC; the systemd timers are ET. From 11-01
+  the reach run is 14:40 UTC (Sunday review cron 14:23 → before the digest/cards exist), and from 11-02 L1 is 20:45 UTC
+  (grade cron 20:37 → before the L1 it grades). Both lines need +1 h (Sunday 15:23, grade 21:37 UTC).
+- **BNTX (bench Tier A):** $930 / 19.2% / 235 d on the 10-25 Sunday quote — in band, under the cap. Returns only on a
+  fresh operator word and a mid-session read.
+- **NRC 2026-21801 (effective 2026-11-25, DOE/DoW-authorized reactor designs in NRC licensing):** a class-(a)-shaped
+  pin suggestion for `nuclear_fuel` (BWXT / NNE); unpinned — the operator's read.
+- **PROD promotion:** PROD is on `8d89c4f` (#326), 11 PRs behind main (#327–#338); inert, so no urgency.
 
 ## Shared hosts (DEV + PROD also run Real Options and alpha_options)
 - Our L0/L1/L2 start as `python -u -m orchestrator` (#312): Real Options' `pkill -9 -f orchestrator.py` SIGKILLed
@@ -115,12 +120,14 @@ The header's absence is itself a signal.
   current. Cloud routines can't reach the box's DB/journals/memory, so they are not used.
 
 ## Dated docket
-- **Mon 2026-10-19 — the April-2027 tenor cliff:** AMSC · CC · NNE · PL · STUB · UUUU · ERO · UROY lose structure
-  (next listed expiry Jan-2028, outside 180–365d); ATKR has nothing after April; FRO · HBM · TGB · IRDM already
-  have none. **Expressible universe ~35 of 48** (43 on 10-16). PL's real Jan-2027 position is unaffected. NTSK's
-  first council read can come the same night.
-- **2026-10-25 Sunday W43:** re-check for July-2027 listings (the October monthly expired 10-16); KMT pin #17
-  expires; marker-refresh week 1 read.
+- **Mon 2026-10-26 — §10.10 session 2 = the TRIPWIRE session** (≥ 6 of 12 at the floor ⇒ operator review before
+  the third; session 1 was 0 of 12, raw 1), and the first night of `coverage_meter = analyst_v2` and
+  `quote_filter = musd_billions_v1`. Read raw and final convictions. The slate loses ERO/FLNC/RTX/NEE (dormant 10-25);
+  TGB's predicted 10-26 return lapses (its lineage went dormant too).
+- **Sun 2026-11-01 (L0 at 13:00 UTC after DST):** TTL cutoff 09-27 13:00 ⇒ **13 lineages go dormant unless
+  re-surfaced** (AG, AMSC, HL, KLAR, KTOS, PAAS, RDW, VIAV; ATKR, CDE, FLY, FRO, STUB); the union 35 → ~22 + new.
+  KMT pin #18 expires. Tenor: the cliff names regain structure only with a July-2027 listing or when Jan-2028 enters
+  the window (~2027-01-21).
 - **2026-11-02:** posture LOOK (PREREG_THEMATIC_CONVEXITY §6 amendment).
 - **~2026-11-03:** one-night shadow check of the candidate council models (claude-opus-5-5 / gemini-3.8-flash /
   grok-4.7) on real packs — parse rate, cost, latency only (no outcome scoring).
@@ -132,14 +139,16 @@ The header's absence is itself a signal.
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
 
 ## Board & book
-- Box: DEV = main (rebooted 2026-10-17); PROD = `production` (`dd99e5b`), inert (timers disabled, live gate
-  closed). Both healthy; units on `-m orchestrator` on both.
+- Box: DEV = main `ade193d` (up since 2026-10-17); PROD = `8d89c4f` (#326), inert (timers disabled, live gate
+  closed), **rebooted 2026-10-18 — reboot-required cleared**. Both healthy (0 failed units); units on
+  `-m orchestrator` on both; 0 `status=9` in W43.
 - Apps:
   - DEV: `https://all-options-dev.tail57521e.ts.net:8602`
   - PROD: `https://all-options-prod.tail57521e.ts.net:8602`
   - Both are tailnet-only `tailscale serve` → 127.0.0.1:8602; `/api/version` reports the running commit.
-- Universe 50 names · 16 clusters (book fills at most 5).
+- Universe 50 names · 16 clusters (book fills at most 5). Expressible 39 of 50 (10-25; no structure AMSC/ATKR/CC/
+  FRO/HBM/IRDM/NNE/PL/STUB/UROY/UUUU). Active sentinel lineages 35 (10-25).
 - Book: real 1 (PL, $690, unrealized −$684.50). Null books accruing (shadow · 3A · 3B · shares). Last above-floor
   conviction: run #508, 2026-07-10.
-- Open issues: 0. NVDA opra canary back above 1.0 (10-14 1.0127, 10-15 1.0204, 10-16 1.0315) after eight prints below (low
+- Open issues: 4 (filed 2026-10-25 from W43): #340 corpus misses a same-day 10-Q (RTX/NOC; needs-operator) · **#341 review crontab vs DST — before 11-01** · #342 sentinel TTL decided to the second (needs-operator) · #343 feasibility probe ignores the OTM side guard. NVDA opra canary back above 1.0 (10-14 1.0127, 10-15 1.0204, 10-16 1.0315) after eight prints below (low
   0.9818).
