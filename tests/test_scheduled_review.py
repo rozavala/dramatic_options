@@ -48,3 +48,13 @@ def test_prompts_carry_the_headline_contract_and_no_dated_stamps():
         assert "STANDING_STATE" in body and "newest" in body.lower(), name
     assert "may NOT merge" in (PROMPTS / "sunday_review.md").read_text()
     assert "READ-ONLY" in (PROMPTS / "nightly_grade.md").read_text()
+
+
+def test_each_job_waits_for_the_run_it_reviews():
+    # #341: the crontab is UTC and the reviewed runs are ET timers; after DST ends a fixed UTC time fires before
+    # the run exists, so the script must wait for the unit's exit today and give up (paging) on a timeout.
+    text = SCRIPT.read_text()
+    assert "dramatic-options-$([ \"$JOB\" = grade ] && echo l1 || echo reach).service" in text
+    assert "ExecMainExitTimestamp" in text and "until ran_today" in text and "NOT RUN" in text
+    assert text.index("until ran_today") < text.index("CMD=(claude")
+
