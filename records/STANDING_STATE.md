@@ -150,5 +150,5 @@ The header's absence is itself a signal.
   FRO/HBM/IRDM/NNE/PL/STUB/UROY/UUUU). Active sentinel lineages 35 (10-25).
 - Book: real 1 (PL, $690, unrealized −$684.50). Null books accruing (shadow · 3A · 3B · shares). Last above-floor
   conviction: run #508, 2026-07-10.
-- Open issues: 0. NVDA opra canary back above 1.0 (10-14 1.0127, 10-15 1.0204, 10-16 1.0315) after eight prints below (low
+- Open issues: 4 (filed 2026-10-25 from W43): #340 corpus misses a same-day 10-Q (RTX/NOC; needs-operator) · **#341 review crontab vs DST — before 11-01** · #342 sentinel TTL decided to the second (needs-operator) · #343 feasibility probe ignores the OTM side guard. NVDA opra canary back above 1.0 (10-14 1.0127, 10-15 1.0204, 10-16 1.0315) after eight prints below (low
   0.9818).
