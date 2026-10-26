@@ -71,6 +71,10 @@ The header's absence is itself a signal.
   sweeps were aligned by dated amendments (PREREG_MISS_BASERATE §7; PREREG_UNIVERSE_CURATION §6 amendment). The
   boundary is the **2026-11-01 sweep**; earlier rows/aggregates stay as written. A test keeps every
   `select_structure` caller on the guard (exempt: two evidence copies, one one-off measurement).
+- **Sentinel TTL by ET scan date (2026-10-25, operator word; #342):** `expire_stale_sentinels` compares US-Eastern
+  calendar dates (dormant when the date last seen < the run's date − 35 days), not wall-clock seconds. A lineage
+  now lives a fixed 5 missed weekly scans (dormant at the 6th) whatever the start-second jitter or DST. No
+  retroactive change: 10-25's seven dormancies hold under the new rule. Membership-relevant from the 11-01 L0.
 - **Corpus refetch on filing (2026-10-25, operator word, option b; #340):** at L1 a name's SEC companyfacts raw is
   refetched when it was fetched on or before the ET date of the name's newest 10-Q/10-K/20-F/40-F on EDGAR, whatever
   its age (the 7-day policy otherwise unchanged). A same-day fetch is retried the next day and then stops, so an
@@ -137,8 +141,9 @@ The header's absence is itself a signal.
   the third; session 1 was 0 of 12, raw 1), and the first night of `coverage_meter = analyst_v2` and
   `quote_filter = musd_billions_v1`. Read raw and final convictions. The slate loses ERO/FLNC/RTX/NEE (dormant 10-25);
   TGB's predicted 10-26 return lapses (its lineage went dormant too).
-- **Sun 2026-11-01 (L0 at 13:00 UTC after DST):** TTL cutoff 09-27 13:00 ⇒ **13 lineages go dormant unless
-  re-surfaced** (AG, AMSC, HL, KLAR, KTOS, PAAS, RDW, VIAV; ATKR, CDE, FLY, FRO, STUB); the union 35 → ~22 + new.
+- **Sun 2026-11-01 (L0 at 13:00 UTC after DST):** TTL by ET date (#342) ⇒ **8 lineages go dormant unless
+  re-surfaced** (last seen 09-20: AG, AMSC, HL, KLAR, KTOS, PAAS, RDW, VIAV); the 09-27 five (ATKR, CDE, FLY, FRO,
+  STUB) run to 11-08 (the DST hour no longer costs them a scan). The union 35 → ~27 + new.
   KMT pin #18 expires. Tenor: the cliff names regain structure only with a July-2027 listing or when Jan-2028 enters
   the window (~2027-01-21).
 - **2026-11-02:** posture LOOK (PREREG_THEMATIC_CONVEXITY §6 amendment).

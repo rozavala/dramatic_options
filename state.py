@@ -11,9 +11,10 @@ writes. Writes use the connection as a context manager for atomic transactions.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:
@@ -1386,11 +1387,21 @@ def active_sentinel_symbols(conn: sqlite3.Connection) -> set[str]:
     return {r["symbol"] for r in rows}
 
 
+def _et_date(ts: datetime) -> date:
+    """The US-Eastern calendar date of a timestamp (a naive one is taken as UTC)."""
+    return (ts if ts.tzinfo else ts.replace(tzinfo=UTC)).astimezone(ZoneInfo("America/New_York")).date()
+
+
 def expire_stale_sentinels(conn: sqlite3.Connection, *, as_of: datetime, ttl_days: int) -> int:
     """Flip candidates not re-surfaced within ``ttl_days`` to 'dormant' (kept in history, no
     longer unioned to the council). Returns the count flipped. Date math in Python so a tz-aware
-    ISO ``last_seen_at`` parses reliably (SQLite julianday is finicky with tz offsets)."""
-    cutoff = as_of - timedelta(days=ttl_days)
+    ISO ``last_seen_at`` parses reliably (SQLite julianday is finicky with tz offsets).
+
+    Compared as US-Eastern **calendar dates** (#342, operator word 2026-10-25): dormant when the ET date
+    last seen is before the run's ET date minus ``ttl_days``. Comparing wall-clock seconds made a lineage's
+    life depend on how many seconds past the hour each weekly scan started (09-13 12:00:07 survived the
+    10-18 cutoff of 12:00:02 by 5 seconds) and DST moved the cutoff by an hour, i.e. a whole scan."""
+    cutoff = _et_date(as_of) - timedelta(days=ttl_days)
     rows = conn.execute(
         "SELECT id, last_seen_at FROM sentinel_candidates WHERE kind='sentinel' AND status='candidate'"
     ).fetchall()
@@ -1400,7 +1411,7 @@ def expire_stale_sentinels(conn: sqlite3.Connection, *, as_of: datetime, ttl_day
             seen = datetime.fromisoformat(r["last_seen_at"])
         except (ValueError, TypeError):
             continue
-        if seen < cutoff:
+        if _et_date(seen) < cutoff:
             stale.append(int(r["id"]))
     if stale:
         with conn:
