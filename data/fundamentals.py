@@ -139,7 +139,9 @@ class FundamentalsData:
         # #340 (operator word 2026-10-25, option b): ``symbol -> ET date (YYYY-MM-DD) of its newest 10-Q/10-K/20-F/
         # 40-F on EDGAR`` (or None). A raw fetched on or before that ET date predates the filing's facts, so it is
         # refetched whatever its age: a same-day fetch is retried the next day, then the fetch date is past the
-        # filing and the trigger stops (NEE's upstream gap costs at most two extra fetches per filing). None = off.
+        # filing and the trigger stops (NEE's upstream gap costs at most two extra fetches per filing). At most once
+        # per name per instance (= per cycle): the pack, the direction rule and the staleness check each read the
+        # corpus, and a same-day refetch still dates on the filing day. None = off.
         self.newest_periodic_of = newest_periodic_of
         self.filing_refetches: list[str] = []
 
@@ -209,7 +211,7 @@ class FundamentalsData:
                 stale = None
             age_days = (datetime.now(UTC) - datetime.fromtimestamp(path.stat().st_mtime, UTC)).days
             fresh_enough = (self.max_raw_age_days is None or age_days <= self.max_raw_age_days)
-            if refetch_if_fetched_by is not None and fresh_enough:
+            if refetch_if_fetched_by is not None and fresh_enough and (symbol or cik) not in self.filing_refetches:
                 fetched_et = datetime.fromtimestamp(path.stat().st_mtime, UTC).astimezone(_ET).date().isoformat()
                 fresh_enough = fetched_et > refetch_if_fetched_by
                 if not fresh_enough and not force_refresh:

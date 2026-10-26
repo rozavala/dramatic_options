@@ -195,14 +195,26 @@ def test_filing_trigger_refetches_a_raw_fetched_on_the_filing_day(tmp_path):
     # RTX: 10-Q filed 2026-10-20; the raw was fetched 10-20 19:47 UTC (15:47 ET, same ET day), before SEC posted
     # the Q3 facts, so the 7-day policy kept it until ~10-28. The trigger refetches it at the next read.
     now = datetime.now(UTC)
-    _raw_at(tmp_path, now - timedelta(hours=20))
-    filed = (now - timedelta(hours=20)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    _raw_at(tmp_path, now - timedelta(days=1))
+    filed = (now - timedelta(days=1)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
     sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
     fd = _fd_filed(tmp_path, sess, filed)
     fd.corpus_asof("MINI", AS_OF)
     assert sess.calls == 1 and fd.filing_refetches == ["MINI"]
-    fd.corpus_asof("MINI", AS_OF)                     # now fetched after the filing date → no second fetch
-    assert sess.calls == 1
+
+
+def test_filing_trigger_fires_once_per_cycle_on_the_filing_day(tmp_path):
+    # A filing dated today: the refetch itself is also dated today, so without the once-per-instance rule each of
+    # the cycle's corpus reads (pack, direction rule, staleness check) would hit SEC again. The next cycle (a new
+    # instance, the next day) retries once more; then the fetch post-dates the filing and the trigger stops.
+    now = datetime.now(UTC)
+    _raw_at(tmp_path, now - timedelta(days=2))
+    today_et = now.astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
+    fd = _fd_filed(tmp_path, sess, today_et)
+    for _ in range(3):
+        fd.corpus_asof("MINI", AS_OF)
+    assert sess.calls == 1 and fd.filing_refetches == ["MINI"]
 
 
 def test_filing_trigger_leaves_a_raw_fetched_after_the_filing(tmp_path):
