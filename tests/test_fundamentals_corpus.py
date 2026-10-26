@@ -9,8 +9,9 @@ vs Q3-24 = 36−22 = 14M → 0.8571; RPO 290/200−1 = 0.45.
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from data.fundamentals import (
     CONCEPT_TAGS,
@@ -170,6 +171,76 @@ def test_raw_fresh_refetch_replaces_and_force_refresh(tmp_path):
     assert fd._raw_fresh("0009999999")["entityName"] == "OLD"      # young file, no refetch
     assert fd._raw_fresh("0009999999", force_refresh=True)["entityName"] == "NEW"  # event forces
     assert json.loads((raw_dir / "CIK0009999999.json").read_text())["entityName"] == "NEW"
+
+
+# ── #340: refetch when the raw predates the newest periodic filing (ET dates) ─────────────────────────────
+
+def _raw_at(tmp_path, utc: datetime, name="OLD"):
+    import os
+    raw_dir = tmp_path / "xbrl_raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    p = raw_dir / "CIK0009999999.json"
+    p.write_text(json.dumps({"facts": {"us-gaap": {}}, "entityName": name}))
+    os.utime(p, (utc.timestamp(), utc.timestamp()))
+    return p
+
+
+def _fd_filed(tmp_path, sess, filed):
+    return FundamentalsData(cache=None, edgar=None, fetch_end=AS_OF, ua="t@t", cache_dir=tmp_path, session=sess,
+                            cik_overrides={"MINI": "9999999"}, max_raw_age_days=7,
+                            newest_periodic_of=lambda sym: filed)
+
+
+def test_filing_trigger_refetches_a_raw_fetched_on_the_filing_day(tmp_path):
+    # RTX: 10-Q filed 2026-10-20; the raw was fetched 10-20 19:47 UTC (15:47 ET, same ET day), before SEC posted
+    # the Q3 facts, so the 7-day policy kept it until ~10-28. The trigger refetches it at the next read.
+    now = datetime.now(UTC)
+    _raw_at(tmp_path, now - timedelta(days=1))
+    filed = (now - timedelta(days=1)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
+    fd = _fd_filed(tmp_path, sess, filed)
+    fd.corpus_asof("MINI", AS_OF)
+    assert sess.calls == 1 and fd.filing_refetches == ["MINI"]
+
+
+def test_filing_trigger_fires_once_per_cycle_on_the_filing_day(tmp_path):
+    # A filing dated today: the refetch itself is also dated today, so without the once-per-instance rule each of
+    # the cycle's corpus reads (pack, direction rule, staleness check) would hit SEC again. The next cycle (a new
+    # instance, the next day) retries once more; then the fetch post-dates the filing and the trigger stops.
+    now = datetime.now(UTC)
+    _raw_at(tmp_path, now - timedelta(days=2))
+    today_et = now.astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
+    fd = _fd_filed(tmp_path, sess, today_et)
+    for _ in range(3):
+        fd.corpus_asof("MINI", AS_OF)
+    assert sess.calls == 1 and fd.filing_refetches == ["MINI"]
+
+
+def test_filing_trigger_leaves_a_raw_fetched_after_the_filing(tmp_path):
+    # NEE's shape: companyfacts lacks the filing upstream; once the raw post-dates the filing it is not refetched
+    # again, so an upstream gap costs at most the one retry (age policy unchanged).
+    now = datetime.now(UTC)
+    _raw_at(tmp_path, now - timedelta(days=2))
+    sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
+    fd = _fd_filed(tmp_path, sess, (now - timedelta(days=4)).date().isoformat())
+    assert fd._raw_fresh("0009999999", refetch_if_fetched_by=fd._newest_periodic("MINI"))["entityName"] == "OLD"
+    assert sess.calls == 0 and fd.filing_refetches == []
+
+
+def test_filing_trigger_is_fail_soft_and_off_by_default(tmp_path):
+    now = datetime.now(UTC)
+    _raw_at(tmp_path, now - timedelta(days=1))
+
+    def boom(sym):
+        raise RuntimeError("EDGAR down")
+    sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
+    fd = FundamentalsData(cache=None, edgar=None, fetch_end=AS_OF, ua="t@t", cache_dir=tmp_path, session=sess,
+                          cik_overrides={"MINI": "9999999"}, max_raw_age_days=7, newest_periodic_of=boom)
+    assert fd._newest_periodic("MINI") is None
+    fd.corpus_asof("MINI", AS_OF)
+    assert sess.calls == 0                            # lookup failed → the age policy alone (young raw kept)
+    assert _fd(tmp_path, session=sess, ua="t@t", max_age=7)._newest_periodic("MINI") is None
 
 
 def test_corpus_asof_fail_soft_and_status(tmp_path):

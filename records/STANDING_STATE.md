@@ -75,6 +75,13 @@ The header's absence is itself a signal.
   calendar dates (dormant when the date last seen < the run's date − 35 days), not wall-clock seconds. A lineage
   now lives a fixed 5 missed weekly scans (dormant at the 6th) whatever the start-second jitter or DST. No
   retroactive change: 10-25's seven dormancies hold under the new rule. Membership-relevant from the 11-01 L0.
+- **Corpus refetch on filing (2026-10-25, operator word, option b; #340):** at L1 a name's SEC companyfacts raw is
+  refetched when it was fetched on or before the ET date of the name's newest 10-Q/10-K/20-F/40-F on EDGAR, whatever
+  its age (the 7-day policy otherwise unchanged). A same-day fetch is retried the next day and then stops, so an
+  upstream gap (NEE) costs at most two extra fetches per filing. Found: RTX/NOC sat on Q2 for ~8 days after their
+  10-20 10-Qs. Stamp `runs.model_mix.corpus_refresh = filing_date_v1` from the first L1 after deploy,
+  record-segmenting (fresher packs); L1 log `Corpus refetch on filing: n (…)`. The staleness telemetry stays
+  telemetry.
 - **PREREG_REJECTION_REASON_AUDIT FROZEN (2026-10-21, operator word):** does the timing test filter losers?
   Timing-only vs narration-failed judgments on the miss ledger's big-move definition; first decision read at
   n_T ≥ 30 (≈ February 2027); nothing changes automatically.
