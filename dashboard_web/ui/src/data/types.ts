@@ -5,12 +5,18 @@
 //   2. ViewModel  — the FLAT shape the components render (the prototype's td/mt). `fromBackend` maps 1 → 2.
 
 import type { Level } from "../theme/tokens";
+import type { RunDates } from "./runLabel";
+type RunMap = Record<string, string> | { error: string };
 import type { CouncilVerdict, DisplayState, T4Verdict } from "./status";
 
 /* ────────────────────────── 1 · Snapshot (panel shapes) ────────────────────────── */
 export interface Heartbeat {
   at: string | null; age_hours: number | null; status: "ONLINE" | "STALE" | "OFFLINE"; stale: boolean;
   next_at?: string | null; // the systemd timer's next fire, "YYYY-MM-DD HH:MM:SS" UTC; null = timer not active (#306)
+}
+export interface OutsideFramePosition {
+  book: string; id: number; symbol: string; direction: string | null; structure_kind: string | null;
+  contract_symbol: string | null; moneyness: number | null; status: string | null;
 }
 export interface CI { n: number; p95: number | null; ci90: [number, number] | null; flag: string | null }
 
@@ -26,7 +32,7 @@ export interface CouncilHealth {
 
 // One trailing council-deliberated run (recent_council_health, oldest→newest); feeds the streak (A3).
 export interface CouncilRecentRun {
-  run_id: number; started_at: string | null; council_health: string | null; verdict: CouncilVerdict;
+  run_id: number; started_at: string | null; kind?: string; council_health: string | null; verdict: CouncilVerdict;
   proposer_parse_rate: number; proposer_called: number; proposer_parse_failed: number;
   by_provider: Record<string, { calls: number; parse_error: number; parse_error_rate?: number | null }>;
 }
@@ -49,6 +55,8 @@ export interface SentinelRow {
 
 export interface Snapshot {
   system_status: { level: "success" | "warn" | "error"; headline: string; issues: string[] };
+  run_dates?: RunMap; // run_id → started_at for every run id a panel shows (#354); labels via data/runLabel.ts
+  run_kinds?: RunMap; // run_id → layer ("L1" cycle / "L0" discovery), derived from runs.mode
   header: {
     now: string; schema_version: number; schema_expected: number; schema_ok: boolean; schema_warning: string | null;
     kill_switch_engaged: boolean; cycle: Heartbeat; council: Heartbeat; discovery: Heartbeat;
@@ -59,7 +67,8 @@ export interface Snapshot {
     frame: { frame_equity: number; book_budget: number; per_name_cap: number; cluster_cap: number; max_open: number };
   };
   risk: {
-    kill_rule: { tripped: boolean; reasons: string[]; book_drawdown: number; drawdown_halt: number; have_marks: boolean };
+    kill_rule: { tripped: boolean; reasons: string[]; book_drawdown: number; drawdown_halt: number; have_marks: boolean;
+      level?: "ok" | "warn" | "tripped"; drawdown_warn?: number }; // #355 display-only warn tier (absent on older snapshots)
     book: { open: number; max: number; open_premium: number; budget: number };
     clusters: { cluster: string; premium: number; cap: number; frac: number | null; directions: string[] }[];
   };
@@ -70,7 +79,11 @@ export interface Snapshot {
     recent: CouncilRecentRun[]; // recent_council_health window (oldest→newest); the run streak (A3)
   };
   performance: {
-    p95_ci: { real: CI; shadow_all: CI; nogate_union_nogate: CI; nogate_basket_nogate: CI };
+    p95_ci: { real: CI; shadow_all: CI; nogate_union_nogate: CI; nogate_basket_nogate: CI } & Partial<{
+      // #276/#352: the same p95s read WITHOUT the tagged wrong-side (outside-frame) positions.
+      real_in_frame: CI; shadow_all_in_frame: CI; nogate_union_nogate_in_frame: CI; nogate_basket_nogate_in_frame: CI;
+    }>;
+    outside_frame?: OutsideFramePosition[]; // state.outside_frame_positions: tagged, never deleted
     premium_bled: { paid: number; running_fraction: number | null; realized_fraction: number | null };
     hit_rate: { closed: number; hits: number; hit_rate: number | null };
     caveat: string;
@@ -105,7 +118,7 @@ export interface Snapshot {
     iv_baseline_of_record?: { rows?: number; symbols?: number; sessions?: number; latest?: string | null;
       latest_age_days?: number | null; accruing?: boolean } | null;
   };
-  t4: { conditions: { id: number; name: string; checkable: boolean; verdict: T4Verdict; detail: string }[]; note: string };
+  t4: { conditions: { id: number; name: string; checkable: boolean; verdict: T4Verdict; detail: string; manual?: boolean }[]; note: string };
   // Panels below are always emitted by load_all but may be replaced by {error} (dd.safe), so they are typed
   // optional — the adapter must guard. (C: now rendered. regime/curation remain on the wire, not rendered.)
   nulls?: NullHierarchy;
@@ -125,7 +138,37 @@ export interface Snapshot {
   canary?: CanaryPanel;     // the gate-rich canary's trailing OPRA iv/rv (canary_panel)
   dircoherence?: DirCoherencePanel; // PREREG_DIRECTION_COHERENCE: what the union filter withheld (direction_coherence_panel)
   staleness?: StalenessPanel;       // #269: names judged on an older quarter than their latest filing (fundamentals_staleness_panel)
+  why_no_entry?: WhyNoEntryPanel;   // #351: per-name "why no entry" of the latest session + expressible / last above-floor / last order tiles
   _fatal?: string;
+}
+
+// why_no_entry_panel (#351): one row per judged name of the latest council session, anchored on the same run as
+// funnel / council_stage. `order` is the REAL outcome of the name's order (convexity_positions joined by
+// proposal_id, else run+symbol) — `gate_decision` is a point-in-time stamp and stays "submit-pending" forever.
+export interface WhyNoEntryOrder {
+  kind: "resting" | "filled" | "not_filled"; result: string; position_id: number; status: string | null;
+  contract: string | null; contracts: number | null; premium: number | null;
+}
+export interface WhyNoEntryRow {
+  proposal_id: number; symbol: string; direction: string | null; conviction: string; above_floor: boolean;
+  stage: string; gate_decision: string | null; veto_stage: string; order: WhyNoEntryOrder | null;
+  iv_rv: number | null; otm_skew: number | null; expressible: boolean | null; structure_note: string | null;
+  iv_rv_source: "gate" | "opra read" | null;
+}
+export interface WhyNoEntryLastOrder {
+  symbol: string; at: string; run_id: number | null; day: string; days_ago: number;
+  kind: "resting" | "filled" | "not_filled"; result: string;
+  contract: string | null; contracts: number | null; premium: number | null; position_id: number | null;
+}
+export interface WhyNoEntryPanel {
+  run_id: number | null; empty: boolean; floor: string; rows: WhyNoEntryRow[];
+  tiles: {
+    expressible: { n: number; of: number; no_structure: string[]; basis: string };
+    last_above_floor: { run_id: number; symbol: string; direction: string | null; conviction: string; day: string | null; days_ago: number | null } | null;
+    last_order: WhyNoEntryLastOrder | null;
+  };
+  totals?: { judged: number; reached_gate: number; by_stage: Record<string, number>; by_decision: Record<string, number>; unattributed_gate_rows: number };
+  reconciliation?: { by_decision_ok: boolean; stages_ok: boolean };
 }
 
 // council_session_panel: the latest session as the operator grades it — per-name roles + weakest point +
@@ -240,6 +283,9 @@ export type BeatKey = "kill" | "cycle" | "council" | "discovery" | "schema";
 export type TimerKey = "cycle" | "council" | "discovery";
 export interface NextRunVM { label: string; at: string } // label "3h" / "40m" (relative to header.now), at = the UTC stamp
 export interface BookCI { n: number; p95: number | null }
+/** One book's tail figure: in-frame first, the with-legacy figure always beside it whenever positions are tagged (#352/#360); `withLegacy` is null only with no tags (or no in-frame twin on the wire). */
+export interface TailFigure { n: number; p95: number | null; withLegacy: BookCI | null }
+export interface OutsideFrameVM { book: string; symbol: string; kind: string; dir: string; moneyness: number | null; status: string }
 export interface ClusterVM { name: string; premium: number; cap: number; dirs: string }
 export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; premiumUsd: number; mark: number | null; opened: string | null; expiry: string | null; timeStop: string | null }
 export interface SentinelVM { symbol: string; basket?: string; dir?: string; note: string }
@@ -273,6 +319,25 @@ export interface SessionVM {
   lowHistory: { runId: number; day: string; low: number; judged: number }[];
   providerDrops: number; understudy: { configured: string | null; fired: number };
   cleanLine: string;                             // "31 of 32 sessions clean" from the recent window
+}
+// #351 — the "why no entry" table + tiles, flat render shapes.
+export interface WhyNoEntryRowVM {
+  symbol: string; dir: string; conviction: string; aboveFloor: boolean;
+  stoppedAt: string;                        // where it stopped: council stage, gate code, or the order's real outcome
+  stoppedLevel: "ok" | "warn" | "mute";     // ok = filled / resting, warn = reached the gate but no position, mute = stopped upstream
+  isOrder: boolean;                         // stoppedAt is an order outcome (not a gate stamp)
+  orderDetail: string | null;               // "5× HL270617C00017000 · $880"
+  ivrv: string; skew: string;               // "0.93" / "—"
+  express: "yes" | "no" | "unread"; expressNote: string | null;
+}
+export interface WhyNoEntryVM {
+  unavailable: boolean;                     // panel came back {error} or is absent
+  empty: boolean; runId: number | null; floor: string;
+  rows: WhyNoEntryRowVM[];
+  expressible: { n: number; of: number; noStructure: string[] };
+  lastAboveFloor: { line: string; sub: string } | null;   // "HL · MODERATE" / "1 day ago · Mon 2026-10-26"
+  lastOrder: { line: string; sub: string; level: "ok" | "warn" | "mute" } | null;
+  warning: string | null;                   // set when the rows no longer reconcile with the funnel panels
 }
 export interface SpendRowVM { provider: string; mtd: string; cap: string | null; frac: number | null; page: boolean }
 export interface SpendVM { month: string; rows: SpendRowVM[]; totalMtd: string; totalCap: string | null; cumulative: string; framer: string; perCycleCap: string | null; anyPage: boolean }
@@ -310,6 +375,8 @@ export interface CatalystVM {
 }
 
 export interface ViewModel {
+  runDates: RunDates;                  // #354 — feed to runLabel(vm.runDates, id): "L1 #1816 · Mon 2026-10-26 15:45 ET"
+  councilBeat: Heartbeat["status"];    // #354 — header.council.status (council_session_stale): ONLINE / STALE / OFFLINE
   asOf: string; level: Level; headline: string; sub: string;
   schemaWarning: string | null;        // B2 — header.schema_warning, rendered as a top strip
   degraded: string[];                  // B1 — panel keys that came back {error} (fail-soft), shown inline
@@ -319,7 +386,7 @@ export interface ViewModel {
   nextRuns: Record<TimerKey, NextRunVM | null>; // #306 — null = timer not active (PROD) → "not scheduled"
   equity: string; deltaFrame: string; bookBudget: string; headroom: string;
   equitySeries: { day: string; equity: number }[];
-  bookDD: string; bookDDlevel: Level; openN: number; maxN: number; openPrem: string;
+  bookDD: string; bookDDlevel: Level; bookDDchip: string; ddWarnPct: number; openN: number; maxN: number; openPrem: string;
   council: {
     verdict: string; vlevel: Level; runId: number | null; roundtrips: number; strategistAbstained: number;
     parseFail: number; parseCalled: number; cost: string; streak: string; models: string;
@@ -336,7 +403,9 @@ export interface ViewModel {
   capFlow: { rejected: number; note: string };  // C — cluster-cap rejections of otherwise-passing
   clusters: ClusterVM[];
   perf: {
-    real: BookCI; shadow: BookCI; a3: BookCI; basket: BookCI;
+    real: BookCI; shadow: BookCI; a3: BookCI; basket: BookCI;   // with-legacy (all resolved positions)
+    tails: { real: TailFigure; shadow: TailFigure; a3: TailFigure; basket: TailFigure }; // what the Edge bars show
+    outsideFrame: OutsideFrameVM[];                                   // the "N outside-frame" chip's list
     paid: string; bledPct: number | null; hits: number; closed: number; hitRate: number | null;
   };
   brier: { strategist: number | null; n: number; roles: { label: string; value: number | null }[] };
@@ -350,7 +419,7 @@ export interface ViewModel {
   positions: PositionVM[]; openCount: number; openPrem2: string;
   sentinels: SentinelVM[]; sentinelSub: string;
   data: { label: string; value: string }[];
-  t4: T4ItemVM[]; readiness: { pass: number; checkable: number; accruing: number };
+  t4: T4ItemVM[]; readiness: { pass: number; checkable: number; accruing: number; manual: number; allPass: boolean };
   edgeAccrual: { n: number; target: number }; phasePct: string; phaseSub: string;
   cheapness: CheapnessPanel | null;   // finding #1's instrument (PREREG_CHEAPNESS_WATCH)
   session: SessionVM;                 // the latest council session, as graded nightly
@@ -358,6 +427,7 @@ export interface ViewModel {
   canary: CanaryVM | null;            // the gate-rich canary (NVDA) iv/rv trend
   dircoherence: DirCoherenceVM | null; // the direction-coherence union filter, latest L1 + recent nights
   staleness: StalenessVM | null;       // names judged on an older quarter than their latest filed report
+  whyNoEntry: WhyNoEntryVM;            // #351 — per-name why-no-entry table + expressible / last above-floor / last order tiles
   wingMismatch: string[];             // latest dual-read session's wing-mismatch names (boundary class)
   dataAccrual: DataAccrualVM;         // chain-snapshot store, with the honesty flag
   booksOpen: BooksOpenVM;             // open counts across the five books

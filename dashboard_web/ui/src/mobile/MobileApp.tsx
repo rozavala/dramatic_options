@@ -3,9 +3,12 @@ import { useState } from "react";
 import { Curation } from "../components/Curation";
 import { Reach } from "../components/Reach";
 import { Sparkline } from "../components/Sparkline";
-import { Banner, Chip, Skeleton } from "../components/primitives";
+import { Banner, Chip, Skeleton, StaleChip } from "../components/primitives";
+import { OutsideFrameChip, WithLegacy } from "../components/Tails";
+import { WhyNoEntryList, WhyNoEntryTiles } from "../components/WhyNoEntry";
 import { STATE_PRESENT, clusterLevel, directionLabel, isAccruingState, markLevel, relativeAge } from "../data/status";
-import type { ConsoleProps, ViewModel } from "../data/types";
+import type { ConsoleProps, TailFigure, ViewModel } from "../data/types";
+import { runLabel } from "../data/runLabel";
 import { useCountUp } from "../data/useCountUp";
 import { TITLES, type SectionId } from "../nav";
 import { color, signal, type Level } from "../theme/tokens";
@@ -24,16 +27,33 @@ const TAB_ICON: Record<SectionId, string> = {
 const dirLabel = directionLabel; // A6 — single source in status.ts
 
 // ── Overview ──────────────────────────────────────────────────────────────────────────────────
+function MWhyNoEntry({ vm }: { vm: ViewModel }) {
+  const w = vm.whyNoEntry;
+  return (
+    <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: "#141b28" }}>Why no entry</div>
+      <div style={{ fontSize: 11, color: "#5f6675", marginTop: 2, marginBottom: 10, lineHeight: 1.4 }}>
+        {w.runId != null ? `${runLabel(vm.runDates, w.runId)} · floor ${w.floor}` : "latest council session"}
+      </div>
+      {w.warning && <Banner level="warn" style={{ marginBottom: 10, fontSize: 11 }}>{w.warning}</Banner>}
+      <WhyNoEntryTiles w={w} />
+      {w.unavailable ? <div data-testid="why-unavailable" style={{ fontSize: 11.5, color: signal.warn.text, marginTop: 10 }}>unavailable — the why-no-entry panel did not load</div>
+        : w.empty || w.rows.length === 0 ? <div data-testid="why-empty" style={{ fontSize: 11.5, color: "#5f6675", marginTop: 10 }}>no council session recorded yet</div>
+        : <div style={{ marginTop: 6 }}><WhyNoEntryList w={w} /></div>}
+    </div>
+  );
+}
+
 function MOverview({ vm }: { vm: ViewModel }) {
   const sig = signal[vm.level];
   const r = vm.readiness;
-  const allPass = r.checkable > 0 && r.pass === r.checkable; // guard vacuous 0/0 (parity with KpiRow)
+  const allPass = r.allPass; // adapter: checkable>0 (no vacuous 0/0), all met, and no manual row open
   const passN = useCountUp(r.pass); // F2 parity — count up the ring number
   const ringColor = allPass ? signal.ok.text : color.accent;
   const kpis: { label: string; value: string; color: string; sub: string; chip: string; level: Level }[] = [
-    { label: "Go-live", value: `${r.pass}/${r.checkable}`, color: color.ink, sub: `${r.accruing} accruing`, chip: allPass ? "on track" : "in progress", level: allPass ? "ok" : "acc" },
-    { label: "Safety", value: vm.bookDD, color: signal.ok.text, sub: `${vm.openN}/${vm.maxN} open`, chip: "safe", level: "ok" },
-    { label: "Council", value: vm.council.vlevel === "ok" ? "Healthy" : "Degraded", color: signal[vm.council.vlevel].text, sub: `#${vm.council.runId ?? "—"}`, chip: vm.council.vlevel === "ok" ? "clean" : "check", level: vm.council.vlevel },
+    { label: "Go-live", value: `${r.pass}/${r.checkable}`, color: color.ink, sub: `${r.accruing} accruing${r.manual ? ` · ${r.manual} manual open` : ""}`, chip: allPass ? "on track" : "in progress", level: allPass ? "ok" : "acc" },
+    { label: "Safety", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: `${vm.openN}/${vm.maxN} open`, chip: vm.bookDDlevel === "ok" && vm.bookDDchip !== "no marks" ? "safe" : vm.bookDDchip, level: vm.bookDDlevel },
+    { label: "Council", value: vm.council.vlevel === "ok" ? "Healthy" : "Degraded", color: signal[vm.council.vlevel].text, sub: runLabel(vm.runDates, vm.council.runId), chip: vm.councilBeat === "STALE" ? "STALE" : vm.council.vlevel === "ok" ? "clean" : "check", level: vm.councilBeat === "STALE" && vm.council.vlevel === "ok" ? "warn" : vm.council.vlevel },
     { label: "Edge", value: `${vm.edgeAccrual.n}/~${vm.edgeAccrual.target}`, color: color.ink, sub: "resolved bets", chip: "accruing", level: "mute" },
   ];
   return (
@@ -57,6 +77,7 @@ function MOverview({ vm }: { vm: ViewModel }) {
           </div>
         ))}
       </div>
+      <MWhyNoEntry vm={vm} />
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
         <div className="flex items-center" style={{ gap: 13, paddingBottom: 12, borderBottom: "1px solid #edf0f4" }}>
           <div className="flex flex-col items-center justify-center" style={{ width: 56, height: 56, borderRadius: "50%", border: `3px solid ${ringColor}`, flex: "none" }}>
@@ -90,7 +111,7 @@ function MSafety({ vm }: { vm: ViewModel }) {
   const sig = signal[c.vlevel];
   const tiles: { label: string; value: string; color: string; sub: string; series?: { equity: number }[] }[] = [
     { label: "Paper equity", value: vm.equity, color: color.ink, sub: vm.deltaFrame, series: vm.equitySeries },
-    { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: "halt at 20%" },
+    { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: `warn ${vm.ddWarnPct}% · halt 20%` },
     { label: "Positions", value: `${vm.openN}/${vm.maxN}`, color: color.ink, sub: `${vm.openPrem} at risk` },
     { label: "Headroom", value: vm.headroom, color: signal.ok.text, sub: `of ${vm.bookBudget}` },
   ];
@@ -144,7 +165,7 @@ function MSafety({ vm }: { vm: ViewModel }) {
           <span style={{ fontSize: 17 }}>{c.vlevel === "ok" ? "✓" : "⚠"}</span>
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: sig.text }}>{c.verdict}</div>
-            <div style={{ fontSize: 10.5, color: "#5f6675" }}>run #{c.runId ?? "—"} · {c.models}</div>
+            <div style={{ fontSize: 10.5, color: "#5f6675" }}>{runLabel(vm.runDates, c.runId)}<StaleChip status={vm.councilBeat} /> · {c.models}</div>
           </div>
         </div>
         {rows.map((r) => (
@@ -176,11 +197,11 @@ function MSafety({ vm }: { vm: ViewModel }) {
 
 // ── Edge ──────────────────────────────────────────────────────────────────────────────────────
 function MEdge({ vm }: { vm: ViewModel }) {
-  const books: { name: string; tag: string; n: number; p95: number | null; level: Level }[] = [
-    { name: "Real", tag: "gate + council on", ...vm.perf.real, level: "acc" },
-    { name: "Shadow", tag: "no council", ...vm.perf.shadow, level: "mute" },
-    { name: "3A", tag: "no gate", ...vm.perf.a3, level: "mute" },
-    { name: "3B", tag: "whole basket", ...vm.perf.basket, level: "mute" },
+  const books: { name: string; tag: string; n: number; p95: number | null; withLegacy: TailFigure["withLegacy"]; level: Level }[] = [
+    { name: "Real", tag: "gate + council on", ...vm.perf.tails.real, level: "acc" },
+    { name: "Shadow", tag: "no council", ...vm.perf.tails.shadow, level: "mute" },
+    { name: "3A", tag: "no gate", ...vm.perf.tails.a3, level: "mute" },
+    { name: "3B", tag: "whole basket", ...vm.perf.tails.basket, level: "mute" },
   ];
   const maxP95 = Math.max(1, ...books.map((b) => b.p95 ?? 0));
   const anyResolved = books.some((b) => b.p95 != null);
@@ -195,6 +216,12 @@ function MEdge({ vm }: { vm: ViewModel }) {
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Does the machine beat "brain-off"?</div>
         <div style={{ fontSize: 11, color: "#5f6675", margin: "3px 0 12px", lineHeight: 1.4 }}>Tail multiple (p95) per book — the real book should out-tail the rest.</div>
+        {vm.perf.outsideFrame.length > 0 && (
+          <div style={{ margin: "-4px 0 10px" }}>
+            <OutsideFrameChip items={vm.perf.outsideFrame} compact />
+            <div style={{ fontSize: 10, color: "#5f6675", marginTop: 5, lineHeight: 1.4 }}>In-frame figure first; with-legacy (incl. tagged positions) beside it.</div>
+          </div>
+        )}
         {books.map((b) => {
           const has = b.p95 != null;
           const w = has ? Math.max(5, ((b.p95 as number) / maxP95) * 100) : 0;
@@ -212,7 +239,10 @@ function MEdge({ vm }: { vm: ViewModel }) {
                   <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg,#edf0f4,#edf0f4 7px,#e7eaef 7px,#e7eaef 14px)", borderRadius: 6, animation: "accruePulse 2.6s ease-in-out infinite" }} />
                 )}
               </div>
-              <div className="font-mono text-right" style={{ width: 48, flex: "none", fontSize: 12, fontWeight: 700, color: has ? lv.text : signal.mute.text }}>{has ? `${(b.p95 as number).toFixed(2)}×` : "—"}</div>
+              <div className="font-mono text-right" style={{ width: b.withLegacy ? 112 : 48, flex: "none", fontSize: 12, fontWeight: 700, color: has ? lv.text : signal.mute.text }}>
+                {has ? `${(b.p95 as number).toFixed(2)}×` : "—"}
+                {b.withLegacy && <div><WithLegacy t={b} style={{ fontSize: 9 }} /></div>}
+              </div>
             </div>
           );
         })}
@@ -285,7 +315,7 @@ function MPipeline({ vm }: { vm: ViewModel }) {
   return (
     <>
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest cycle <span style={{ fontWeight: 400, color: "#5f6675" }}>· run #{f.runId ?? "—"}</span></div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest cycle <span style={{ fontWeight: 400, color: "#5f6675" }}>· {runLabel(vm.runDates, f.runId)}</span></div>
         <div style={{ fontSize: 11, color: "#5f6675", margin: "3px 0 13px", lineHeight: 1.4 }}>Where candidate ideas stop. Zero opened is healthy if nothing was cheap.</div>
         {steps.map((s) => (
           <div key={s.label} className="flex items-center" style={{ gap: 12, padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
@@ -326,7 +356,7 @@ function MPipeline({ vm }: { vm: ViewModel }) {
       </div>
       {vm.deliberation.rows.length > 0 && (
         <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest decisions <span style={{ fontWeight: 400, color: "#5f6675" }}>· #{vm.deliberation.runId}</span></div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest decisions <span style={{ fontWeight: 400, color: "#5f6675" }}>· {runLabel(vm.runDates, vm.deliberation.runId)}</span></div>
           {vm.deliberation.rows.map((d, i) => (
             <div key={i} className="flex justify-between items-center" style={{ gap: 10, padding: "7px 0", borderTop: "1px solid #edf0f4", marginTop: 2 }}>
               <span className="font-mono" style={{ fontSize: 12, fontWeight: 600, color: "#141b28" }}>{d.symbol} <span style={{ fontWeight: 400, color: "#5f6675" }}>{d.dir ?? ""}</span></span>

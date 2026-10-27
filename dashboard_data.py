@@ -36,8 +36,10 @@ import numpy as np
 import breach_audit
 import clusters
 import direction_coherence
+import drawdown_warn
 import fixed_basket
 import fundamentals_staleness
+import nyse_calendar
 import shadow_book
 import state
 from council.proposal import passes_floor
@@ -58,8 +60,10 @@ RECENT_COUNCIL_N = 4  # trailing council-run window for the Health strip + T4 co
 # Market-aware staleness (pure datetime — NEVER LiveClock.is_market_open, which fetches via Alpaca). The live
 # cadence comes from the systemd timers: L1/council = Mon–Fri 15:45 ET; L2 monitor = every 30 min across
 # 09:00–16:00 ET weekdays. Anchoring on these means a weekend (nothing scheduled) never false-alarms.
-# Holidays are NOT modeled (a holiday weekday → a one-evening benign false-STALE, raw age shown beside); a
-# static holiday set is deferred.
+# NYSE holidays and 13:00 early closes (nyse_calendar, a pure hard-coded table; #367) are honoured: a holiday
+# has nothing due, and on a half day the market is shut by the 15:45 L1 slot (no entries/council — see
+# orchestrator.entries_allowed) and the L2 window ends at the early close. Dates outside the table fall back
+# to weekday-only. Display logic only — nothing here feeds an order path or the drawdown kill rule.
 _ET = ZoneInfo("America/New_York")
 _L1_SLOT_HM = (15, 45)              # council/L1 daily slot (ET)
 _L1_GRACE_MIN = 20                  # a slot counts as "due" only once now ≥ slot + this (start/record latency)
@@ -120,6 +124,47 @@ def _parse_dt(s: Any) -> datetime | None:
     return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
 
 
+def run_start_map(conn, run_ids) -> dict[str, str]:
+    """``{run_id: started_at}`` for the given runs (read-only), so the UI can print an ET date beside every
+    run id it shows (issue #354). Keys are strings (JSON object keys); unknown/NULL runs are omitted."""
+    ids = sorted({int(i) for i in run_ids if isinstance(i, int) and not isinstance(i, bool)})
+    out: dict[str, str] = {}
+    for k in range(0, len(ids), 500):
+        chunk = ids[k:k + 500]
+        marks = ",".join("?" * len(chunk))
+        for r in conn.execute(f"SELECT id, started_at FROM runs WHERE id IN ({marks})", tuple(chunk)):
+            if r[1]:
+                out[str(r[0])] = r[1]
+    return out
+
+
+def run_kind(mode: Any) -> str:
+    """The pipeline layer a ``runs.mode`` belongs to: the PAPER/LIVE trade cycle is the L1 council run,
+    DISCOVERY is the L0 framer; anything else keeps its raw mode rather than being mislabelled L1."""
+    return {"PAPER": "L1", "LIVE": "L1", "DISCOVERY": "L0"}.get(str(mode), str(mode or "run"))
+
+
+def run_kind_map(conn, run_ids) -> dict[str, str]:
+    """``{run_id: kind}`` derived from ``runs.mode`` (read-only) — pairs with ``run_start_map`` so the UI never
+    hardcodes which layer a run id belongs to (issue #354)."""
+    ids = sorted({int(i) for i in run_ids if isinstance(i, int) and not isinstance(i, bool)})
+    out: dict[str, str] = {}
+    for k in range(0, len(ids), 500):
+        chunk = ids[k:k + 500]
+        marks = ",".join("?" * len(chunk))
+        for r in conn.execute(f"SELECT id, mode FROM runs WHERE id IN ({marks})", tuple(chunk)):
+            out[str(r[0])] = run_kind(r[1])
+    return out
+
+
+def run_label(run_id: Any, started_at: Any, kind: str) -> str:
+    """``"L1 #1816 · Mon 2026-10-26 15:45 ET"`` — the SAME string ``ui/src/data/runLabel.ts`` prints, for run ids
+    the backend bakes into prose (T4 details). ET always (the market's clock), never the UTC the DB stores."""
+    dt = _parse_dt(started_at)
+    stamp = dt.astimezone(_ET).strftime("%a %Y-%m-%d %H:%M ET") if dt else "date unavailable"
+    return f"{kind} #{run_id} \u00b7 {stamp}"
+
+
 def _age_hours(s: Any, *, now: datetime) -> float | None:
     dt = _parse_dt(s)
     return None if dt is None else (now - dt).total_seconds() / 3600.0
@@ -150,23 +195,24 @@ def _et_date(ts):
 
 
 def _most_recent_due_l1_date(now_et: datetime):
-    """ET date of the most recent weekday 15:45-ET L1 slot already DUE (now ≥ slot + grace), walking back
-    across weekends/long weekends; None if none in the last ~8 days."""
+    """ET date of the most recent 15:45-ET L1 slot already DUE (now ≥ slot + grace), walking back across
+    weekends, NYSE holidays and half days (the market is shut by 15:45 on an early close, so no council runs
+    and none is due); None if none in the last ~8 days."""
     grace = timedelta(minutes=_L1_GRACE_MIN)
     day = now_et
     for _ in range(8):
-        if day.weekday() < 5:
-            slot = day.replace(hour=_L1_SLOT_HM[0], minute=_L1_SLOT_HM[1], second=0, microsecond=0)
-            if now_et >= slot + grace:
-                return slot.date()
+        slot = day.replace(hour=_L1_SLOT_HM[0], minute=_L1_SLOT_HM[1], second=0, microsecond=0)
+        close = nyse_calendar.session_close(day.date())
+        if close is not None and slot.time() < close and now_et >= slot + grace:
+            return slot.date()
         day -= timedelta(days=1)
     return None
 
 
 def council_session_stale(last_council_ts, *, now: datetime | None = None) -> str:
-    """Market-aware staleness for the daily L1/council cadence (Mon–Fri 15:45 ET). OFFLINE if never run;
-    STALE iff a weekday 15:45-ET slot has come DUE on a date strictly after the last council run's date;
-    else ONLINE. ``last_council_ts`` is the run started_at — a same-day catch-up before the slot still counts
+    """Market-aware staleness for the daily L1/council cadence (15:45 ET on NYSE full trading days). OFFLINE
+    if never run; STALE iff a full-day 15:45-ET slot has come DUE on a date strictly after the last council
+    run's date; else ONLINE. ``last_council_ts`` is the run started_at — a same-day catch-up before the slot still counts
     (date-based), so a Persistent catch-up doesn't false-alarm. Pure datetime (no fetch)."""
     now = now or datetime.now(UTC)
     last_date = _et_date(last_council_ts)
@@ -182,17 +228,23 @@ def cycle_session_stale(last_cycle_ts, *, now: datetime | None = None) -> str:
     """Market-aware staleness for the L1∪L2 loop liveness (L2 monitor every ~30 min across 09:00–16:00 ET
     weekdays). OFFLINE if never run; ONLINE outside the RTH cadence window / weekends (nothing scheduled);
     inside it, STALE iff the last loop run is older than one L2 interval + slack — the intraday-stall the flat
-    age threshold never caught. Pure datetime (no fetch)."""
+    age threshold never caught. Holidays are never due; on an early close the window ends at the close.
+    Pure datetime (no fetch)."""
     now = now or datetime.now(UTC)
     last = _parse_dt(last_cycle_ts)
     if last is None:
         return "OFFLINE"
     now_et = now.astimezone(_ET)
     (oh, om), (ch, cm) = _L2_WINDOW_HM
+    session_close = nyse_calendar.session_close(now_et.date())
+    if session_close is None:  # weekend or NYSE holiday → nothing is expected
+        return "ONLINE"
     open_dt = now_et.replace(hour=oh, minute=om, second=0, microsecond=0)
-    close_dt = now_et.replace(hour=ch, minute=cm, second=0, microsecond=0)
-    # don't expect freshness on weekends, in the first interval+slack of the window, or after close
-    if now_et.weekday() >= 5 or now_et < open_dt + timedelta(minutes=_L2_STALE_MIN) or now_et >= close_dt:
+    # the window ends at the L2 cutoff or the early close, whichever is first
+    close_dt = min(now_et.replace(hour=ch, minute=cm, second=0, microsecond=0),
+                   now_et.replace(hour=session_close.hour, minute=session_close.minute, second=0, microsecond=0))
+    # don't expect freshness in the first interval+slack of the window, or after close
+    if now_et < open_dt + timedelta(minutes=_L2_STALE_MIN) or now_et >= close_dt:
         return "ONLINE"
     return "STALE" if (now - last).total_seconds() / 60.0 > _L2_STALE_MIN else "ONLINE"
 
@@ -381,7 +433,11 @@ def risk_panel(conn, config: dict) -> dict:
         "kill_switch_engaged": kill_switch_active(),
         "kill_rule": {"tripped": krs.tripped, "reasons": list(krs.reasons),
                       "book_drawdown": round(krs.book_drawdown, 4), "have_marks": have_marks,
-                      "drawdown_halt": float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20))},
+                      "drawdown_halt": float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)),
+                      # #355: DISPLAY-ONLY ok/warn/tripped. `tripped` above stays the kill rule's own verdict.
+                      "drawdown_warn": drawdown_warn.WARN_FRACTION,
+                      "level": "tripped" if krs.tripped else drawdown_warn.drawdown_level(
+                          krs.book_drawdown, float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)))},
         "cost_cap": {"last_council_health": last_health, "tripped": last_health == "cost_cap",
                      "cap_usd": float(config.get("council", {}).get("cost_cap_usd", 0.0))},
         "book": {"open": state.count_open_convexity_positions(conn),
@@ -594,8 +650,17 @@ def performance_panel(conn) -> dict:
         "real": _bootstrap_p95_ci(state.convexity_realized_multiples(conn)),
         "shadow_all": _bootstrap_p95_ci([m for ms in state.shadow_realized_multiples(conn).values() for m in ms]),
     }
-    for book, ms in state.fixed_basket_realized_multiples(conn).items():
+    fb_all = state.fixed_basket_realized_multiples(conn)
+    for book, ms in fb_all.items():
         cis[f"nogate_{book}"] = _bootstrap_p95_ci(ms)
+    # Issue #352 (display of #276): the same p95s read WITHOUT the tagged wrong-side positions, so the UI can
+    # show the in-frame figure first and the with-legacy one beside it. A book with no in-frame rows is n=0.
+    cis["real_in_frame"] = _bootstrap_p95_ci(state.convexity_realized_multiples(conn, in_frame_only=True))
+    cis["shadow_all_in_frame"] = _bootstrap_p95_ci(
+        [m for ms in state.shadow_realized_multiples(conn, in_frame_only=True).values() for m in ms])
+    fb_in = state.fixed_basket_realized_multiples(conn, in_frame_only=True)
+    for book in fb_all:
+        cis[f"nogate_{book}_in_frame"] = _bootstrap_p95_ci(fb_in.get(book, []))
     return {
         "tails": tails,
         "p95_ci": cis,  # the §5 "see the overlap" substrate; no gap verdict
@@ -1008,6 +1073,229 @@ def gate_reasons(conn, *, run_id: int | None = None) -> dict:
     }
 
 
+def _gate_of_record_reads(conn, now: datetime, max_age_td: int = 5) -> dict[str, dict]:
+    """{SYMBOL: latest FRESH gate-of-record (opra) ``gate_dualread`` row}. The SAME read, the same ≤``max_age_td``
+    weekday freshness and the same most-recent-row-per-symbol rule as ``state.unexpressible_symbols`` (the
+    council's expressible-first demotion), so "expressible" here is the gate's own answer, not a second opinion.
+    A row with ``structured`` NULL carries no verdict and is left out.
+
+    Ages are counted on the **ET** calendar date (``now`` and the row's ``evaluated_at`` both converted), local to
+    this panel. ``state.unexpressible_symbols`` still uses ``now.date()`` (UTC), so between 20:00 and 24:00 ET at
+    the 5-weekday edge one name can be fresh here and stale there (or vice versa) — a known follow-up, left alone
+    because that function is in the trading path."""
+    today = now.astimezone(_ET).date()
+    out: dict[str, dict] = {}
+    seen: set[str] = set()
+    for r in conn.execute(
+        "SELECT symbol, structured, iv_rv, otm_skew, cheap, note, run_id, evaluated_at FROM gate_dualread "
+        "WHERE feed='opra' ORDER BY evaluated_at DESC, id DESC"
+    ):
+        sym = str(r["symbol"]).upper()
+        if sym in seen:
+            continue
+        seen.add(sym)
+        d = _et_date(r["evaluated_at"])
+        if d is None or state._weekday_age(d, today) > max_age_td or r["structured"] is None:
+            continue
+        out[sym] = dict(r)
+    return out
+
+
+def _position_outcome(pos) -> tuple[str, str]:
+    """(kind, plain-English result) of one ``convexity_positions`` row: resting / filled / not_filled."""
+    status = str(pos["status"] or "")
+    if status == "pending":
+        return "resting", "resting at the broker (awaiting fill)"
+    if status == "cancelled":
+        return "not_filled", "not filled — " + str(pos["exit_reason"] or "cancelled").replace("_", " ")
+    return "filled", "filled" + (f" (now {status})" if status not in ("open", "") else "")
+
+
+def _order_for_proposal(positions: list, proposal_id: int) -> dict | None:
+    """The real order outcome for a judged name: the newest ``convexity_positions`` row whose ``proposal_id``
+    is exactly this proposal's, else None. No run+symbol guess — with two proposals for one symbol in a run
+    that would show one proposal another's order. ``gate_decision`` is a point-in-time stamp
+    (``submit-pending`` stays that forever); this is what the order actually did."""
+    hit = [p for p in positions if p["proposal_id"] == proposal_id]
+    if not hit:
+        return None
+    pos = max(hit, key=lambda p: p["id"])
+    kind, result = _position_outcome(pos)
+    return {"kind": kind, "result": result, "position_id": pos["id"], "status": pos["status"],
+            "contract": pos["contract_symbol"], "contracts": pos["contracts"],
+            "premium": round(float(pos["total_premium"]), 2) if pos["total_premium"] is not None else None}
+
+
+def _last_order_attempt(conn, now: datetime) -> dict | None:
+    """The most recent real-book ENTRY order attempt and how it ended. Two sources, newest wins: the latest
+    ``convexity_positions`` row (filled → open/closing/closed; resting → pending; never filled → cancelled with
+    its ``exit_reason``) and the latest ``veto-fill`` eval (the broker refused/never took it, so no position row
+    exists). Read-only; never places, cancels or reconciles anything."""
+    pos = conn.execute(
+        "SELECT id, symbol, contract_symbol, contracts, total_premium, status, exit_reason, opened_at, run_id "
+        "FROM convexity_positions ORDER BY id DESC LIMIT 1").fetchone()
+    vf = conn.execute(
+        "SELECT id, symbol, evaluated_at, run_id, reasons FROM convexity_eval WHERE decision='veto-fill' "
+        "ORDER BY id DESC LIMIT 1").fetchone()
+    cand = []
+    if pos is not None:
+        cand.append((_parse_dt(pos["opened_at"]), 0, "position", pos))
+    if vf is not None:
+        cand.append((_parse_dt(vf["evaluated_at"]), 1, "veto-fill", vf))
+    cand = [c for c in cand if c[0] is not None]
+    if not cand:
+        return None
+    when, _, kind, r = max(cand, key=lambda c: (c[0], c[1]))
+    out: dict[str, Any] = {"symbol": r["symbol"], "at": when.isoformat(), "run_id": r["run_id"],
+                           "day": when.astimezone(_ET).date().isoformat(),
+                           "days_ago": (now.astimezone(_ET).date() - when.astimezone(_ET).date()).days}
+    if kind == "veto-fill":
+        why = _parse_json_list(r["reasons"])
+        out.update(kind="not_filled", result="not filled — " + (why[0] if why else "broker did not take the order"),
+                   contract=None, contracts=None, premium=None, position_id=None)
+        return out
+    kind_, result = _position_outcome(r)
+    out.update(kind=kind_, result=result, contract=r["contract_symbol"], contracts=r["contracts"],
+               premium=round(float(r["total_premium"]), 2) if r["total_premium"] is not None else None,
+               position_id=r["id"])
+    return out
+
+
+def _parse_json_list(raw) -> list[str]:
+    """A ``convexity_eval.reasons`` cell → list[str] (it is a JSON list, or {reasons:[…], cluster_state}); soft."""
+    try:
+        v = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, ValueError):
+        return [str(raw)] if raw else []
+    if isinstance(v, dict):
+        v = v.get("reasons")
+    if isinstance(v, list):
+        return [str(x) for x in v]
+    return [str(v)] if v else []
+
+
+# Council-side stage → the plain label the operator reads (the gate's own decision code replaces "to_gate").
+_STAGE_LABEL = {
+    "ungrounded": "council: ungrounded (no numeric evidence)",
+    "proposer_abstained": "council: proposer abstained",
+    "other": "council: dropped before the strategist",
+    "criteria_vetoed": "council: tri-criteria veto",
+    "not_included": "council: strategist excluded",
+    "below_floor": "council: below the conviction floor",
+}
+
+
+def why_no_entry_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
+    """The per-name "why no entry" read of the latest council session (issue #351): ONE row per judged name —
+    conviction vs the floor, the stage that stopped it (council stage, or the gate's own decision code when it
+    reached the gate), iv/rv or "no structure", and whether it is expressible by the gate-of-record read — plus
+    three tiles: expressible n/N, days since the last above-floor conviction, and the last order attempt.
+
+    Anchored on the SAME run as ``funnel_panel`` / ``council_stage_funnel`` and classified with the SAME rules,
+    so the rows total back to ``funnel.by_decision`` and ``council_stage.stages`` (``reconciliation`` re-checks
+    both and the UI shows a warning if either drifts). Display-only: nothing here sizes, gates or trades."""
+    now = now or datetime.now(UTC)
+    floor = (config.get("council", {}) or {}).get("conviction_floor", "MODERATE")
+    fun = funnel_panel(conn)["l1_decision"]
+    stage = council_stage_funnel(conn, config)
+    run_id = stage.get("run_id")
+    reads = _gate_of_record_reads(conn, now)
+    exp_n = sum(1 for r in reads.values() if int(r["structured"]) == 1)
+    tiles: dict[str, Any] = {
+        "expressible": {"n": exp_n, "of": len(reads),
+                        "no_structure": sorted(s for s, r in reads.items() if int(r["structured"]) == 0),
+                        "basis": "gate-of-record (opra) read, <=5 weekdays old"},
+        "last_order": _last_order_attempt(conn, now),
+        "last_above_floor": None,
+    }
+    for r in conn.execute("SELECT run_id, symbol, direction, conviction, as_of FROM council_proposals "
+                          "WHERE conviction IS NOT NULL ORDER BY run_id DESC, id DESC"):
+        if passes_floor(r["conviction"], floor):
+            d = _et_date(r["as_of"])
+            tiles["last_above_floor"] = {
+                "run_id": r["run_id"], "symbol": r["symbol"], "direction": r["direction"],
+                "conviction": r["conviction"], "day": d.isoformat() if d else None,
+                "days_ago": (now.astimezone(_ET).date() - d).days if d else None}
+            break
+    if run_id is None:
+        return {"run_id": None, "empty": True, "floor": floor, "rows": [], "tiles": tiles}
+
+    gate_rows: dict[int, dict] = {}
+    unattributed: dict[str, int] = {}
+    pids = {r["id"] for r in conn.execute("SELECT id FROM council_proposals WHERE run_id=?", (run_id,))}
+    for r in conn.execute("SELECT id, proposal_id, decision, iv_rv, otm_skew FROM convexity_eval "
+                          "WHERE run_id=? ORDER BY id", (run_id,)):
+        if r["proposal_id"] in pids:
+            gate_rows[r["proposal_id"]] = dict(r)   # a later row for the same proposal supersedes
+        else:
+            unattributed[r["decision"]] = unattributed.get(r["decision"], 0) + 1
+
+    positions = _rows(conn, "SELECT id, proposal_id, symbol, contract_symbol, contracts, total_premium, status, "
+                            "exit_reason FROM convexity_positions WHERE run_id=?", (run_id,))
+    rows: list[dict] = []
+    for p in _rows(conn, "SELECT id, symbol, direction, conviction, as_of, status, rationale FROM council_proposals "
+                         "WHERE run_id=? ORDER BY symbol, id", (run_id,)):
+        rat = _rationale(p["rationale"])
+        strat = rat.get("strategist")
+        above = passes_floor(p["conviction"], floor)
+        if isinstance(strat, dict):
+            if strat.get("include") is True:
+                st = "to_gate" if above else "below_floor"
+            elif strat.get("criteria_veto") is True:
+                st = "criteria_vetoed"
+            else:
+                st = "not_included"
+        elif rat.get("dropped") == "ungrounded (no numeric evidence)":
+            st = "ungrounded"
+        elif rat.get("dropped") == "proposer abstained (NEUTRAL)":
+            st = "proposer_abstained"
+        else:
+            st = "other"
+        g = gate_rows.get(p["id"])
+        read = reads.get(str(p["symbol"]).upper())
+        expressible = None if read is None else int(read["structured"]) == 1
+        iv_rv = skew = None
+        if g is not None and g["iv_rv"] is not None:
+            iv_rv, skew = g["iv_rv"], g["otm_skew"]
+        elif read is not None and expressible and read["iv_rv"] is not None:
+            iv_rv, skew = read["iv_rv"], read["otm_skew"]
+        order = _order_for_proposal(positions, p["id"]) if st == "to_gate" else None
+        veto_stage = (g["decision"] if g else "to the gate — no gate row yet") if st == "to_gate" \
+            else _STAGE_LABEL[st]
+        if st == "to_gate" and order is None and any(
+                str(q["symbol"]).upper() == str(p["symbol"]).upper() for q in positions):
+            veto_stage += " — order unmatched"   # this run has an order for the symbol, but none linked to this proposal
+        rows.append({
+            "proposal_id": p["id"], "symbol": p["symbol"], "direction": p["direction"],
+            "conviction": p["conviction"] or "NEUTRAL", "above_floor": above, "stage": st,
+            "gate_decision": g["decision"] if g else None,
+            "veto_stage": veto_stage,
+            "order": order,
+            "iv_rv": None if iv_rv is None else round(float(iv_rv), 3),
+            "otm_skew": None if skew is None else round(float(skew), 2),
+            "expressible": expressible,
+            "structure_note": (read.get("note") if read and not expressible else None),
+            "iv_rv_source": "gate" if (g is not None and g["iv_rv"] is not None) else ("opra read" if iv_rv is not None else None),
+        })
+
+    by_stage: dict[str, int] = {}
+    by_decision: dict[str, int] = dict(unattributed)
+    for r in rows:
+        by_stage[r["stage"]] = by_stage.get(r["stage"], 0) + 1
+        if r["gate_decision"]:
+            by_decision[r["gate_decision"]] = by_decision.get(r["gate_decision"], 0) + 1
+    st = stage.get("stages", {})
+    stages_ok = (not stage.get("empty") and len(rows) == st.get("proposed")
+                 and all(by_stage.get(k, 0) == st.get(k, 0) for k in
+                         ("ungrounded", "proposer_abstained", "other", "criteria_vetoed", "below_floor", "to_gate")))
+    return {
+        "run_id": run_id, "empty": False, "floor": floor, "rows": rows, "tiles": tiles,
+        "totals": {"judged": len(rows), "reached_gate": by_stage.get("to_gate", 0), "by_stage": by_stage,
+                   "by_decision": by_decision, "unattributed_gate_rows": sum(unattributed.values())},
+        "reconciliation": {"by_decision_ok": by_decision == fun["by_decision"], "stages_ok": bool(stages_ok)},
+    }
+
+
 def cap_binding_flow(conn) -> dict:
     """How often the CLUSTER cap REJECTED an otherwise-passing candidate (eligible + cheap but cluster-full).
     Readable from decision codes. NOTE: partial-TIGHTENING on admits is NOT reconstructable from the current
@@ -1120,7 +1408,7 @@ def recent_council_health(conn, n: int = RECENT_COUNCIL_N) -> list[dict]:
     ``verdict`` (the stamp is proposer-parse-only and can read 'ok' on a DEGRADED run), the proposer
     parse-rate, and per-provider parse counts in the SAME shape ({calls, parse_error, parse_error_rate})."""
     rows = conn.execute(
-        "SELECT id, started_at, council_health FROM runs WHERE council_health IS NOT NULL "
+        "SELECT id, started_at, mode, council_health FROM runs WHERE council_health IS NOT NULL "
         "ORDER BY id DESC LIMIT ?", (n,)).fetchall()
     out: list[dict] = []
     for r in reversed(rows):  # oldest → newest, so window[-1] is the latest run
@@ -1137,7 +1425,8 @@ def recent_council_health(conn, n: int = RECENT_COUNCIL_N) -> list[dict]:
             p["parse_error_rate"] = round(p["parse_error"] / p["calls"], 4) if p["calls"] else None
         parse = state.council_parse_health(conn, rid)
         out.append({
-            "run_id": rid, "started_at": r["started_at"], "council_health": r["council_health"],
+            "run_id": rid, "started_at": r["started_at"], "kind": run_kind(r["mode"]),
+            "council_health": r["council_health"],
             "verdict": council_l1_health(conn, run_id=rid).get("verdict"),
             "proposer_parse_rate": round(parse["rate"], 4), "proposer_called": parse["called"],
             "proposer_parse_failed": parse["parse_failed"], "by_provider": by_provider,
@@ -1316,8 +1605,9 @@ def forward_catalyst_panel(conn, config: dict | None = None,
 
 # ── the T4-readiness scoreboard (the spine) ─────────────────────────────────────────────────────
 def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N) -> dict:
-    """Map the pre-committed unlock conditions → live state. ASYMMETRY IS STRUCTURAL: only (1),(3),(5) can be
-    binary; (2),(4) render state with NO verdict (deferred to the blind/mature null layer + the human). (1) is
+    """Map the pre-committed unlock conditions → live state. ASYMMETRY IS STRUCTURAL: only (1),(3) can be
+    binary; (2),(4) render state with NO verdict (deferred to the blind/mature null layer + the human); (5) is a
+    MANUAL operator checklist (#355: no longer a hardcoded IN_PROGRESS). (1) is
     re-derived LIVE from trailing council_health (NOT frozen — it flips if the council regresses). (3) reports
     breaches over N admissions (0/0 = vacuous, not a pass)."""
     # cond-1: censor the pre-fix parse_fail (bug) runs, then require ≥2 remaining AND all ROUNDTRIP_CONFIRMED
@@ -1328,11 +1618,11 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N)
     c1_confirmed = [w for w in non_bug if w["verdict"] == "ROUNDTRIP_CONFIRMED"]
     c1_ok = len(non_bug) >= 2 and len(c1_confirmed) == len(non_bug)
     c1_detail = " · ".join(
-        f"#{w['run_id']} {w['verdict']}" + (" (pre-fix, censored)" if w["council_health"] == "parse_fail" else "")
+        f"{run_label(w['run_id'], w['started_at'], w['kind'])} {w['verdict']}" + (" (pre-fix, censored)" if w["council_health"] == "parse_fail" else "")
         for w in window) or "no council runs yet"
     # Legibility: cond-1 reads NOT_OK at 3-of-4 confirmed because the rule is WHOLE-window-confirmed, NOT "≥2
     # confirmed exist" — so name what blocks it (a non-censored run that isn't a round-trip, else too-few-clean).
-    c1_blockers = [f"#{w['run_id']} {w['verdict']}" for w in non_bug if w["verdict"] != "ROUNDTRIP_CONFIRMED"]
+    c1_blockers = [f"{run_label(w['run_id'], w['started_at'], w['kind'])} {w['verdict']}" for w in non_bug if w["verdict"] != "ROUNDTRIP_CONFIRMED"]
     c1_why = ("" if c1_ok
               else f"; blocked by {', '.join(c1_blockers)}" if c1_blockers
               else f"; only {len(non_bug)} clean run(s) so far (need ≥2)")
@@ -1358,8 +1648,11 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N)
              "detail": f"{breach['n_breaches']} breaches over {breach['n_clustered_admissions']} clustered admissions"},
             {"id": 4, "name": "payoff shape vs calibration venture profile", "checkable": False,
              "verdict": None, "detail": f"resolved real positions={real_n} (accruing; descriptive sanity)"},
-            {"id": 5, "name": "pre-T4 items (incl. this dashboard)", "checkable": True,
-             "verdict": "IN_PROGRESS", "detail": "reports merged; dashboard = this surface"},
+            # #355: no code can derive "pre-T4 items done" — it is an operator checklist. Say so instead of a
+            # hardcoded IN_PROGRESS: non-checkable + no verdict, flagged `manual` so the UI labels it MANUAL.
+            {"id": 5, "name": "pre-T4 items (incl. this dashboard)", "checkable": False, "manual": True,
+             "verdict": None, "detail": "manual — operator-attested checklist, not computed "
+                                        "(status: records/STANDING_STATE.md)"},
         ],
         "note": "A scoreboard, NOT a graduation verdict. Conditions 2/4 are plumbing/accruing (no checkmark); "
                 "T4 is the operator's process decision (IMPLEMENTATION_PLAN.md).",

@@ -10,9 +10,10 @@
 import type {
   AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
   NextRunVM, NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
-  Snapshot, SpendVM, ViewModel,
+  OutsideFrameVM, Snapshot, SpendVM, TailFigure, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
 } from "./types";
-import { directionLabel, levelFromSystem, t4RowState, verdictDisplay } from "./status";
+import { etDate, formatRunLabel } from "./runLabel";
+import { DD_WARN_DEFAULT, directionLabel, drawdownDisplay, levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
 const DASH = "—";
 // The "first null read" sample target (PREREG_FIXED_BASKET_NULL — the calibration cohort size). No config
@@ -36,6 +37,12 @@ function nextRun(b: { next_at?: string | null } | null | undefined, now: string 
   return { label: mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`, at: b.next_at };
 }
 const ci = (c?: { n?: number; p95?: number | null } | null) => ({ n: c?.n ?? 0, p95: c?.p95 ?? null });
+// #352: in-frame figure first, the with-legacy one always beside it whenever positions are tagged (even when the
+// resolved counts are equal). No in-frame twin on the wire (older backend) or no tags ⇒ one number.
+const tailFigure = (all: ReturnType<typeof ci>, inFrame: { n?: number; p95?: number | null } | undefined, tagged: boolean): TailFigure => {
+  if (!tagged || !inFrame) return { ...all, withLegacy: null };
+  return { ...ci(inFrame), withLegacy: all };
+};
 const usd = (v: number | null | undefined, dp = 3): string => "$" + Number(v ?? 0).toFixed(dp);
 
 // A fail-soft panel (dd.safe) comes back as {"error": "..."}. Detect it so a crashed panel reads as
@@ -46,6 +53,59 @@ function panelError(p: unknown): string | null {
     if (typeof e === "string") return e;
   }
   return null;
+}
+
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const sinceLabel = (daysAgo: number | null | undefined): string =>
+  daysAgo == null ? "date unknown" : daysAgo <= 0 ? "today" : `${plural(daysAgo, "day")} ago`;
+const dayStamp = (day: string | null | undefined): string => {
+  if (!day) return DASH;
+  const t = Date.parse(`${day}T12:00:00Z`);
+  return Number.isNaN(t) ? day : `${new Date(t).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${day}`;
+};
+const orderDetail = (o: { contract: string | null; contracts: number | null; premium: number | null }): string | null => {
+  const parts = [o.contract ? `${o.contracts != null ? `${o.contracts}× ` : ""}${o.contract}` : null, o.premium != null ? fmt(o.premium) : null];
+  const out = parts.filter(Boolean).join(" · ");
+  return out || null;
+};
+
+// #351 — the "why no entry" table. Where a row's name reached the gate and an order exists, the ORDER'S REAL
+// outcome replaces the gate stamp (gate_decision stays "submit-pending" after a cancel — it is not the outcome).
+// Dates come from the server already on the ET calendar; nothing here re-derives a day from a UTC stamp.
+function buildWhyNoEntry(P: Snapshot): WhyNoEntryVM {
+  const w = P.why_no_entry;
+  const blank: WhyNoEntryVM = {
+    unavailable: true, empty: true, runId: null, floor: DASH, rows: [],
+    expressible: { n: 0, of: 0, noStructure: [] }, lastAboveFloor: null, lastOrder: null, warning: null,
+  };
+  if (!w || panelError(w)) return blank;
+  const rows: WhyNoEntryRowVM[] = (w.rows ?? []).map((r) => {
+    const o = r.order;
+    const stoppedLevel: WhyNoEntryRowVM["stoppedLevel"] = o ? (o.kind === "not_filled" ? "warn" : "ok") : "mute";
+    return {
+      symbol: r.symbol, dir: r.direction ? directionLabel(r.direction) : DASH, conviction: r.conviction, aboveFloor: r.above_floor,
+      stoppedAt: o ? o.result : r.veto_stage, stoppedLevel, isOrder: !!o, orderDetail: o ? orderDetail(o) : null,
+      ivrv: r.iv_rv != null ? r.iv_rv.toFixed(2) : DASH, skew: r.otm_skew != null ? r.otm_skew.toFixed(1) : DASH,
+      express: r.expressible == null ? "unread" : r.expressible ? "yes" : "no",
+      expressNote: r.expressible === false ? (r.structure_note ?? "no eligible structure") : null,
+    };
+  });
+  const af = w.tiles?.last_above_floor, lo = w.tiles?.last_order, ex = w.tiles?.expressible;
+  const rec = w.reconciliation;
+  const drift = rec && (!rec.by_decision_ok || !rec.stages_ok)
+    ? `rows no longer total back to the ${[!rec.stages_ok && "council-stage", !rec.by_decision_ok && "gate-decision"].filter(Boolean).join(" and ")} funnel — read with care`
+    : null;
+  return {
+    unavailable: false, empty: !!w.empty, runId: w.run_id ?? null, floor: w.floor ?? DASH, rows,
+    expressible: { n: ex?.n ?? 0, of: ex?.of ?? 0, noStructure: ex?.no_structure ?? [] },
+    lastAboveFloor: af ? { line: `${af.symbol} · ${af.conviction}`, sub: `${sinceLabel(af.days_ago)} · ${dayStamp(af.day)}` } : null,
+    lastOrder: lo ? {
+      line: `${lo.symbol} · ${lo.result}`,
+      sub: [orderDetail(lo), `${sinceLabel(lo.days_ago)} · ${dayStamp(lo.day)}`].filter(Boolean).join(" · "),
+      level: lo.kind === "not_filled" ? "warn" : lo.kind === "filled" ? "ok" : "mute",
+    } : null,
+    warning: drift,
+  };
 }
 
 function ageDays(iso?: string): number | null {
@@ -87,7 +147,8 @@ function councilStreak(recent: Snapshot["council"]["recent"] | undefined): strin
   for (let i = r.length - 1; i >= 0 && r[i].verdict === "ROUNDTRIP_CONFIRMED"; i--) s++;
   if (s === r.length) return `${s} clean`;
   const broke = r[r.length - 1 - s];
-  return s === 0 ? `0 · #${broke.run_id} not clean` : `${s} clean, then #${broke.run_id}`;
+  const label = formatRunLabel(broke.run_id, broke.started_at, broke.kind);
+  return s === 0 ? `0 · ${label} not clean` : `${s} clean, then ${label}`;
 }
 
 export function fromBackend(P: Snapshot): ViewModel {
@@ -127,6 +188,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["null_attempts", P.null_attempts],
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
       ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence], ["staleness", P.staleness],
+      ["why_no_entry", P.why_no_entry],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
@@ -144,14 +206,19 @@ export function fromBackend(P: Snapshot): ViewModel {
 
   // A1: readiness is driven off the backend `checkable` flag (NOT the verdict→state map) so the headline
   // matches dashboard.py: pass/checkable over checkable conditions, accruing = the non-checkable ones.
+  // #355: an open MANUAL row (operator checklist, e.g. cond 5) is counted separately — it is not accruing data,
+  // and while one is open the headline can never read all-pass (the checkable count alone would overclaim).
   const condsRaw = P.t4?.conditions ?? [];
-  const cond = condsRaw.map((c) => ({ id: c.id, name: c.name, detail: c.detail, verdict: c.verdict, state: t4RowState(c.checkable, c.verdict) }));
+  const cond = condsRaw.map((c) => ({ id: c.id, name: c.name, detail: c.detail, verdict: c.verdict, state: t4RowState(c.checkable, c.verdict, c.manual) }));
   const checkable = condsRaw.filter((c) => c.checkable);
   const readiness = {
     pass: checkable.filter((c) => c.verdict === "MET" || c.verdict === "PASS").length,
     checkable: checkable.length,
-    accruing: condsRaw.filter((c) => !c.checkable).length,
+    accruing: condsRaw.filter((c) => !c.checkable && !c.manual).length,
+    manual: condsRaw.filter((c) => !c.checkable && c.manual).length,
+    allPass: false,
   };
+  readiness.allPass = readiness.checkable > 0 && readiness.pass === readiness.checkable && readiness.manual === 0;
 
   // C: the null hierarchy — flatten each step's arms dict → an ordered [{label, ci}] list for rendering.
   const nulls: NullStepVM[] = (P.nulls?.steps ?? []).map((s) => ({
@@ -287,12 +354,14 @@ export function fromBackend(P: Snapshot): ViewModel {
       { level: "MODERATE+", n: (prof.MODERATE ?? 0) + (prof.HIGH ?? 0) + (prof.EXTREME ?? 0) },
     ],
     lowHistory: (seP?.low_history ?? []).map((h) => ({
-      runId: h.run_id, day: (h.started_at ?? "").slice(5, 10), low: h.low, judged: h.judged,
+      runId: h.run_id, day: etDate(h.started_at) ?? "", low: h.low, judged: h.judged,
     })),
     providerDrops: seP?.provider_drops ?? 0,
     understudy: { configured: seP?.understudy?.configured ?? null, fired: seP?.understudy?.fired ?? 0 },
     cleanLine: recentW.length ? `${cleanN} of the last ${recentW.length} sessions clean` : "no sessions yet",
   };
+
+  const whyNoEntry = buildWhyNoEntry(P);
 
   // Month-to-date spend vs the per-provider tripwire (spend_panel).
   const spP = panelError(P.spend) ? null : P.spend;
@@ -333,12 +402,12 @@ export function fromBackend(P: Snapshot): ViewModel {
   const dc0 = dcP?.runs?.[0];
   const dircoherence: DirCoherenceVM | null = dcP
     ? {
-        active: dcP.active, runId: dc0?.run_id ?? null, day: String(dc0?.started_at ?? DASH).slice(0, 10),
+        active: dcP.active, runId: dc0?.run_id ?? null, day: etDate(dc0?.started_at) ?? DASH,
         unavailable: dc0?.status === "unavailable",
         withheld: (dc0?.withheld ?? []).map(dcFacts), kept: (dc0?.kept ?? []).map(dcFacts),
         noAccel: (dc0?.kept_no_accel ?? []).map((i) => i.symbol), errors: dc0?.errors ?? 0,
         reachedDespite: dc0?.reached_despite_withheld ?? [], f2Clean: dcP.f2_clean,
-        history: (dcP.runs ?? []).map((r) => ({ day: String(r.started_at ?? DASH).slice(0, 10), withheld: r.withheld.length })),
+        history: (dcP.runs ?? []).map((r) => ({ day: etDate(r.started_at) ?? DASH, withheld: r.withheld.length })),
       }
     : null;
 
@@ -347,7 +416,7 @@ export function fromBackend(P: Snapshot): ViewModel {
   const st0 = stP?.runs?.[0];
   const staleness: StalenessVM | null = st0
     ? {
-        runId: st0.run_id, day: String(st0.started_at ?? DASH).slice(0, 10),
+        runId: st0.run_id, day: etDate(st0.started_at) ?? DASH,
         unavailable: st0.status === "unavailable" ? (st0.reason ?? "not checked") : null,
         checked: st0.checked, errors: st0.errors,
         lagging: st0.lagging.map((i) => ({ symbol: i.symbol, line: `read the ${i.corpus_filed} filing · ${i.form} filed ${i.filed}` })),
@@ -366,6 +435,10 @@ export function fromBackend(P: Snapshot): ViewModel {
       ageDays: dg.iv_baseline_of_record.latest_age_days ?? null, accruing: dg.iv_baseline_of_record.accruing ?? false,
     } : null,
   };
+  const outsideFrame: OutsideFrameVM[] = (pf.outside_frame ?? []).map((o) => ({
+    book: o.book, symbol: o.symbol, kind: o.structure_kind ?? "—", dir: o.direction ?? "—", moneyness: o.moneyness ?? null, status: o.status ?? "—",
+  }));
+  const tagged = outsideFrame.length > 0;
   const booksOpen: BooksOpenVM = {
     real: (ps.real_open ?? []).length, shadow: (ps.shadow_open ?? []).length, a3: (ps.nogate_3A_open ?? []).length,
     basket: (ps.nogate_3B_open ?? []).length, shares: (ps.shares ?? []).length,
@@ -384,6 +457,7 @@ export function fromBackend(P: Snapshot): ViewModel {
   const phaseSub = edgeN > 0 ? `${edgeN}/${EDGE_TARGET} resolved bets` : "accruing — first reads after entries resolve";
 
   return {
+    runDates: { at: P.run_dates, kind: P.run_kinds }, councilBeat: h.council?.status ?? "OFFLINE",
     asOf: h.now ?? "",
     level: levelFromSystem(ss.level),
     headline: ss.headline ?? "",
@@ -406,7 +480,8 @@ export function fromBackend(P: Snapshot): ViewModel {
     equity: fmt(acc.broker_equity),
     deltaFrame: `${delta >= 0 ? "+" : "−"}$${Math.abs(delta).toLocaleString("en-US")} vs frame`,
     bookBudget: fmt(acc.frame?.book_budget), headroom: fmt(acc.headroom), equitySeries: acc.equity_series ?? [],
-    bookDD: pct(rk.kill_rule?.book_drawdown), bookDDlevel: rk.kill_rule?.tripped ? "bad" : "ok",
+    bookDD: pct(rk.kill_rule?.book_drawdown), bookDDlevel: drawdownDisplay(rk.kill_rule)[0], bookDDchip: drawdownDisplay(rk.kill_rule)[1],
+    ddWarnPct: Math.round((rk.kill_rule?.drawdown_warn ?? DD_WARN_DEFAULT) * 100),
     openN: rk.book?.open ?? 0, maxN: rk.book?.max ?? 0, openPrem: fmt(rk.book?.open_premium),
     council: {
       verdict: verdictLabel, vlevel, runId: ch.run_id ?? null, roundtrips: ch.roundtrip?.n ?? 0,
@@ -420,6 +495,12 @@ export function fromBackend(P: Snapshot): ViewModel {
     clusters: (rk.clusters ?? []).map((c) => ({ name: c.cluster, premium: c.premium, cap: c.cap, dirs: (c.directions ?? []).join(", ") || "—" })),
     perf: {
       real: ci(ciP.real), shadow: ci(ciP.shadow_all), a3: ci(ciP.nogate_union_nogate), basket: ci(ciP.nogate_basket_nogate),
+      tails: {
+        real: tailFigure(ci(ciP.real), ciP.real_in_frame, tagged), shadow: tailFigure(ci(ciP.shadow_all), ciP.shadow_all_in_frame, tagged),
+        a3: tailFigure(ci(ciP.nogate_union_nogate), ciP.nogate_union_nogate_in_frame, tagged),
+        basket: tailFigure(ci(ciP.nogate_basket_nogate), ciP.nogate_basket_nogate_in_frame, tagged),
+      },
+      outsideFrame,
       paid: fmt(pbd.paid), bledPct: pbd.running_fraction != null ? Math.round(pbd.running_fraction * 100) : null,
       hits: hr.hits ?? 0, closed: hr.closed ?? 0, hitRate: hr.hit_rate != null ? Math.round(hr.hit_rate * 100) : null,
     },
@@ -450,6 +531,6 @@ export function fromBackend(P: Snapshot): ViewModel {
     t4: cond,
     readiness,
     edgeAccrual: { n: edgeN, target: EDGE_TARGET }, phasePct, phaseSub,
-    session, spend, canary, dircoherence, staleness, wingMismatch, dataAccrual, booksOpen, firstEntry,
+    session, spend, canary, dircoherence, staleness, whyNoEntry, wingMismatch, dataAccrual, booksOpen, firstEntry,
   };
 }

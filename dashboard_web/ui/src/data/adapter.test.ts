@@ -9,7 +9,7 @@ function synthetic(): Snapshot {
   const beat = (age: number, status: "ONLINE" | "STALE" | "OFFLINE") => ({ at: "2026-10-14T16:00:00+00:00", age_hours: age, status, stale: status !== "ONLINE" });
   const ci = (n: number, p95: number | null) => ({ n, p95, ci90: null, flag: null });
   const rrun = (run_id: number, verdict: "ROUNDTRIP_CONFIRMED" | "ROUNDTRIP_DEGRADED") => ({
-    run_id, started_at: "2026-10-14T15:45:00+00:00", council_health: "ok" as const, verdict,
+    run_id, started_at: "2026-10-14T15:45:00+00:00", kind: "L1", council_health: "ok" as const, verdict,
     proposer_parse_rate: 0, proposer_called: 12, proposer_parse_failed: 0, by_provider: {},
   });
   return {
@@ -241,7 +241,7 @@ describe("fromBackend", () => {
     // checkable conditions: #1 MET, #3 VACUOUS, #5 IN_PROGRESS ⇒ checkable=3, pass=1 (only MET).
     // accruing = the NON-checkable conditions (#2, #4) ⇒ 2 — even though #4 carries a BREACH verdict, it is
     // !checkable so it is deferred, not a blocked gate. Matches dashboard.py's composition.
-    expect(vm.readiness).toEqual({ pass: 1, checkable: 3, accruing: 2 });
+    expect(vm.readiness).toEqual({ pass: 1, checkable: 3, accruing: 2, manual: 0, allPass: false });
   });
 
   it("renders a non-checkable verdict-bearing row as deferred, not blocked (A1)", () => {
@@ -252,7 +252,7 @@ describe("fromBackend", () => {
   });
 
   it("computes the council run streak from council.recent (A3)", () => {
-    expect(vm.council.streak).toBe("2 clean, then #285");
+    expect(vm.council.streak).toBe("2 clean, then L1 #285 · Wed 2026-10-14 11:45 ET");
     expect(vm.council.byProvider).toHaveLength(2);
     expect(vm.council.byProvider.find((p) => p.provider === "xai")?.rate).toBe(0.25);
   });
@@ -314,6 +314,60 @@ describe("fromBackend", () => {
     expect(vm.perf.bledPct).toBe(41);
     expect(vm.perf.hitRate).toBe(27); // round(0.2727 * 100)
     expect(vm.brier.roles).toHaveLength(3);
+  });
+
+  describe("edge tails vs the outside-frame tags (#352)", () => {
+    const ci = (n: number, p95: number | null) => ({ n, p95, ci90: null, flag: null });
+    const frame = (id: number, symbol: string) => ({
+      book: "shadow", id, symbol, direction: "bearish", structure_kind: "P", contract_symbol: `${symbol}P`, moneyness: 0.425, status: "closed",
+    });
+    const withPerf = (over: Record<string, unknown>) => {
+      const base = synthetic();
+      return fromBackend({ ...base, performance: { ...base.performance, ...over } } as never);
+    };
+    const tagged = () => withPerf({
+      p95_ci: {
+        real: ci(11, 3.1), real_in_frame: ci(10, 3.4),
+        shadow_all: ci(18, 2.35), shadow_all_in_frame: ci(15, 4.2),
+        nogate_union_nogate: ci(22, 1.9), nogate_union_nogate_in_frame: ci(22, 1.9), // untagged book: identical
+        nogate_basket_nogate: ci(14, 1.55), nogate_basket_nogate_in_frame: ci(0, null), // all resolved were tagged
+      },
+      outside_frame: [frame(7, "STUB"), frame(9, "KLAR")],
+    });
+
+    it("tagged: in-frame figure first, with-legacy always beside it (even when equal)", () => {
+      const t = tagged().perf.tails;
+      expect(t.shadow.p95).toBe(4.2);
+      expect(t.shadow.n).toBe(15);
+      expect(t.shadow.withLegacy).toEqual({ n: 18, p95: 2.35 });
+      expect(t.shadow.p95).not.toBe(t.shadow.withLegacy?.p95);
+      expect(t.real).toMatchObject({ n: 10, p95: 3.4, withLegacy: { n: 11, p95: 3.1 } });
+      expect(t.basket).toMatchObject({ n: 0, p95: null, withLegacy: { n: 14, p95: 1.55 } }); // in-frame accruing, legacy beside
+      expect(t.a3).toEqual({ n: 22, p95: 1.9, withLegacy: { n: 22, p95: 1.9 } }); // equal counts: both figures still shown
+      expect(tagged().perf.real).toEqual({ n: 11, p95: 3.1 }); // the with-legacy BookCI is unchanged
+    });
+
+    it("tagged: the chip list mirrors outside_frame_positions", () => {
+      const o = tagged().perf.outsideFrame;
+      expect(o.map((x) => x.symbol)).toEqual(["STUB", "KLAR"]);
+      expect(o[0]).toMatchObject({ book: "shadow", kind: "P", dir: "bearish", moneyness: 0.425, status: "closed" });
+    });
+
+    it("untagged: one number per book and no chip list", () => {
+      const vm2 = withPerf({ outside_frame: [] });
+      expect(vm2.perf.outsideFrame).toEqual([]);
+      for (const k of ["real", "shadow", "a3", "basket"] as const) expect(vm2.perf.tails[k].withLegacy).toBeNull(); // no tags ⇒ one number
+      expect(vm2.perf.tails.real).toMatchObject({ n: 11, p95: 3.1 });
+      // an in-frame twin on the wire is ignored without tags (and a missing `outside_frame` key = untagged)
+      const vm3 = withPerf({ outside_frame: undefined, p95_ci: { real: ci(11, 3.1), real_in_frame: ci(10, 3.4) } });
+      expect(vm3.perf.tails.real).toEqual({ n: 11, p95: 3.1, withLegacy: null });
+    });
+
+    it("tagged but no in-frame twin on the wire (older backend): falls back to one number", () => {
+      const vm4 = withPerf({ outside_frame: [frame(7, "STUB")] });
+      expect(vm4.perf.outsideFrame).toHaveLength(1);
+      expect(vm4.perf.tails.shadow).toEqual({ n: 18, p95: 2.35, withLegacy: null });
+    });
   });
 
   it("maps the cheapness-gate split", () => {
@@ -420,7 +474,7 @@ describe("fromBackend — the nightly-grade read", () => {
     expect([by.MRK.via, by.RTX.via, by.NVDA.via, by.ERO.via]).toEqual(["rank", "fairness", "—", "reserve"]);
     expect(by.MRK.dir).toBe("CALL"); expect(by.ERO.dir).toBe("PUT"); expect(by.NVDA.adversary).toBe("—");
     expect(vm.session.profile).toEqual([{ level: "LOW", n: 2 }, { level: "NEUTRAL", n: 2 }, { level: "MODERATE+", n: 0 }]);
-    expect(vm.session.lowHistory).toEqual([{ runId: 1179, day: "09-03", low: 7, judged: 12 }, { runId: 1196, day: "09-04", low: 6, judged: 12 }]);
+    expect(vm.session.lowHistory).toEqual([{ runId: 1179, day: "2026-09-03", low: 7, judged: 12 }, { runId: 1196, day: "2026-09-04", low: 6, judged: 12 }]);
     expect(vm.session.understudy).toEqual({ configured: "strategist:openai/gpt-5.2", fired: 0 });
   });
 
@@ -498,5 +552,67 @@ describe("fromBackend — the nightly-grade read", () => {
     expect(vm.spend.rows).toEqual([]); expect(vm.canary).toBeNull();
     expect(vm.degraded).toContain("session");
     expect(vm.firstEntry).toBeNull();
+  });
+});
+
+describe("fromBackend — drawdown warn tier + T4 condition 5 (#355)", () => {
+  const withKill = (kr: Partial<Snapshot["risk"]["kill_rule"]>) => {
+    const s = synthetic();
+    return fromBackend({ ...s, risk: { ...s.risk, kill_rule: { ...s.risk.kill_rule, ...kr } } });
+  };
+  const kr = (book_drawdown: number, tripped: boolean, level?: "ok" | "warn" | "tripped") =>
+    withKill({ book_drawdown, tripped, level, drawdown_warn: 0.1 });
+
+  it("reads ok below 10%", () => {
+    const vm = kr(0.062, false, "ok");
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["ok", "inside frame"]);
+  });
+
+  it("with no marks the tile says 'no marks', not 'inside frame'", () => {
+    const vm = withKill({ book_drawdown: 0, tripped: false, level: "ok", have_marks: false });
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["ok", "no marks"]);
+  });
+
+  it("a 12% fixture shows warn (not 'inside frame')", () => {
+    const vm = kr(0.12, false, "warn");
+    expect(vm.bookDD).toBe("12.0%");
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["warn", "approaching halt"]);
+    expect(vm.ddWarnPct).toBe(10);
+  });
+
+  it("a 21% fixture shows tripped", () => {
+    const vm = kr(0.21, true, "tripped");
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["bad", "kill rule tripped"]);
+  });
+
+  it("the backend kill-rule `tripped` flag wins even if level is missing or stale", () => {
+    expect(kr(0.21, true, "warn").bookDDlevel).toBe("bad");
+    expect(kr(0.21, true).bookDDlevel).toBe("bad");
+  });
+
+  it("falls back to the 10% threshold on an older snapshot with no `level`", () => {
+    expect(withKill({ book_drawdown: 0.12, tripped: false }).bookDDlevel).toBe("warn");
+    expect(withKill({ book_drawdown: 0.05, tripped: false }).bookDDlevel).toBe("ok");
+  });
+
+  it("renders a `manual` non-checkable T4 row as MANUAL and counts it apart from checkable/accruing", () => {
+    const s = synthetic();
+    const vm = fromBackend({ ...s, t4: { ...s.t4, conditions: s.t4.conditions.map((c) => (c.id === 5 ? { ...c, checkable: false, verdict: null, manual: true } : c)) } });
+    expect(vm.t4.find((c) => c.id === 5)?.state).toBe("manual");
+    expect(vm.t4.find((c) => c.id === 4)?.state).toBe("deferred"); // unflagged non-checkable stays deferred
+    expect(vm.readiness).toEqual({ pass: 1, checkable: 2, accruing: 2, manual: 1, allPass: false });
+  });
+
+  it("never reads all-pass while a manual row is open, even when every checkable row is MET", () => {
+    const s = synthetic();
+    const conds = s.t4.conditions.map((c) => (c.id === 5 ? { ...c, checkable: false, verdict: null, manual: true } : c.checkable ? { ...c, verdict: "MET" as const } : c));
+    const open = fromBackend({ ...s, t4: { ...s.t4, conditions: conds } });
+    expect(open.readiness.pass).toBe(open.readiness.checkable); // checkable alone looks complete…
+    expect(open.readiness.manual).toBe(1);
+    expect(open.readiness.allPass).toBe(false); // …but the operator checklist is still open ⇒ not green
+    // control: with no manual row (cond 5 checkable + MET) the same data IS all-pass
+    const met = s.t4.conditions.filter((c) => c.checkable || c.id === 5).map((c) => ({ ...c, checkable: true, verdict: "MET" as const }));
+    const closed = fromBackend({ ...s, t4: { ...s.t4, conditions: met } });
+    expect(closed.readiness.allPass).toBe(true);
   });
 });

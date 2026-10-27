@@ -6,8 +6,10 @@ was retired 2026-10-06 and survives only as the panel-parity reference this API 
 the 86xx block clear of real_options' 85xx dashboards.)
 
 - `api/` — a tiny FastAPI service. `snapshot.build_snapshot()` mirrors `dashboard.load_all()` panel-for-panel
-  (streamlit-free) + injects `system_status` + JSON-sanitizes; `server.py` serves `GET /api/snapshot` and,
-  in production, the built SPA on the same port. `GET /api/status` is the **light** read (below).
+  (streamlit-free) + injects `system_status`, `run_dates` (run_id → started_at) and `run_kinds` (run_id → L0/L1 layer, from
+  `runs.mode`) so every run id the UI prints carries its layer and an ET date via `ui/src/data/runLabel.ts` (#354) + JSON-sanitizes; `server.py` serves
+  `GET /api/snapshot` and, in production, the built SPA on the same port. `GET /api/status` is the **light**
+  read (below).
 - `ui/` — Vite + React + TS + Tailwind. `data/` is the typed data layer (`types.ts`, the `fromBackend`
   adapter ported from the design's spec, `useSnapshot`). One responsive app: 252px-rail desktop console or
   bottom-tab mobile (`useIsMobile`, ≤760px).
@@ -30,7 +32,7 @@ the previous section set over the same ViewModel.
 - `GET /api/snapshot` — the whole read-only snapshot (~31 panels), cached ~60s. What the SPA renders.
 - `GET /api/status` — the **light** status read (issue #353), cached ~60s, `?nocache=1` busts it. `system_status`
   (level · headline · issues), the three heartbeats (`status`, `at`, `age_hours`, `next_at`), KILL (switch +
-  rule), drawdown vs the halt, book open/max, the last council run id with its ET date, the T4 verdicts, and the
+  rule), drawdown vs the halt (+ the display-only `level` ok/warn/tripped, same as the Risk panel), book open/max, the last council run id with its ET date, the T4 verdicts, and the
   serving commit. Four panels instead of ~31, under 5 KB, **no position data**. Level/headline are the
   snapshot's own when a fresh snapshot is cached (`basis: "snapshot"`); otherwise they are computed over the
   four light panels (`basis: "light"`), so a failing panel *outside* those four shows only in the snapshot.
@@ -39,6 +41,11 @@ the previous section set over the same ViewModel.
   entries carry `id`, `name`, `verdict`, `detail` (a null verdict reads "deferred to operator").
 - `GET /api/health` — liveness only. `GET /api/version` — commit, start time, env.
 - `GET /api/reach`, `POST /api/curation/draft` — the Tools section.
+
+**Drawdown warn tier (#355, display-only).** The Risk tile and `/api/status` show `ok` (<10%) / `warn` (10–20%) /
+`tripped` (≥ the unchanged 20% kill rule). The Pushover warn page (`drawdown_warn.page_on_upward_crossing`) is not
+wired in this PR; when it is, it runs **only in L1** (once a day, 15:45 ET) — never in the 30-minute L2
+`--monitor` runs — so a crossing can page up to a trading day late, and never on PROD with the timers off.
 
 `/api/snapshot`, `/api/status`, `/api/reach` and `/api/curation/draft` share the optional `DASHBOARD_TOKEN` gate.
 
