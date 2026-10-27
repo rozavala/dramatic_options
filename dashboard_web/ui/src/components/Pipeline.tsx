@@ -3,7 +3,8 @@ import { useState } from "react";
 import type { ViewModel } from "../data/types";
 import { signal, type Level } from "../theme/tokens";
 import { CheapnessWatch } from "./CheapnessWatch";
-import { Card } from "./primitives";
+import { runLabel, type RunDates } from "../data/runLabel";
+import { Card, StaleChip } from "./primitives";
 import { CriteriaLegs, SessionTable } from "./SessionTable";
 
 const Muted = ({ children }: { children: React.ReactNode }) => <span style={{ color: "#6a7280", fontWeight: 400 }}>{children}</span>;
@@ -45,7 +46,7 @@ function Instrument({ title, meta, children }: { title: string; meta: string; ch
 
 // PREREG_DIRECTION_COHERENCE (#264): what the union filter held back before the council, with the filed
 // revenue it decided on, and the one-number wiring check (F2) — withheld names that still reached the council.
-function DirCoherenceCard({ dc }: { dc: NonNullable<ViewModel["dircoherence"]> }) {
+function DirCoherenceCard({ dc, dates }: { dc: NonNullable<ViewModel["dircoherence"]>; dates: RunDates }) {
   const clean = dc.reachedDespite.length === 0;
   const list = (items: { symbol: string; facts: string | null }[]) => items.length
     ? items.map((i) => <div key={i.symbol} className="flex justify-between" style={{ gap: 12, padding: "3px 0", fontSize: 12.5 }}>
@@ -57,7 +58,7 @@ function DirCoherenceCard({ dc }: { dc: NonNullable<ViewModel["dircoherence"]> }
     <Card style={{ padding: "18px 20px", borderColor: clean ? "#cbd0da" : signal.warn.border }}>
       <div className="flex justify-between items-center" style={{ gap: 12 }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
-          Direction coherence <Muted>· {dc.day}{dc.runId != null ? ` · run #${dc.runId}` : ""}</Muted>
+          Direction coherence <Muted>· {dc.runId != null ? runLabel(dates, dc.runId) : dc.day}</Muted>
         </div>
         <span className="font-mono" style={{ fontSize: 12, fontWeight: 500, color: clean ? signal.ok.text : signal.warn.text }}>
           {clean ? "0 reached the council" : `${dc.reachedDespite.join(", ")} reached the council`}
@@ -92,13 +93,13 @@ function DirCoherenceCard({ dc }: { dc: NonNullable<ViewModel["dircoherence"]> }
 }
 
 // #269 — names the council or the direction rule read on an older quarter than their latest filed report.
-function StalenessCard({ st }: { st: NonNullable<ViewModel["staleness"]> }) {
+function StalenessCard({ st, dates }: { st: NonNullable<ViewModel["staleness"]>; dates: RunDates }) {
   const clean = st.lagging.length === 0;
   return (
     <Card style={{ padding: "16px 20px", borderColor: clean ? "#cbd0da" : signal.warn.border }}>
       <div className="flex justify-between items-center" style={{ gap: 12 }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
-          Stale fundamentals <Muted>· {st.day}{st.runId != null ? ` · run #${st.runId}` : ""}</Muted>
+          Stale fundamentals <Muted>· {st.runId != null ? runLabel(dates, st.runId) : st.day}</Muted>
         </div>
         <span className="font-mono" style={{ fontSize: 12, fontWeight: 500, color: clean ? signal.ok.text : signal.warn.text }}>
           {st.unavailable ? "not checked" : clean ? `0 of ${st.checked} read stale` : `${st.lagging.length} of ${st.checked} read stale`}
@@ -136,8 +137,7 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
     <div className="flex flex-col" style={{ gap: 16 }}>
       <Card style={{ padding: "20px 22px" }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
-          Session {se.runId != null ? `#${se.runId}` : "—"} — where the {judged} candidates stopped
-          {se.startedAt && <Muted> · {se.startedAt.slice(0, 16)} UTC</Muted>}
+          Session {runLabel(vm.runDates, se.runId)} <StaleChip status={vm.councilBeat} /> — where the {judged} candidates stopped
         </div>
         <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5 }}>Left to right; each step can drop a name. Zero opened is healthy when nothing was both grounded and genuinely cheap.</div>
         <div className="flex" style={{ alignItems: "flex-end", gap: 8, marginTop: 18 }}>
@@ -159,8 +159,8 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
         </div>
       </Card>
 
-      {vm.dircoherence ? <DirCoherenceCard dc={vm.dircoherence} /> : null}
-      {vm.staleness ? <StalenessCard st={vm.staleness} /> : null}
+      {vm.dircoherence ? <DirCoherenceCard dc={vm.dircoherence} dates={vm.runDates} /> : null}
+      {vm.staleness ? <StalenessCard st={vm.staleness} dates={vm.runDates} /> : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] items-start" style={{ gap: 16 }}>
         <Card style={{ padding: "18px 20px" }}>
@@ -195,7 +195,7 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
       <Card style={{ padding: "18px 20px" }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>Research instruments <Muted>· collapsed by default — records, not decisions</Muted></div>
         <div style={{ fontSize: 12, color: "#414956", marginTop: 3, lineHeight: 1.5, marginBottom: 8 }}>The pre-registered reads’ substrate. They matter for the frozen records, not for a daily glance.</div>
-        <Instrument title="Null-book entry walk" meta={attempts.books.length ? `${attempts.books.map((b) => `${b.book} ${b.rows.length} rows`).join(" · ")} · session #${attempts.runId ?? "—"}` : "no rows yet"}>
+        <Instrument title="Null-book entry walk" meta={attempts.books.length ? `${attempts.books.map((b) => `${b.book} ${b.rows.length} rows`).join(" · ")} · session ${runLabel(vm.runDates, attempts.runId)}` : "no rows yet"}>
           <div style={{ fontSize: 12, color: "#414956", marginBottom: 8 }}>Every candidate each capped null book touched last cycle, in walk order — why a name is (or isn’t) in a control book.</div>
           <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: 16 }}>
             {attempts.books.map((b) => (
@@ -218,7 +218,7 @@ export function Pipeline({ vm }: { vm: ViewModel }) {
         </Instrument>
         <Instrument title="Forward-catalyst channel" meta={`${cat.pins.length} pin${cat.pins.length === 1 ? "" : "s"}${cat.pins[0] ? ` · ${cat.pins[0].symbol} class ${cat.pins[0].cls} · expires ${cat.pins[0].expires}` : ""}${cat.ledgerLine ? ` · ${cat.ledgerLine.split(" · ")[0]}` : ""}`}>
           <div style={{ fontSize: 12, color: "#414956", marginBottom: 8 }}>Dated public forward evidence in the council pack — grounding, never permission. The M={cat.mTarget} disposition read stays the operator’s.</div>
-          <div className="font-mono" style={{ fontSize: 12, color: "#414956" }}>{cat.stamp ?? "no stamp"}{cat.countersRunId != null ? ` · run #${cat.countersRunId}` : ""} · {cat.countersLine ?? "no cycle counters yet"}</div>
+          <div className="font-mono" style={{ fontSize: 12, color: "#414956" }}>{cat.stamp ?? "no stamp"}{cat.countersRunId != null ? ` · ${runLabel(vm.runDates, cat.countersRunId)}` : ""} · {cat.countersLine ?? "no cycle counters yet"}</div>
           {cat.pins.length > 0 && (
             <div className="flex flex-wrap" style={{ gap: 8, margin: "10px 0" }}>
               {cat.pins.map((p, i) => (

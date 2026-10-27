@@ -6,7 +6,8 @@ which stays the source of truth on `:8601` and is untouched by this. (We hold th
 Streamlit / `:8602` web — clear of real_options' 85xx dashboards.)
 
 - `api/` — a tiny FastAPI service. `snapshot.build_snapshot()` mirrors `dashboard.load_all()` panel-for-panel
-  (streamlit-free) + injects `system_status` + JSON-sanitizes; `server.py` serves `GET /api/snapshot` and,
+  (streamlit-free) + injects `system_status` and `run_dates` (run_id → started_at, so every run id the UI
+  prints carries an ET date via `ui/src/data/runLabel.ts`, #354) + JSON-sanitizes; `server.py` serves `GET /api/snapshot` and,
   in production, the built SPA on the same port.
 - `ui/` — Vite + React + TS + Tailwind. `data/` is the typed data layer (`types.ts`, the `fromBackend`
   adapter ported from the design's spec, `useSnapshot`). One responsive app: 252px-rail desktop console or

@@ -120,6 +120,20 @@ def _parse_dt(s: Any) -> datetime | None:
     return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
 
 
+def run_start_map(conn, run_ids) -> dict[str, str]:
+    """``{run_id: started_at}`` for the given runs (read-only), so the UI can print an ET date beside every
+    run id it shows (issue #354). Keys are strings (JSON object keys); unknown/NULL runs are omitted."""
+    ids = sorted({int(i) for i in run_ids if isinstance(i, int) and not isinstance(i, bool)})
+    out: dict[str, str] = {}
+    for k in range(0, len(ids), 500):
+        chunk = ids[k:k + 500]
+        marks = ",".join("?" * len(chunk))
+        for r in conn.execute(f"SELECT id, started_at FROM runs WHERE id IN ({marks})", tuple(chunk)):
+            if r[1]:
+                out[str(r[0])] = r[1]
+    return out
+
+
 def _age_hours(s: Any, *, now: datetime) -> float | None:
     dt = _parse_dt(s)
     return None if dt is None else (now - dt).total_seconds() / 3600.0

@@ -1010,3 +1010,12 @@ def test_header_reports_the_latest_cycle_mode(convexity_db):
     convexity_db.execute("INSERT INTO runs (started_at, mode, note) VALUES ('2026-10-09T19:45:00+00:00','PAPER','x')")
     convexity_db.execute("INSERT INTO runs (started_at, mode, note) VALUES ('2026-10-09T20:00:00+00:00','DISCOVERY','x')")
     assert dd.header_status(convexity_db)["mode"] == "PAPER"          # DISCOVERY runs never count as the mode
+
+
+def test_run_start_map_dates_every_requested_run(convexity_db):
+    """#354: run_id -> started_at (string keys) for the UI's ET run labels; unknown ids and bad input skipped."""
+    a = convexity_db.execute("INSERT INTO runs(started_at, mode) VALUES('2026-10-26 19:45:04','PAPER')").lastrowid
+    b = convexity_db.execute("INSERT INTO runs(started_at, mode) VALUES('2026-10-27T19:45:00+00:00','PAPER')").lastrowid
+    out = dd.run_start_map(convexity_db, [a, b, 999999, True, "7", None])
+    assert out == {str(a): "2026-10-26 19:45:04", str(b): "2026-10-27T19:45:00+00:00"}
+    assert dd.run_start_map(convexity_db, []) == {}

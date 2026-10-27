@@ -252,7 +252,7 @@ describe("fromBackend", () => {
   });
 
   it("computes the council run streak from council.recent (A3)", () => {
-    expect(vm.council.streak).toBe("2 clean, then #285");
+    expect(vm.council.streak).toBe("2 clean, then L1 #285 · Wed 2026-10-14 11:45 ET");
     expect(vm.council.byProvider).toHaveLength(2);
     expect(vm.council.byProvider.find((p) => p.provider === "xai")?.rate).toBe(0.25);
   });
@@ -420,7 +420,7 @@ describe("fromBackend — the nightly-grade read", () => {
     expect([by.MRK.via, by.RTX.via, by.NVDA.via, by.ERO.via]).toEqual(["rank", "fairness", "—", "reserve"]);
     expect(by.MRK.dir).toBe("CALL"); expect(by.ERO.dir).toBe("PUT"); expect(by.NVDA.adversary).toBe("—");
     expect(vm.session.profile).toEqual([{ level: "LOW", n: 2 }, { level: "NEUTRAL", n: 2 }, { level: "MODERATE+", n: 0 }]);
-    expect(vm.session.lowHistory).toEqual([{ runId: 1179, day: "09-03", low: 7, judged: 12 }, { runId: 1196, day: "09-04", low: 6, judged: 12 }]);
+    expect(vm.session.lowHistory).toEqual([{ runId: 1179, day: "2026-09-03", low: 7, judged: 12 }, { runId: 1196, day: "2026-09-04", low: 6, judged: 12 }]);
     expect(vm.session.understudy).toEqual({ configured: "strategist:openai/gpt-5.2", fired: 0 });
   });
 
