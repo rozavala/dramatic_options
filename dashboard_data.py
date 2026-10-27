@@ -120,6 +120,47 @@ def _parse_dt(s: Any) -> datetime | None:
     return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
 
 
+def run_start_map(conn, run_ids) -> dict[str, str]:
+    """``{run_id: started_at}`` for the given runs (read-only), so the UI can print an ET date beside every
+    run id it shows (issue #354). Keys are strings (JSON object keys); unknown/NULL runs are omitted."""
+    ids = sorted({int(i) for i in run_ids if isinstance(i, int) and not isinstance(i, bool)})
+    out: dict[str, str] = {}
+    for k in range(0, len(ids), 500):
+        chunk = ids[k:k + 500]
+        marks = ",".join("?" * len(chunk))
+        for r in conn.execute(f"SELECT id, started_at FROM runs WHERE id IN ({marks})", tuple(chunk)):
+            if r[1]:
+                out[str(r[0])] = r[1]
+    return out
+
+
+def run_kind(mode: Any) -> str:
+    """The pipeline layer a ``runs.mode`` belongs to: the PAPER/LIVE trade cycle is the L1 council run,
+    DISCOVERY is the L0 framer; anything else keeps its raw mode rather than being mislabelled L1."""
+    return {"PAPER": "L1", "LIVE": "L1", "DISCOVERY": "L0"}.get(str(mode), str(mode or "run"))
+
+
+def run_kind_map(conn, run_ids) -> dict[str, str]:
+    """``{run_id: kind}`` derived from ``runs.mode`` (read-only) — pairs with ``run_start_map`` so the UI never
+    hardcodes which layer a run id belongs to (issue #354)."""
+    ids = sorted({int(i) for i in run_ids if isinstance(i, int) and not isinstance(i, bool)})
+    out: dict[str, str] = {}
+    for k in range(0, len(ids), 500):
+        chunk = ids[k:k + 500]
+        marks = ",".join("?" * len(chunk))
+        for r in conn.execute(f"SELECT id, mode FROM runs WHERE id IN ({marks})", tuple(chunk)):
+            out[str(r[0])] = run_kind(r[1])
+    return out
+
+
+def run_label(run_id: Any, started_at: Any, kind: str) -> str:
+    """``"L1 #1816 · Mon 2026-10-26 15:45 ET"`` — the SAME string ``ui/src/data/runLabel.ts`` prints, for run ids
+    the backend bakes into prose (T4 details). ET always (the market's clock), never the UTC the DB stores."""
+    dt = _parse_dt(started_at)
+    stamp = dt.astimezone(_ET).strftime("%a %Y-%m-%d %H:%M ET") if dt else "date unavailable"
+    return f"{kind} #{run_id} \u00b7 {stamp}"
+
+
 def _age_hours(s: Any, *, now: datetime) -> float | None:
     dt = _parse_dt(s)
     return None if dt is None else (now - dt).total_seconds() / 3600.0
@@ -1129,7 +1170,7 @@ def recent_council_health(conn, n: int = RECENT_COUNCIL_N) -> list[dict]:
     ``verdict`` (the stamp is proposer-parse-only and can read 'ok' on a DEGRADED run), the proposer
     parse-rate, and per-provider parse counts in the SAME shape ({calls, parse_error, parse_error_rate})."""
     rows = conn.execute(
-        "SELECT id, started_at, council_health FROM runs WHERE council_health IS NOT NULL "
+        "SELECT id, started_at, mode, council_health FROM runs WHERE council_health IS NOT NULL "
         "ORDER BY id DESC LIMIT ?", (n,)).fetchall()
     out: list[dict] = []
     for r in reversed(rows):  # oldest → newest, so window[-1] is the latest run
@@ -1146,7 +1187,8 @@ def recent_council_health(conn, n: int = RECENT_COUNCIL_N) -> list[dict]:
             p["parse_error_rate"] = round(p["parse_error"] / p["calls"], 4) if p["calls"] else None
         parse = state.council_parse_health(conn, rid)
         out.append({
-            "run_id": rid, "started_at": r["started_at"], "council_health": r["council_health"],
+            "run_id": rid, "started_at": r["started_at"], "kind": run_kind(r["mode"]),
+            "council_health": r["council_health"],
             "verdict": council_l1_health(conn, run_id=rid).get("verdict"),
             "proposer_parse_rate": round(parse["rate"], 4), "proposer_called": parse["called"],
             "proposer_parse_failed": parse["parse_failed"], "by_provider": by_provider,
@@ -1337,11 +1379,11 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N)
     c1_confirmed = [w for w in non_bug if w["verdict"] == "ROUNDTRIP_CONFIRMED"]
     c1_ok = len(non_bug) >= 2 and len(c1_confirmed) == len(non_bug)
     c1_detail = " · ".join(
-        f"#{w['run_id']} {w['verdict']}" + (" (pre-fix, censored)" if w["council_health"] == "parse_fail" else "")
+        f"{run_label(w['run_id'], w['started_at'], w['kind'])} {w['verdict']}" + (" (pre-fix, censored)" if w["council_health"] == "parse_fail" else "")
         for w in window) or "no council runs yet"
     # Legibility: cond-1 reads NOT_OK at 3-of-4 confirmed because the rule is WHOLE-window-confirmed, NOT "≥2
     # confirmed exist" — so name what blocks it (a non-censored run that isn't a round-trip, else too-few-clean).
-    c1_blockers = [f"#{w['run_id']} {w['verdict']}" for w in non_bug if w["verdict"] != "ROUNDTRIP_CONFIRMED"]
+    c1_blockers = [f"{run_label(w['run_id'], w['started_at'], w['kind'])} {w['verdict']}" for w in non_bug if w["verdict"] != "ROUNDTRIP_CONFIRMED"]
     c1_why = ("" if c1_ok
               else f"; blocked by {', '.join(c1_blockers)}" if c1_blockers
               else f"; only {len(non_bug)} clean run(s) so far (need ≥2)")

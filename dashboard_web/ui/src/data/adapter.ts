@@ -12,6 +12,7 @@ import type {
   NextRunVM, NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
   OutsideFrameVM, Snapshot, SpendVM, TailFigure, ViewModel,
 } from "./types";
+import { etDate, formatRunLabel } from "./runLabel";
 import { directionLabel, levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
 const DASH = "—";
@@ -94,7 +95,8 @@ function councilStreak(recent: Snapshot["council"]["recent"] | undefined): strin
   for (let i = r.length - 1; i >= 0 && r[i].verdict === "ROUNDTRIP_CONFIRMED"; i--) s++;
   if (s === r.length) return `${s} clean`;
   const broke = r[r.length - 1 - s];
-  return s === 0 ? `0 · #${broke.run_id} not clean` : `${s} clean, then #${broke.run_id}`;
+  const label = formatRunLabel(broke.run_id, broke.started_at, broke.kind);
+  return s === 0 ? `0 · ${label} not clean` : `${s} clean, then ${label}`;
 }
 
 export function fromBackend(P: Snapshot): ViewModel {
@@ -294,7 +296,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       { level: "MODERATE+", n: (prof.MODERATE ?? 0) + (prof.HIGH ?? 0) + (prof.EXTREME ?? 0) },
     ],
     lowHistory: (seP?.low_history ?? []).map((h) => ({
-      runId: h.run_id, day: (h.started_at ?? "").slice(5, 10), low: h.low, judged: h.judged,
+      runId: h.run_id, day: etDate(h.started_at) ?? "", low: h.low, judged: h.judged,
     })),
     providerDrops: seP?.provider_drops ?? 0,
     understudy: { configured: seP?.understudy?.configured ?? null, fired: seP?.understudy?.fired ?? 0 },
@@ -340,12 +342,12 @@ export function fromBackend(P: Snapshot): ViewModel {
   const dc0 = dcP?.runs?.[0];
   const dircoherence: DirCoherenceVM | null = dcP
     ? {
-        active: dcP.active, runId: dc0?.run_id ?? null, day: String(dc0?.started_at ?? DASH).slice(0, 10),
+        active: dcP.active, runId: dc0?.run_id ?? null, day: etDate(dc0?.started_at) ?? DASH,
         unavailable: dc0?.status === "unavailable",
         withheld: (dc0?.withheld ?? []).map(dcFacts), kept: (dc0?.kept ?? []).map(dcFacts),
         noAccel: (dc0?.kept_no_accel ?? []).map((i) => i.symbol), errors: dc0?.errors ?? 0,
         reachedDespite: dc0?.reached_despite_withheld ?? [], f2Clean: dcP.f2_clean,
-        history: (dcP.runs ?? []).map((r) => ({ day: String(r.started_at ?? DASH).slice(0, 10), withheld: r.withheld.length })),
+        history: (dcP.runs ?? []).map((r) => ({ day: etDate(r.started_at) ?? DASH, withheld: r.withheld.length })),
       }
     : null;
 
@@ -354,7 +356,7 @@ export function fromBackend(P: Snapshot): ViewModel {
   const st0 = stP?.runs?.[0];
   const staleness: StalenessVM | null = st0
     ? {
-        runId: st0.run_id, day: String(st0.started_at ?? DASH).slice(0, 10),
+        runId: st0.run_id, day: etDate(st0.started_at) ?? DASH,
         unavailable: st0.status === "unavailable" ? (st0.reason ?? "not checked") : null,
         checked: st0.checked, errors: st0.errors,
         lagging: st0.lagging.map((i) => ({ symbol: i.symbol, line: `read the ${i.corpus_filed} filing · ${i.form} filed ${i.filed}` })),
@@ -395,6 +397,7 @@ export function fromBackend(P: Snapshot): ViewModel {
   const phaseSub = edgeN > 0 ? `${edgeN}/${EDGE_TARGET} resolved bets` : "accruing — first reads after entries resolve";
 
   return {
+    runDates: { at: P.run_dates, kind: P.run_kinds }, councilBeat: h.council?.status ?? "OFFLINE",
     asOf: h.now ?? "",
     level: levelFromSystem(ss.level),
     headline: ss.headline ?? "",

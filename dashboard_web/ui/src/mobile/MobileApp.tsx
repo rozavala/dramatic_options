@@ -3,10 +3,11 @@ import { useState } from "react";
 import { Curation } from "../components/Curation";
 import { Reach } from "../components/Reach";
 import { Sparkline } from "../components/Sparkline";
-import { Banner, Chip, Skeleton } from "../components/primitives";
+import { Banner, Chip, Skeleton, StaleChip } from "../components/primitives";
 import { OutsideFrameChip, WithLegacy } from "../components/Tails";
 import { STATE_PRESENT, clusterLevel, directionLabel, isAccruingState, markLevel, relativeAge } from "../data/status";
 import type { ConsoleProps, TailFigure, ViewModel } from "../data/types";
+import { runLabel } from "../data/runLabel";
 import { useCountUp } from "../data/useCountUp";
 import { TITLES, type SectionId } from "../nav";
 import { color, signal, type Level } from "../theme/tokens";
@@ -34,7 +35,7 @@ function MOverview({ vm }: { vm: ViewModel }) {
   const kpis: { label: string; value: string; color: string; sub: string; chip: string; level: Level }[] = [
     { label: "Go-live", value: `${r.pass}/${r.checkable}`, color: color.ink, sub: `${r.accruing} accruing`, chip: allPass ? "on track" : "in progress", level: allPass ? "ok" : "acc" },
     { label: "Safety", value: vm.bookDD, color: signal.ok.text, sub: `${vm.openN}/${vm.maxN} open`, chip: "safe", level: "ok" },
-    { label: "Council", value: vm.council.vlevel === "ok" ? "Healthy" : "Degraded", color: signal[vm.council.vlevel].text, sub: `#${vm.council.runId ?? "—"}`, chip: vm.council.vlevel === "ok" ? "clean" : "check", level: vm.council.vlevel },
+    { label: "Council", value: vm.council.vlevel === "ok" ? "Healthy" : "Degraded", color: signal[vm.council.vlevel].text, sub: runLabel(vm.runDates, vm.council.runId), chip: vm.councilBeat === "STALE" ? "STALE" : vm.council.vlevel === "ok" ? "clean" : "check", level: vm.councilBeat === "STALE" && vm.council.vlevel === "ok" ? "warn" : vm.council.vlevel },
     { label: "Edge", value: `${vm.edgeAccrual.n}/~${vm.edgeAccrual.target}`, color: color.ink, sub: "resolved bets", chip: "accruing", level: "mute" },
   ];
   return (
@@ -145,7 +146,7 @@ function MSafety({ vm }: { vm: ViewModel }) {
           <span style={{ fontSize: 17 }}>{c.vlevel === "ok" ? "✓" : "⚠"}</span>
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: sig.text }}>{c.verdict}</div>
-            <div style={{ fontSize: 10.5, color: "#5f6675" }}>run #{c.runId ?? "—"} · {c.models}</div>
+            <div style={{ fontSize: 10.5, color: "#5f6675" }}>{runLabel(vm.runDates, c.runId)}<StaleChip status={vm.councilBeat} /> · {c.models}</div>
           </div>
         </div>
         {rows.map((r) => (
@@ -295,7 +296,7 @@ function MPipeline({ vm }: { vm: ViewModel }) {
   return (
     <>
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest cycle <span style={{ fontWeight: 400, color: "#5f6675" }}>· run #{f.runId ?? "—"}</span></div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest cycle <span style={{ fontWeight: 400, color: "#5f6675" }}>· {runLabel(vm.runDates, f.runId)}</span></div>
         <div style={{ fontSize: 11, color: "#5f6675", margin: "3px 0 13px", lineHeight: 1.4 }}>Where candidate ideas stop. Zero opened is healthy if nothing was cheap.</div>
         {steps.map((s) => (
           <div key={s.label} className="flex items-center" style={{ gap: 12, padding: "8px 0", borderTop: "1px solid #edf0f4" }}>
@@ -336,7 +337,7 @@ function MPipeline({ vm }: { vm: ViewModel }) {
       </div>
       {vm.deliberation.rows.length > 0 && (
         <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest decisions <span style={{ fontWeight: 400, color: "#5f6675" }}>· #{vm.deliberation.runId}</span></div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Latest decisions <span style={{ fontWeight: 400, color: "#5f6675" }}>· {runLabel(vm.runDates, vm.deliberation.runId)}</span></div>
           {vm.deliberation.rows.map((d, i) => (
             <div key={i} className="flex justify-between items-center" style={{ gap: 10, padding: "7px 0", borderTop: "1px solid #edf0f4", marginTop: 2 }}>
               <span className="font-mono" style={{ fontSize: 12, fontWeight: 600, color: "#141b28" }}>{d.symbol} <span style={{ fontWeight: 400, color: "#5f6675" }}>{d.dir ?? ""}</span></span>
