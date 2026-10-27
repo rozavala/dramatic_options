@@ -2,7 +2,8 @@ import { clusterLevel } from "../data/status";
 import type { ViewModel } from "../data/types";
 import { color, signal, type Level } from "../theme/tokens";
 import { Sparkline } from "./Sparkline";
-import { Card, Chip } from "./primitives";
+import { runLabel } from "../data/runLabel";
+import { Card, Chip, StaleChip } from "./primitives";
 
 function Tile({ label, value, valColor, sub, series, bar }: { label: string; value: React.ReactNode; valColor?: string; sub: string; series?: { equity: number }[]; bar?: { frac: number; level: Level } }) {
   return (
@@ -86,7 +87,7 @@ export function Safety({ vm }: { vm: ViewModel }) {
             <span style={{ fontSize: 18, color: sig.text }}>{councilOk ? "✓" : "⚠"}</span>
             <div>
               <div style={{ fontSize: 14, fontWeight: 500, color: sig.text }}>{c.verdict}</div>
-              <div style={{ fontSize: 11.5, color: "#414956" }}>session #{c.runId ?? "—"} · {vm.session.cleanLine}</div>
+              <div style={{ fontSize: 11.5, color: "#414956" }}>session {runLabel(vm.runDates, c.runId)}<StaleChip status={vm.councilBeat} /> · {vm.session.cleanLine}</div>
             </div>
           </div>
           <Row label="Full round-trips" value={`${c.roundtrips} of ${c.parseCalled}`} />
@@ -123,7 +124,7 @@ export function Safety({ vm }: { vm: ViewModel }) {
             {rt.classes.length === 0 && <div style={{ fontSize: 12.5, color: "#5f6675", paddingTop: 8 }}>no dual-read sessions yet (accruing from the first post-flip L1)</div>}
           </div>
           <div className="font-mono" style={{ fontSize: 11, color: "#6a7280", marginTop: 12, lineHeight: 1.6 }}>
-            {dr.lastRun != null ? `latest #${dr.lastRun}` : "no sessions"} · {dr.sessions} sessions · coverage {dr.opraCov != null ? `${Math.round(dr.opraCov * 100)}%` : "—"} both arms
+            {dr.lastRun != null ? `latest ${runLabel(vm.runDates, dr.lastRun)}` : "no sessions"} · {dr.sessions} sessions · coverage {dr.opraCov != null ? `${Math.round(dr.opraCov * 100)}%` : "—"} both arms
             · revert latch: Phase 3 {rt.phase3 ? "ON" : "OFF"} · {rt.latched ? "LATCHED" : "not latched"} · {rt.authorized ? "REVERT AUTHORIZED" : "not authorized"}
             {vm.wingMismatch.length > 0 && <> · wing mismatch {vm.wingMismatch.join(", ")}</>}
             {dr.vetoUntil && <> · disagree-veto {dr.vetoActive ? `until ${dr.vetoUntil}` : `lapsed ${dr.vetoUntil}`}</>}
