@@ -23,7 +23,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 os.environ.setdefault("DRAMATIC_SKIP_DOTENV", "1")  # keyless — must precede any config_loader import
@@ -45,7 +45,7 @@ from config_loader import load_config  # noqa: E402
 app = FastAPI(title="Dramatic Options — observability API", docs_url=None, redoc_url=None)
 
 # I1: an OPTIONAL shared-token gate. OFF by default (localhost/tailnet bind is the primary control), so the
-# live deploy is unchanged. If DASHBOARD_TOKEN is set, /api/snapshot requires `Authorization: Bearer <token>`
+# live deploy is unchanged. If DASHBOARD_TOKEN is set, /api/snapshot and /api/status require `Authorization: Bearer <token>`
 # — intended for an API-only / programmatic deployment (the browser SPA does not send a token, so enabling
 # this gates the raw data API, not the same-origin SPA). See dashboard_web/README.md.
 _DASHBOARD_TOKEN = os.environ.get("DASHBOARD_TOKEN", "").strip()
@@ -93,7 +93,7 @@ def snapshot(nocache: int = 0) -> dict:
     return snap
 
 
-_status_cache: dict[tuple[str, str], tuple[float, dict]] = {}
+_status_cache: dict[tuple[str, str], tuple[float, dict]] = {}   # value: (expires_at monotonic, body)
 
 
 @app.get("/api/status", dependencies=[Depends(_require_token)])
@@ -102,23 +102,28 @@ def status(nocache: int = 0) -> dict:
     the halt, book open/max, the last council run + its ET date, T4 verdicts and the serving commit — four
     panels, not the snapshot's ~31, under 5 KB, and NO position data. Same token gate as /api/snapshot and
     the same ~60s TTL (?nocache=1 busts it). If a fresh full snapshot is cached its ``system_status`` is
-    reused, so level/headline are the snapshot's own. Read-only; display only — it reports the kill rule,
-    it never changes it."""
+    reused (unless the fresh KILL/kill rule is set — see ``status.build_status``), and such an entry expires
+    with the snapshot it borrowed from, never a full TTL later. Read-only; display only — it reports the kill
+    rule, it never changes it."""
     paths = dd.resolve_paths(load_config())
     key = (str(paths["db_path"]), str(paths["cache_dir"]))
     now = time.monotonic()
     if not nocache:
         hit = _status_cache.get(key)
-        if hit is not None and now - hit[0] < _CACHE_TTL_S:
+        if hit is not None and now < hit[0]:
             return hit[1]
     snap_hit = _snapshot_cache.get(key)
-    snap_status = None
+    snap_status, snap_as_of, expires = None, None, now + _CACHE_TTL_S
     if not nocache and snap_hit is not None and now - snap_hit[0] < _CACHE_TTL_S:
         ss = snap_hit[1].get("system_status")
-        snap_status = ss if isinstance(ss, dict) and "level" in ss else None
+        if isinstance(ss, dict) and "level" in ss:
+            snap_status = ss
+            snap_as_of = (datetime.now(UTC) - timedelta(seconds=now - snap_hit[0])).isoformat(timespec="seconds")
+            expires = snap_hit[0] + _CACHE_TTL_S   # the borrowed verdict is no fresher than its snapshot
     body = build_status(paths["db_path"], paths["db_exists"], head=_STARTED["head"],
-                        started_at=_STARTED["started_at"], snapshot_status=snap_status)
-    _status_cache[key] = (now, body)
+                        started_at=_STARTED["started_at"], snapshot_status=snap_status,
+                        snapshot_as_of=snap_as_of)
+    _status_cache[key] = (expires, body)
     return body
 
 

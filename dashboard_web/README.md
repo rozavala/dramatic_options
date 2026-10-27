@@ -34,6 +34,9 @@ the previous section set over the same ViewModel.
   serving commit. Four panels instead of ~31, under 5 KB, **no position data**. Level/headline are the
   snapshot's own when a fresh snapshot is cached (`basis: "snapshot"`); otherwise they are computed over the
   four light panels (`basis: "light"`), so a failing panel *outside* those four shows only in the snapshot.
+  `system_status_as_of` stamps when the verdict was computed; a reused snapshot verdict is dropped for the
+  light one whenever the fresh KILL switch or kill rule is set. `next_at` is ISO-8601 UTC (`+00:00`); T4
+  entries carry `id`, `name`, `verdict`, `detail` (a null verdict reads "deferred to operator").
 - `GET /api/health` — liveness only. `GET /api/version` — commit, start time, env.
 - `GET /api/reach`, `POST /api/curation/draft` — the Tools section.
 

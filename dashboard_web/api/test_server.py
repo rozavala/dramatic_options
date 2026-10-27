@@ -189,7 +189,7 @@ def test_status_is_small_has_no_positions_and_the_expected_facts(convexity_db, m
     body = r.json()
     assert {"system_status", "heartbeats", "kill", "drawdown", "book", "last_council", "t4", "commit"} <= set(body)
     assert set(body["heartbeats"]) == {"cycle", "council", "discovery"}
-    assert body["heartbeats"]["cycle"]["next_at"] == "2026-10-27 19:45:00"
+    assert body["heartbeats"]["cycle"]["next_at"] == "2026-10-27T19:45:00+00:00"
     assert set(body["heartbeats"]["cycle"]) == {"status", "at", "age_hours", "next_at"}
     assert body["book"]["open"] == 1 and body["book"]["max"] == 15
     assert body["drawdown"]["halt"] == 0.2          # display of the existing halt, unchanged
@@ -197,6 +197,11 @@ def test_status_is_small_has_no_positions_and_the_expected_facts(convexity_db, m
     # 2026-10-27T01:30Z is the evening of 10-26 in New York
     assert body["last_council"] == {"run_id": run_id, "et_date": "2026-10-26"}
     assert [c["id"] for c in body["t4"]] == [1, 2, 3, 4, 5]
+    assert all(c["name"] and c["detail"] for c in body["t4"])
+    # conditions 2 and 4 carry no verdict ON PURPOSE — they must read as deferred, not as missing data
+    for c in (body["t4"][1], body["t4"][3]):
+        assert c["verdict"] is None and c["detail"] == "deferred to operator"
+    assert body["system_status_as_of"] == body["as_of"] and body["basis"] == "light"
     server._status_cache.clear()
 
 
@@ -216,6 +221,73 @@ def test_status_level_and_headline_match_the_snapshot(convexity_db, monkeypatch)
     assert again["basis"] == "snapshot" and again["system_status"] == snap["system_status"]
     server._status_cache.clear()
     server._snapshot_cache.clear()
+
+
+def test_status_kill_engaged_overrides_a_green_snapshot_verdict(convexity_db, monkeypatch) -> None:
+    """The cached snapshot verdict can be ~a minute old while KILL is read fresh: a just-engaged KILL must
+    never sit under the snapshot's green headline."""
+    from fastapi.testclient import TestClient
+
+    import dashboard_data as dd
+
+    _status_db(convexity_db, monkeypatch)
+    green = {"level": "success", "headline": "🟢 All systems nominal", "issues": []}
+    real_header = dd.header_status
+
+    def killed_header(conn, **kw):
+        return {**real_header(conn, **kw), "kill_switch_engaged": True}
+
+    monkeypatch.setattr(dd, "header_status", killed_header)
+    server._snapshot_cache[(str(dd.resolve_paths(server.load_config())["db_path"]),
+                            str(dd.resolve_paths(server.load_config())["cache_dir"]))] = (
+        server.time.monotonic(), {"system_status": green})
+    with TestClient(server.app) as client:
+        body = client.get("/api/status").json()
+    assert body["kill"]["switch_engaged"] is True
+    assert body["system_status"]["level"] == "error" and "KILL" in " ".join(body["system_status"]["issues"])
+    assert body["basis"] == "light" and body["system_status_as_of"] == body["as_of"]
+    server._status_cache.clear()
+    server._snapshot_cache.clear()
+
+
+def test_status_reused_verdict_is_stamped_and_not_cached_past_the_snapshot(convexity_db, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    import dashboard_data as dd
+
+    _status_db(convexity_db, monkeypatch)
+    paths = dd.resolve_paths(server.load_config())
+    key = (str(paths["db_path"]), str(paths["cache_dir"]))
+    green = {"level": "success", "headline": "🟢 All systems nominal", "issues": []}
+    snap_t = server.time.monotonic() - 40.0          # the snapshot is already 40s into its 60s TTL
+    server._snapshot_cache[key] = (snap_t, {"system_status": green})
+    with TestClient(server.app) as client:
+        body = client.get("/api/status").json()
+    assert body["basis"] == "snapshot" and body["system_status"] == green
+    assert body["system_status_as_of"] < body["as_of"]
+    assert server._status_cache[key][0] == snap_t + server._CACHE_TTL_S   # expires with the snapshot, not +60s
+    server._status_cache.clear()
+    server._snapshot_cache.clear()
+
+
+def test_status_one_failing_panel_is_a_warn_not_a_500(convexity_db, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    import dashboard_data as dd
+
+    _status_db(convexity_db, monkeypatch)
+
+    def boom(*a, **k):
+        raise RuntimeError("panel exploded")
+
+    monkeypatch.setattr(dd, "council_panel", boom)
+    with TestClient(server.app) as client:
+        r = client.get("/api/status")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["system_status"]["level"] == "warn"
+    assert "council" in " ".join(body["system_status"]["issues"])
+    server._status_cache.clear()
 
 
 def test_status_ttl_cache_and_nocache(monkeypatch) -> None:
@@ -270,7 +342,8 @@ def test_status_without_a_database_fails_soft(monkeypatch, tmp_path) -> None:
 def test_docs_mention_8601_only_as_retired() -> None:
     """Issue #353: the Streamlit dashboard on :8601 was retired 2026-10-06 — no operator doc may call it live."""
     root = Path(__file__).resolve().parents[2]
-    for rel in ("dashboard_web/README.md", "DEPLOYMENT.md", "records/STANDING_STATE.md"):
+    for rel in ("dashboard_web/README.md", "DEPLOYMENT.md", "records/STANDING_STATE.md",
+                "scripts/systemd/dramatic-options-web.service"):
         lines = (root / rel).read_text().splitlines()
         for i, ln in enumerate(lines):
             if "8601" in ln:
