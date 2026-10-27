@@ -209,13 +209,35 @@ def test_row_shows_the_orders_real_outcome_not_the_stale_gate_stamp(convexity_db
         "not_filled", "not filled — cancelled unfilled", pos, "HL270617C00017000", 5, 880.0)
 
 
-def test_order_join_falls_back_to_run_and_symbol(convexity_db):
+def test_order_join_is_exact_so_an_unlinked_position_shows_unmatched(convexity_db):
     _hl_session(convexity_db, link_proposal=False)                # position carries no proposal_id
-    o = dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"][0]["order"]
-    assert o is not None and o["kind"] == "not_filled"
-    # a position not from THIS run (here: run-less) is not this session's order
+    row = dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"][0]
+    assert row["order"] is None and row["veto_stage"] == "submit-pending — order unmatched"
+    # a position not from THIS run (here: run-less) is not this session's order, and not even "unmatched"
     convexity_db.execute("UPDATE convexity_positions SET run_id = NULL")
-    assert dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"][0]["order"] is None
+    row = dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"][0]
+    assert row["order"] is None and row["veto_stage"] == "submit-pending"
+
+
+def test_two_proposals_same_symbol_one_run_never_borrow_each_others_order(convexity_db):
+    rid = state.record_run(convexity_db, mode="PAPER", equity=None)
+    p1 = _prop(convexity_db, rid, "HL", "MODERATE", _strat(True), status="traded")
+    p2 = _prop(convexity_db, rid, "HL", "HIGH", _strat(True), status="proposed")
+    _eval(convexity_db, rid, "HL", "submit-pending", p1, iv_rv=0.9, skew=3.0)
+    _eval(convexity_db, rid, "HL", "veto-iv-gate", p2, iv_rv=1.7, skew=6.0)
+    pos = state.record_convexity_position(
+        convexity_db, run_id=rid, opened_at="2026-10-26T19:50:00+00:00", theme="t", symbol="HL",
+        direction="bullish", structure_kind="long_call", contract_symbol="HL270617C00017000",
+        expiry="2027-06-17", strike=17.0, dte=234, moneyness=0.2, contracts=5, entry_premium_per_contract=176.0,
+        total_premium=880.0, status="pending", order_id="o-3", proposal_id=p1)
+    by = {r["proposal_id"]: r for r in dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"]}
+    assert by[p1]["order"]["position_id"] == pos and by[p1]["order"]["kind"] == "resting"
+    assert by[p2]["order"] is None and by[p2]["veto_stage"] == "veto-iv-gate — order unmatched"
+    # the same holds if the order carries no link at all: neither proposal claims it
+    convexity_db.execute("UPDATE convexity_positions SET proposal_id = NULL")
+    by = {r["proposal_id"]: r for r in dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"]}
+    assert by[p1]["order"] is None and by[p2]["order"] is None
+    assert by[p1]["veto_stage"].endswith("order unmatched") and by[p2]["veto_stage"].endswith("order unmatched")
 
 
 def test_order_join_follows_a_later_fill_and_ignores_names_that_never_reached_the_gate(convexity_db):

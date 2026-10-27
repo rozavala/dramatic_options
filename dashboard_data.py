@@ -1096,13 +1096,12 @@ def _position_outcome(pos) -> tuple[str, str]:
     return "filled", "filled" + (f" (now {status})" if status not in ("open", "") else "")
 
 
-def _order_for_proposal(positions: list, proposal_id: int, symbol: str) -> dict | None:
-    """The real order outcome for a judged name: the newest ``convexity_positions`` row joined by
-    ``proposal_id``, else by this run + symbol. ``gate_decision`` is a point-in-time stamp (``submit-pending``
-    stays that forever); this is what the order actually did."""
-    sym = str(symbol).upper()
-    hit = [p for p in positions if p["proposal_id"] == proposal_id] or [
-        p for p in positions if str(p["symbol"]).upper() == sym]
+def _order_for_proposal(positions: list, proposal_id: int) -> dict | None:
+    """The real order outcome for a judged name: the newest ``convexity_positions`` row whose ``proposal_id``
+    is exactly this proposal's, else None. No run+symbol guess — with two proposals for one symbol in a run
+    that would show one proposal another's order. ``gate_decision`` is a point-in-time stamp
+    (``submit-pending`` stays that forever); this is what the order actually did."""
+    hit = [p for p in positions if p["proposal_id"] == proposal_id]
     if not hit:
         return None
     pos = max(hit, key=lambda p: p["id"])
@@ -1245,13 +1244,18 @@ def why_no_entry_panel(conn, config: dict, *, now: datetime | None = None) -> di
             iv_rv, skew = g["iv_rv"], g["otm_skew"]
         elif read is not None and expressible and read["iv_rv"] is not None:
             iv_rv, skew = read["iv_rv"], read["otm_skew"]
+        order = _order_for_proposal(positions, p["id"]) if st == "to_gate" else None
+        veto_stage = (g["decision"] if g else "to the gate — no gate row yet") if st == "to_gate" \
+            else _STAGE_LABEL[st]
+        if st == "to_gate" and order is None and any(
+                str(q["symbol"]).upper() == str(p["symbol"]).upper() for q in positions):
+            veto_stage += " — order unmatched"   # this run has an order for the symbol, but none linked to this proposal
         rows.append({
             "proposal_id": p["id"], "symbol": p["symbol"], "direction": p["direction"],
             "conviction": p["conviction"] or "NEUTRAL", "above_floor": above, "stage": st,
             "gate_decision": g["decision"] if g else None,
-            "veto_stage": (g["decision"] if g else "to the gate — no gate row yet") if st == "to_gate"
-                          else _STAGE_LABEL[st],
-            "order": _order_for_proposal(positions, p["id"], p["symbol"]) if st == "to_gate" else None,
+            "veto_stage": veto_stage,
+            "order": order,
             "iv_rv": None if iv_rv is None else round(float(iv_rv), 3),
             "otm_skew": None if skew is None else round(float(skew), 2),
             "expressible": expressible,
