@@ -436,12 +436,49 @@ def test_council_session_stale_matrix(last, now, expected):
     assert dd.council_session_stale(last, now=now) == expected
 
 
-def test_council_session_stale_holiday_is_accepted_false_stale():
-    # A weekday holiday with no run is the documented benign false-STALE (no holiday calendar is modeled).
-    # Pin it so the behavior is explicit: MLK Mon 2026-01-19, last run the prior Fri → STALE (accepted; raw
-    # age is shown beside it). A static holiday set is the deferred mitigation.
-    assert dd.council_session_stale("2026-01-16T15:45:00-05:00",
-                                    now=datetime(2026, 1, 19, 17, 0, tzinfo=_ET)) == "STALE"
+def test_council_session_stale_holiday_is_not_false_stale():
+    # #367: MLK Mon 2026-01-19 has no council slot, so last run the prior Fri is still ONLINE that evening —
+    # but the NEXT full day's missed slot (Tue 01-20 17:00, nothing ran) is a real STALE.
+    last = "2026-01-16T15:45:00-05:00"
+    assert dd.council_session_stale(last, now=datetime(2026, 1, 19, 17, 0, tzinfo=_ET)) == "ONLINE"
+    assert dd.council_session_stale(last, now=datetime(2026, 1, 20, 17, 0, tzinfo=_ET)) == "STALE"
+
+
+@pytest.mark.parametrize("last, now, expected", [
+    # Thanksgiving Thu 11-26 (closed): last run Wed 11-25 → no false STALE all day / evening
+    ("2026-11-25T15:45:00-05:00", datetime(2026, 11, 26, 17, 0, tzinfo=_ET), "ONLINE"),
+    # half day Fri 11-27: market shut by the 15:45 slot, no council runs → not STALE that evening...
+    ("2026-11-25T15:45:00-05:00", datetime(2026, 11, 27, 17, 0, tzinfo=_ET), "ONLINE"),
+    # ...but Mon 11-30 evening with nothing since Wed is a real miss
+    ("2026-11-25T15:45:00-05:00", datetime(2026, 11, 30, 17, 0, tzinfo=_ET), "STALE"),
+    # Christmas Eve half day Thu 12-24, Christmas Fri 12-25, and the weekend after
+    ("2026-12-23T15:45:00-05:00", datetime(2026, 12, 24, 17, 0, tzinfo=_ET), "ONLINE"),
+    ("2026-12-23T15:45:00-05:00", datetime(2026, 12, 25, 17, 0, tzinfo=_ET), "ONLINE"),
+    ("2026-12-23T15:45:00-05:00", datetime(2026, 12, 26, 12, 0, tzinfo=_ET), "ONLINE"),
+    # normal day Tue 2026-10-27: slot due at 16:05, missed → STALE; ran → ONLINE
+    ("2026-10-26T15:45:00-04:00", datetime(2026, 10, 27, 17, 0, tzinfo=_ET), "STALE"),
+    ("2026-10-27T15:45:10-04:00", datetime(2026, 10, 27, 17, 0, tzinfo=_ET), "ONLINE"),
+])
+def test_council_session_stale_nyse_calendar(last, now, expected):
+    assert dd.council_session_stale(last, now=now) == expected
+
+
+@pytest.mark.parametrize("last, now, expected", [
+    # holidays: nothing scheduled to be fresh even mid-morning with an old last run
+    ("2026-11-25T15:30:00-05:00", datetime(2026, 11, 26, 11, 0, tzinfo=_ET), "ONLINE"),   # Thanksgiving
+    ("2026-12-24T12:30:00-05:00", datetime(2026, 12, 25, 11, 0, tzinfo=_ET), "ONLINE"),   # Christmas
+    # half day 11-27: stall inside the 09:00-13:00 window is still caught...
+    ("2026-11-27T09:30:00-05:00", datetime(2026, 11, 27, 11, 0, tzinfo=_ET), "STALE"),
+    ("2026-11-27T10:45:00-05:00", datetime(2026, 11, 27, 11, 0, tzinfo=_ET), "ONLINE"),
+    # ...but the window ends at the 13:00 early close, not 16:00 (no late STALE at 14:00 / 15:30)
+    ("2026-11-27T12:30:00-05:00", datetime(2026, 11, 27, 14, 0, tzinfo=_ET), "ONLINE"),
+    ("2026-12-24T12:30:00-05:00", datetime(2026, 12, 24, 15, 30, tzinfo=_ET), "ONLINE"),
+    ("2026-12-24T09:30:00-05:00", datetime(2026, 12, 24, 12, 45, tzinfo=_ET), "STALE"),
+    # normal day: window runs to 16:00, so a 14:00 stall IS flagged
+    ("2026-10-27T12:30:00-04:00", datetime(2026, 10, 27, 14, 0, tzinfo=_ET), "STALE"),
+])
+def test_cycle_session_stale_nyse_calendar(last, now, expected):
+    assert dd.cycle_session_stale(last, now=now) == expected
 
 
 @pytest.mark.parametrize("last, now, expected", [

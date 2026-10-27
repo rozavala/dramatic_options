@@ -39,6 +39,7 @@ import direction_coherence
 import drawdown_warn
 import fixed_basket
 import fundamentals_staleness
+import nyse_calendar
 import shadow_book
 import state
 from council.proposal import passes_floor
@@ -59,8 +60,10 @@ RECENT_COUNCIL_N = 4  # trailing council-run window for the Health strip + T4 co
 # Market-aware staleness (pure datetime — NEVER LiveClock.is_market_open, which fetches via Alpaca). The live
 # cadence comes from the systemd timers: L1/council = Mon–Fri 15:45 ET; L2 monitor = every 30 min across
 # 09:00–16:00 ET weekdays. Anchoring on these means a weekend (nothing scheduled) never false-alarms.
-# Holidays are NOT modeled (a holiday weekday → a one-evening benign false-STALE, raw age shown beside); a
-# static holiday set is deferred.
+# NYSE holidays and 13:00 early closes (nyse_calendar, a pure hard-coded table; #367) are honoured: a holiday
+# has nothing due, and on a half day the market is shut by the 15:45 L1 slot (no entries/council — see
+# orchestrator.entries_allowed) and the L2 window ends at the early close. Dates outside the table fall back
+# to weekday-only. Display logic only — nothing here feeds an order path or the drawdown kill rule.
 _ET = ZoneInfo("America/New_York")
 _L1_SLOT_HM = (15, 45)              # council/L1 daily slot (ET)
 _L1_GRACE_MIN = 20                  # a slot counts as "due" only once now ≥ slot + this (start/record latency)
@@ -192,23 +195,24 @@ def _et_date(ts):
 
 
 def _most_recent_due_l1_date(now_et: datetime):
-    """ET date of the most recent weekday 15:45-ET L1 slot already DUE (now ≥ slot + grace), walking back
-    across weekends/long weekends; None if none in the last ~8 days."""
+    """ET date of the most recent 15:45-ET L1 slot already DUE (now ≥ slot + grace), walking back across
+    weekends, NYSE holidays and half days (the market is shut by 15:45 on an early close, so no council runs
+    and none is due); None if none in the last ~8 days."""
     grace = timedelta(minutes=_L1_GRACE_MIN)
     day = now_et
     for _ in range(8):
-        if day.weekday() < 5:
-            slot = day.replace(hour=_L1_SLOT_HM[0], minute=_L1_SLOT_HM[1], second=0, microsecond=0)
-            if now_et >= slot + grace:
-                return slot.date()
+        slot = day.replace(hour=_L1_SLOT_HM[0], minute=_L1_SLOT_HM[1], second=0, microsecond=0)
+        close = nyse_calendar.session_close(day.date())
+        if close is not None and slot.time() < close and now_et >= slot + grace:
+            return slot.date()
         day -= timedelta(days=1)
     return None
 
 
 def council_session_stale(last_council_ts, *, now: datetime | None = None) -> str:
-    """Market-aware staleness for the daily L1/council cadence (Mon–Fri 15:45 ET). OFFLINE if never run;
-    STALE iff a weekday 15:45-ET slot has come DUE on a date strictly after the last council run's date;
-    else ONLINE. ``last_council_ts`` is the run started_at — a same-day catch-up before the slot still counts
+    """Market-aware staleness for the daily L1/council cadence (15:45 ET on NYSE full trading days). OFFLINE
+    if never run; STALE iff a full-day 15:45-ET slot has come DUE on a date strictly after the last council
+    run's date; else ONLINE. ``last_council_ts`` is the run started_at — a same-day catch-up before the slot still counts
     (date-based), so a Persistent catch-up doesn't false-alarm. Pure datetime (no fetch)."""
     now = now or datetime.now(UTC)
     last_date = _et_date(last_council_ts)
@@ -224,17 +228,23 @@ def cycle_session_stale(last_cycle_ts, *, now: datetime | None = None) -> str:
     """Market-aware staleness for the L1∪L2 loop liveness (L2 monitor every ~30 min across 09:00–16:00 ET
     weekdays). OFFLINE if never run; ONLINE outside the RTH cadence window / weekends (nothing scheduled);
     inside it, STALE iff the last loop run is older than one L2 interval + slack — the intraday-stall the flat
-    age threshold never caught. Pure datetime (no fetch)."""
+    age threshold never caught. Holidays are never due; on an early close the window ends at the close.
+    Pure datetime (no fetch)."""
     now = now or datetime.now(UTC)
     last = _parse_dt(last_cycle_ts)
     if last is None:
         return "OFFLINE"
     now_et = now.astimezone(_ET)
     (oh, om), (ch, cm) = _L2_WINDOW_HM
+    session_close = nyse_calendar.session_close(now_et.date())
+    if session_close is None:  # weekend or NYSE holiday → nothing is expected
+        return "ONLINE"
     open_dt = now_et.replace(hour=oh, minute=om, second=0, microsecond=0)
-    close_dt = now_et.replace(hour=ch, minute=cm, second=0, microsecond=0)
-    # don't expect freshness on weekends, in the first interval+slack of the window, or after close
-    if now_et.weekday() >= 5 or now_et < open_dt + timedelta(minutes=_L2_STALE_MIN) or now_et >= close_dt:
+    # the window ends at the L2 cutoff or the early close, whichever is first
+    close_dt = min(now_et.replace(hour=ch, minute=cm, second=0, microsecond=0),
+                   now_et.replace(hour=session_close.hour, minute=session_close.minute, second=0, microsecond=0))
+    # don't expect freshness in the first interval+slack of the window, or after close
+    if now_et < open_dt + timedelta(minutes=_L2_STALE_MIN) or now_et >= close_dt:
         return "ONLINE"
     return "STALE" if (now - last).total_seconds() / 60.0 > _L2_STALE_MIN else "ONLINE"
 
