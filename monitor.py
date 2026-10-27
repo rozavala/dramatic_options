@@ -348,12 +348,26 @@ def reconcile_pending(*, conn, broker, clock: Clock, config: dict) -> int:
         elif st in ("canceled", "cancelled", "expired", "rejected"):
             state.drop_convexity_position(conn, int(pos["id"]), reason=f"order_{st}")
             n += 1
+            _page_unfilled(pos, f"order {st} at the broker")
         elif cancel_unfilled and st in ("new", "accepted", "pending_new", "partially_filled"):
             if hasattr(broker, "cancel_order"):
                 broker.cancel_order(oid)
             state.drop_convexity_position(conn, int(pos["id"]), reason="cancelled_unfilled")
             n += 1
+            _page_unfilled(pos, f"cancelled unfilled (was {st})")
     return n
+
+
+def _page_unfilled(pos, what: str) -> None:
+    """Page a real-book entry that ended without a fill (2026-10-27: HL's order died silently). Never raises."""
+    try:
+        import notify
+
+        notify.send("REAL-BOOK ORDER NOT FILLED",
+                    f"#{pos['id']} {pos['symbol']} {pos['contracts']}x {pos['contract_symbol']} "
+                    f"(${float(pos['total_premium']):,.0f}): {what}.")
+    except Exception:  # noqa: BLE001 — paging must never break the reconcile
+        log.warning("unfilled page failed to send")
 
 
 def _parse_date(value) -> date | None:

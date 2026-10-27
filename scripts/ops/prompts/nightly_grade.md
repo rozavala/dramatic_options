@@ -18,8 +18,8 @@ that differs from the newest banner is a FINDING unless STANDING_STATE records a
    banner already graded, report "already graded" and stop.
 1. `journalctl -u dramatic-options-l1 --since "$(date -u +%F) 19:40" --no-pager -q` (explicit date): count
    "call failed (attempt" lines; read the Marker refresh, Expressible-first, Cheap-reserve, Coverage meter, Council,
-   cost-ledger, parse-health, Corpus refetch, fundamentals-staleness, Cycle, dual-read, null-book and Book lines and the
-   direction-coherence note.
+   cost-ledger, parse-health, Corpus refetch, fundamentals-staleness, Quote (spreads), Cycle, dual-read, null-book
+   and Book lines and the direction-coherence note.
    `systemctl --failed`; `journalctl -u dramatic-options-l2 --since "$(date -u +%F) 13:00" --no-pager -q | grep -c
    'mark budget exhausted'`; any `status=9/KILL` on dramatic-options-* units today is a finding.
 2. Read-only SQLite: `runs.council_health` MUST be 'ok' (provider_fail → censor; name provider + error); every
