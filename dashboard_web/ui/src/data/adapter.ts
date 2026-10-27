@@ -10,7 +10,7 @@
 import type {
   AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
   NextRunVM, NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
-  OutsideFrameVM, Snapshot, SpendVM, TailFigure, ViewModel,
+  OutsideFrameVM, Snapshot, SpendVM, TailFigure, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
 } from "./types";
 import { etDate, formatRunLabel } from "./runLabel";
 import { DD_WARN_DEFAULT, directionLabel, drawdownDisplay, levelFromSystem, t4RowState, verdictDisplay } from "./status";
@@ -53,6 +53,59 @@ function panelError(p: unknown): string | null {
     if (typeof e === "string") return e;
   }
   return null;
+}
+
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const sinceLabel = (daysAgo: number | null | undefined): string =>
+  daysAgo == null ? "date unknown" : daysAgo <= 0 ? "today" : `${plural(daysAgo, "day")} ago`;
+const dayStamp = (day: string | null | undefined): string => {
+  if (!day) return DASH;
+  const t = Date.parse(`${day}T12:00:00Z`);
+  return Number.isNaN(t) ? day : `${new Date(t).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${day}`;
+};
+const orderDetail = (o: { contract: string | null; contracts: number | null; premium: number | null }): string | null => {
+  const parts = [o.contract ? `${o.contracts != null ? `${o.contracts}× ` : ""}${o.contract}` : null, o.premium != null ? fmt(o.premium) : null];
+  const out = parts.filter(Boolean).join(" · ");
+  return out || null;
+};
+
+// #351 — the "why no entry" table. Where a row's name reached the gate and an order exists, the ORDER'S REAL
+// outcome replaces the gate stamp (gate_decision stays "submit-pending" after a cancel — it is not the outcome).
+// Dates come from the server already on the ET calendar; nothing here re-derives a day from a UTC stamp.
+function buildWhyNoEntry(P: Snapshot): WhyNoEntryVM {
+  const w = P.why_no_entry;
+  const blank: WhyNoEntryVM = {
+    unavailable: true, empty: true, runId: null, floor: DASH, rows: [],
+    expressible: { n: 0, of: 0, noStructure: [] }, lastAboveFloor: null, lastOrder: null, warning: null,
+  };
+  if (!w || panelError(w)) return blank;
+  const rows: WhyNoEntryRowVM[] = (w.rows ?? []).map((r) => {
+    const o = r.order;
+    const stoppedLevel: WhyNoEntryRowVM["stoppedLevel"] = o ? (o.kind === "not_filled" ? "warn" : "ok") : "mute";
+    return {
+      symbol: r.symbol, dir: r.direction ? directionLabel(r.direction) : DASH, conviction: r.conviction, aboveFloor: r.above_floor,
+      stoppedAt: o ? o.result : r.veto_stage, stoppedLevel, isOrder: !!o, orderDetail: o ? orderDetail(o) : null,
+      ivrv: r.iv_rv != null ? r.iv_rv.toFixed(2) : DASH, skew: r.otm_skew != null ? r.otm_skew.toFixed(1) : DASH,
+      express: r.expressible == null ? "unread" : r.expressible ? "yes" : "no",
+      expressNote: r.expressible === false ? (r.structure_note ?? "no eligible structure") : null,
+    };
+  });
+  const af = w.tiles?.last_above_floor, lo = w.tiles?.last_order, ex = w.tiles?.expressible;
+  const rec = w.reconciliation;
+  const drift = rec && (!rec.by_decision_ok || !rec.stages_ok)
+    ? `rows no longer total back to the ${[!rec.stages_ok && "council-stage", !rec.by_decision_ok && "gate-decision"].filter(Boolean).join(" and ")} funnel — read with care`
+    : null;
+  return {
+    unavailable: false, empty: !!w.empty, runId: w.run_id ?? null, floor: w.floor ?? DASH, rows,
+    expressible: { n: ex?.n ?? 0, of: ex?.of ?? 0, noStructure: ex?.no_structure ?? [] },
+    lastAboveFloor: af ? { line: `${af.symbol} · ${af.conviction}`, sub: `${sinceLabel(af.days_ago)} · ${dayStamp(af.day)}` } : null,
+    lastOrder: lo ? {
+      line: `${lo.symbol} · ${lo.result}`,
+      sub: [orderDetail(lo), `${sinceLabel(lo.days_ago)} · ${dayStamp(lo.day)}`].filter(Boolean).join(" · "),
+      level: lo.kind === "not_filled" ? "warn" : lo.kind === "filled" ? "ok" : "mute",
+    } : null,
+    warning: drift,
+  };
 }
 
 function ageDays(iso?: string): number | null {
@@ -135,6 +188,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["null_attempts", P.null_attempts],
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
       ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence], ["staleness", P.staleness],
+      ["why_no_entry", P.why_no_entry],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
@@ -307,6 +361,8 @@ export function fromBackend(P: Snapshot): ViewModel {
     cleanLine: recentW.length ? `${cleanN} of the last ${recentW.length} sessions clean` : "no sessions yet",
   };
 
+  const whyNoEntry = buildWhyNoEntry(P);
+
   // Month-to-date spend vs the per-provider tripwire (spend_panel).
   const spP = panelError(P.spend) ? null : P.spend;
   const spend: SpendVM = {
@@ -475,6 +531,6 @@ export function fromBackend(P: Snapshot): ViewModel {
     t4: cond,
     readiness,
     edgeAccrual: { n: edgeN, target: EDGE_TARGET }, phasePct, phaseSub,
-    session, spend, canary, dircoherence, staleness, wingMismatch, dataAccrual, booksOpen, firstEntry,
+    session, spend, canary, dircoherence, staleness, whyNoEntry, wingMismatch, dataAccrual, booksOpen, firstEntry,
   };
 }

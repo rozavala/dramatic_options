@@ -138,7 +138,37 @@ export interface Snapshot {
   canary?: CanaryPanel;     // the gate-rich canary's trailing OPRA iv/rv (canary_panel)
   dircoherence?: DirCoherencePanel; // PREREG_DIRECTION_COHERENCE: what the union filter withheld (direction_coherence_panel)
   staleness?: StalenessPanel;       // #269: names judged on an older quarter than their latest filing (fundamentals_staleness_panel)
+  why_no_entry?: WhyNoEntryPanel;   // #351: per-name "why no entry" of the latest session + expressible / last above-floor / last order tiles
   _fatal?: string;
+}
+
+// why_no_entry_panel (#351): one row per judged name of the latest council session, anchored on the same run as
+// funnel / council_stage. `order` is the REAL outcome of the name's order (convexity_positions joined by
+// proposal_id, else run+symbol) — `gate_decision` is a point-in-time stamp and stays "submit-pending" forever.
+export interface WhyNoEntryOrder {
+  kind: "resting" | "filled" | "not_filled"; result: string; position_id: number; status: string | null;
+  contract: string | null; contracts: number | null; premium: number | null;
+}
+export interface WhyNoEntryRow {
+  proposal_id: number; symbol: string; direction: string | null; conviction: string; above_floor: boolean;
+  stage: string; gate_decision: string | null; veto_stage: string; order: WhyNoEntryOrder | null;
+  iv_rv: number | null; otm_skew: number | null; expressible: boolean | null; structure_note: string | null;
+  iv_rv_source: "gate" | "opra read" | null;
+}
+export interface WhyNoEntryLastOrder {
+  symbol: string; at: string; run_id: number | null; day: string; days_ago: number;
+  kind: "resting" | "filled" | "not_filled"; result: string;
+  contract: string | null; contracts: number | null; premium: number | null; position_id: number | null;
+}
+export interface WhyNoEntryPanel {
+  run_id: number | null; empty: boolean; floor: string; rows: WhyNoEntryRow[];
+  tiles: {
+    expressible: { n: number; of: number; no_structure: string[]; basis: string };
+    last_above_floor: { run_id: number; symbol: string; direction: string | null; conviction: string; day: string | null; days_ago: number | null } | null;
+    last_order: WhyNoEntryLastOrder | null;
+  };
+  totals?: { judged: number; reached_gate: number; by_stage: Record<string, number>; by_decision: Record<string, number>; unattributed_gate_rows: number };
+  reconciliation?: { by_decision_ok: boolean; stages_ok: boolean };
 }
 
 // council_session_panel: the latest session as the operator grades it — per-name roles + weakest point +
@@ -290,6 +320,25 @@ export interface SessionVM {
   providerDrops: number; understudy: { configured: string | null; fired: number };
   cleanLine: string;                             // "31 of 32 sessions clean" from the recent window
 }
+// #351 — the "why no entry" table + tiles, flat render shapes.
+export interface WhyNoEntryRowVM {
+  symbol: string; dir: string; conviction: string; aboveFloor: boolean;
+  stoppedAt: string;                        // where it stopped: council stage, gate code, or the order's real outcome
+  stoppedLevel: "ok" | "warn" | "mute";     // ok = filled / resting, warn = reached the gate but no position, mute = stopped upstream
+  isOrder: boolean;                         // stoppedAt is an order outcome (not a gate stamp)
+  orderDetail: string | null;               // "5× HL270617C00017000 · $880"
+  ivrv: string; skew: string;               // "0.93" / "—"
+  express: "yes" | "no" | "unread"; expressNote: string | null;
+}
+export interface WhyNoEntryVM {
+  unavailable: boolean;                     // panel came back {error} or is absent
+  empty: boolean; runId: number | null; floor: string;
+  rows: WhyNoEntryRowVM[];
+  expressible: { n: number; of: number; noStructure: string[] };
+  lastAboveFloor: { line: string; sub: string } | null;   // "HL · MODERATE" / "1 day ago · Mon 2026-10-26"
+  lastOrder: { line: string; sub: string; level: "ok" | "warn" | "mute" } | null;
+  warning: string | null;                   // set when the rows no longer reconcile with the funnel panels
+}
 export interface SpendRowVM { provider: string; mtd: string; cap: string | null; frac: number | null; page: boolean }
 export interface SpendVM { month: string; rows: SpendRowVM[]; totalMtd: string; totalCap: string | null; cumulative: string; framer: string; perCycleCap: string | null; anyPage: boolean }
 // PREREG_DIRECTION_COHERENCE — raw panel (direction_coherence_panel) and its render shape (#264).
@@ -378,6 +427,7 @@ export interface ViewModel {
   canary: CanaryVM | null;            // the gate-rich canary (NVDA) iv/rv trend
   dircoherence: DirCoherenceVM | null; // the direction-coherence union filter, latest L1 + recent nights
   staleness: StalenessVM | null;       // names judged on an older quarter than their latest filed report
+  whyNoEntry: WhyNoEntryVM;            // #351 — per-name why-no-entry table + expressible / last above-floor / last order tiles
   wingMismatch: string[];             // latest dual-read session's wing-mismatch names (boundary class)
   dataAccrual: DataAccrualVM;         // chain-snapshot store, with the honesty flag
   booksOpen: BooksOpenVM;             // open counts across the five books

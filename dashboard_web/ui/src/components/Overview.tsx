@@ -5,6 +5,7 @@ import { Card, Chip, StaleChip } from "./primitives";
 import { CriteriaLegs, LowHistory, SessionTable } from "./SessionTable";
 import { StatusBanner } from "./StatusBanner";
 import { T4Road } from "./T4Road";
+import { WhyNoEntryCard } from "./WhyNoEntry";
 
 function Tile({ label, chip, chipLevel, children }: { label: React.ReactNode; chip: string; chipLevel: "ok" | "warn" | "bad" | "acc" | "mute"; children: React.ReactNode }) {
   return (
@@ -112,6 +113,8 @@ export function Overview({ vm }: { vm: ViewModel }) {
           </div>
         </div>
       </Card>
+
+      <WhyNoEntryCard vm={vm} />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr_1fr]" style={{ gap: 14 }}>
         <Tile label={vm.positions.length > 1 ? `Open positions · ${vm.positions.length}` : "Open position"} chip={pos ? (bled != null ? `${bled}% bled` : "no mark") : "empty"} chipLevel={pos ? (bled != null && bled >= 50 ? "warn" : "acc") : "mute"}>

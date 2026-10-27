@@ -40,7 +40,7 @@ PANEL_KEYS: tuple[str, ...] = (
     "performance", "nulls", "attribution", "funnel", "council_stage", "gate_reasons", "cap_flow",
     "cost", "market_ctx", "dualread", "dualread_runtime", "cheapness", "null_attempts", "reserve",
     "curation", "data_gathered", "forward_catalysts", "session", "spend", "canary",
-    "dircoherence", "staleness",
+    "dircoherence", "staleness", "why_no_entry",
 )
 
 
@@ -134,6 +134,7 @@ def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
             "canary": dd.safe(dd.canary_panel, conn),
             "dircoherence": dd.safe(dd.direction_coherence_panel, conn),
             "staleness": dd.safe(dd.fundamentals_staleness_panel, conn),
+            "why_no_entry": dd.safe(dd.why_no_entry_panel, conn, config),
         }
         # NOT a load_all panel (like system_status): run_id -> started_at for every run id a panel shows, so
         # the UI prints an ET date beside each one (issue #354). Read-only SELECT; fail-soft.

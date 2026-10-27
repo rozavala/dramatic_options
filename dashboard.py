@@ -88,6 +88,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "canary": dd.safe(dd.canary_panel, conn),
             "dircoherence": dd.safe(dd.direction_coherence_panel, conn),
             "staleness": dd.safe(dd.fundamentals_staleness_panel, conn),
+            "why_no_entry": dd.safe(dd.why_no_entry_panel, conn, config),
         }
     finally:
         conn.close()
