@@ -1,3 +1,4 @@
+import { runLabel, type RunDates } from "../data/runLabel";
 import type { SessionVM } from "../data/types";
 import { signal } from "../theme/tokens";
 import { Chip } from "./primitives";
@@ -37,13 +38,13 @@ export function SessionTable({ session, lastCol }: { session: SessionVM; lastCol
 }
 
 /** The LOW-count history over the trailing sessions: how much of the slate was grounded-but-not-inflecting. */
-export function LowHistory({ session }: { session: SessionVM }) {
+export function LowHistory({ session, dates }: { session: SessionVM; dates: RunDates }) {
   const hist = session.lowHistory;
   if (!hist.length) return null;
   const max = Math.max(1, ...hist.map((h) => h.low));
   return (
     <div>
-      <div style={{ fontSize: 12, color: "#414956", fontWeight: 500 }}>LOW count, last {hist.length} sessions</div>
+      <div style={{ fontSize: 12, color: "#414956", fontWeight: 500 }}>LOW count, last {hist.length} sessions <span className="font-mono" style={{ color: "#6a7280", fontWeight: 400 }}>· dates ET</span></div>
       <div style={{ fontSize: 11, color: "#6a7280", marginTop: 2, lineHeight: 1.5 }}>how much of the slate the strategist found grounded but not yet inflecting</div>
       <div className="flex items-end" style={{ gap: 10, height: 96, marginTop: 14, borderBottom: "1px solid #edf0f4" }}>
         {hist.map((h, i) => {
@@ -57,7 +58,7 @@ export function LowHistory({ session }: { session: SessionVM }) {
         })}
       </div>
       <div className="flex justify-between font-mono" style={{ fontSize: 10.5, color: "#6a7280", marginTop: 5 }}>
-        {hist.map((h) => <span key={h.runId}>{h.day || `#${h.runId}`}</span>)}
+        {hist.map((h) => <span key={h.runId} title={runLabel(dates, h.runId)}>{h.day || "—"}</span>)}
       </div>
     </div>
   );

@@ -53,3 +53,9 @@ export function Skeleton({ height = 96, style }: { height?: number; style?: CSSP
     />
   );
 }
+
+/** #354 — "STALE" when the daily L1 council session is overdue (header.council.status, from the market-aware
+ *  council_session_stale: a weekday 15:45-ET slot came due on a later date than the last run). Display only. */
+export function StaleChip({ status }: { status: string }) {
+  return status === "STALE" ? <Chip level="warn" style={{ marginLeft: 6 }}>STALE</Chip> : null;
+}

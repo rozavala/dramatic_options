@@ -6,8 +6,10 @@ was retired 2026-10-06 and survives only as the panel-parity reference this API 
 the 86xx block clear of real_options' 85xx dashboards.)
 
 - `api/` — a tiny FastAPI service. `snapshot.build_snapshot()` mirrors `dashboard.load_all()` panel-for-panel
-  (streamlit-free) + injects `system_status` + JSON-sanitizes; `server.py` serves `GET /api/snapshot` and,
-  in production, the built SPA on the same port. `GET /api/status` is the **light** read (below).
+  (streamlit-free) + injects `system_status` and `run_dates` (run_id → started_at, so every run id the UI
+  prints carries an ET date via `ui/src/data/runLabel.ts`, #354) + JSON-sanitizes; `server.py` serves
+  `GET /api/snapshot` and, in production, the built SPA on the same port. `GET /api/status` is the **light**
+  read (below).
 - `ui/` — Vite + React + TS + Tailwind. `data/` is the typed data layer (`types.ts`, the `fromBackend`
   adapter ported from the design's spec, `useSnapshot`). One responsive app: 252px-rail desktop console or
   bottom-tab mobile (`useIsMobile`, ≤760px).

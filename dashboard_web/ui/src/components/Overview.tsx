@@ -1,6 +1,7 @@
 import type { ViewModel } from "../data/types";
 import { color, signal } from "../theme/tokens";
-import { Card, Chip } from "./primitives";
+import { runLabel } from "../data/runLabel";
+import { Card, Chip, StaleChip } from "./primitives";
 import { CriteriaLegs, LowHistory, SessionTable } from "./SessionTable";
 import { StatusBanner } from "./StatusBanner";
 import { T4Road } from "./T4Road";
@@ -49,7 +50,7 @@ export function Overview({ vm }: { vm: ViewModel }) {
         </Tile>
 
         <Tile
-          label={<>Last council session <span className="font-mono" style={{ color: "#6a7280", fontWeight: 400 }}>{se.runId != null ? `#${se.runId}` : ""}</span></>}
+          label={<>Last council session<StaleChip status={vm.councilBeat} /></>}
           chip={vm.council.verdict.toLowerCase()} chipLevel={vm.council.vlevel}
         >
           <div style={big}>{vm.council.parseFail}<span style={small}>/{vm.council.parseCalled} parse-fails</span></div>
@@ -57,6 +58,9 @@ export function Overview({ vm }: { vm: ViewModel }) {
             {vm.council.roundtrips} full round-trips · {se.providerDrops} provider drops · <b>{se.cleanLine}</b>
           </div>
           <div className="font-mono" style={{ fontSize: 11.5, color: "#414956", marginTop: 10 }}>
+            {runLabel(vm.runDates, se.runId)}
+          </div>
+          <div className="font-mono" style={{ fontSize: 11.5, color: "#414956", marginTop: 4 }}>
             {vm.council.models}
             {se.understudy.configured && (
               <> · understudy <span style={{ color: se.understudy.fired ? signal.warn.text : signal.ok.text }}>{se.understudy.fired ? `FIRED ×${se.understudy.fired}` : "dormant"}</span></>
@@ -85,7 +89,7 @@ export function Overview({ vm }: { vm: ViewModel }) {
         <div className="flex items-baseline justify-between flex-wrap" style={{ gap: 12 }}>
           <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
             What the council decided
-            <span style={{ color: "#6a7280", fontWeight: 400 }}> · session {se.runId != null ? `#${se.runId}` : "—"} · {se.rows.length} names judged, {vm.funnel.council.toGate} reached the gate</span>
+            <span style={{ color: "#6a7280", fontWeight: 400 }}> · session {runLabel(vm.runDates, se.runId)} · {se.rows.length} names judged, {vm.funnel.council.toGate} reached the gate</span>
           </div>
           <div className="flex items-center" style={{ gap: 8 }}>
             <span className="font-mono" style={{ fontSize: 12, color: "#414956" }}>profile</span>
@@ -99,7 +103,7 @@ export function Overview({ vm }: { vm: ViewModel }) {
         <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_.8fr]" style={{ gap: 24, marginTop: 14 }}>
           <SessionTable session={se} lastCol="streak" />
           <div style={{ borderLeft: "1px solid #edf0f4", paddingLeft: 22 }}>
-            <LowHistory session={se} />
+            <LowHistory session={se} dates={vm.runDates} />
             <div style={{ marginTop: 18 }}>
               <div style={{ fontSize: 12, color: "#414956", fontWeight: 500 }}>Why nothing passes</div>
               <div style={{ fontSize: 11, color: "#6a7280", marginTop: 2, lineHeight: 1.5 }}>the three criteria the strategist must all confirm · {legs?.n ?? 0} deliberated</div>
