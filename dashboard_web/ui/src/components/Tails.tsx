@@ -4,6 +4,22 @@ import type { OutsideFrameVM, TailFigure } from "../data/types";
 import { signal } from "../theme/tokens";
 import { Chip } from "./primitives";
 
+// The book names the Edge bars use, keyed by the raw book value on state.outside_frame_positions.
+const BOOK_LABEL: Record<string, string> = {
+  real: "Real", shadow: "Shadow", union_nogate: "3A · no-gate", basket_nogate: "3B · whole basket",
+};
+export const bookLabel = (book: string): string => BOOK_LABEL[book] ?? book;
+
+/** moneyness = (strike − spot) / spot, so a put is OTM below spot and a call above it. Says which side of the money. */
+export function moneynessLabel(o: Pick<OutsideFrameVM, "kind" | "dir" | "moneyness">): string {
+  if (o.moneyness == null) return "—";
+  const put = o.kind === "P" || (o.kind !== "C" && o.dir === "bearish");
+  const call = o.kind === "C" || (o.kind !== "P" && o.dir === "bullish");
+  if (!put && !call) return "—";
+  const otm = put ? -o.moneyness : o.moneyness;
+  return otm >= 0 ? `${(otm * 100).toFixed(1)}% OTM` : `${(-otm * 100).toFixed(1)}% ITM (wrong side)`;
+}
+
 /** "with legacy 2.35× · n 18" — the figure including the tagged outside-frame positions, shown beside the in-frame one. */
 export function WithLegacy({ t, style }: { t: TailFigure; style?: React.CSSProperties }) {
   if (!t.withLegacy) return null;
@@ -33,8 +49,8 @@ export function OutsideFrameChip({ items, compact = false }: { items: OutsideFra
         <ul data-testid="outside-frame-list" style={{ listStyle: "none", margin: "8px 0 0", padding: 0, textAlign: "left" }}>
           {items.map((o, i) => (
             <li key={`${o.book}-${o.symbol}-${i}`} className="flex justify-between font-mono" style={{ gap: 10, fontSize: compact ? 10.5 : 11.5, color: "#414956", padding: "3px 0", borderTop: "1px solid #edf0f4" }}>
-              <span>{o.symbol} · {o.kind} · {o.book}</span>
-              <span style={{ color: signal.mute.text }}>{o.moneyness != null ? `${(o.moneyness * 100).toFixed(1)}%` : "—"} · {o.status}</span>
+              <span>{o.symbol} · {o.kind} · {bookLabel(o.book)}</span>
+              <span style={{ color: signal.mute.text }}>{moneynessLabel(o)} · {o.status}</span>
             </li>
           ))}
         </ul>

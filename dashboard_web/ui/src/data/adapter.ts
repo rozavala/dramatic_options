@@ -37,12 +37,11 @@ function nextRun(b: { next_at?: string | null } | null | undefined, now: string 
   return { label: mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`, at: b.next_at };
 }
 const ci = (c?: { n?: number; p95?: number | null } | null) => ({ n: c?.n ?? 0, p95: c?.p95 ?? null });
-// #352: in-frame figure first; the with-legacy one rides beside it only when the tagged positions changed the
-// read (different resolved n). No in-frame twin on the wire (older backend) or no tags ⇒ one number.
+// #352: in-frame figure first, the with-legacy one always beside it whenever positions are tagged (even when the
+// resolved counts are equal). No in-frame twin on the wire (older backend) or no tags ⇒ one number.
 const tailFigure = (all: ReturnType<typeof ci>, inFrame: { n?: number; p95?: number | null } | undefined, tagged: boolean): TailFigure => {
   if (!tagged || !inFrame) return { ...all, withLegacy: null };
-  const f = ci(inFrame);
-  return { ...f, withLegacy: f.n !== all.n ? all : null };
+  return { ...ci(inFrame), withLegacy: all };
 };
 const usd = (v: number | null | undefined, dp = 3): string => "$" + Number(v ?? 0).toFixed(dp);
 

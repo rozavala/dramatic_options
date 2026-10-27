@@ -335,7 +335,7 @@ describe("fromBackend", () => {
       outside_frame: [frame(7, "STUB"), frame(9, "KLAR")],
     });
 
-    it("tagged: in-frame figure first, with-legacy beside it, and they differ", () => {
+    it("tagged: in-frame figure first, with-legacy always beside it (even when equal)", () => {
       const t = tagged().perf.tails;
       expect(t.shadow.p95).toBe(4.2);
       expect(t.shadow.n).toBe(15);
@@ -343,7 +343,7 @@ describe("fromBackend", () => {
       expect(t.shadow.p95).not.toBe(t.shadow.withLegacy?.p95);
       expect(t.real).toMatchObject({ n: 10, p95: 3.4, withLegacy: { n: 11, p95: 3.1 } });
       expect(t.basket).toMatchObject({ n: 0, p95: null, withLegacy: { n: 14, p95: 1.55 } }); // in-frame accruing, legacy beside
-      expect(t.a3.withLegacy).toBeNull(); // tags did not change this book's read ⇒ one number
+      expect(t.a3).toEqual({ n: 22, p95: 1.9, withLegacy: { n: 22, p95: 1.9 } }); // equal counts: both figures still shown
       expect(tagged().perf.real).toEqual({ n: 11, p95: 3.1 }); // the with-legacy BookCI is unchanged
     });
 
@@ -356,7 +356,7 @@ describe("fromBackend", () => {
     it("untagged: one number per book and no chip list", () => {
       const vm2 = withPerf({ outside_frame: [] });
       expect(vm2.perf.outsideFrame).toEqual([]);
-      for (const k of ["real", "shadow", "a3", "basket"] as const) expect(vm2.perf.tails[k].withLegacy).toBeNull();
+      for (const k of ["real", "shadow", "a3", "basket"] as const) expect(vm2.perf.tails[k].withLegacy).toBeNull(); // no tags ⇒ one number
       expect(vm2.perf.tails.real).toMatchObject({ n: 11, p95: 3.1 });
       // an in-frame twin on the wire is ignored without tags (and a missing `outside_frame` key = untagged)
       const vm3 = withPerf({ outside_frame: undefined, p95_ci: { real: ci(11, 3.1), real_in_frame: ci(10, 3.4) } });
