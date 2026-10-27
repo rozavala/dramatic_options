@@ -6,6 +6,7 @@ job installs the dashboard deps and runs them.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -335,7 +336,9 @@ def test_status_without_a_database_fails_soft(monkeypatch, tmp_path) -> None:
     server._status_cache.clear()
     with TestClient(server.app) as client:
         r = client.get("/api/status")
-    assert r.status_code == 200 and "error" in r.json()
+    body = r.json()
+    assert r.status_code == 200 and "error" in body
+    assert body["system_status"]["level"] == "error"   # hubs reading .system_status.level still get a level
     server._status_cache.clear()
 
 
@@ -346,6 +349,6 @@ def test_docs_mention_8601_only_as_retired() -> None:
                 "scripts/systemd/dramatic-options-web.service"):
         lines = (root / rel).read_text().splitlines()
         for i, ln in enumerate(lines):
-            if "8601" in ln:
+            if re.search(r":8601\b|port 8601", ln, re.IGNORECASE):
                 near = " ".join(lines[max(0, i - 2): i + 3]).lower()
                 assert "retire" in near, f"{rel}:{i + 1} mentions :8601 without saying it is retired"

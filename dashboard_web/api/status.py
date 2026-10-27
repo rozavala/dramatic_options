@@ -13,8 +13,8 @@ under 5 KB — ``MAX_BYTES`` is enforced: an over-size body sheds the per-condit
 
 from __future__ import annotations
 
-import sys
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -88,6 +88,7 @@ def build_status(db_path: str, db_exists: bool, *, head: str | None, started_at:
     out: dict[str, Any] = {"as_of": now.isoformat(timespec="seconds"), "commit": head, "started_at": started_at}
     if not db_exists:
         out["error"] = "no database — set DRAMATIC_DB to the live checkout's DB"
+        out["system_status"] = {"level": "error", "headline": "🔴 No database", "issues": [out["error"]]}
         return out
     config = load_config()
     conn = dd.connect_ro(db_path)
