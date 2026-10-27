@@ -47,12 +47,12 @@ function MWhyNoEntry({ vm }: { vm: ViewModel }) {
 function MOverview({ vm }: { vm: ViewModel }) {
   const sig = signal[vm.level];
   const r = vm.readiness;
-  const allPass = r.checkable > 0 && r.pass === r.checkable; // guard vacuous 0/0 (parity with KpiRow)
+  const allPass = r.allPass; // adapter: checkable>0 (no vacuous 0/0), all met, and no manual row open
   const passN = useCountUp(r.pass); // F2 parity — count up the ring number
   const ringColor = allPass ? signal.ok.text : color.accent;
   const kpis: { label: string; value: string; color: string; sub: string; chip: string; level: Level }[] = [
-    { label: "Go-live", value: `${r.pass}/${r.checkable}`, color: color.ink, sub: `${r.accruing} accruing`, chip: allPass ? "on track" : "in progress", level: allPass ? "ok" : "acc" },
-    { label: "Safety", value: vm.bookDD, color: signal.ok.text, sub: `${vm.openN}/${vm.maxN} open`, chip: "safe", level: "ok" },
+    { label: "Go-live", value: `${r.pass}/${r.checkable}`, color: color.ink, sub: `${r.accruing} accruing${r.manual ? ` · ${r.manual} manual open` : ""}`, chip: allPass ? "on track" : "in progress", level: allPass ? "ok" : "acc" },
+    { label: "Safety", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: `${vm.openN}/${vm.maxN} open`, chip: vm.bookDDlevel === "ok" && vm.bookDDchip !== "no marks" ? "safe" : vm.bookDDchip, level: vm.bookDDlevel },
     { label: "Council", value: vm.council.vlevel === "ok" ? "Healthy" : "Degraded", color: signal[vm.council.vlevel].text, sub: runLabel(vm.runDates, vm.council.runId), chip: vm.councilBeat === "STALE" ? "STALE" : vm.council.vlevel === "ok" ? "clean" : "check", level: vm.councilBeat === "STALE" && vm.council.vlevel === "ok" ? "warn" : vm.council.vlevel },
     { label: "Edge", value: `${vm.edgeAccrual.n}/~${vm.edgeAccrual.target}`, color: color.ink, sub: "resolved bets", chip: "accruing", level: "mute" },
   ];
@@ -111,7 +111,7 @@ function MSafety({ vm }: { vm: ViewModel }) {
   const sig = signal[c.vlevel];
   const tiles: { label: string; value: string; color: string; sub: string; series?: { equity: number }[] }[] = [
     { label: "Paper equity", value: vm.equity, color: color.ink, sub: vm.deltaFrame, series: vm.equitySeries },
-    { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: "halt at 20%" },
+    { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: `warn ${vm.ddWarnPct}% · halt 20%` },
     { label: "Positions", value: `${vm.openN}/${vm.maxN}`, color: color.ink, sub: `${vm.openPrem} at risk` },
     { label: "Headroom", value: vm.headroom, color: signal.ok.text, sub: `of ${vm.bookBudget}` },
   ];

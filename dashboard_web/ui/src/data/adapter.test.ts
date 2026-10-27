@@ -241,7 +241,7 @@ describe("fromBackend", () => {
     // checkable conditions: #1 MET, #3 VACUOUS, #5 IN_PROGRESS ⇒ checkable=3, pass=1 (only MET).
     // accruing = the NON-checkable conditions (#2, #4) ⇒ 2 — even though #4 carries a BREACH verdict, it is
     // !checkable so it is deferred, not a blocked gate. Matches dashboard.py's composition.
-    expect(vm.readiness).toEqual({ pass: 1, checkable: 3, accruing: 2 });
+    expect(vm.readiness).toEqual({ pass: 1, checkable: 3, accruing: 2, manual: 0, allPass: false });
   });
 
   it("renders a non-checkable verdict-bearing row as deferred, not blocked (A1)", () => {
@@ -552,5 +552,67 @@ describe("fromBackend — the nightly-grade read", () => {
     expect(vm.spend.rows).toEqual([]); expect(vm.canary).toBeNull();
     expect(vm.degraded).toContain("session");
     expect(vm.firstEntry).toBeNull();
+  });
+});
+
+describe("fromBackend — drawdown warn tier + T4 condition 5 (#355)", () => {
+  const withKill = (kr: Partial<Snapshot["risk"]["kill_rule"]>) => {
+    const s = synthetic();
+    return fromBackend({ ...s, risk: { ...s.risk, kill_rule: { ...s.risk.kill_rule, ...kr } } });
+  };
+  const kr = (book_drawdown: number, tripped: boolean, level?: "ok" | "warn" | "tripped") =>
+    withKill({ book_drawdown, tripped, level, drawdown_warn: 0.1 });
+
+  it("reads ok below 10%", () => {
+    const vm = kr(0.062, false, "ok");
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["ok", "inside frame"]);
+  });
+
+  it("with no marks the tile says 'no marks', not 'inside frame'", () => {
+    const vm = withKill({ book_drawdown: 0, tripped: false, level: "ok", have_marks: false });
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["ok", "no marks"]);
+  });
+
+  it("a 12% fixture shows warn (not 'inside frame')", () => {
+    const vm = kr(0.12, false, "warn");
+    expect(vm.bookDD).toBe("12.0%");
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["warn", "approaching halt"]);
+    expect(vm.ddWarnPct).toBe(10);
+  });
+
+  it("a 21% fixture shows tripped", () => {
+    const vm = kr(0.21, true, "tripped");
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["bad", "kill rule tripped"]);
+  });
+
+  it("the backend kill-rule `tripped` flag wins even if level is missing or stale", () => {
+    expect(kr(0.21, true, "warn").bookDDlevel).toBe("bad");
+    expect(kr(0.21, true).bookDDlevel).toBe("bad");
+  });
+
+  it("falls back to the 10% threshold on an older snapshot with no `level`", () => {
+    expect(withKill({ book_drawdown: 0.12, tripped: false }).bookDDlevel).toBe("warn");
+    expect(withKill({ book_drawdown: 0.05, tripped: false }).bookDDlevel).toBe("ok");
+  });
+
+  it("renders a `manual` non-checkable T4 row as MANUAL and counts it apart from checkable/accruing", () => {
+    const s = synthetic();
+    const vm = fromBackend({ ...s, t4: { ...s.t4, conditions: s.t4.conditions.map((c) => (c.id === 5 ? { ...c, checkable: false, verdict: null, manual: true } : c)) } });
+    expect(vm.t4.find((c) => c.id === 5)?.state).toBe("manual");
+    expect(vm.t4.find((c) => c.id === 4)?.state).toBe("deferred"); // unflagged non-checkable stays deferred
+    expect(vm.readiness).toEqual({ pass: 1, checkable: 2, accruing: 2, manual: 1, allPass: false });
+  });
+
+  it("never reads all-pass while a manual row is open, even when every checkable row is MET", () => {
+    const s = synthetic();
+    const conds = s.t4.conditions.map((c) => (c.id === 5 ? { ...c, checkable: false, verdict: null, manual: true } : c.checkable ? { ...c, verdict: "MET" as const } : c));
+    const open = fromBackend({ ...s, t4: { ...s.t4, conditions: conds } });
+    expect(open.readiness.pass).toBe(open.readiness.checkable); // checkable alone looks complete…
+    expect(open.readiness.manual).toBe(1);
+    expect(open.readiness.allPass).toBe(false); // …but the operator checklist is still open ⇒ not green
+    // control: with no manual row (cond 5 checkable + MET) the same data IS all-pass
+    const met = s.t4.conditions.filter((c) => c.checkable || c.id === 5).map((c) => ({ ...c, checkable: true, verdict: "MET" as const }));
+    const closed = fromBackend({ ...s, t4: { ...s.t4, conditions: met } });
+    expect(closed.readiness.allPass).toBe(true);
   });
 });

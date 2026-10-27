@@ -36,6 +36,7 @@ import numpy as np
 import breach_audit
 import clusters
 import direction_coherence
+import drawdown_warn
 import fixed_basket
 import fundamentals_staleness
 import shadow_book
@@ -422,7 +423,11 @@ def risk_panel(conn, config: dict) -> dict:
         "kill_switch_engaged": kill_switch_active(),
         "kill_rule": {"tripped": krs.tripped, "reasons": list(krs.reasons),
                       "book_drawdown": round(krs.book_drawdown, 4), "have_marks": have_marks,
-                      "drawdown_halt": float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20))},
+                      "drawdown_halt": float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)),
+                      # #355: DISPLAY-ONLY ok/warn/tripped. `tripped` above stays the kill rule's own verdict.
+                      "drawdown_warn": drawdown_warn.WARN_FRACTION,
+                      "level": "tripped" if krs.tripped else drawdown_warn.drawdown_level(
+                          krs.book_drawdown, float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)))},
         "cost_cap": {"last_council_health": last_health, "tripped": last_health == "cost_cap",
                      "cap_usd": float(config.get("council", {}).get("cost_cap_usd", 0.0))},
         "book": {"open": state.count_open_convexity_positions(conn),
@@ -1590,8 +1595,9 @@ def forward_catalyst_panel(conn, config: dict | None = None,
 
 # ── the T4-readiness scoreboard (the spine) ─────────────────────────────────────────────────────
 def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N) -> dict:
-    """Map the pre-committed unlock conditions → live state. ASYMMETRY IS STRUCTURAL: only (1),(3),(5) can be
-    binary; (2),(4) render state with NO verdict (deferred to the blind/mature null layer + the human). (1) is
+    """Map the pre-committed unlock conditions → live state. ASYMMETRY IS STRUCTURAL: only (1),(3) can be
+    binary; (2),(4) render state with NO verdict (deferred to the blind/mature null layer + the human); (5) is a
+    MANUAL operator checklist (#355: no longer a hardcoded IN_PROGRESS). (1) is
     re-derived LIVE from trailing council_health (NOT frozen — it flips if the council regresses). (3) reports
     breaches over N admissions (0/0 = vacuous, not a pass)."""
     # cond-1: censor the pre-fix parse_fail (bug) runs, then require ≥2 remaining AND all ROUNDTRIP_CONFIRMED
@@ -1632,8 +1638,11 @@ def t4_scoreboard(conn, config: dict, *, recent_council: int = RECENT_COUNCIL_N)
              "detail": f"{breach['n_breaches']} breaches over {breach['n_clustered_admissions']} clustered admissions"},
             {"id": 4, "name": "payoff shape vs calibration venture profile", "checkable": False,
              "verdict": None, "detail": f"resolved real positions={real_n} (accruing; descriptive sanity)"},
-            {"id": 5, "name": "pre-T4 items (incl. this dashboard)", "checkable": True,
-             "verdict": "IN_PROGRESS", "detail": "reports merged; dashboard = this surface"},
+            # #355: no code can derive "pre-T4 items done" — it is an operator checklist. Say so instead of a
+            # hardcoded IN_PROGRESS: non-checkable + no verdict, flagged `manual` so the UI labels it MANUAL.
+            {"id": 5, "name": "pre-T4 items (incl. this dashboard)", "checkable": False, "manual": True,
+             "verdict": None, "detail": "manual — operator-attested checklist, not computed "
+                                        "(status: records/STANDING_STATE.md)"},
         ],
         "note": "A scoreboard, NOT a graduation verdict. Conditions 2/4 are plumbing/accruing (no checkmark); "
                 "T4 is the operator's process decision (IMPLEMENTATION_PLAN.md).",
