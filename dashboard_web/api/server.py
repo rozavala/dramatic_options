@@ -2,7 +2,8 @@
 
 ``GET /api/snapshot`` returns ``dashboard.load_all()``'s panels + ``system_status`` (see
 ``snapshot.build_snapshot``). The React UI fetches this; Refresh re-requests it. ``GET /api/status`` is the
-light, cached status read (see ``status.build_status``) for hubs and scripts.
+light, cached status read (see ``status.build_status``) for hubs and scripts; ``GET /api/hub`` is the hub's
+stable, versioned contract (see ``hub.build_hub``).
 
 SAFETY: keyless (``DRAMATIC_SKIP_DOTENV=1`` is set BEFORE any config import — ``config_loader.load_config``
 calls ``load_dotenv`` itself, so the env var is the opt-out), and read-only + NO-FETCH + fail-soft are
@@ -34,6 +35,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from fastapi import Depends, FastAPI, Header, HTTPException  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from hub import build_hub  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from reach import build_reach  # noqa: E402
 from snapshot import build_snapshot  # noqa: E402
@@ -45,7 +47,7 @@ from config_loader import load_config  # noqa: E402
 app = FastAPI(title="Dramatic Options — observability API", docs_url=None, redoc_url=None)
 
 # I1: an OPTIONAL shared-token gate. OFF by default (localhost/tailnet bind is the primary control), so the
-# live deploy is unchanged. If DASHBOARD_TOKEN is set, /api/snapshot and /api/status require `Authorization: Bearer <token>`
+# live deploy is unchanged. If DASHBOARD_TOKEN is set, /api/snapshot, /api/status and /api/hub require `Authorization: Bearer <token>`
 # — intended for an API-only / programmatic deployment (the browser SPA does not send a token, so enabling
 # this gates the raw data API, not the same-origin SPA). See dashboard_web/README.md.
 _DASHBOARD_TOKEN = os.environ.get("DASHBOARD_TOKEN", "").strip()
@@ -126,6 +128,29 @@ def status(nocache: int = 0) -> dict:
                         started_at=_STARTED["started_at"], snapshot_status=snap_status,
                         snapshot_as_of=snap_as_of)
     _status_cache[key] = (expires, body)
+    return body
+
+
+_hub_cache: dict[tuple[str, str], tuple[float, bool, dict]] = {}   # value: (expires_at, kill engaged, body)
+
+
+@app.get("/api/hub", dependencies=[Depends(_require_token)])
+def hub_status(nocache: int = 0) -> dict:
+    """The hub's one stable, versioned status contract (issue #357; ``hub.build_hub``): ``trading`` state +
+    why, ``checks``, per-timer ``jobs``, ``book`` value. GET only, same token gate as /api/status, same ~60s
+    TTL (?nocache=1 busts it) — except a flipped KILL switch (read fresh, it is a file/env stat) never waits
+    out the TTL. Read-only; display only — it reports the kill switch and kill rule, it never changes them."""
+    from risk import kill_switch_active
+
+    paths = dd.resolve_paths(load_config())
+    key = (str(paths["db_path"]), str(paths["cache_dir"]))
+    now = time.monotonic()
+    killed = kill_switch_active()
+    hit = _hub_cache.get(key)
+    if not nocache and hit is not None and now < hit[0] and hit[1] == killed:
+        return hit[2]
+    body = build_hub(paths["db_path"], paths["db_exists"], head=_STARTED["head"], records_dir=_RECORDS_DIR)
+    _hub_cache[key] = (now + _CACHE_TTL_S, killed, body)
     return body
 
 
