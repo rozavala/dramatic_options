@@ -175,14 +175,16 @@ The header's absence is itself a signal.
 - Apps:
   - DEV: `https://all-options-dev.tail57521e.ts.net:8602`
   - PROD: `https://all-options-prod.tail57521e.ts.net:8602`
-  - Both are tailnet-only `tailscale serve` → 127.0.0.1:8602; `/api/version` reports the running commit.
+  - Both are tailnet-only `tailscale serve` → 127.0.0.1:8602 (the React/FastAPI dashboard; the Streamlit :8601
+    dashboard is retired, 2026-10-06). `/api/version` reports the running commit; `/api/status` is the light
+    cached read (verdict, heartbeats, KILL, drawdown vs halt, book, last council, T4 — under 5 KB, no positions).
 - Universe 50 names · 16 clusters (book fills at most 5). Expressible 39 of 50 (10-25; no structure AMSC/ATKR/CC/
   FRO/HBM/IRDM/NNE/PL/STUB/UROY/UUUU). Active sentinel lineages 35 (10-25).
 - Book: real 1 (PL, $690, unrealized ≈ −$681 on 10-26). Null books accruing (shadow · 3A · 3B · shares). **Last
   above-floor conviction: run #1816, 2026-10-26 (HL MODERATE)** — real order #2, 5× `HL270617C00017000` LIMIT 1.76
   ($880), cancelled unfilled at the 16:00 L2; before it, #508 (2026-07-10).
 - Open issues: 6, all dashboard/API read-only (filed 2026-10-27): #351 "why no entry" per name · #352 Edge tails
-  in-frame first · #353 cached `/api/status` + :8601 docs · #354 ET date + STALE chip on run ids · #355 display-only
+  in-frame first · #353 cached `/api/status` + docs call :8601 retired (PR #361) · #354 ET date + STALE chip on run ids · #355 display-only
   10% drawdown warn + T4 condition 5 · #357 `GET /api/hub` (the hub's shared status contract; pairs with #353).
   W43's #340–#343 are fixed (#344–#347).
 - NVDA opra canary at or above 1.0 for 9 prints (10-26 1.0535) after eight below (low 0.9818).
