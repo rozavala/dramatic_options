@@ -1,10 +1,10 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-10-25T15:00Z · supersedes: 2026-10-24T03:00Z · the W43 Sunday review (`records/2026-10-25_sunday_w43.md`,
-unattended): seven council regulars went dormant on the TTL (ERO, FLNC, RTX, NEE, NNE, TGB, FIG) · all 8 surfaced
-lineages bearish (BWXT's first scan) · no July-2027 listing, expressible 39 of 50 · KMT re-pin #18 · PROD rebooted
-(reboot-required cleared) · the acronym homonym guard (#324) live · ⚠ DST 11-01 breaks the UTC review crontab's
-timing.**
+**as_of: 2026-10-27T05:30Z · supersedes: 2026-10-25T15:00Z · L1 #1816 (10-26): the §10.10 tripwire cleared on both
+sessions · HL the first above-floor verdict since #508, ordered and cancelled unfilled · W43's four issues fixed
+(#340, #341, #342, #343) · the driver-scope count (#348) · order quotes + pages (#350) · the carry-over proposal
+(#349, awaiting the word) · **PROD promoted to `2892d64` (#356)**. On top of the W43 Sunday review
+(`records/2026-10-25_sunday_w43.md`).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -18,7 +18,7 @@ The header's absence is itself a signal.
   only if the driver's change has peaked, stalled or reversed." **New prompts stamp
   `48f6d57f1212ee54/8a4d329193c38172/6cb63ff75ae5f118` from the first L1 after deploy (10-23)** — a new record
   segment. **Tripwire:** ≥ 6 of 12 at the floor on either of its first two sessions ⇒ operator review before the
-  third (expected 0–3).
+  third (expected 0–3). **CLEARED:** 10-23 #1798 0/12 (raw 1); 10-26 #1816 1/12 (HL), raw and final alike.
 - **Quote filter: $B restatements pooled (2026-10-24, operator word; #336; from the first L1 after deploy):** the
   authenticity filter's evidence pool also carries each rendered $-figure ≥ $1,000M in billions (1/2 decimals; gross
   margin excluded). Found at L1 #1798 (PWR strategist MODERATE → LOW on `$33.55B` for the rendered `$33550.0M`; FLNC
@@ -125,7 +125,12 @@ The header's absence is itself a signal.
   fresh operator word and a mid-session read.
 - **NRC 2026-21801 (effective 2026-11-25, DOE/DoW-authorized reactor designs in NRC licensing):** a class-(a)-shaped
   pin suggestion for `nuclear_fuel` (BWXT / NNE); unpinned — the operator's read.
-- **PROD promotion:** PROD is on `8d89c4f` (#326), 11 PRs behind main (#327–#338); inert, so no urgency.
+- **Entry carry-over (#349, proposal; `records/2026-10-27_entry_carryover_proposal.md`):** an unfilled L1 entry gets
+  one more session (re-gate on fresh quotes from 10:00 ET, a bounded limit walk, cancel 15:30 ET; working orders
+  reserve the book-level caps). Nothing built; **§4's parameters await the operator's word**. Until then an
+  above-floor entry gets the ~12 minutes between the 15:45 L1 and the close (DAY order); #350 pages it either way.
+- **HL (above floor 10-26, #1816):** cancelled unfilled; re-judged at each L1 this week; dormant at the 11-01 scan
+  unless it re-surfaces (last seen 09-20). Its verdict seeds the driver-scope count.
 
 ## Shared hosts (DEV + PROD also run Real Options and alpha_options)
 - Our L0/L1/L2 start as `python -u -m orchestrator` (#312): Real Options' `pkill -9 -f orchestrator.py` SIGKILLed
@@ -144,10 +149,8 @@ The header's absence is itself a signal.
   current. Cloud routines can't reach the box's DB/journals/memory, so they are not used.
 
 ## Dated docket
-- **Mon 2026-10-26 — §10.10 session 2 = the TRIPWIRE session** (≥ 6 of 12 at the floor ⇒ operator review before
-  the third; session 1 was 0 of 12, raw 1), and the first night of `coverage_meter = analyst_v2` and
-  `quote_filter = musd_billions_v1`. Read raw and final convictions. The slate loses ERO/FLNC/RTX/NEE (dormant 10-25);
-  TGB's predicted 10-26 return lapses (its lineage went dormant too).
+- **Tue 2026-10-27 (tonight):** the first L1 with order quotes logged and order pages (#350); the grade's first
+  driver-scope count (seed 1). HL's second read under §10.10.
 - **Sun 2026-11-01 (L0 at 13:00 UTC after DST):** TTL by ET date (#342) ⇒ **8 lineages go dormant unless
   re-surfaced** (last seen 09-20: AG, AMSC, HL, KLAR, KTOS, PAAS, RDW, VIAV); the 09-27 five (ATKR, CDE, FLY, FRO,
   STUB) run to 11-08 (the DST hour no longer costs them a scan). The union 35 → ~27 + new.
@@ -165,9 +168,10 @@ The header's absence is itself a signal.
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
 
 ## Board & book
-- Box: DEV = main `ade193d` (up since 2026-10-17); PROD = `8d89c4f` (#326), inert (timers disabled, live gate
-  closed), **rebooted 2026-10-18 — reboot-required cleared**. Both healthy (0 failed units); units on
-  `-m orchestrator` on both; 0 `status=9` in W43.
+- Box: DEV = main `4e94c2d` (up since 2026-10-17); **PROD = `2892d64` (#356, promoted 2026-10-27 05:14 UTC — level
+  with main)**, inert: timers disabled, `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`
+  (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
+  (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD.
 - Apps:
   - DEV: `https://all-options-dev.tail57521e.ts.net:8602`
   - PROD: `https://all-options-prod.tail57521e.ts.net:8602`
@@ -176,7 +180,11 @@ The header's absence is itself a signal.
     cached read (verdict, heartbeats, KILL, drawdown vs halt, book, last council, T4 — under 5 KB, no positions).
 - Universe 50 names · 16 clusters (book fills at most 5). Expressible 39 of 50 (10-25; no structure AMSC/ATKR/CC/
   FRO/HBM/IRDM/NNE/PL/STUB/UROY/UUUU). Active sentinel lineages 35 (10-25).
-- Book: real 1 (PL, $690, unrealized −$684.50). Null books accruing (shadow · 3A · 3B · shares). Last above-floor
-  conviction: run #508, 2026-07-10.
-- Open issues: 6 as of 2026-10-27, all display/read-only: #351 why-no-entry table · #352 Edge tails in-frame · #353 `/api/status` + docs · #354 ET date on L1 run ids · #355 drawdown warn tier (display/notification only; the 20% halt is untouched) · #357 `/api/hub`. The four filed 2026-10-25 from W43 (#340–#343) are closed. NVDA opra canary back above 1.0 (10-14 1.0127, 10-15 1.0204, 10-16 1.0315) after eight prints below (low
-  0.9818).
+- Book: real 1 (PL, $690, unrealized ≈ −$681 on 10-26). Null books accruing (shadow · 3A · 3B · shares). **Last
+  above-floor conviction: run #1816, 2026-10-26 (HL MODERATE)** — real order #2, 5× `HL270617C00017000` LIMIT 1.76
+  ($880), cancelled unfilled at the 16:00 L2; before it, #508 (2026-07-10).
+- Open issues: 6, all dashboard/API read-only (filed 2026-10-27): #351 "why no entry" per name · #352 Edge tails
+  in-frame first · #353 cached `/api/status` + :8601 docs · #354 ET date + STALE chip on run ids · #355 display-only
+  10% drawdown warn + T4 condition 5 · #357 `GET /api/hub` (the hub's shared status contract; pairs with #353).
+  W43's #340–#343 are fixed (#344–#347).
+- NVDA opra canary at or above 1.0 for 9 prints (10-26 1.0535) after eight below (low 0.9818).
