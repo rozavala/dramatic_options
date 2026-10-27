@@ -68,7 +68,7 @@ export function Edge({ vm }: { vm: ViewModel }) {
           <div style={{ marginTop: 8 }}>
             <div className="flex items-center" style={{ gap: 10 }}>
               <OutsideFrameChip items={vm.perf.outsideFrame} />
-              <span style={{ fontSize: 11.5, color: "#6a7280", lineHeight: 1.4 }}>Tails show the in-frame (far-OTM) figure first; where the tagged legacy positions change the read, the with-legacy figure sits beside it.</span>
+              <span style={{ fontSize: 11.5, color: "#6a7280", lineHeight: 1.4 }}>Tails show the in-frame (far-OTM) figure first, with the with-legacy figure (including the tagged positions) beside it.</span>
             </div>
           </div>
         )}

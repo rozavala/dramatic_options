@@ -200,7 +200,7 @@ function MEdge({ vm }: { vm: ViewModel }) {
         {vm.perf.outsideFrame.length > 0 && (
           <div style={{ margin: "-4px 0 10px" }}>
             <OutsideFrameChip items={vm.perf.outsideFrame} compact />
-            <div style={{ fontSize: 10, color: "#5f6675", marginTop: 5, lineHeight: 1.4 }}>In-frame figure first; with-legacy beside it where tagged positions change the read.</div>
+            <div style={{ fontSize: 10, color: "#5f6675", marginTop: 5, lineHeight: 1.4 }}>In-frame figure first; with-legacy (incl. tagged positions) beside it.</div>
           </div>
         )}
         {books.map((b) => {
