@@ -240,6 +240,16 @@ def run_paper_cycle(
     return result
 
 
+def _quote(c) -> dict:
+    """The selected contract's two-sided quote at decision time (telemetry; 2026-10-27). The chain snapshot keeps
+    IVs only (PREREG §4b), so without this nothing records how wide the market was when an order went in, the
+    evidence any limit-walk parameter needs."""
+    bid, ask = getattr(c, "bid", None), getattr(c, "ask", None)
+    mid = 0.5 * (bid + ask) if bid is not None and ask is not None and ask > 0 else None
+    spr = round((ask - bid) / mid * 100.0, 1) if mid else None
+    return {"bid": bid, "ask": ask, "mid": round(mid, 4) if mid else None, "spread_pct": spr}
+
+
 def _process_theme(
     theme: Theme, *, config, conn, provider, broker, eligibility, account_equity, gate, book,
     cluster_map, cluster_fraction, as_of, as_of_dt, as_of_iso, run_id, result: CycleResult,
@@ -326,6 +336,9 @@ def _process_theme(
         iv_rv_max=float(gate.get("iv_rv_max", 1.2)),
         otm_skew_max_volpts=float(gate.get("otm_skew_max_volpts", 10.0)),
     )
+    q = _quote(structure.contract)
+    log.info("Quote %s %s: bid %s ask %s mid %s spread %s%% (gate %s)", theme.symbol, structure.contract.symbol,
+             q["bid"], q["ask"], q["mid"], q["spread_pct"], "cheap" if verdict.cheap else "veto")
     # The OPRA dual-read, INLINE arm (PREREG_DATA_FEED_OPRA_SEQUENCING §5–§6): record the
     # of-record verdict + the additive INDICATIVE shadow read for every gate-evaluated name.
     # Fail-SOFT — a shadow failure becomes a structured=0 note row, never a blocked evaluation.
@@ -475,6 +488,7 @@ def _process_theme(
         "sizing": list(sizing.reasons),
         "fill": fill.note,
         "rv": verdict.rv, "atm_iv": verdict.atm_iv, "wing_iv": verdict.wing_iv,
+        "quote": q,
     }
     pos_id = state.record_convexity_position(
         conn, run_id=run_id, opened_at=as_of_iso, theme=theme.name, symbol=theme.symbol,
@@ -508,3 +522,15 @@ def _process_theme(
         sizing.contracts, structure.contract.symbol, fill.price,
         structure.moneyness * 100, structure.dte, theme.thesis[:60],
     )
+    # A real order is resting at the broker: page it as it happens (2026-10-27 — HL's first above-floor order since
+    # July was submitted and cancelled unfilled 12 minutes later, and the operator learned of it from the grade).
+    if pending:
+        try:
+            import notify
+
+            notify.send("REAL-BOOK ORDER SUBMITTED",
+                        f"#{pos_id} {theme.symbol} {sizing.contracts}x {structure.contract.symbol} LIMIT "
+                        f"{fill.price:.2f} (${fill_premium_per_contract * sizing.contracts:,.0f}); quote "
+                        f"{q['bid']}/{q['ask']} spread {q['spread_pct']}%. Reconciles at the next L2.")
+        except Exception:  # noqa: BLE001 — paging never breaks the cycle
+            log.warning("order page failed to send")
