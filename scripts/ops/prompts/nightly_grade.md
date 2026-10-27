@@ -32,7 +32,10 @@ that differs from the newest banner is a FINDING unless STANDING_STATE records a
    (new admissions' first council reads, repeated reads).
    Running tallies (continue the newest banner's counts, by ROLE): register-thesis consensus-leak, falsifier misuse,
    misattributed claims (check `flagged_unsupported`), productive uses; marker-refresh reads (fresh-as-current /
-   at_surfacing misread / since-surfacing contrast; quote any verdict flip). Forward catalysts: the run-note counters;
+   at_surfacing misread / since-surfacing contrast; quote any verdict flip). Driver scope (criterion 3, STANDING_STATE):
+   for every strategist `at_inflection = true`, is the driver it cites visibly still changing in THIS name's own
+   figures/markers (name-level), or is it the basket thesis's driver while the name's own figures decelerate
+   (basket-level)? Count basket-level, quote the line, mark above-floor ones. Forward catalysts: the run-note counters;
    if a pinned item reached the strategist, how it was cited (flag any leak into under_narrated/structural).
    Direction coherence: `direction_coherence.parse_summary`; `dashboard_data.direction_coherence_panel(conn)`
    reached_despite_withheld must be empty. Stale fundamentals: only names already known in the banner are expected.
