@@ -50,9 +50,9 @@ function snap(councilStatus: "ONLINE" | "STALE"): Snapshot {
 }
 
 const RUN_ID = /#\d+/g;
-const DATED = /L[01] #\d+ · (?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{4}-\d{2}-\d{2} \d{2}:\d{2} ET|date unavailable)/g;
+const DATED = /(?:L[01]|run) #\d+ · (?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{4}-\d{2}-\d{2} \d{2}:\d{2} ET|date unavailable)/g;
 
-// every "#<digits>" in the rendered text must be the head of a full "L1 #id · <ET stamp>" label
+// every "#<digits>" in the rendered text must be the head of a full "L1 #id · <ET stamp>" label (or the neutral "run #id · …" fallback)
 function expectNoBareRunIds(text: string) {
   const ids = text.replace(/finding #\d+|\(#\d+\)/g, "").match(RUN_ID) ?? []; // "finding #1" / "(#72)" are record / issue refs, not runs
   const labelled = text.match(DATED) ?? [];

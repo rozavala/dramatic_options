@@ -73,6 +73,8 @@ app.add_middleware(
 # rebuild is read-only but heavy (bootstrap CIs, cluster diagnostics, basket quality, curation), so without
 # this each poll / extra tab / refresh recomputes everything. Keyed by the resolved (db, cache) paths; the
 # UI's manual Refresh bypasses with ?nocache=1 (mirrors Streamlit's _nonce). Small dict — at most a couple keys.
+# Display lag: a kill trip (20% rule or KILL) can show up to 60s late on the full snapshot's panels; the light
+# /api/status reads KILL fresh and drops the cached verdict when it is set (status.build_status). Display only.
 _CACHE_TTL_S = 60.0
 _snapshot_cache: dict[tuple[str, str], tuple[float, dict]] = {}
 
