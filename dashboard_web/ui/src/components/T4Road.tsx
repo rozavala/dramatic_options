@@ -11,7 +11,7 @@ export function T4Road({ vm }: { vm: ViewModel }) {
       <div className="flex items-baseline justify-between" style={{ gap: 12 }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>
           The road to go-live
-          <span style={{ color: "#6a7280", fontWeight: 400 }}> · T4 readiness · {r.pass} of {r.checkable} checkable met · {r.accruing} accruing · not a go signal</span>
+          <span style={{ color: "#6a7280", fontWeight: 400 }}> · T4 readiness · {r.pass} of {r.checkable} checkable met · {r.accruing} accruing{r.manual ? ` · ${r.manual} manual open` : ""} · not a go signal</span>
         </div>
       </div>
       <div style={{ marginTop: 10 }}>

@@ -101,6 +101,24 @@ def test_exactly_one_page_per_upward_crossing(tmp_path):
     assert json.loads(p.read_text()) == {"level": "warn"}
 
 
+def test_hysteresis_drift_around_threshold_pages_once(tmp_path):
+    p, s = tmp_path / "w.json", _Sender()
+    path = lambda d: dw.page_on_upward_crossing(d, 0.20, p, s)  # noqa: E731
+    assert path(0.101) is True and len(s.calls) == 1
+    for d in (0.099, 0.101, 0.099, 0.101, 0.0905, 0.102):                # 9.9 <-> 10.1 drift, never below 9%
+        assert path(d) is False
+    assert len(s.calls) == 1 and json.loads(p.read_text()) == {"level": "warn"}
+    assert path(0.088) is False and json.loads(p.read_text()) == {"level": "ok"}  # below ~9% → re-armed
+    assert path(0.101) is True and len(s.calls) == 2                     # a genuine fresh climb pages again
+
+
+def test_hysteresis_holds_tripped_in_band(tmp_path):
+    p, s = tmp_path / "w.json", _Sender()
+    assert dw.page_on_upward_crossing(0.21, 0.20, p, s) is False         # ok → tripped: kill page's job
+    assert dw.page_on_upward_crossing(0.095, 0.20, p, s) is False        # 9–10% band: stays latched
+    assert dw.page_on_upward_crossing(0.11, 0.20, p, s) is False and not s.calls
+
+
 def test_restart_does_not_repage_but_undelivered_page_retries(tmp_path):
     p = tmp_path / "w.json"
     down = _Sender(ok=False)

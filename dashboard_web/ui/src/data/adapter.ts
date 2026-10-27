@@ -146,14 +146,19 @@ export function fromBackend(P: Snapshot): ViewModel {
 
   // A1: readiness is driven off the backend `checkable` flag (NOT the verdict→state map) so the headline
   // matches dashboard.py: pass/checkable over checkable conditions, accruing = the non-checkable ones.
+  // #355: an open MANUAL row (operator checklist, e.g. cond 5) is counted separately — it is not accruing data,
+  // and while one is open the headline can never read all-pass (the checkable count alone would overclaim).
   const condsRaw = P.t4?.conditions ?? [];
   const cond = condsRaw.map((c) => ({ id: c.id, name: c.name, detail: c.detail, verdict: c.verdict, state: t4RowState(c.checkable, c.verdict, c.manual) }));
   const checkable = condsRaw.filter((c) => c.checkable);
   const readiness = {
     pass: checkable.filter((c) => c.verdict === "MET" || c.verdict === "PASS").length,
     checkable: checkable.length,
-    accruing: condsRaw.filter((c) => !c.checkable).length,
+    accruing: condsRaw.filter((c) => !c.checkable && !c.manual).length,
+    manual: condsRaw.filter((c) => !c.checkable && c.manual).length,
+    allPass: false,
   };
+  readiness.allPass = readiness.checkable > 0 && readiness.pass === readiness.checkable && readiness.manual === 0;
 
   // C: the null hierarchy — flatten each step's arms dict → an ordered [{label, ci}] list for rendering.
   const nulls: NullStepVM[] = (P.nulls?.steps ?? []).map((s) => ({

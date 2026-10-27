@@ -357,7 +357,7 @@ export interface ViewModel {
   positions: PositionVM[]; openCount: number; openPrem2: string;
   sentinels: SentinelVM[]; sentinelSub: string;
   data: { label: string; value: string }[];
-  t4: T4ItemVM[]; readiness: { pass: number; checkable: number; accruing: number };
+  t4: T4ItemVM[]; readiness: { pass: number; checkable: number; accruing: number; manual: number; allPass: boolean };
   edgeAccrual: { n: number; target: number }; phasePct: string; phaseSub: string;
   cheapness: CheapnessPanel | null;   // finding #1's instrument (PREREG_CHEAPNESS_WATCH)
   session: SessionVM;                 // the latest council session, as graded nightly

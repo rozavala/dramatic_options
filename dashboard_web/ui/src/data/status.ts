@@ -39,12 +39,13 @@ export const t4RowState = (checkable: boolean, v: T4Verdict, manual = false): Di
 // (never recomputed here); "warn" is the 10% heads-up tier below the 20% halt.
 export const DD_WARN_DEFAULT = 0.10;
 export const drawdownDisplay = (
-  kr?: { tripped?: boolean; level?: string; book_drawdown?: number; drawdown_warn?: number } | null,
+  kr?: { tripped?: boolean; level?: string; book_drawdown?: number; drawdown_warn?: number; have_marks?: boolean } | null,
 ): [Level, string] => {
   if (kr?.tripped || kr?.level === "tripped") return ["bad", "kill rule tripped"];
   const warnAt = kr?.drawdown_warn ?? DD_WARN_DEFAULT;
   if (kr?.level === "warn" || (kr?.level === undefined && (kr?.book_drawdown ?? 0) >= warnAt)) return ["warn", "approaching halt"];
-  return ["ok", "inside frame"];
+  // no marks yet ⇒ the 0% is "nothing to measure", not a measured "inside frame" (explicit false only; absent = legacy payload)
+  return kr?.have_marks === false ? ["ok", "no marks"] : ["ok", "inside frame"];
 };
 
 // states that render as "accruing-like" (muted ◷, pulse).
