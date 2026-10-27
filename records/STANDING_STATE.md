@@ -171,10 +171,12 @@ The header's absence is itself a signal.
 - Apps:
   - DEV: `https://all-options-dev.tail57521e.ts.net:8602`
   - PROD: `https://all-options-prod.tail57521e.ts.net:8602`
-  - Both are tailnet-only `tailscale serve` → 127.0.0.1:8602; `/api/version` reports the running commit.
+  - Both are tailnet-only `tailscale serve` → 127.0.0.1:8602 (the React/FastAPI dashboard; the Streamlit :8601
+    dashboard is retired, 2026-10-06). `/api/version` reports the running commit; `/api/status` is the light
+    cached read (verdict, heartbeats, KILL, drawdown vs halt, book, last council, T4 — under 5 KB, no positions).
 - Universe 50 names · 16 clusters (book fills at most 5). Expressible 39 of 50 (10-25; no structure AMSC/ATKR/CC/
   FRO/HBM/IRDM/NNE/PL/STUB/UROY/UUUU). Active sentinel lineages 35 (10-25).
 - Book: real 1 (PL, $690, unrealized −$684.50). Null books accruing (shadow · 3A · 3B · shares). Last above-floor
   conviction: run #508, 2026-07-10.
-- Open issues: 4 (filed 2026-10-25 from W43): #340 corpus misses a same-day 10-Q (RTX/NOC; needs-operator) · **#341 review crontab vs DST — before 11-01** · #342 sentinel TTL decided to the second (needs-operator) · #343 feasibility probe ignores the OTM side guard. NVDA opra canary back above 1.0 (10-14 1.0127, 10-15 1.0204, 10-16 1.0315) after eight prints below (low
+- Open issues: 6 as of 2026-10-27, all display/read-only: #351 why-no-entry table · #352 Edge tails in-frame · #353 `/api/status` + docs · #354 ET date on L1 run ids · #355 drawdown warn tier (display/notification only; the 20% halt is untouched) · #357 `/api/hub`. The four filed 2026-10-25 from W43 (#340–#343) are closed. NVDA opra canary back above 1.0 (10-14 1.0127, 10-15 1.0204, 10-16 1.0315) after eight prints below (low
   0.9818).

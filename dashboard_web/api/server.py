@@ -1,7 +1,8 @@
 """Read-only FastAPI endpoint serving the observability snapshot as JSON.
 
-ONE data route — ``GET /api/snapshot`` — returns ``dashboard.load_all()``'s panels + ``system_status``
-(see ``snapshot.build_snapshot``). The React UI fetches this; Refresh re-requests it.
+``GET /api/snapshot`` returns ``dashboard.load_all()``'s panels + ``system_status`` (see
+``snapshot.build_snapshot``). The React UI fetches this; Refresh re-requests it. ``GET /api/status`` is the
+light, cached status read (see ``status.build_status``) for hubs and scripts.
 
 SAFETY: keyless (``DRAMATIC_SKIP_DOTENV=1`` is set BEFORE any config import — ``config_loader.load_config``
 calls ``load_dotenv`` itself, so the env var is the opt-out), and read-only + NO-FETCH + fail-soft are
@@ -36,6 +37,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from reach import build_reach  # noqa: E402
 from snapshot import build_snapshot  # noqa: E402
+from status import build_status  # noqa: E402
 
 import dashboard_data as dd  # noqa: E402
 from config_loader import load_config  # noqa: E402
@@ -89,6 +91,35 @@ def snapshot(nocache: int = 0) -> dict:
     snap = build_snapshot(paths["db_path"], paths["cache_dir"], paths["db_exists"])
     _snapshot_cache[key] = (now, snap)
     return snap
+
+
+_status_cache: dict[tuple[str, str], tuple[float, dict]] = {}
+
+
+@app.get("/api/status", dependencies=[Depends(_require_token)])
+def status(nocache: int = 0) -> dict:
+    """The LIGHT status read (issue #353): ``system_status``, heartbeats (age + next fire), KILL, drawdown vs
+    the halt, book open/max, the last council run + its ET date, T4 verdicts and the serving commit — four
+    panels, not the snapshot's ~31, under 5 KB, and NO position data. Same token gate as /api/snapshot and
+    the same ~60s TTL (?nocache=1 busts it). If a fresh full snapshot is cached its ``system_status`` is
+    reused, so level/headline are the snapshot's own. Read-only; display only — it reports the kill rule,
+    it never changes it."""
+    paths = dd.resolve_paths(load_config())
+    key = (str(paths["db_path"]), str(paths["cache_dir"]))
+    now = time.monotonic()
+    if not nocache:
+        hit = _status_cache.get(key)
+        if hit is not None and now - hit[0] < _CACHE_TTL_S:
+            return hit[1]
+    snap_hit = _snapshot_cache.get(key)
+    snap_status = None
+    if not nocache and snap_hit is not None and now - snap_hit[0] < _CACHE_TTL_S:
+        ss = snap_hit[1].get("system_status")
+        snap_status = ss if isinstance(ss, dict) and "level" in ss else None
+    body = build_status(paths["db_path"], paths["db_exists"], head=_STARTED["head"],
+                        started_at=_STARTED["started_at"], snapshot_status=snap_status)
+    _status_cache[key] = (now, body)
+    return body
 
 
 @app.get("/api/health")
