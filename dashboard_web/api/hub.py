@@ -22,6 +22,12 @@ Decisions the issue left open (kept here so the contract is auditable):
   * ``last_ok`` comes from the journal / the reach documents (durable), not systemd (which forgets a
     success the moment the next run fails). L2 and L1 both record a PAPER run, so ``-l2``'s ``last_ok`` is the
     latest trading-loop run of either kind (the ``cycle`` heartbeat); ``-l1``'s is the last council run.
+  * A disabled L1 or L2 timer means the trading loop is not running whatever the heartbeat says, so
+    ``trading.state`` is ``stopped`` (#374). The Cycle heartbeat reads ONLINE off-hours however old the last run
+    is, so it alone left an inert box (PROD) reading ``on`` overnight and at weekends. A timer systemd can't
+    read (``enabled: null``) falls back to the heartbeat; it never counts as disabled.
+  * A unit that isn't installed (``LoadState=not-found``) is unknown — ``enabled: null``, ``last_status:
+    null`` with an error — never "disabled" (#374).
 """
 
 from __future__ import annotations
@@ -53,7 +59,8 @@ JOBS: dict[str, str] = {
 }
 _REACH_STALE = timedelta(days=8)          # weekly + a day of slack (Persistent=false: a miss is not replayed)
 
-_PROPS = "Id,ActiveState,NextElapseUSecRealtime,Result"
+_PROPS = "Id,LoadState,ActiveState,NextElapseUSecRealtime,Result"
+_LOOP_JOBS = ("dramatic-options-l1", "dramatic-options-l2")   # the trading loop: entries + marks/exits
 
 
 def _iso(ts: Any) -> str | None:
@@ -110,6 +117,10 @@ def _job(name: str, hdr: dict, units: dict | None, records_dir: Path) -> dict:
     last_ok, stale = _job_last_ok(name, hdr, records_dir)
     timer = (units or {}).get(f"{name}.timer")
     svc = (units or {}).get(f"{name}.service") or {}
+    if timer is not None and timer.get("LoadState") == "not-found":
+        # not installed: systemctl show still exits 0 with ActiveState=inactive — that is unknown, not disabled
+        return {"name": name, "last_ok": last_ok, "last_status": None, "next_due": None, "enabled": None,
+                "error": "timer not installed"}
     enabled = None if timer is None else timer.get("ActiveState") == "active"
     err: str | None = None
     if svc.get("ActiveState") in ("activating", "active", "reloading"):
@@ -157,10 +168,13 @@ def _checks(hdr: dict, risk: dict) -> list[dict]:
             text += " (no marks yet)"
         out.append(_check("Kill rule", "fault", not tripped, text, blocking=True))
         cc = risk.get("cost_cap") or {}
-        capped = bool(cc.get("tripped"))
-        out.append(_check("Cost cap", "fault", not capped,
-                          f"last council run hit the ${cc.get('cap_usd') or 0:g} cap" if capped
-                          else f"within the ${cc.get('cap_usd') or 0:g}/run cap", blocking=False))
+        capped, cap = bool(cc.get("tripped")), cc.get("cap_usd")
+        if not cap:   # no cap configured: unknown, never a made-up "$0 cap" (#374)
+            out.append(_check("Cost cap", "fault", None, "no cost cap configured", blocking=False))
+        else:
+            out.append(_check("Cost cap", "fault", not capped,
+                              f"last council run hit the ${cap:g} cap" if capped else f"within the ${cap:g}/run cap",
+                              blocking=False))
     else:
         out.append(_check("Kill rule", "fault", None, "risk panel unavailable", blocking=True))
         out.append(_check("Cost cap", "fault", None, "risk panel unavailable", blocking=False))
@@ -175,14 +189,20 @@ def _checks(hdr: dict, risk: dict) -> list[dict]:
     return out
 
 
-def _trading(checks: list[dict], note: str | None) -> dict:
-    """One verdict from the blocking checks. Precedence: a deliberate stop (``off``) wins; then a known fault
-    (``blocked``); then an unreadable blocking check (``unknown``); then the loop not running (``stopped``)."""
+def _trading(checks: list[dict], note: str | None, jobs: list[dict] | None = None) -> dict:
+    """One verdict from the blocking checks and the loop's timers. Precedence: a deliberate stop (``off``) wins;
+    then a known fault (``blocked``); then the loop's timers disabled (``stopped``, a definite fact about the loop,
+    so it outranks an unreadable check); then an unreadable blocking check (``unknown``); then a stale cycle
+    heartbeat (``stopped``)."""
     by = {c["label"]: c for c in checks}
     if by["Kill switch"]["ok"] is False:
         return {"state": "off", "why": "kill switch engaged"}
     if by["Kill rule"]["ok"] is False:
         return {"state": "blocked", "why": by["Kill rule"]["detail"]}
+    disabled = [j["name"].removeprefix("dramatic-options-").upper() for j in jobs or []
+                if j["name"] in _LOOP_JOBS and j.get("enabled") is False]
+    if disabled:
+        return {"state": "stopped", "why": f"timer{'s' if len(disabled) > 1 else ''} disabled: {', '.join(disabled)}"}
     unknown = [c["label"] for c in checks if c["blocking"] and c["ok"] is None]
     if unknown:
         return {"state": "unknown", "why": note or f"could not read: {', '.join(unknown)}"}
@@ -237,7 +257,7 @@ def build_hub(db_path: str, db_exists: bool, *, head: str | None, records_dir: P
 
     checks = _checks(hdr, risk)
     good_hdr = hdr if isinstance(hdr, dict) and not hdr.get("error") else {}
+    jobs = [_job(n, good_hdr, units, records_dir) for n in JOBS]
     return {"schema": SCHEMA, "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "trading": _trading(checks, note), "market": None, "checks": checks,
-            "jobs": [_job(n, good_hdr, units, records_dir) for n in JOBS], "book": book,
-            "versions": {"commit": head}}
+            "trading": _trading(checks, note, jobs), "market": None, "checks": checks,
+            "jobs": jobs, "book": book, "versions": {"commit": head}}
