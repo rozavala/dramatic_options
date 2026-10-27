@@ -26,7 +26,6 @@ import cheapness_watch
 import clusters
 import direction_coherence
 import discovery
-import drawdown_warn
 import fixed_basket
 import fundamentals_staleness
 import marker_refresh
@@ -991,19 +990,6 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             "Kill rule tripped — new entries halted",
                             "; ".join(result.notes) or "halted", priority=1,
                         )
-                    # Display-only drawdown WARN page (#355): one normal-priority push per upward crossing of
-                    # 10%. Reads the kill rule's own drawdown; never alters it. Best-effort (never raises).
-                    try:
-                        _krs = kill_rule_status(conn, config, clock)
-                        drawdown_warn.page_on_upward_crossing(
-                            _krs.book_drawdown,
-                            float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)),
-                            Path(config.get("database", {}).get("path", "data/dramatic_options.db"))
-                            .with_name("drawdown_warn_state.json"),
-                            notify.send,
-                        )
-                    except Exception as e:  # noqa: BLE001 — a display-tier page must never break the cycle
-                        log.warning("drawdown warn page skipped (non-fatal): %s", e)
                     _print_survivorship(conn, run_id)
 
                     # Brain-off NULL shadow book (T3 PR3b) — book EVERY gate-passer over the SAME

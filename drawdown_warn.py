@@ -13,6 +13,11 @@ does not read "inside frame" right up to the halt:
     drifting 9.9% ↔ 10.1% pages once, not on every rise back over 10%. A trip is
     already paged (priority 1) by the orchestrator's kill-rule page, so a jump straight to ``tripped`` is not
     double-paged here. Best-effort: never raises, never blocks a cycle.
+
+Where it runs: ``page_on_upward_crossing`` has no caller in this PR (the orchestrator hook is a separate, held PR).
+When wired it runs ONLY in L1 (the once-a-day 15:45 ET non-monitor cycle) — never in the 30-minute L2
+``--monitor`` runs that refresh the marks — so a crossing can page up to a trading day late, and never on a day L1
+doesn't run (nor on PROD with the timers off). ``drawdown_level`` is what the dashboard shows, independent of paging.
 """
 
 from __future__ import annotations

@@ -194,6 +194,7 @@ def test_status_is_small_has_no_positions_and_the_expected_facts(convexity_db, m
     assert set(body["heartbeats"]["cycle"]) == {"status", "at", "age_hours", "next_at"}
     assert body["book"]["open"] == 1 and body["book"]["max"] == 15
     assert body["drawdown"]["halt"] == 0.2          # display of the existing halt, unchanged
+    assert body["drawdown"]["level"] == "ok" and body["drawdown"]["drawdown_warn"] == 0.1
     assert body["kill"]["rule_tripped"] is False
     # 2026-10-27T01:30Z is the evening of 10-26 in New York
     assert body["last_council"] == {"run_id": run_id, "et_date": "2026-10-26"}
@@ -204,6 +205,31 @@ def test_status_is_small_has_no_positions_and_the_expected_facts(convexity_db, m
         assert c["verdict"] is None and c["detail"] == "deferred to operator"
     assert body["system_status_as_of"] == body["as_of"] and body["basis"] == "light"
     server._status_cache.clear()
+
+
+def test_status_drawdown_carries_the_warn_level_the_panel_shows(convexity_db, monkeypatch) -> None:
+    """#355: the light status carries the same ok/warn/tripped as the Risk panel (12% → warn, 21% → tripped)."""
+    from fastapi.testclient import TestClient
+
+    _status_db(convexity_db, monkeypatch)
+    cfg = server.load_config()
+    budget = float(cfg["convexity_book"]["account_equity"]) * float(cfg["convexity_book"]["book_fraction"])
+    with TestClient(server.app) as client:
+        for frac, level in ((0.12, "warn"), (0.21, "tripped")):
+            convexity_db.execute(
+                "UPDATE convexity_positions SET contracts=1, total_premium=?, mark=?, status='open'",
+                (budget, budget * (1 - frac) / 100.0))
+            convexity_db.commit()
+            server._status_cache.clear()
+            server._snapshot_cache.clear()
+            dr = client.get("/api/status?nocache=1").json()["drawdown"]
+            panel = client.get("/api/snapshot").json()["risk"]["kill_rule"]
+            assert dr["level"] == level == panel["level"]
+            assert dr["drawdown_warn"] == panel["drawdown_warn"] == 0.1
+            assert dr["book_drawdown"] == pytest.approx(frac) and dr["have_marks"] is True
+            assert dr["halt"] == 0.2                    # the 20% halt is unchanged
+    server._status_cache.clear()
+    server._snapshot_cache.clear()
 
 
 def test_status_level_and_headline_match_the_snapshot(convexity_db, monkeypatch) -> None:
