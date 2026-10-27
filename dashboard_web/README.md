@@ -1,14 +1,15 @@
-# dashboard_web — React observability dashboard (additive, parallel to the Streamlit one)
+# dashboard_web — the React observability dashboard (the live dashboard, `:8602`)
 
 A read-only, NO-FETCH, fail-soft command center over the live journal + PIT cache. It **never** trades,
-writes, calls the broker, or edits config — same safety contract as the Streamlit dashboard (`dashboard.py`),
-which stays the source of truth on `:8601` and is untouched by this. (We hold the 86xx block — `:8601`
-Streamlit / `:8602` web — clear of real_options' 85xx dashboards.)
+writes, calls the broker, or edits config. It is THE dashboard: the old Streamlit one (`dashboard.py`, `:8601`)
+was retired 2026-10-06 and survives only as the panel-parity reference this API is tested against. (We hold
+the 86xx block clear of real_options' 85xx dashboards.)
 
 - `api/` — a tiny FastAPI service. `snapshot.build_snapshot()` mirrors `dashboard.load_all()` panel-for-panel
   (streamlit-free) + injects `system_status` and `run_dates` (run_id → started_at, so every run id the UI
-  prints carries an ET date via `ui/src/data/runLabel.ts`, #354) + JSON-sanitizes; `server.py` serves `GET /api/snapshot` and,
-  in production, the built SPA on the same port.
+  prints carries an ET date via `ui/src/data/runLabel.ts`, #354) + JSON-sanitizes; `server.py` serves
+  `GET /api/snapshot` and, in production, the built SPA on the same port. `GET /api/status` is the **light**
+  read (below).
 - `ui/` — Vite + React + TS + Tailwind. `data/` is the typed data layer (`types.ts`, the `fromBackend`
   adapter ported from the design's spec, `useSnapshot`). One responsive app: 252px-rail desktop console or
   bottom-tab mobile (`useIsMobile`, ≤760px).
@@ -26,6 +27,22 @@ COUNCIL session (it was pinned to the last run that reached the gate), `reserve_
 and `data_gathered_panel` carries an `accruing` flag. Research instruments (null-book walk, forward-catalyst
 channel, cheapness-watch) live collapsed under Council & Pipeline. The mobile layout (`mobile/`) still renders
 the previous section set over the same ViewModel.
+
+## Endpoints
+- `GET /api/snapshot` — the whole read-only snapshot (~31 panels), cached ~60s. What the SPA renders.
+- `GET /api/status` — the **light** status read (issue #353), cached ~60s, `?nocache=1` busts it. `system_status`
+  (level · headline · issues), the three heartbeats (`status`, `at`, `age_hours`, `next_at`), KILL (switch +
+  rule), drawdown vs the halt, book open/max, the last council run id with its ET date, the T4 verdicts, and the
+  serving commit. Four panels instead of ~31, under 5 KB, **no position data**. Level/headline are the
+  snapshot's own when a fresh snapshot is cached (`basis: "snapshot"`); otherwise they are computed over the
+  four light panels (`basis: "light"`), so a failing panel *outside* those four shows only in the snapshot.
+  `system_status_as_of` stamps when the verdict was computed; a reused snapshot verdict is dropped for the
+  light one whenever the fresh KILL switch or kill rule is set. `next_at` is ISO-8601 UTC (`+00:00`); T4
+  entries carry `id`, `name`, `verdict`, `detail` (a null verdict reads "deferred to operator").
+- `GET /api/health` — liveness only. `GET /api/version` — commit, start time, env.
+- `GET /api/reach`, `POST /api/curation/draft` — the Tools section.
+
+`/api/snapshot`, `/api/status`, `/api/reach` and `/api/curation/draft` share the optional `DASHBOARD_TOKEN` gate.
 
 ## Dev (two processes, hot reload)
 ```bash
@@ -56,7 +73,7 @@ scripts/dashboard_web_run.sh           # from the repo root: FastAPI serves dist
   the tab is visible; the manual ↻ always bypasses the server cache.
 - `DASHBOARD_TOKEN` (server env) — **optional** shared-token gate. **Off by default** (the tailnet ACL +
   localhost/tailnet bind are the primary control, so the live deploy is unchanged). When set, `/api/snapshot`
-  requires `Authorization: Bearer <token>`. NOTE: the browser SPA does not send a token, so enabling this
+  and `/api/status` require `Authorization: Bearer <token>`. NOTE: the browser SPA does not send a token, so enabling this
   gates the **raw data API** (for an API-only / programmatic consumer), not the same-origin SPA — front the
   SPA with a tunnel that injects auth if you need both.
 - `DASHBOARD_CORS_ORIGINS` (server env) — dev-only CORS allowlist (prod serves the SPA same-origin, no CORS).
