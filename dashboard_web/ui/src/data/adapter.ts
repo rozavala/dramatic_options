@@ -13,7 +13,7 @@ import type {
   OutsideFrameVM, Snapshot, SpendVM, TailFigure, ViewModel,
 } from "./types";
 import { etDate, formatRunLabel } from "./runLabel";
-import { directionLabel, levelFromSystem, t4RowState, verdictDisplay } from "./status";
+import { DD_WARN_DEFAULT, directionLabel, drawdownDisplay, levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
 const DASH = "—";
 // The "first null read" sample target (PREREG_FIXED_BASKET_NULL — the calibration cohort size). No config
@@ -152,14 +152,19 @@ export function fromBackend(P: Snapshot): ViewModel {
 
   // A1: readiness is driven off the backend `checkable` flag (NOT the verdict→state map) so the headline
   // matches dashboard.py: pass/checkable over checkable conditions, accruing = the non-checkable ones.
+  // #355: an open MANUAL row (operator checklist, e.g. cond 5) is counted separately — it is not accruing data,
+  // and while one is open the headline can never read all-pass (the checkable count alone would overclaim).
   const condsRaw = P.t4?.conditions ?? [];
-  const cond = condsRaw.map((c) => ({ id: c.id, name: c.name, detail: c.detail, verdict: c.verdict, state: t4RowState(c.checkable, c.verdict) }));
+  const cond = condsRaw.map((c) => ({ id: c.id, name: c.name, detail: c.detail, verdict: c.verdict, state: t4RowState(c.checkable, c.verdict, c.manual) }));
   const checkable = condsRaw.filter((c) => c.checkable);
   const readiness = {
     pass: checkable.filter((c) => c.verdict === "MET" || c.verdict === "PASS").length,
     checkable: checkable.length,
-    accruing: condsRaw.filter((c) => !c.checkable).length,
+    accruing: condsRaw.filter((c) => !c.checkable && !c.manual).length,
+    manual: condsRaw.filter((c) => !c.checkable && c.manual).length,
+    allPass: false,
   };
+  readiness.allPass = readiness.checkable > 0 && readiness.pass === readiness.checkable && readiness.manual === 0;
 
   // C: the null hierarchy — flatten each step's arms dict → an ordered [{label, ci}] list for rendering.
   const nulls: NullStepVM[] = (P.nulls?.steps ?? []).map((s) => ({
@@ -419,7 +424,8 @@ export function fromBackend(P: Snapshot): ViewModel {
     equity: fmt(acc.broker_equity),
     deltaFrame: `${delta >= 0 ? "+" : "−"}$${Math.abs(delta).toLocaleString("en-US")} vs frame`,
     bookBudget: fmt(acc.frame?.book_budget), headroom: fmt(acc.headroom), equitySeries: acc.equity_series ?? [],
-    bookDD: pct(rk.kill_rule?.book_drawdown), bookDDlevel: rk.kill_rule?.tripped ? "bad" : "ok",
+    bookDD: pct(rk.kill_rule?.book_drawdown), bookDDlevel: drawdownDisplay(rk.kill_rule)[0], bookDDchip: drawdownDisplay(rk.kill_rule)[1],
+    ddWarnPct: Math.round((rk.kill_rule?.drawdown_warn ?? DD_WARN_DEFAULT) * 100),
     openN: rk.book?.open ?? 0, maxN: rk.book?.max ?? 0, openPrem: fmt(rk.book?.open_premium),
     council: {
       verdict: verdictLabel, vlevel, runId: ch.run_id ?? null, roundtrips: ch.roundtrip?.n ?? 0,

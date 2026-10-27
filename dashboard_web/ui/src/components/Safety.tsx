@@ -43,7 +43,7 @@ export function Safety({ vm }: { vm: ViewModel }) {
     <div className="flex flex-col" style={{ gap: 16 }}>
       <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: 14 }}>
         <Tile label="Paper equity" value={vm.equity} sub={`${vm.deltaFrame} · informational`} series={vm.equitySeries} />
-        <Tile label="Book drawdown" value={vm.bookDD} valColor={signal[vm.bookDDlevel].text} sub="the kill rule halts new entries at 20%" bar={{ frac: ddFrac, level: vm.bookDDlevel }} />
+        <Tile label="Book drawdown" value={vm.bookDD} valColor={signal[vm.bookDDlevel].text} sub={`warns at ${vm.ddWarnPct}% · the kill rule halts new entries at 20%`} bar={{ frac: ddFrac, level: vm.bookDDlevel }} />
         <Tile label="Open positions" value={<>{vm.openN} <span style={{ fontSize: 15, color: "#6a7280", fontWeight: 500 }}>/ {vm.maxN}</span></>} sub={`${vm.openPrem} premium at risk · ${vm.openN} slot${vm.openN === 1 ? "" : "s"} used`} bar={{ frac: vm.maxN ? vm.openN / vm.maxN : 0, level: "acc" }} />
         <Tile label="Headroom" value={vm.headroom} valColor={signal.ok.text} sub={`of the ${vm.bookBudget} book budget · per name ≤ $1,000`} bar={{ frac: 1 - Math.min(1, vm.openN / Math.max(1, vm.maxN)), level: "ok" }} />
       </div>

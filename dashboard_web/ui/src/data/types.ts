@@ -67,7 +67,8 @@ export interface Snapshot {
     frame: { frame_equity: number; book_budget: number; per_name_cap: number; cluster_cap: number; max_open: number };
   };
   risk: {
-    kill_rule: { tripped: boolean; reasons: string[]; book_drawdown: number; drawdown_halt: number; have_marks: boolean };
+    kill_rule: { tripped: boolean; reasons: string[]; book_drawdown: number; drawdown_halt: number; have_marks: boolean;
+      level?: "ok" | "warn" | "tripped"; drawdown_warn?: number }; // #355 display-only warn tier (absent on older snapshots)
     book: { open: number; max: number; open_premium: number; budget: number };
     clusters: { cluster: string; premium: number; cap: number; frac: number | null; directions: string[] }[];
   };
@@ -117,7 +118,7 @@ export interface Snapshot {
     iv_baseline_of_record?: { rows?: number; symbols?: number; sessions?: number; latest?: string | null;
       latest_age_days?: number | null; accruing?: boolean } | null;
   };
-  t4: { conditions: { id: number; name: string; checkable: boolean; verdict: T4Verdict; detail: string }[]; note: string };
+  t4: { conditions: { id: number; name: string; checkable: boolean; verdict: T4Verdict; detail: string; manual?: boolean }[]; note: string };
   // Panels below are always emitted by load_all but may be replaced by {error} (dd.safe), so they are typed
   // optional — the adapter must guard. (C: now rendered. regime/curation remain on the wire, not rendered.)
   nulls?: NullHierarchy;
@@ -252,7 +253,7 @@ export type BeatKey = "kill" | "cycle" | "council" | "discovery" | "schema";
 export type TimerKey = "cycle" | "council" | "discovery";
 export interface NextRunVM { label: string; at: string } // label "3h" / "40m" (relative to header.now), at = the UTC stamp
 export interface BookCI { n: number; p95: number | null }
-/** One book's tail figure: in-frame first, the with-legacy figure beside it only when tagging made them differ. */
+/** One book's tail figure: in-frame first, the with-legacy figure always beside it whenever positions are tagged (#352/#360); `withLegacy` is null only with no tags (or no in-frame twin on the wire). */
 export interface TailFigure { n: number; p95: number | null; withLegacy: BookCI | null }
 export interface OutsideFrameVM { book: string; symbol: string; kind: string; dir: string; moneyness: number | null; status: string }
 export interface ClusterVM { name: string; premium: number; cap: number; dirs: string }
@@ -336,7 +337,7 @@ export interface ViewModel {
   nextRuns: Record<TimerKey, NextRunVM | null>; // #306 — null = timer not active (PROD) → "not scheduled"
   equity: string; deltaFrame: string; bookBudget: string; headroom: string;
   equitySeries: { day: string; equity: number }[];
-  bookDD: string; bookDDlevel: Level; openN: number; maxN: number; openPrem: string;
+  bookDD: string; bookDDlevel: Level; bookDDchip: string; ddWarnPct: number; openN: number; maxN: number; openPrem: string;
   council: {
     verdict: string; vlevel: Level; runId: number | null; roundtrips: number; strategistAbstained: number;
     parseFail: number; parseCalled: number; cost: string; streak: string; models: string;
@@ -369,7 +370,7 @@ export interface ViewModel {
   positions: PositionVM[]; openCount: number; openPrem2: string;
   sentinels: SentinelVM[]; sentinelSub: string;
   data: { label: string; value: string }[];
-  t4: T4ItemVM[]; readiness: { pass: number; checkable: number; accruing: number };
+  t4: T4ItemVM[]; readiness: { pass: number; checkable: number; accruing: number; manual: number; allPass: boolean };
   edgeAccrual: { n: number; target: number }; phasePct: string; phaseSub: string;
   cheapness: CheapnessPanel | null;   // finding #1's instrument (PREREG_CHEAPNESS_WATCH)
   session: SessionVM;                 // the latest council session, as graded nightly

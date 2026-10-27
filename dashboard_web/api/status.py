@@ -121,7 +121,8 @@ def build_status(db_path: str, db_exists: bool, *, head: str | None, started_at:
         "heartbeats": {k: _beat(h, k) for k in _BEATS},
         "kill": {"switch_engaged": h.get("kill_switch_engaged"), "rule_tripped": kr.get("tripped")},
         "drawdown": {"book_drawdown": kr.get("book_drawdown"), "halt": kr.get("drawdown_halt"),
-                     "have_marks": kr.get("have_marks")},
+                     "have_marks": kr.get("have_marks"), "level": kr.get("level"),
+                     "drawdown_warn": kr.get("drawdown_warn")},   # same ok/warn/tripped as the Risk panel
         "book": {"open": bk.get("open"), "max": bk.get("max")},
         "last_council": last_council,
         "t4": _t4(snap["t4"]),
