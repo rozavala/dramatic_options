@@ -253,7 +253,7 @@ export type BeatKey = "kill" | "cycle" | "council" | "discovery" | "schema";
 export type TimerKey = "cycle" | "council" | "discovery";
 export interface NextRunVM { label: string; at: string } // label "3h" / "40m" (relative to header.now), at = the UTC stamp
 export interface BookCI { n: number; p95: number | null }
-/** One book's tail figure: in-frame first, the with-legacy figure beside it only when tagging made them differ. */
+/** One book's tail figure: in-frame first, the with-legacy figure always beside it whenever positions are tagged (#352/#360); `withLegacy` is null only with no tags (or no in-frame twin on the wire). */
 export interface TailFigure { n: number; p95: number | null; withLegacy: BookCI | null }
 export interface OutsideFrameVM { book: string; symbol: string; kind: string; dir: string; moneyness: number | null; status: string }
 export interface ClusterVM { name: string; premium: number; cap: number; dirs: string }
