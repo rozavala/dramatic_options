@@ -169,12 +169,13 @@ def _checks(hdr: dict, risk: dict) -> list[dict]:
         out.append(_check("Kill rule", "fault", not tripped, text, blocking=True))
         cc = risk.get("cost_cap") or {}
         capped, cap = bool(cc.get("tripped")), cc.get("cap_usd")
-        if not cap:   # no cap configured: unknown, never a made-up "$0 cap" (#374)
+        if capped:    # the last council run's own health says it hit the cap, whatever config says now
+            out.append(_check("Cost cap", "fault", False, "last council run hit the cost cap"
+                              + (f" (${cap:g})" if cap else ""), blocking=False))
+        elif not cap:  # no cap configured: unknown, never a made-up "$0 cap" (#374)
             out.append(_check("Cost cap", "fault", None, "no cost cap configured", blocking=False))
         else:
-            out.append(_check("Cost cap", "fault", not capped,
-                              f"last council run hit the ${cap:g} cap" if capped else f"within the ${cap:g}/run cap",
-                              blocking=False))
+            out.append(_check("Cost cap", "fault", True, f"within the ${cap:g}/run cap", blocking=False))
     else:
         out.append(_check("Kill rule", "fault", None, "risk panel unavailable", blocking=True))
         out.append(_check("Cost cap", "fault", None, "risk panel unavailable", blocking=False))

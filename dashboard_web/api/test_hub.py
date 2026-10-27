@@ -332,3 +332,7 @@ def test_hub_no_cost_cap_configured_is_unknown_not_zero() -> None:
         assert c["ok"] is None and c["detail"] == "no cost cap configured" and c["blocking"] is False
     c = {x["label"]: x for x in hub._checks(hdr, {**risk, "cost_cap": {"cap_usd": 1.5, "tripped": False}})}["Cost cap"]
     assert c["ok"] is True and c["detail"] == "within the $1.5/run cap"
+    # a trip is reported from the last run's health even if the cap was since removed from config
+    for cap in (1.5, 0, None):
+        c = {x["label"]: x for x in hub._checks(hdr, {**risk, "cost_cap": {"cap_usd": cap, "tripped": True}})}["Cost cap"]
+        assert c["ok"] is False and c["detail"].startswith("last council run hit the cost cap")
