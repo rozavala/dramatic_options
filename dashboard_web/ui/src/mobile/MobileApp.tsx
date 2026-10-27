@@ -4,8 +4,9 @@ import { Curation } from "../components/Curation";
 import { Reach } from "../components/Reach";
 import { Sparkline } from "../components/Sparkline";
 import { Banner, Chip, Skeleton, StaleChip } from "../components/primitives";
+import { OutsideFrameChip, WithLegacy } from "../components/Tails";
 import { STATE_PRESENT, clusterLevel, directionLabel, isAccruingState, markLevel, relativeAge } from "../data/status";
-import type { ConsoleProps, ViewModel } from "../data/types";
+import type { ConsoleProps, TailFigure, ViewModel } from "../data/types";
 import { runLabel } from "../data/runLabel";
 import { useCountUp } from "../data/useCountUp";
 import { TITLES, type SectionId } from "../nav";
@@ -177,11 +178,11 @@ function MSafety({ vm }: { vm: ViewModel }) {
 
 // ── Edge ──────────────────────────────────────────────────────────────────────────────────────
 function MEdge({ vm }: { vm: ViewModel }) {
-  const books: { name: string; tag: string; n: number; p95: number | null; level: Level }[] = [
-    { name: "Real", tag: "gate + council on", ...vm.perf.real, level: "acc" },
-    { name: "Shadow", tag: "no council", ...vm.perf.shadow, level: "mute" },
-    { name: "3A", tag: "no gate", ...vm.perf.a3, level: "mute" },
-    { name: "3B", tag: "whole basket", ...vm.perf.basket, level: "mute" },
+  const books: { name: string; tag: string; n: number; p95: number | null; withLegacy: TailFigure["withLegacy"]; level: Level }[] = [
+    { name: "Real", tag: "gate + council on", ...vm.perf.tails.real, level: "acc" },
+    { name: "Shadow", tag: "no council", ...vm.perf.tails.shadow, level: "mute" },
+    { name: "3A", tag: "no gate", ...vm.perf.tails.a3, level: "mute" },
+    { name: "3B", tag: "whole basket", ...vm.perf.tails.basket, level: "mute" },
   ];
   const maxP95 = Math.max(1, ...books.map((b) => b.p95 ?? 0));
   const anyResolved = books.some((b) => b.p95 != null);
@@ -196,6 +197,12 @@ function MEdge({ vm }: { vm: ViewModel }) {
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#141b28" }}>Does the machine beat "brain-off"?</div>
         <div style={{ fontSize: 11, color: "#5f6675", margin: "3px 0 12px", lineHeight: 1.4 }}>Tail multiple (p95) per book — the real book should out-tail the rest.</div>
+        {vm.perf.outsideFrame.length > 0 && (
+          <div style={{ margin: "-4px 0 10px" }}>
+            <OutsideFrameChip items={vm.perf.outsideFrame} compact />
+            <div style={{ fontSize: 10, color: "#5f6675", marginTop: 5, lineHeight: 1.4 }}>In-frame figure first; with-legacy (incl. tagged positions) beside it.</div>
+          </div>
+        )}
         {books.map((b) => {
           const has = b.p95 != null;
           const w = has ? Math.max(5, ((b.p95 as number) / maxP95) * 100) : 0;
@@ -213,7 +220,10 @@ function MEdge({ vm }: { vm: ViewModel }) {
                   <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg,#edf0f4,#edf0f4 7px,#e7eaef 7px,#e7eaef 14px)", borderRadius: 6, animation: "accruePulse 2.6s ease-in-out infinite" }} />
                 )}
               </div>
-              <div className="font-mono text-right" style={{ width: 48, flex: "none", fontSize: 12, fontWeight: 700, color: has ? lv.text : signal.mute.text }}>{has ? `${(b.p95 as number).toFixed(2)}×` : "—"}</div>
+              <div className="font-mono text-right" style={{ width: b.withLegacy ? 112 : 48, flex: "none", fontSize: 12, fontWeight: 700, color: has ? lv.text : signal.mute.text }}>
+                {has ? `${(b.p95 as number).toFixed(2)}×` : "—"}
+                {b.withLegacy && <div><WithLegacy t={b} style={{ fontSize: 9 }} /></div>}
+              </div>
             </div>
           );
         })}
