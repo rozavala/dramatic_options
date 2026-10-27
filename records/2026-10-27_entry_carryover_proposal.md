@@ -40,9 +40,11 @@ paper-day check before it is relied on.
    the caps bind.
 5. **Cancel at 15:30 ET**, before the next L1 judges the name again. If the council re-affirms it, that L1 makes a
    fresh evening attempt (and a fresh carry); if not, the approval lapses.
-6. **Working orders reserve budget.** Today `pending` is outside `_EXPOSURE_STATES` (`state.py`), so caps and per-name
-   dedup ignore a working order. Harmless for a 12-minute order; not for one working all day beside others. `pending`
-   and `carried` rows count toward the caps when another carried or new entry is sized.
+6. **Working orders reserve budget.** The cluster cap already counts `pending` (`cluster_open_premium`, deliberately,
+   for same-cycle siblings). The book-level counts (book premium, position count, sentinel slots) use
+   `_EXPOSURE_STATES` = open + closing only, a documented choice for a 12-minute order ("the ~10-slot book absorbs
+   that window"). For orders working all day beside others, `pending` and `carried` rows count toward those caps
+   too. Per-name dedup needs no change: a carried row is resolved before the next L1.
 
 ## 3. What does not change
 - The council, the gate thresholds, sizing rules and every frozen risk number. The frame hash covers
