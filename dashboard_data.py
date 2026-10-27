@@ -1062,7 +1062,12 @@ def _gate_of_record_reads(conn, now: datetime, max_age_td: int = 5) -> dict[str,
     """{SYMBOL: latest FRESH gate-of-record (opra) ``gate_dualread`` row}. The SAME read, the same ≤``max_age_td``
     weekday freshness and the same most-recent-row-per-symbol rule as ``state.unexpressible_symbols`` (the
     council's expressible-first demotion), so "expressible" here is the gate's own answer, not a second opinion.
-    A row with ``structured`` NULL carries no verdict and is left out."""
+    A row with ``structured`` NULL carries no verdict and is left out.
+
+    Ages are counted on the **ET** calendar date (``now`` and the row's ``evaluated_at`` both converted), local to
+    this panel. ``state.unexpressible_symbols`` still uses ``now.date()`` (UTC), so between 20:00 and 24:00 ET at
+    the 5-weekday edge one name can be fresh here and stale there (or vice versa) — a known follow-up, left alone
+    because that function is in the trading path."""
     today = now.astimezone(_ET).date()
     out: dict[str, dict] = {}
     seen: set[str] = set()
@@ -1074,11 +1079,37 @@ def _gate_of_record_reads(conn, now: datetime, max_age_td: int = 5) -> dict[str,
         if sym in seen:
             continue
         seen.add(sym)
-        d = state._iso_date(r["evaluated_at"])
+        d = _et_date(r["evaluated_at"])
         if d is None or state._weekday_age(d, today) > max_age_td or r["structured"] is None:
             continue
         out[sym] = dict(r)
     return out
+
+
+def _position_outcome(pos) -> tuple[str, str]:
+    """(kind, plain-English result) of one ``convexity_positions`` row: resting / filled / not_filled."""
+    status = str(pos["status"] or "")
+    if status == "pending":
+        return "resting", "resting at the broker (awaiting fill)"
+    if status == "cancelled":
+        return "not_filled", "not filled — " + str(pos["exit_reason"] or "cancelled").replace("_", " ")
+    return "filled", "filled" + (f" (now {status})" if status not in ("open", "") else "")
+
+
+def _order_for_proposal(positions: list, proposal_id: int, symbol: str) -> dict | None:
+    """The real order outcome for a judged name: the newest ``convexity_positions`` row joined by
+    ``proposal_id``, else by this run + symbol. ``gate_decision`` is a point-in-time stamp (``submit-pending``
+    stays that forever); this is what the order actually did."""
+    sym = str(symbol).upper()
+    hit = [p for p in positions if p["proposal_id"] == proposal_id] or [
+        p for p in positions if str(p["symbol"]).upper() == sym]
+    if not hit:
+        return None
+    pos = max(hit, key=lambda p: p["id"])
+    kind, result = _position_outcome(pos)
+    return {"kind": kind, "result": result, "position_id": pos["id"], "status": pos["status"],
+            "contract": pos["contract_symbol"], "contracts": pos["contracts"],
+            "premium": round(float(pos["total_premium"]), 2) if pos["total_premium"] is not None else None}
 
 
 def _last_order_attempt(conn, now: datetime) -> dict | None:
@@ -1109,13 +1140,7 @@ def _last_order_attempt(conn, now: datetime) -> dict | None:
         out.update(kind="not_filled", result="not filled — " + (why[0] if why else "broker did not take the order"),
                    contract=None, contracts=None, premium=None, position_id=None)
         return out
-    status = str(r["status"] or "")
-    if status == "pending":
-        kind_, result = "resting", "resting at the broker (awaiting fill)"
-    elif status == "cancelled":
-        kind_, result = "not_filled", "not filled — " + str(r["exit_reason"] or "cancelled").replace("_", " ")
-    else:
-        kind_, result = "filled", "filled" + (f" (now {status})" if status not in ("open", "") else "")
+    kind_, result = _position_outcome(r)
     out.update(kind=kind_, result=result, contract=r["contract_symbol"], contracts=r["contracts"],
                premium=round(float(r["total_premium"]), 2) if r["total_premium"] is not None else None,
                position_id=r["id"])
@@ -1191,6 +1216,8 @@ def why_no_entry_panel(conn, config: dict, *, now: datetime | None = None) -> di
         else:
             unattributed[r["decision"]] = unattributed.get(r["decision"], 0) + 1
 
+    positions = _rows(conn, "SELECT id, proposal_id, symbol, contract_symbol, contracts, total_premium, status, "
+                            "exit_reason FROM convexity_positions WHERE run_id=?", (run_id,))
     rows: list[dict] = []
     for p in _rows(conn, "SELECT id, symbol, direction, conviction, as_of, status, rationale FROM council_proposals "
                          "WHERE run_id=? ORDER BY symbol, id", (run_id,)):
@@ -1224,6 +1251,7 @@ def why_no_entry_panel(conn, config: dict, *, now: datetime | None = None) -> di
             "gate_decision": g["decision"] if g else None,
             "veto_stage": (g["decision"] if g else "to the gate — no gate row yet") if st == "to_gate"
                           else _STAGE_LABEL[st],
+            "order": _order_for_proposal(positions, p["id"], p["symbol"]) if st == "to_gate" else None,
             "iv_rv": None if iv_rv is None else round(float(iv_rv), 3),
             "otm_skew": None if skew is None else round(float(skew), 2),
             "expressible": expressible,

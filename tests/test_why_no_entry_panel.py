@@ -184,3 +184,66 @@ def test_empty_database_is_explicit(convexity_db):
     assert p["empty"] is True and p["rows"] == [] and p["run_id"] is None
     assert p["tiles"]["expressible"] == {"n": 0, "of": 0, "no_structure": [], "basis": p["tiles"]["expressible"]["basis"]}
     assert p["tiles"]["last_above_floor"] is None and p["tiles"]["last_order"] is None
+
+
+def _hl_session(conn, *, link_proposal: bool):
+    """HL reached the gate; the gate stamped ``submit-pending`` and the order was then cancelled unfilled."""
+    rid = state.record_run(conn, mode="PAPER", equity=None)
+    pid = _prop(conn, rid, "HL", "MODERATE", _strat(True), status="traded")
+    _eval(conn, rid, "HL", "submit-pending", pid, iv_rv=0.9, skew=3.0)
+    pos = state.record_convexity_position(
+        conn, run_id=rid, opened_at="2026-10-26T19:50:00+00:00", theme="t", symbol="HL", direction="bullish",
+        structure_kind="long_call", contract_symbol="HL270617C00017000", expiry="2027-06-17", strike=17.0, dte=234,
+        moneyness=0.2, contracts=5, entry_premium_per_contract=176.0, total_premium=880.0, status="pending",
+        order_id="o-2", proposal_id=pid if link_proposal else None)
+    state.drop_convexity_position(conn, pos, reason="cancelled_unfilled")
+    return rid, pid, pos
+
+
+def test_row_shows_the_orders_real_outcome_not_the_stale_gate_stamp(convexity_db):
+    _, pid, pos = _hl_session(convexity_db, link_proposal=True)
+    row = dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"][0]
+    assert row["gate_decision"] == "submit-pending"               # the point-in-time stamp is still reported ...
+    o = row["order"]                                              # ... but the row carries what the order did
+    assert (o["kind"], o["result"], o["position_id"], o["contract"], o["contracts"], o["premium"]) == (
+        "not_filled", "not filled — cancelled unfilled", pos, "HL270617C00017000", 5, 880.0)
+
+
+def test_order_join_falls_back_to_run_and_symbol(convexity_db):
+    _hl_session(convexity_db, link_proposal=False)                # position carries no proposal_id
+    o = dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"][0]["order"]
+    assert o is not None and o["kind"] == "not_filled"
+    # a position not from THIS run (here: run-less) is not this session's order
+    convexity_db.execute("UPDATE convexity_positions SET run_id = NULL")
+    assert dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"][0]["order"] is None
+
+
+def test_order_join_follows_a_later_fill_and_ignores_names_that_never_reached_the_gate(convexity_db):
+    rid, pid, pos = _hl_session(convexity_db, link_proposal=True)
+    convexity_db.execute("UPDATE convexity_positions SET status='open', exit_reason=NULL WHERE id=?", (pos,))
+    assert dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"][0]["order"]["kind"] == "filled"
+    _prop(convexity_db, rid, "HL2", "LOW", _strat(False))
+    by = {r["symbol"]: r for r in dd.why_no_entry_panel(convexity_db, CFG, now=NOW)["rows"]}
+    assert by["HL2"]["order"] is None
+
+
+def test_panel_ages_gate_reads_on_the_et_date():
+    """Both ``now`` and the row are put on the ET calendar *inside the panel*. (``state.unexpressible_symbols``
+    still uses the UTC date — the divergence is documented, not changed, here.)"""
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE gate_dualread (id INTEGER PRIMARY KEY, symbol TEXT, feed TEXT, structured INTEGER, "
+                 "iv_rv REAL, otm_skew REAL, cheap INTEGER, note TEXT, run_id INTEGER, evaluated_at TEXT)")
+    # Mon 10-19 22:00 ET stored as 10-20 02:00Z → ET date 10-19
+    conn.execute("INSERT INTO gate_dualread (symbol, feed, structured, evaluated_at) VALUES "
+                 "('AAA','opra',1,'2026-10-20T02:00:00+00:00')")
+    # 20:00-24:00 ET window: UTC is already Tue 10-27, ET is still Mon 10-26 → ET age 5 (fresh)
+    late = datetime(2026, 10, 27, 1, 0, tzinfo=UTC)
+    conn.execute("UPDATE gate_dualread SET evaluated_at='2026-10-19T22:00:00+00:00'")
+    assert set(dd._gate_of_record_reads(conn, late)) == {"AAA"}
+    # the next ET day the same read is 6 weekdays old → stale; and a UTC-dated row is NOT read as its UTC day
+    midday = datetime(2026, 10, 27, 16, 0, tzinfo=UTC)
+    assert dd._gate_of_record_reads(conn, midday) == {}
+    conn.execute("UPDATE gate_dualread SET evaluated_at='2026-10-20T02:00:00+00:00'")   # UTC 10-20 = ET 10-19
+    assert dd._gate_of_record_reads(conn, midday) == {}

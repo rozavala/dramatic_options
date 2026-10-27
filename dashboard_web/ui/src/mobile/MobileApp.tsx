@@ -5,6 +5,7 @@ import { Reach } from "../components/Reach";
 import { Sparkline } from "../components/Sparkline";
 import { Banner, Chip, Skeleton, StaleChip } from "../components/primitives";
 import { OutsideFrameChip, WithLegacy } from "../components/Tails";
+import { WhyNoEntryList, WhyNoEntryTiles } from "../components/WhyNoEntry";
 import { STATE_PRESENT, clusterLevel, directionLabel, isAccruingState, markLevel, relativeAge } from "../data/status";
 import type { ConsoleProps, TailFigure, ViewModel } from "../data/types";
 import { runLabel } from "../data/runLabel";
@@ -26,6 +27,23 @@ const TAB_ICON: Record<SectionId, string> = {
 const dirLabel = directionLabel; // A6 — single source in status.ts
 
 // ── Overview ──────────────────────────────────────────────────────────────────────────────────
+function MWhyNoEntry({ vm }: { vm: ViewModel }) {
+  const w = vm.whyNoEntry;
+  return (
+    <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: "#141b28" }}>Why no entry</div>
+      <div style={{ fontSize: 11, color: "#5f6675", marginTop: 2, marginBottom: 10, lineHeight: 1.4 }}>
+        {w.runId != null ? `${runLabel(vm.runDates, w.runId)} · floor ${w.floor}` : "latest council session"}
+      </div>
+      {w.warning && <Banner level="warn" style={{ marginBottom: 10, fontSize: 11 }}>{w.warning}</Banner>}
+      <WhyNoEntryTiles w={w} />
+      {w.unavailable ? <div data-testid="why-unavailable" style={{ fontSize: 11.5, color: signal.warn.text, marginTop: 10 }}>unavailable — the why-no-entry panel did not load</div>
+        : w.empty || w.rows.length === 0 ? <div data-testid="why-empty" style={{ fontSize: 11.5, color: "#5f6675", marginTop: 10 }}>no council session recorded yet</div>
+        : <div style={{ marginTop: 6 }}><WhyNoEntryList w={w} /></div>}
+    </div>
+  );
+}
+
 function MOverview({ vm }: { vm: ViewModel }) {
   const sig = signal[vm.level];
   const r = vm.readiness;
@@ -59,6 +77,7 @@ function MOverview({ vm }: { vm: ViewModel }) {
           </div>
         ))}
       </div>
+      <MWhyNoEntry vm={vm} />
       <div className={CARD} style={{ ...cardStyle, padding: 15 }}>
         <div className="flex items-center" style={{ gap: 13, paddingBottom: 12, borderBottom: "1px solid #edf0f4" }}>
           <div className="flex flex-col items-center justify-center" style={{ width: 56, height: 56, borderRadius: "50%", border: `3px solid ${ringColor}`, flex: "none" }}>
