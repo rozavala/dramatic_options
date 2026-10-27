@@ -4,7 +4,7 @@ import { etDate, formatEtStamp, formatRunLabel, parseBackendTs, runLabel } from 
 
 describe("run label formatter (#354)", () => {
   it("formats the canonical example: L1 #1816 · Mon 2026-10-26 15:45 ET", () => {
-    expect(formatRunLabel(1816, "2026-10-26T19:45:00+00:00")).toBe("L1 #1816 · Mon 2026-10-26 15:45 ET");
+    expect(formatRunLabel(1816, "2026-10-26T19:45:00+00:00", "L1")).toBe("L1 #1816 · Mon 2026-10-26 15:45 ET");
   });
 
   it("treats SQLite's naive datetime('now') as UTC", () => {
@@ -32,17 +32,18 @@ describe("run label formatter (#354)", () => {
   });
 
   it("never prints a bare run id: an undated run says so", () => {
-    expect(formatRunLabel(7, null)).toBe("L1 #7 · date unavailable");
-    expect(formatRunLabel(7, "not a date")).toBe("L1 #7 · date unavailable");
+    expect(formatRunLabel(7, null, "L1")).toBe("L1 #7 · date unavailable");
+    expect(formatRunLabel(7, "not a date", "L1")).toBe("L1 #7 · date unavailable");
     expect(formatRunLabel(null, "2026-10-26T19:45:00Z")).toBe("—");
   });
 
-  it("looks the date up in the snapshot's run_dates map; tolerates an {error} / missing map", () => {
-    const dates = { "1816": "2026-10-26 19:45:03" };
+  it("looks the date + layer up in the snapshot's run_dates / run_kinds maps; tolerates {error} / missing maps", () => {
+    const dates = { at: { "1816": "2026-10-26 19:45:03", "12": "2026-10-25 22:00:00" }, kind: { "1816": "L1", "12": "L0" } };
     expect(runLabel(dates, 1816)).toBe("L1 #1816 · Mon 2026-10-26 15:45 ET");
-    expect(runLabel(dates, 1817)).toBe("L1 #1817 · date unavailable");
-    expect(runLabel({ error: "OperationalError: boom" }, 1816)).toBe("L1 #1816 · date unavailable");
-    expect(runLabel(null, 1816)).toBe("L1 #1816 · date unavailable");
+    expect(runLabel(dates, 12)).toBe("L0 #12 · Sun 2026-10-25 18:00 ET"); // kind comes from runs.mode, not a hardcoded L1
+    expect(runLabel(dates, 1817)).toBe("run #1817 · date unavailable");  // unknown kind is neutral, never a guessed L1
+    expect(runLabel({ at: { error: "OperationalError: boom" }, kind: { error: "x" } }, 1816)).toBe("run #1816 · date unavailable");
+    expect(runLabel(null, 1816)).toBe("run #1816 · date unavailable");
     expect(runLabel(dates, null)).toBe("—");
   });
 });

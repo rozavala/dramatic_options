@@ -1,3 +1,4 @@
+import { runLabel, type RunDates } from "../data/runLabel";
 import type { SessionVM } from "../data/types";
 import { signal } from "../theme/tokens";
 import { Chip } from "./primitives";
@@ -37,7 +38,7 @@ export function SessionTable({ session, lastCol }: { session: SessionVM; lastCol
 }
 
 /** The LOW-count history over the trailing sessions: how much of the slate was grounded-but-not-inflecting. */
-export function LowHistory({ session }: { session: SessionVM }) {
+export function LowHistory({ session, dates }: { session: SessionVM; dates: RunDates }) {
   const hist = session.lowHistory;
   if (!hist.length) return null;
   const max = Math.max(1, ...hist.map((h) => h.low));
@@ -57,7 +58,7 @@ export function LowHistory({ session }: { session: SessionVM }) {
         })}
       </div>
       <div className="flex justify-between font-mono" style={{ fontSize: 10.5, color: "#6a7280", marginTop: 5 }}>
-        {hist.map((h) => <span key={h.runId} title={`run #${h.runId}`}>{h.day || "—"}</span>)}
+        {hist.map((h) => <span key={h.runId} title={runLabel(dates, h.runId)}>{h.day || "—"}</span>)}
       </div>
     </div>
   );

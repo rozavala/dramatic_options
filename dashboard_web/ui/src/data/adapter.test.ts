@@ -9,7 +9,7 @@ function synthetic(): Snapshot {
   const beat = (age: number, status: "ONLINE" | "STALE" | "OFFLINE") => ({ at: "2026-10-14T16:00:00+00:00", age_hours: age, status, stale: status !== "ONLINE" });
   const ci = (n: number, p95: number | null) => ({ n, p95, ci90: null, flag: null });
   const rrun = (run_id: number, verdict: "ROUNDTRIP_CONFIRMED" | "ROUNDTRIP_DEGRADED") => ({
-    run_id, started_at: "2026-10-14T15:45:00+00:00", council_health: "ok" as const, verdict,
+    run_id, started_at: "2026-10-14T15:45:00+00:00", kind: "L1", council_health: "ok" as const, verdict,
     proposer_parse_rate: 0, proposer_called: 12, proposer_parse_failed: 0, by_provider: {},
   });
   return {

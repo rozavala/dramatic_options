@@ -137,7 +137,9 @@ def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
         }
         # NOT a load_all panel (like system_status): run_id -> started_at for every run id a panel shows, so
         # the UI prints an ET date beside each one (issue #354). Read-only SELECT; fail-soft.
-        snap["run_dates"] = dd.safe(dd.run_start_map, conn, collect_run_ids(to_jsonable(snap)))
+        # collect_run_ids is the lambda's body so dd.safe guards it too (a walk error degrades to {"error"}).
+        snap["run_dates"] = dd.safe(lambda: dd.run_start_map(conn, collect_run_ids(to_jsonable(snap))))
+        snap["run_kinds"] = dd.safe(lambda: dd.run_kind_map(conn, collect_run_ids(to_jsonable(snap))))
     finally:
         conn.close()
     # system_status runs over the assembled snapshot (NOT a load_all panel) — the banner's only source.

@@ -6,6 +6,7 @@
 
 import type { Level } from "../theme/tokens";
 import type { RunDates } from "./runLabel";
+type RunMap = Record<string, string> | { error: string };
 import type { CouncilVerdict, DisplayState, T4Verdict } from "./status";
 
 /* ────────────────────────── 1 · Snapshot (panel shapes) ────────────────────────── */
@@ -27,7 +28,7 @@ export interface CouncilHealth {
 
 // One trailing council-deliberated run (recent_council_health, oldest→newest); feeds the streak (A3).
 export interface CouncilRecentRun {
-  run_id: number; started_at: string | null; council_health: string | null; verdict: CouncilVerdict;
+  run_id: number; started_at: string | null; kind?: string; council_health: string | null; verdict: CouncilVerdict;
   proposer_parse_rate: number; proposer_called: number; proposer_parse_failed: number;
   by_provider: Record<string, { calls: number; parse_error: number; parse_error_rate?: number | null }>;
 }
@@ -50,7 +51,8 @@ export interface SentinelRow {
 
 export interface Snapshot {
   system_status: { level: "success" | "warn" | "error"; headline: string; issues: string[] };
-  run_dates?: RunDates; // run_id → started_at for every run id a panel shows (#354); labels via data/runLabel.ts
+  run_dates?: RunMap; // run_id → started_at for every run id a panel shows (#354); labels via data/runLabel.ts
+  run_kinds?: RunMap; // run_id → layer ("L1" cycle / "L0" discovery), derived from runs.mode
   header: {
     now: string; schema_version: number; schema_expected: number; schema_ok: boolean; schema_warning: string | null;
     kill_switch_engaged: boolean; cycle: Heartbeat; council: Heartbeat; discovery: Heartbeat;

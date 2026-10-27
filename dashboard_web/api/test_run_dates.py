@@ -28,3 +28,21 @@ def test_collect_run_ids_finds_every_run_reference() -> None:
 def test_collect_run_ids_empty() -> None:
     assert snapshot.collect_run_ids({}) == set()
     assert snapshot.collect_run_ids({"error": "boom"}) == set()
+
+
+def test_collect_run_ids_failure_is_guarded_by_dd_safe(tmp_path, monkeypatch) -> None:
+    """collect_run_ids is evaluated INSIDE dd.safe (a lambda), so a walk error degrades the run_dates panel to
+    {"error"} instead of raising out of build_snapshot and blanking the whole dashboard."""
+    import sqlite3
+
+    db = tmp_path / "j.db"
+    sqlite3.connect(db).execute("CREATE TABLE runs (id INTEGER PRIMARY KEY, started_at TEXT, mode TEXT)").connection.commit()
+
+    def boom(_obj):
+        raise RuntimeError("walk exploded")
+
+    monkeypatch.setattr(snapshot, "collect_run_ids", boom)
+    snap = snapshot.build_snapshot(str(db), str(tmp_path), True)
+    assert snap["run_dates"]["error"].startswith("RuntimeError")
+    assert snap["run_kinds"]["error"].startswith("RuntimeError")
+    assert "system_status" in snap

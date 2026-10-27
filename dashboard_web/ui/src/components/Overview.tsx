@@ -103,7 +103,7 @@ export function Overview({ vm }: { vm: ViewModel }) {
         <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_.8fr]" style={{ gap: 24, marginTop: 14 }}>
           <SessionTable session={se} lastCol="streak" />
           <div style={{ borderLeft: "1px solid #edf0f4", paddingLeft: 22 }}>
-            <LowHistory session={se} />
+            <LowHistory session={se} dates={vm.runDates} />
             <div style={{ marginTop: 18 }}>
               <div style={{ fontSize: 12, color: "#414956", fontWeight: 500 }}>Why nothing passes</div>
               <div style={{ fontSize: 11, color: "#6a7280", marginTop: 2, lineHeight: 1.5 }}>the three criteria the strategist must all confirm · {legs?.n ?? 0} deliberated</div>

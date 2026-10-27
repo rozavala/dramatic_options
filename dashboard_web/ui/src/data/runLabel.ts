@@ -5,7 +5,9 @@
 // and never the UTC the DB stores. `started_at` arrives either tz-aware ISO ("…T19:45:00+00:00") or SQLite's
 // naive `datetime('now')` ("2026-09-04 19:45:04"), which is UTC — mirrors dashboard_data._parse_dt.
 
-export type RunDates = Record<string, string> | { error: string } | null | undefined;
+// run_id → started_at / run_id → kind ("L1", "L0", …; derived from runs.mode server-side), each fail-soft.
+type Wire = Record<string, string> | { error: string } | null | undefined;
+export type RunDates = { at: Wire; kind: Wire } | null | undefined;
 
 const ET = "America/New_York";
 const fmt = new Intl.DateTimeFormat("en-US", {
@@ -42,14 +44,17 @@ export function formatEtStamp(ts?: string | null): string | null {
 }
 
 /** "L1 #1816 · Mon 2026-10-26 15:45 ET". An undated run says so rather than printing a bare id. */
-export function formatRunLabel(runId: number | null | undefined, startedAt?: string | null, kind = "L1"): string {
+export function formatRunLabel(runId: number | null | undefined, startedAt?: string | null, kind = "run"): string {
   if (runId == null) return "—";
   const stamp = formatEtStamp(startedAt);
   return `${kind} #${runId} · ${stamp ?? "date unavailable"}`;
 }
 
-/** Label a run id using the snapshot's run_id → started_at map (`run_dates`). */
-export function runLabel(dates: RunDates, runId: number | null | undefined, kind = "L1"): string {
-  const m = dates && !("error" in dates) ? dates : null;
-  return formatRunLabel(runId, runId == null ? null : m?.[String(runId)], kind);
+const pick = (w: Wire, id: number): string | undefined => (w && !("error" in w) ? w[String(id)] : undefined);
+
+/** Label a run id from the snapshot's `run_dates` (started_at) + `run_kinds` (layer, from runs.mode) maps. An
+ *  unknown kind prints as the neutral "run", never a guessed "L1". */
+export function runLabel(dates: RunDates, runId: number | null | undefined): string {
+  if (runId == null) return "—";
+  return formatRunLabel(runId, pick(dates?.at, runId), pick(dates?.kind, runId));
 }

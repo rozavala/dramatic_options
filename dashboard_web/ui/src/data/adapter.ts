@@ -88,7 +88,7 @@ function councilStreak(recent: Snapshot["council"]["recent"] | undefined): strin
   for (let i = r.length - 1; i >= 0 && r[i].verdict === "ROUNDTRIP_CONFIRMED"; i--) s++;
   if (s === r.length) return `${s} clean`;
   const broke = r[r.length - 1 - s];
-  const label = formatRunLabel(broke.run_id, broke.started_at);
+  const label = formatRunLabel(broke.run_id, broke.started_at, broke.kind);
   return s === 0 ? `0 · ${label} not clean` : `${s} clean, then ${label}`;
 }
 
@@ -386,7 +386,7 @@ export function fromBackend(P: Snapshot): ViewModel {
   const phaseSub = edgeN > 0 ? `${edgeN}/${EDGE_TARGET} resolved bets` : "accruing — first reads after entries resolve";
 
   return {
-    runDates: P.run_dates ?? null, councilBeat: h.council?.status ?? "OFFLINE",
+    runDates: { at: P.run_dates, kind: P.run_kinds }, councilBeat: h.council?.status ?? "OFFLINE",
     asOf: h.now ?? "",
     level: levelFromSystem(ss.level),
     headline: ss.headline ?? "",
