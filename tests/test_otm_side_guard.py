@@ -190,6 +190,22 @@ def test_dashboard_performance_panel_lists_the_tagged_positions(convexity_db):
     assert perf["tails"]["shadow_all_in_frame"]["n"] == 0
 
 
+def test_dashboard_p95_ci_carries_in_frame_twins(convexity_db):
+    """#352: the Edge bars read p95_ci; each book needs a WITHOUT-tagged twin beside the with-legacy figure."""
+    import dashboard_data as dd
+    _shadow(convexity_db, "AAA", "C", 0.25, 12.0)      # in frame
+    _shadow(convexity_db, "STUB", "P", 0.425, 0.4)     # wrong side
+    _fb(convexity_db, "union_nogate", "BBB", "P", -0.25, 3.0)
+    _fb(convexity_db, "basket_nogate", "UROY", "C", -0.175, 1.5)   # the only 3B row, tagged
+    ci = dd.performance_panel(convexity_db)["p95_ci"]
+    assert ci["shadow_all"]["n"] == 2 and ci["shadow_all_in_frame"]["n"] == 1
+    assert ci["shadow_all"]["p95"] != ci["shadow_all_in_frame"]["p95"]
+    assert ci["nogate_union_nogate_in_frame"]["n"] == ci["nogate_union_nogate"]["n"] == 1   # untagged: identical
+    assert ci["nogate_basket_nogate"]["n"] == 1
+    assert ci["nogate_basket_nogate_in_frame"]["n"] == 0 and ci["nogate_basket_nogate_in_frame"]["p95"] is None
+    assert ci["real_in_frame"]["n"] == 0
+
+
 # ── #343: every gate-shaped caller selects as the gate of record does ──────────────────────────────────────
 # The feasibility probe (admission reads) and the survivor cards' band axis omitted require_otm_side, so they
 # could report a wrong-side contract the live path fails closed on (FRO C35, 33.9% ITM, 2026-10-25).
