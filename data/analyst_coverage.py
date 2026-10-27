@@ -1,9 +1,15 @@
 """Analyst-coverage meter — the sell-side attention axis for under-narration grounding.
 
-A per-name count of covering sell-side analysts, summed from stockanalysis.com's
-``/api/symbol/s/{TICKER}/overview`` ``analystChart`` buckets (``strongBuy``/``buy``/``hold``/
-``sell``/``strongSell``). Free, no auth — the same stockanalysis.com source the project already
-scrapes for ``corpus/etf_constituents`` (a different endpoint).
+A per-name count of covering sell-side analysts, summed from stockanalysis.com's stock-overview
+``analystChart`` buckets (``strongBuy``/``buy``/``hold``/``sell``/``strongSell``). Free, no auth — the
+same stockanalysis.com source the project already scrapes for ``corpus/etf_constituents`` (a
+different endpoint).
+
+**Endpoint (2026-10-24, #337):** the original ``/api/symbol/s/{TICKER}/overview`` JSON API began
+answering 404 for every symbol around 2026-07-10, and the fail-soft adapter hid it for three months.
+The same buckets are served in the overview page's SvelteKit data payload,
+``/stocks/{ticker}/__data.json`` (devalue-flattened: each node's ``data`` is a flat array whose
+element 0 is the root object and whose object/array members are indices into that array).
 
 **Why this replaces news-count as the coverage proxy** (accel-feed record §19, 2026-06-30): the
 free Alpaca/Benzinga news feed is a *broken* attention meter (sparse, saturates); analyst-count
@@ -36,7 +42,7 @@ def _to_utc(dt: datetime) -> datetime:
     return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
 
 SOURCE = "analyst_coverage"
-OVERVIEW_URL = "https://stockanalysis.com/api/symbol/s/{symbol}/overview"
+OVERVIEW_URL = "https://stockanalysis.com/stocks/{symbol}/__data.json"
 _EARLY = datetime(1990, 1, 1, tzinfo=UTC)
 # stockanalysis.com serves its API only to browser-like User-Agents.
 _UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -53,6 +59,34 @@ def sum_analyst_chart(analyst_chart: Any) -> int | None:
     if not isinstance(analyst_chart, dict):
         return None
     return int(sum(v for v in analyst_chart.values() if isinstance(v, (int, float))))
+
+
+def analyst_chart_from_page_data(payload: Any) -> Any:
+    """The ``analystChart`` value from a SvelteKit ``__data.json`` payload, or ``None``.
+
+    Walks each ``data`` node for a root object carrying ``analystChart`` and resolves it one level
+    (the chart object, then each bucket's index). A redirect payload (an ETF or an unknown ticker),
+    a negative devalue sentinel (undefined/hole) or any malformed shape → ``None``. Pure."""
+    if not isinstance(payload, dict) or payload.get("type") != "data":
+        return None
+    for node in payload.get("nodes") or []:
+        flat = (node or {}).get("data") if isinstance(node, dict) else None
+        if not isinstance(flat, list) or not flat or not isinstance(flat[0], dict):
+            continue
+        ref = flat[0].get("analystChart")
+        if ref is None:
+            continue
+        if not isinstance(ref, int) or not 0 <= ref < len(flat):
+            return None
+        chart = flat[ref]
+        if not isinstance(chart, dict):
+            return None  # null (a thin ADR) or a non-object → unknown
+        out: dict[str, Any] = {}
+        for k, i in chart.items():
+            if isinstance(i, int) and 0 <= i < len(flat):
+                out[k] = flat[i]
+        return out
+    return None
 
 
 class AnalystCoverageData:
@@ -96,7 +130,7 @@ class AnalystCoverageData:
             return None
         try:
             self._throttle()
-            resp = self.session.get(OVERVIEW_URL.format(symbol=symbol.upper()),
+            resp = self.session.get(OVERVIEW_URL.format(symbol=symbol.lower()),
                                     headers={"User-Agent": self.ua, "Accept": "application/json"},
                                     timeout=30)
         except Exception:  # noqa: BLE001 — transient network error → retry next run
@@ -107,9 +141,7 @@ class AnalystCoverageData:
             payload = resp.json()
         except ValueError:
             return None
-        if payload.get("status") != 200 or "data" not in payload:
-            return None
-        return sum_analyst_chart((payload.get("data") or {}).get("analystChart"))
+        return sum_analyst_chart(analyst_chart_from_page_data(payload))
 
     def ensure_loaded(self, symbol: str) -> None:
         if self.cache.covers(SOURCE, symbol.upper(), _EARLY, self.fetch_end):

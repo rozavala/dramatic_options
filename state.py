@@ -11,9 +11,10 @@ writes. Writes use the connection as a context manager for atomic transactions.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:
@@ -1042,6 +1043,30 @@ def gate_cheap_reads(conn: sqlite3.Connection, *, now, max_age_td: int = 5) -> d
     return out
 
 
+def unexpressible_symbols(conn: sqlite3.Connection, *, now, max_age_td: int = 5) -> frozenset[str]:
+    """Symbols whose most recent GATE-OF-RECORD (opra) dual-read row, aged ≤ ``max_age_td`` weekdays, found NO
+    eligible structure (``structured = 0``: no OTM contract in the tenor window). Demotion needs positive,
+    fresh evidence — no row, a stale row or a structured row ⇒ not in the set (council.demote_unexpressible).
+    Written after the council each cycle, so the read is prior-cycle, like ``gate_cheap_reads``."""
+    today = now.date() if hasattr(now, "date") else now
+    out: set[str] = set()
+    seen: set[str] = set()
+    for r in conn.execute(
+        "SELECT symbol, structured, evaluated_at FROM gate_dualread WHERE feed='opra' "
+        "ORDER BY evaluated_at DESC, id DESC"
+    ):
+        sym = str(r["symbol"]).upper()
+        if sym in seen:
+            continue
+        seen.add(sym)
+        d = _iso_date(r["evaluated_at"])
+        if d is None or _weekday_age(d, today) > max_age_td:
+            continue
+        if r["structured"] is not None and int(r["structured"]) == 0:
+            out.add(sym)
+    return frozenset(out)
+
+
 def council_last_judged(conn: sqlite3.Connection) -> dict[str, str]:
     """{SYMBOL: most recent council ``as_of``} over ALL recorded proposals (any council row —
     including drops and parse errors — consumed a judged slot; never-judged names are simply
@@ -1362,11 +1387,21 @@ def active_sentinel_symbols(conn: sqlite3.Connection) -> set[str]:
     return {r["symbol"] for r in rows}
 
 
+def _et_date(ts: datetime) -> date:
+    """The US-Eastern calendar date of a timestamp (a naive one is taken as UTC)."""
+    return (ts if ts.tzinfo else ts.replace(tzinfo=UTC)).astimezone(ZoneInfo("America/New_York")).date()
+
+
 def expire_stale_sentinels(conn: sqlite3.Connection, *, as_of: datetime, ttl_days: int) -> int:
     """Flip candidates not re-surfaced within ``ttl_days`` to 'dormant' (kept in history, no
     longer unioned to the council). Returns the count flipped. Date math in Python so a tz-aware
-    ISO ``last_seen_at`` parses reliably (SQLite julianday is finicky with tz offsets)."""
-    cutoff = as_of - timedelta(days=ttl_days)
+    ISO ``last_seen_at`` parses reliably (SQLite julianday is finicky with tz offsets).
+
+    Compared as US-Eastern **calendar dates** (#342, operator word 2026-10-25): dormant when the ET date
+    last seen is before the run's ET date minus ``ttl_days``. Comparing wall-clock seconds made a lineage's
+    life depend on how many seconds past the hour each weekly scan started (09-13 12:00:07 survived the
+    10-18 cutoff of 12:00:02 by 5 seconds) and DST moved the cutoff by an hour, i.e. a whole scan."""
+    cutoff = _et_date(as_of) - timedelta(days=ttl_days)
     rows = conn.execute(
         "SELECT id, last_seen_at FROM sentinel_candidates WHERE kind='sentinel' AND status='candidate'"
     ).fetchall()
@@ -1376,7 +1411,7 @@ def expire_stale_sentinels(conn: sqlite3.Connection, *, as_of: datetime, ttl_day
             seen = datetime.fromisoformat(r["last_seen_at"])
         except (ValueError, TypeError):
             continue
-        if seen < cutoff:
+        if _et_date(seen) < cutoff:
             stale.append(int(r["id"]))
     if stale:
         with conn:

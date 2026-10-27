@@ -75,6 +75,28 @@ def test_expire_stale_flips_to_dormant(convexity_db):
     assert "FCX" not in state.active_sentinel_symbols(conn)            # dormant drops from union
 
 
+def test_expire_stale_is_decided_by_et_scan_date_not_seconds(convexity_db):
+    # #342: the 2026-10-18 L0 (as_of 12:00:02 UTC) kept lineages last seen 09-13 12:00:07 by 5 seconds, while one
+    # seen at 12:00:01 would have expired. Same scan date ⇒ same fate, whatever the seconds.
+    conn = convexity_db
+    early = _rec(conn, "AAA", "bullish", 0.5, as_of="2026-09-13T12:00:01+00:00")
+    late = _rec(conn, "BBB", "bullish", 0.5, as_of="2026-09-13T12:00:07+00:00")
+    assert state.expire_stale_sentinels(conn, as_of=datetime(2026, 10, 18, 12, 0, 2, tzinfo=UTC), ttl_days=35) == 0
+    assert state.expire_stale_sentinels(conn, as_of=datetime(2026, 10, 25, 12, 0, 1, tzinfo=UTC), ttl_days=35) == 2
+    assert {state.sentinel_by_id(conn, i)["status"] for i in (early, late)} == {"dormant"}
+
+
+def test_expire_stale_ignores_the_dst_hour(convexity_db):
+    # #342: the 2026-11-01 L0 runs at 13:00 UTC (EST). A lineage last seen at the 09-27 scan (12:00:05 UTC, EDT) is
+    # exactly 35 days old by date and survives, as it would on a 12:00 run; one seen 09-20 expires.
+    conn = convexity_db
+    wk27 = _rec(conn, "ATKR", "bullish", 0.5, as_of="2026-09-27T12:00:05+00:00")
+    wk20 = _rec(conn, "AG", "bullish", 0.5, as_of="2026-09-20T12:00:06+00:00")
+    assert state.expire_stale_sentinels(conn, as_of=datetime(2026, 11, 1, 13, 0, 1, tzinfo=UTC), ttl_days=35) == 1
+    assert state.sentinel_by_id(conn, wk27)["status"] == "candidate"
+    assert state.sentinel_by_id(conn, wk20)["status"] == "dormant"
+
+
 def test_link_proposal_sets_both_sides(convexity_db):
     conn = convexity_db
     sid = _rec(conn, "FCX", "bullish", 0.5)

@@ -20,6 +20,8 @@ ROLES = {
     "strategist": {"provider": "anthropic", "model": "claude-opus-4-8"},
 }
 PRICES = {"claude-opus-4-8": {"in": 15.0, "out": 75.0}}
+# build_router refuses unpriced models (the cost cap would read $0) — the full table for the build tests.
+ALL_PRICES = {**PRICES, "gemini-2.5-pro": {"in": 1.0, "out": 2.0}, "grok-4": {"in": 1.0, "out": 2.0}}
 
 
 def test_price_call_from_table():
@@ -132,7 +134,7 @@ def test_router_no_fallback_for_unmapped_role_raises_as_before():
 def test_build_router_fallback_key_missing_disables_understudy_fail_soft():
     # A missing FALLBACK key must never fail-closed the council — understudy off, loudly.
     cfg = {"council": {"roles": {"strategist": {"provider": "anthropic", "model": "m"}},
-                       "roles_fallback": FALLBACK}}
+                       "roles_fallback": FALLBACK, "prices_per_mtok": {"m": {"in": 1.0, "out": 1.0}}}}
     r = build_router(cfg, {"anthropic": "k"})  # no openai key
     assert r._roles_fallback == {}
     with pytest.raises(RouterError):  # primary-dead still fail-closed, as before
@@ -158,7 +160,7 @@ def test_build_router_fails_closed_on_missing_key():
 
 def test_build_router_constructs_mapped_providers_without_sdk_import():
     # build_router only constructs adapter objects (SDKs are lazy) → no network/keys needed.
-    config = {"council": {"roles": ROLES, "prices_per_mtok": PRICES, "cost_cap_usd": 5.0}}
+    config = {"council": {"roles": ROLES, "prices_per_mtok": ALL_PRICES, "cost_cap_usd": 5.0}}
     r = build_router(config, llm_keys={"gemini": "g", "xai": "x", "anthropic": "a"})
     assert r.provider_model("strategist") == ("anthropic", "claude-opus-4-8")
     assert r.provider_model("proposer") == ("gemini", "gemini-2.5-pro")
@@ -238,7 +240,8 @@ def test_build_router_threads_gemini_thinking_knobs():
     # The P0 fix is config-driven: the gemini provider must receive thinking_level + json_mode so a 3.x
     # thinking model doesn't starve its output budget (SDKs lazy → no network).
     config = {"council": {"roles": {"proposer": {"provider": "gemini", "model": "gemini-3.5-flash"}},
-                          "gemini": {"thinking_level": "minimal", "json_mode": True}}}
+                          "gemini": {"thinking_level": "minimal", "json_mode": True},
+                          "prices_per_mtok": {"gemini-3.5-flash": {"in": 1.5, "out": 9.0}}}}
     prov = build_router(config, llm_keys={"gemini": "g"})._providers["gemini"]
     assert prov._thinking_level == "minimal" and prov._json_mode is True
 
@@ -247,6 +250,68 @@ def test_build_router_per_role_knob_overrides_provider_default():
     # P3-#11: a per-role knob overrides the council.<provider> default (the expansion path).
     config = {"council": {"roles": {"proposer": {"provider": "gemini", "model": "m",
                                                  "thinking_level": "low", "json_mode": False}},
-                          "gemini": {"thinking_level": "minimal", "json_mode": True}}}
+                          "gemini": {"thinking_level": "minimal", "json_mode": True},
+                          "prices_per_mtok": {"m": {"in": 1.0, "out": 1.0}}}}
     prov = build_router(config, llm_keys={"gemini": "g"})._providers["gemini"]
     assert prov._thinking_level == "low" and prov._json_mode is False
+
+
+# ── model-upgrade plumbing (2026-10-22): anthropic knobs, refusal routing, the unpriced-model guard ──────────
+
+
+def test_build_router_refuses_an_unpriced_model():
+    # An unpriced model is costed at $0 — the per-cycle cost cap would never trip after a model switch.
+    config = {"council": {"roles": ROLES, "prices_per_mtok": PRICES, "cost_cap_usd": 5.0}}
+    with pytest.raises(RouterError, match="prices_per_mtok"):
+        build_router(config, llm_keys={"gemini": "g", "xai": "x", "anthropic": "a"})
+    fb = {"strategist": {"provider": "openai", "model": "gpt-unpriced"}}
+    config = {"council": {"roles": ROLES, "roles_fallback": fb, "prices_per_mtok": ALL_PRICES, "cost_cap_usd": 5.0}}
+    with pytest.raises(RouterError, match="gpt-unpriced"):
+        build_router(config, llm_keys={"gemini": "g", "xai": "x", "anthropic": "a", "openai": "o"})
+
+
+class _FakeAnthropicMessages:
+    def __init__(self, stop_reason="end_turn", category=None):
+        self.calls = []
+        self._stop, self._cat = stop_reason, category
+
+    def create(self, **kw):
+        self.calls.append(kw)
+        return SimpleNamespace(
+            content=[SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text='{"ok": 1}')],
+            stop_reason=self._stop, stop_details=SimpleNamespace(category=self._cat),
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5))
+
+
+def _anthropic(msgs, **knobs):
+    from council.router import AnthropicProvider
+    p = AnthropicProvider("k", **knobs)
+    p._client = SimpleNamespace(messages=msgs)
+    return p
+
+
+def test_anthropic_without_knobs_sends_the_same_request():
+    msgs = _FakeAnthropicMessages()
+    text, *_ = _anthropic(msgs).complete(model="claude-opus-4-8", system="s", user="u", timeout_s=60, max_tokens=2048)
+    assert text == '{"ok": 1}'                            # thinking blocks are skipped; only text is read
+    assert msgs.calls[0] == {"model": "claude-opus-4-8", "max_tokens": 2048, "system": "s",
+                             "messages": [{"role": "user", "content": "u"}], "timeout": 60}
+
+
+def test_anthropic_knobs_set_effort_max_tokens_and_timeout():
+    msgs = _FakeAnthropicMessages()
+    _anthropic(msgs, effort="high", max_tokens=16000, timeout_s=180).complete(
+        model="claude-opus-5-5", system="s", user="u", timeout_s=60, max_tokens=2048)
+    kw = msgs.calls[0]
+    assert kw["output_config"] == {"effort": "high"} and kw["max_tokens"] == 16000 and kw["timeout"] == 180
+
+
+def test_a_refusal_skips_retries_and_goes_to_the_understudy():
+    led = CostLedger()
+    msgs = _FakeAnthropicMessages(stop_reason="refusal", category="cyber")
+    fb = _StubProvider("openai", text='{"conviction": "LOW"}')
+    r = Router(providers={"anthropic": _anthropic(msgs), "openai": fb}, roles={"strategist": ROLES["strategist"]},
+               roles_fallback=FALLBACK, prices={}, ledger=led, max_retries=2)
+    out = r.call(role="strategist", system="s", user="u")
+    assert len(msgs.calls) == 1                          # not retried: the same model would decline again
+    assert out.provider == "openai" and json.loads(out.text) == {"conviction": "LOW"}

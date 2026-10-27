@@ -70,6 +70,11 @@ class ContextPack:
     # candidate's BASKET (``register_theme``), with its falsifier. Default None ⇒ byte-identical render.
     register_theme: str | None = None
     operator_falsifier: str | None = None
+    # #337 (2026-10-24): the meter was WIRED but returned nothing for this name. A sentinel's
+    # coverage_count counts its marker lines, so the article-count fallback would show the marker
+    # count as press coverage (it did, ~07-10 → 10-24); this renders the coverage as unknown instead.
+    # Default False ⇒ byte-identical render (the framer has no meter; hand-seed counts real articles).
+    coverage_unknown: bool = False
 
     @property
     def fundamentals_present(self) -> bool:
@@ -112,6 +117,9 @@ class ContextPack:
             lines.append(f"ANALYST_COVERAGE: {self.analyst_count} analyst(s) covering "
                          "(sell-side attention; fewer = more under-covered — a quietness proxy, "
                          "not an inflection signal)")
+        elif self.coverage_unknown:
+            lines.append("ANALYST_COVERAGE: unknown (no sell-side count is available for this name this run; "
+                         "the marker lines below are price data, not press coverage)")
         else:
             lines.append(f"NEWS_COVERAGE: {self.coverage_count} article(s)"
                          + (f" as of {self.as_of.date().isoformat()}" if self.as_of else ""))
@@ -204,7 +212,12 @@ def fundamental_evidence_tokens(pack) -> list[str]:
     """The §9 corpus NUMERIC tokens the council may legitimately cite — the formatted value (as
     rendered) + the $M/margin figures + the §19 analyst-coverage count. DATES are excluded on
     purpose (``period_end``/``filed`` are pure digit-noise that would let a fabricated number pass
-    ``authenticity_scan``'s digit-substring match). Used by ``filters.evidence_text``."""
+    ``authenticity_scan``'s digit-substring match). Used by ``filters.evidence_text``.
+
+    A $-figure of $1,000M or more is also pooled in billions (1 and 2 decimals): the block renders
+    ``$33550.0M`` and an agent citing it as ``$33.55B`` is quoting the evidence, not inventing it
+    (L1 #1798: PWR's strategist MODERATE → LOW on exactly that). Gross margin carries margin-% in
+    the _musd fields, so it gets no billions form."""
     toks: list[str] = []
     for ln in getattr(pack, "fundamentals", None) or []:
         v = _fmt_value(ln)
@@ -214,6 +227,8 @@ def fundamental_evidence_tokens(pack) -> list[str]:
             x = ln.get(k)
             if x is not None:
                 toks.append(str(x))
+                if ln.get("concept") != "gross_margin" and abs(x) >= 1000:
+                    toks += [f"{x / 1000:.1f}", f"{x / 1000:.2f}"]
     ac = getattr(pack, "analyst_count", None)
     if ac is not None:
         toks.append(str(ac))
@@ -356,7 +371,7 @@ def sentinel_context_pack(
     fundamentals: list[dict] | None = None, fundamentals_status: str | None = None,
     analyst_count: int | None = None,
     provenance: bool = False, forward_catalysts: list[dict] | None = None,
-    register_entry: dict | None = None,
+    register_entry: dict | None = None, coverage_unknown: bool = False,
 ) -> ContextPack:
     """Origin-aware grounding for a DISCOVERED (source='sentinel') candidate: ground on its
     deterministic MARKERS, not news (T3 PR2). Without this both the framer and the council would
@@ -392,7 +407,7 @@ def sentinel_context_pack(
         headlines=lines, coverage_count=len(lines), has_numeric=_has_numeric(lines),
         as_of=as_of, notes=["sentinel: grounded on deterministic markers, not news"],
         fundamentals=fundamentals or [], fundamentals_status=fundamentals_status,
-        analyst_count=analyst_count, origin="sentinel",
+        analyst_count=analyst_count, origin="sentinel", coverage_unknown=coverage_unknown,
     )
 
 
@@ -449,6 +464,7 @@ def build_context_pack(
             candidate, as_of=as_of, fundamentals=fund_lines, fundamentals_status=fund_status,
             analyst_count=analyst_count, provenance=sentinel_provenance, forward_catalysts=sent_fwd,
             register_entry=(register_theses or {}).get(getattr(candidate, "basket", None) or ""),
+            coverage_unknown=(analyst is not None and analyst_count is None),
         )
 
     headlines: list[str] = []

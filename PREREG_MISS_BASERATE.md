@@ -97,3 +97,15 @@ never-a-symbol report) · `scripts/probe_miss_baserate.py` (`init` — draws and
 refuses to overwrite; `sweep` — appends rows; `report` — counts only) ·
 `records/miss_baserate/denominator.txt` (plain symbols, written once) ·
 `records/miss_baserate/ledger.csv` (sealed rows, append-only) · `tests/test_miss_baserate.py`.
+
+
+## 7. AMENDMENT (2026-10-25, operator word) — the sweep selects with the gate of record's side guard
+§3 specifies "the production `select_structure` … on the gate-of-record feed". This protocol was frozen on
+2026-09-14; the gate of record gained `convexity_gate.otm_side_guard` on 2026-09-29/30 (#276), and the sweep never
+passed it. From then on, a row could be `structured = 1` on a wrong-side contract that the live path fails closed
+on (#343; FRO's C35, 33.9% in the money, 2026-10-25).
+- From the **2026-11-01 sweep** the sweep passes `require_otm_side = convexity_gate.otm_side_guard`. Rows dated
+  before 11-01 are left as written (append-only); `structured`/`gate_cheap` before and after the boundary are read
+  as two regimes when a report splits by them.
+- Unchanged: the denominator, the seal, direction, the outcome definition (directional return, big move ≥ +0.50),
+  the maturity gate and the pinned reads (§4), none of which depend on the selected contract.

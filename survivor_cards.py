@@ -512,6 +512,7 @@ class ScreenParams:
     min_contract_price: float = 0.10
     max_contract_price: float = 100.0
     min_oi: int | None = 50
+    otm_side_guard: bool = True  # convexity_gate.otm_side_guard (#276); the band axis selects as the gate does (#343)
 
 
 def params_from_config(config: Mapping[str, Any]) -> ScreenParams:
@@ -533,6 +534,7 @@ def params_from_config(config: Mapping[str, Any]) -> ScreenParams:
         target_moneyness=float(gate["target_moneyness"]),
         max_spread_pct=float(elig.get("max_bid_ask_pct", 0.25)),
         min_oi=elig.get("min_option_open_interest"),
+        otm_side_guard=bool(gate.get("otm_side_guard", False)),
     )
 
 
@@ -696,6 +698,7 @@ def _band_fit_axis(
         chain, direction="bullish", as_of=as_of, underlying_price=spot,
         tenor_min_days=params.tenor_min_days, tenor_max_days=params.tenor_max_days,
         target_moneyness=params.target_moneyness, eligibility=_elig, underlying_symbol=sym,
+        require_otm_side=params.otm_side_guard,
     )
     if st is None:
         return AxisResult("band_fit", FAIL, f"no structure ({why[0] if why else '?'})", provisional)

@@ -138,3 +138,19 @@ is tested against (`dashboard_web/api/test_snapshot_parity.py`) and can still be
 
 > Manual deploy on a host (no CI): `cd ~/dramatic_options && ENV_NAME=DEV ./deploy.sh`
 > Inspect timers: `systemctl list-timers 'dramatic-options-*'` · logs: `journalctl -u dramatic-options-l1.service`
+
+## Scheduled reviews (unattended Claude Code, DEV box)
+
+The nightly L1 grade (weekdays 20:37 UTC) and the Sunday review (14:23 UTC) run from the operator's crontab on
+`all-options-dev` via `scripts/ops/scheduled_review.sh grade|sunday`, headless (`claude -p`), in their own runner
+worktree `/home/rozavala/dramatic_options-claude-runner` (a detached checkout of `origin/main`; `venv` links the live
+venv). Prompts: `scripts/ops/prompts/`. Each run: one at a time (flock), waits for load, a hard spend cap
+(`--max-budget-usd`: grade $5, Sunday $12), write commands denied (the grade is read-only; the Sunday review may open
+one records PR and never merges). The result goes to Pushover with `claude --resume <session>`; raw output lands in
+`~/.local/state/dramatic-options/`. Cloud routines can't be used: they can't reach this box's DB, journals or memory.
+
+The crontab is UTC; the runs it reviews are ET timers (L1 15:45 ET; reach Sun 09:40 ET), which move an hour in UTC
+with DST. So each job first **waits for the run it reviews**: today's `dramatic-options-l1` (grade) or
+`dramatic-options-reach` (Sunday) must have exited. It waits up to 120 min (`DRAMATIC_REVIEW_WAIT_MIN`), then pages
+"NOT RUN" and stops (#341). The cron times need no seasonal shift: in EST the grade starts at 20:37 and waits for the
+20:45 L1; the Sunday review starts at 14:23 and waits for the 14:40 reach run.
