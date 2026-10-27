@@ -316,6 +316,60 @@ describe("fromBackend", () => {
     expect(vm.brier.roles).toHaveLength(3);
   });
 
+  describe("edge tails vs the outside-frame tags (#352)", () => {
+    const ci = (n: number, p95: number | null) => ({ n, p95, ci90: null, flag: null });
+    const frame = (id: number, symbol: string) => ({
+      book: "shadow", id, symbol, direction: "bearish", structure_kind: "P", contract_symbol: `${symbol}P`, moneyness: 0.425, status: "closed",
+    });
+    const withPerf = (over: Record<string, unknown>) => {
+      const base = synthetic();
+      return fromBackend({ ...base, performance: { ...base.performance, ...over } } as never);
+    };
+    const tagged = () => withPerf({
+      p95_ci: {
+        real: ci(11, 3.1), real_in_frame: ci(10, 3.4),
+        shadow_all: ci(18, 2.35), shadow_all_in_frame: ci(15, 4.2),
+        nogate_union_nogate: ci(22, 1.9), nogate_union_nogate_in_frame: ci(22, 1.9), // untagged book: identical
+        nogate_basket_nogate: ci(14, 1.55), nogate_basket_nogate_in_frame: ci(0, null), // all resolved were tagged
+      },
+      outside_frame: [frame(7, "STUB"), frame(9, "KLAR")],
+    });
+
+    it("tagged: in-frame figure first, with-legacy beside it, and they differ", () => {
+      const t = tagged().perf.tails;
+      expect(t.shadow.p95).toBe(4.2);
+      expect(t.shadow.n).toBe(15);
+      expect(t.shadow.withLegacy).toEqual({ n: 18, p95: 2.35 });
+      expect(t.shadow.p95).not.toBe(t.shadow.withLegacy?.p95);
+      expect(t.real).toMatchObject({ n: 10, p95: 3.4, withLegacy: { n: 11, p95: 3.1 } });
+      expect(t.basket).toMatchObject({ n: 0, p95: null, withLegacy: { n: 14, p95: 1.55 } }); // in-frame accruing, legacy beside
+      expect(t.a3.withLegacy).toBeNull(); // tags did not change this book's read ⇒ one number
+      expect(tagged().perf.real).toEqual({ n: 11, p95: 3.1 }); // the with-legacy BookCI is unchanged
+    });
+
+    it("tagged: the chip list mirrors outside_frame_positions", () => {
+      const o = tagged().perf.outsideFrame;
+      expect(o.map((x) => x.symbol)).toEqual(["STUB", "KLAR"]);
+      expect(o[0]).toMatchObject({ book: "shadow", kind: "P", dir: "bearish", moneyness: 0.425, status: "closed" });
+    });
+
+    it("untagged: one number per book and no chip list", () => {
+      const vm2 = withPerf({ outside_frame: [] });
+      expect(vm2.perf.outsideFrame).toEqual([]);
+      for (const k of ["real", "shadow", "a3", "basket"] as const) expect(vm2.perf.tails[k].withLegacy).toBeNull();
+      expect(vm2.perf.tails.real).toMatchObject({ n: 11, p95: 3.1 });
+      // an in-frame twin on the wire is ignored without tags (and a missing `outside_frame` key = untagged)
+      const vm3 = withPerf({ outside_frame: undefined, p95_ci: { real: ci(11, 3.1), real_in_frame: ci(10, 3.4) } });
+      expect(vm3.perf.tails.real).toEqual({ n: 11, p95: 3.1, withLegacy: null });
+    });
+
+    it("tagged but no in-frame twin on the wire (older backend): falls back to one number", () => {
+      const vm4 = withPerf({ outside_frame: [frame(7, "STUB")] });
+      expect(vm4.perf.outsideFrame).toHaveLength(1);
+      expect(vm4.perf.tails.shadow).toEqual({ n: 18, p95: 2.35, withLegacy: null });
+    });
+  });
+
   it("maps the cheapness-gate split", () => {
     expect(vm.funnel.gate).toEqual({ ivTotal: 5, ivReal: 4, ivFail: 1, elig: 2 });
   });

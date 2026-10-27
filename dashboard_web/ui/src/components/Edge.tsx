@@ -1,6 +1,7 @@
 import type { ViewModel } from "../data/types";
 import { color, signal } from "../theme/tokens";
 import { Card, Chip } from "./primitives";
+import { OutsideFrameChip, WithLegacy } from "./Tails";
 
 const LIFECYCLE_DAYS = 250; // the option lifecycle (~250d) — the first resolutions land this long after the first entry
 const Muted = ({ children }: { children: React.ReactNode }) => <span style={{ color: "#6a7280", fontWeight: 400 }}>{children}</span>;
@@ -19,10 +20,10 @@ function addDays(iso: string, d: number): string {
 
 export function Edge({ vm }: { vm: ViewModel }) {
   const books = [
-    { name: "Real", tag: "gate on · council on — the actual book", ...vm.perf.real, open: vm.booksOpen.real, level: "acc" as const },
-    { name: "Shadow", tag: "gate on · council off — isolates the council", ...vm.perf.shadow, open: vm.booksOpen.shadow, level: "mute" as const },
-    { name: "3A · no-gate", tag: "gate off · same names — isolates the gate", ...vm.perf.a3, open: vm.booksOpen.a3, level: "mute" as const },
-    { name: "3B · whole basket", tag: "gate off · everything — beat-the-basket", ...vm.perf.basket, open: vm.booksOpen.basket, level: "mute" as const },
+    { name: "Real", tag: "gate on · council on — the actual book", ...vm.perf.tails.real, open: vm.booksOpen.real, level: "acc" as const },
+    { name: "Shadow", tag: "gate on · council off — isolates the council", ...vm.perf.tails.shadow, open: vm.booksOpen.shadow, level: "mute" as const },
+    { name: "3A · no-gate", tag: "gate off · same names — isolates the gate", ...vm.perf.tails.a3, open: vm.booksOpen.a3, level: "mute" as const },
+    { name: "3B · whole basket", tag: "gate off · everything — beat-the-basket", ...vm.perf.tails.basket, open: vm.booksOpen.basket, level: "mute" as const },
   ];
   const maxP95 = Math.max(1, ...books.map((b) => b.p95 ?? 0));
   const anyResolved = books.some((b) => b.p95 != null);
@@ -63,6 +64,14 @@ export function Edge({ vm }: { vm: ViewModel }) {
           <div style={{ fontSize: 14, fontWeight: 500, color: "#141b28" }}>Does the machine beat brain-off? <Muted>· p95 tail multiple per book</Muted></div>
           <span style={{ fontSize: 11.5, color: "#6a7280" }}>higher = fatter winners · the real book should out-tail the controls</span>
         </div>
+        {vm.perf.outsideFrame.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div className="flex items-center" style={{ gap: 10 }}>
+              <OutsideFrameChip items={vm.perf.outsideFrame} />
+              <span style={{ fontSize: 11.5, color: "#6a7280", lineHeight: 1.4 }}>Tails show the in-frame (far-OTM) figure first; where the tagged legacy positions change the read, the with-legacy figure sits beside it.</span>
+            </div>
+          </div>
+        )}
         <div style={{ marginTop: 12 }}>
           {books.map((b) => {
             const has = b.p95 != null;
@@ -81,8 +90,8 @@ export function Edge({ vm }: { vm: ViewModel }) {
                     <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg,#edf0f4,#edf0f4 7px,#e7eaef 7px,#e7eaef 14px)", borderRadius: 6 }} />
                   )}
                 </div>
-                <div className="font-mono text-right" style={{ width: 190, flex: "none", fontSize: 12.5, color: "#4b5667" }}>
-                  {has ? <span style={{ color: lv.text, fontWeight: 500, fontSize: 15 }}>{(b.p95 as number).toFixed(2)}×</span> : "accruing"} · <span style={{ color: "#141b28" }}>{b.open} open</span> · {b.n} resolved
+                <div className="font-mono text-right" style={{ width: b.withLegacy ? 270 : 190, flex: "none", fontSize: 12.5, color: "#4b5667" }}>
+                  {has ? <span style={{ color: lv.text, fontWeight: 500, fontSize: 15 }}>{(b.p95 as number).toFixed(2)}×</span> : "accruing"}{b.withLegacy && <> <WithLegacy t={b} style={{ fontSize: 11 }} /></>} · <span style={{ color: "#141b28" }}>{b.open} open</span> · {b.n} resolved
                 </div>
               </div>
             );

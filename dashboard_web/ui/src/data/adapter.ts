@@ -10,7 +10,7 @@
 import type {
   AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
   NextRunVM, NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
-  Snapshot, SpendVM, ViewModel,
+  OutsideFrameVM, Snapshot, SpendVM, TailFigure, ViewModel,
 } from "./types";
 import { directionLabel, levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
@@ -36,6 +36,13 @@ function nextRun(b: { next_at?: string | null } | null | undefined, now: string 
   return { label: mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`, at: b.next_at };
 }
 const ci = (c?: { n?: number; p95?: number | null } | null) => ({ n: c?.n ?? 0, p95: c?.p95 ?? null });
+// #352: in-frame figure first; the with-legacy one rides beside it only when the tagged positions changed the
+// read (different resolved n). No in-frame twin on the wire (older backend) or no tags ⇒ one number.
+const tailFigure = (all: ReturnType<typeof ci>, inFrame: { n?: number; p95?: number | null } | undefined, tagged: boolean): TailFigure => {
+  if (!tagged || !inFrame) return { ...all, withLegacy: null };
+  const f = ci(inFrame);
+  return { ...f, withLegacy: f.n !== all.n ? all : null };
+};
 const usd = (v: number | null | undefined, dp = 3): string => "$" + Number(v ?? 0).toFixed(dp);
 
 // A fail-soft panel (dd.safe) comes back as {"error": "..."}. Detect it so a crashed panel reads as
@@ -366,6 +373,10 @@ export function fromBackend(P: Snapshot): ViewModel {
       ageDays: dg.iv_baseline_of_record.latest_age_days ?? null, accruing: dg.iv_baseline_of_record.accruing ?? false,
     } : null,
   };
+  const outsideFrame: OutsideFrameVM[] = (pf.outside_frame ?? []).map((o) => ({
+    book: o.book, symbol: o.symbol, kind: o.structure_kind ?? "—", dir: o.direction ?? "—", moneyness: o.moneyness ?? null, status: o.status ?? "—",
+  }));
+  const tagged = outsideFrame.length > 0;
   const booksOpen: BooksOpenVM = {
     real: (ps.real_open ?? []).length, shadow: (ps.shadow_open ?? []).length, a3: (ps.nogate_3A_open ?? []).length,
     basket: (ps.nogate_3B_open ?? []).length, shares: (ps.shares ?? []).length,
@@ -420,6 +431,12 @@ export function fromBackend(P: Snapshot): ViewModel {
     clusters: (rk.clusters ?? []).map((c) => ({ name: c.cluster, premium: c.premium, cap: c.cap, dirs: (c.directions ?? []).join(", ") || "—" })),
     perf: {
       real: ci(ciP.real), shadow: ci(ciP.shadow_all), a3: ci(ciP.nogate_union_nogate), basket: ci(ciP.nogate_basket_nogate),
+      tails: {
+        real: tailFigure(ci(ciP.real), ciP.real_in_frame, tagged), shadow: tailFigure(ci(ciP.shadow_all), ciP.shadow_all_in_frame, tagged),
+        a3: tailFigure(ci(ciP.nogate_union_nogate), ciP.nogate_union_nogate_in_frame, tagged),
+        basket: tailFigure(ci(ciP.nogate_basket_nogate), ciP.nogate_basket_nogate_in_frame, tagged),
+      },
+      outsideFrame,
       paid: fmt(pbd.paid), bledPct: pbd.running_fraction != null ? Math.round(pbd.running_fraction * 100) : null,
       hits: hr.hits ?? 0, closed: hr.closed ?? 0, hitRate: hr.hit_rate != null ? Math.round(hr.hit_rate * 100) : null,
     },
