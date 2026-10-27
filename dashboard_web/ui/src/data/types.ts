@@ -5,12 +5,18 @@
 //   2. ViewModel  — the FLAT shape the components render (the prototype's td/mt). `fromBackend` maps 1 → 2.
 
 import type { Level } from "../theme/tokens";
+import type { RunDates } from "./runLabel";
+type RunMap = Record<string, string> | { error: string };
 import type { CouncilVerdict, DisplayState, T4Verdict } from "./status";
 
 /* ────────────────────────── 1 · Snapshot (panel shapes) ────────────────────────── */
 export interface Heartbeat {
   at: string | null; age_hours: number | null; status: "ONLINE" | "STALE" | "OFFLINE"; stale: boolean;
   next_at?: string | null; // the systemd timer's next fire, "YYYY-MM-DD HH:MM:SS" UTC; null = timer not active (#306)
+}
+export interface OutsideFramePosition {
+  book: string; id: number; symbol: string; direction: string | null; structure_kind: string | null;
+  contract_symbol: string | null; moneyness: number | null; status: string | null;
 }
 export interface CI { n: number; p95: number | null; ci90: [number, number] | null; flag: string | null }
 
@@ -26,7 +32,7 @@ export interface CouncilHealth {
 
 // One trailing council-deliberated run (recent_council_health, oldest→newest); feeds the streak (A3).
 export interface CouncilRecentRun {
-  run_id: number; started_at: string | null; council_health: string | null; verdict: CouncilVerdict;
+  run_id: number; started_at: string | null; kind?: string; council_health: string | null; verdict: CouncilVerdict;
   proposer_parse_rate: number; proposer_called: number; proposer_parse_failed: number;
   by_provider: Record<string, { calls: number; parse_error: number; parse_error_rate?: number | null }>;
 }
@@ -49,6 +55,8 @@ export interface SentinelRow {
 
 export interface Snapshot {
   system_status: { level: "success" | "warn" | "error"; headline: string; issues: string[] };
+  run_dates?: RunMap; // run_id → started_at for every run id a panel shows (#354); labels via data/runLabel.ts
+  run_kinds?: RunMap; // run_id → layer ("L1" cycle / "L0" discovery), derived from runs.mode
   header: {
     now: string; schema_version: number; schema_expected: number; schema_ok: boolean; schema_warning: string | null;
     kill_switch_engaged: boolean; cycle: Heartbeat; council: Heartbeat; discovery: Heartbeat;
@@ -70,7 +78,11 @@ export interface Snapshot {
     recent: CouncilRecentRun[]; // recent_council_health window (oldest→newest); the run streak (A3)
   };
   performance: {
-    p95_ci: { real: CI; shadow_all: CI; nogate_union_nogate: CI; nogate_basket_nogate: CI };
+    p95_ci: { real: CI; shadow_all: CI; nogate_union_nogate: CI; nogate_basket_nogate: CI } & Partial<{
+      // #276/#352: the same p95s read WITHOUT the tagged wrong-side (outside-frame) positions.
+      real_in_frame: CI; shadow_all_in_frame: CI; nogate_union_nogate_in_frame: CI; nogate_basket_nogate_in_frame: CI;
+    }>;
+    outside_frame?: OutsideFramePosition[]; // state.outside_frame_positions: tagged, never deleted
     premium_bled: { paid: number; running_fraction: number | null; realized_fraction: number | null };
     hit_rate: { closed: number; hits: number; hit_rate: number | null };
     caveat: string;
@@ -240,6 +252,9 @@ export type BeatKey = "kill" | "cycle" | "council" | "discovery" | "schema";
 export type TimerKey = "cycle" | "council" | "discovery";
 export interface NextRunVM { label: string; at: string } // label "3h" / "40m" (relative to header.now), at = the UTC stamp
 export interface BookCI { n: number; p95: number | null }
+/** One book's tail figure: in-frame first, the with-legacy figure beside it only when tagging made them differ. */
+export interface TailFigure { n: number; p95: number | null; withLegacy: BookCI | null }
+export interface OutsideFrameVM { book: string; symbol: string; kind: string; dir: string; moneyness: number | null; status: string }
 export interface ClusterVM { name: string; premium: number; cap: number; dirs: string }
 export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; premiumUsd: number; mark: number | null; opened: string | null; expiry: string | null; timeStop: string | null }
 export interface SentinelVM { symbol: string; basket?: string; dir?: string; note: string }
@@ -310,6 +325,8 @@ export interface CatalystVM {
 }
 
 export interface ViewModel {
+  runDates: RunDates;                  // #354 — feed to runLabel(vm.runDates, id): "L1 #1816 · Mon 2026-10-26 15:45 ET"
+  councilBeat: Heartbeat["status"];    // #354 — header.council.status (council_session_stale): ONLINE / STALE / OFFLINE
   asOf: string; level: Level; headline: string; sub: string;
   schemaWarning: string | null;        // B2 — header.schema_warning, rendered as a top strip
   degraded: string[];                  // B1 — panel keys that came back {error} (fail-soft), shown inline
@@ -336,7 +353,9 @@ export interface ViewModel {
   capFlow: { rejected: number; note: string };  // C — cluster-cap rejections of otherwise-passing
   clusters: ClusterVM[];
   perf: {
-    real: BookCI; shadow: BookCI; a3: BookCI; basket: BookCI;
+    real: BookCI; shadow: BookCI; a3: BookCI; basket: BookCI;   // with-legacy (all resolved positions)
+    tails: { real: TailFigure; shadow: TailFigure; a3: TailFigure; basket: TailFigure }; // what the Edge bars show
+    outsideFrame: OutsideFrameVM[];                                   // the "N outside-frame" chip's list
     paid: string; bledPct: number | null; hits: number; closed: number; hitRate: number | null;
   };
   brier: { strategist: number | null; n: number; roles: { label: string; value: number | null }[] };

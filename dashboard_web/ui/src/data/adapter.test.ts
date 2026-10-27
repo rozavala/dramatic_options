@@ -9,7 +9,7 @@ function synthetic(): Snapshot {
   const beat = (age: number, status: "ONLINE" | "STALE" | "OFFLINE") => ({ at: "2026-10-14T16:00:00+00:00", age_hours: age, status, stale: status !== "ONLINE" });
   const ci = (n: number, p95: number | null) => ({ n, p95, ci90: null, flag: null });
   const rrun = (run_id: number, verdict: "ROUNDTRIP_CONFIRMED" | "ROUNDTRIP_DEGRADED") => ({
-    run_id, started_at: "2026-10-14T15:45:00+00:00", council_health: "ok" as const, verdict,
+    run_id, started_at: "2026-10-14T15:45:00+00:00", kind: "L1", council_health: "ok" as const, verdict,
     proposer_parse_rate: 0, proposer_called: 12, proposer_parse_failed: 0, by_provider: {},
   });
   return {
@@ -252,7 +252,7 @@ describe("fromBackend", () => {
   });
 
   it("computes the council run streak from council.recent (A3)", () => {
-    expect(vm.council.streak).toBe("2 clean, then #285");
+    expect(vm.council.streak).toBe("2 clean, then L1 #285 · Wed 2026-10-14 11:45 ET");
     expect(vm.council.byProvider).toHaveLength(2);
     expect(vm.council.byProvider.find((p) => p.provider === "xai")?.rate).toBe(0.25);
   });
@@ -314,6 +314,60 @@ describe("fromBackend", () => {
     expect(vm.perf.bledPct).toBe(41);
     expect(vm.perf.hitRate).toBe(27); // round(0.2727 * 100)
     expect(vm.brier.roles).toHaveLength(3);
+  });
+
+  describe("edge tails vs the outside-frame tags (#352)", () => {
+    const ci = (n: number, p95: number | null) => ({ n, p95, ci90: null, flag: null });
+    const frame = (id: number, symbol: string) => ({
+      book: "shadow", id, symbol, direction: "bearish", structure_kind: "P", contract_symbol: `${symbol}P`, moneyness: 0.425, status: "closed",
+    });
+    const withPerf = (over: Record<string, unknown>) => {
+      const base = synthetic();
+      return fromBackend({ ...base, performance: { ...base.performance, ...over } } as never);
+    };
+    const tagged = () => withPerf({
+      p95_ci: {
+        real: ci(11, 3.1), real_in_frame: ci(10, 3.4),
+        shadow_all: ci(18, 2.35), shadow_all_in_frame: ci(15, 4.2),
+        nogate_union_nogate: ci(22, 1.9), nogate_union_nogate_in_frame: ci(22, 1.9), // untagged book: identical
+        nogate_basket_nogate: ci(14, 1.55), nogate_basket_nogate_in_frame: ci(0, null), // all resolved were tagged
+      },
+      outside_frame: [frame(7, "STUB"), frame(9, "KLAR")],
+    });
+
+    it("tagged: in-frame figure first, with-legacy always beside it (even when equal)", () => {
+      const t = tagged().perf.tails;
+      expect(t.shadow.p95).toBe(4.2);
+      expect(t.shadow.n).toBe(15);
+      expect(t.shadow.withLegacy).toEqual({ n: 18, p95: 2.35 });
+      expect(t.shadow.p95).not.toBe(t.shadow.withLegacy?.p95);
+      expect(t.real).toMatchObject({ n: 10, p95: 3.4, withLegacy: { n: 11, p95: 3.1 } });
+      expect(t.basket).toMatchObject({ n: 0, p95: null, withLegacy: { n: 14, p95: 1.55 } }); // in-frame accruing, legacy beside
+      expect(t.a3).toEqual({ n: 22, p95: 1.9, withLegacy: { n: 22, p95: 1.9 } }); // equal counts: both figures still shown
+      expect(tagged().perf.real).toEqual({ n: 11, p95: 3.1 }); // the with-legacy BookCI is unchanged
+    });
+
+    it("tagged: the chip list mirrors outside_frame_positions", () => {
+      const o = tagged().perf.outsideFrame;
+      expect(o.map((x) => x.symbol)).toEqual(["STUB", "KLAR"]);
+      expect(o[0]).toMatchObject({ book: "shadow", kind: "P", dir: "bearish", moneyness: 0.425, status: "closed" });
+    });
+
+    it("untagged: one number per book and no chip list", () => {
+      const vm2 = withPerf({ outside_frame: [] });
+      expect(vm2.perf.outsideFrame).toEqual([]);
+      for (const k of ["real", "shadow", "a3", "basket"] as const) expect(vm2.perf.tails[k].withLegacy).toBeNull(); // no tags ⇒ one number
+      expect(vm2.perf.tails.real).toMatchObject({ n: 11, p95: 3.1 });
+      // an in-frame twin on the wire is ignored without tags (and a missing `outside_frame` key = untagged)
+      const vm3 = withPerf({ outside_frame: undefined, p95_ci: { real: ci(11, 3.1), real_in_frame: ci(10, 3.4) } });
+      expect(vm3.perf.tails.real).toEqual({ n: 11, p95: 3.1, withLegacy: null });
+    });
+
+    it("tagged but no in-frame twin on the wire (older backend): falls back to one number", () => {
+      const vm4 = withPerf({ outside_frame: [frame(7, "STUB")] });
+      expect(vm4.perf.outsideFrame).toHaveLength(1);
+      expect(vm4.perf.tails.shadow).toEqual({ n: 18, p95: 2.35, withLegacy: null });
+    });
   });
 
   it("maps the cheapness-gate split", () => {
@@ -420,7 +474,7 @@ describe("fromBackend — the nightly-grade read", () => {
     expect([by.MRK.via, by.RTX.via, by.NVDA.via, by.ERO.via]).toEqual(["rank", "fairness", "—", "reserve"]);
     expect(by.MRK.dir).toBe("CALL"); expect(by.ERO.dir).toBe("PUT"); expect(by.NVDA.adversary).toBe("—");
     expect(vm.session.profile).toEqual([{ level: "LOW", n: 2 }, { level: "NEUTRAL", n: 2 }, { level: "MODERATE+", n: 0 }]);
-    expect(vm.session.lowHistory).toEqual([{ runId: 1179, day: "09-03", low: 7, judged: 12 }, { runId: 1196, day: "09-04", low: 6, judged: 12 }]);
+    expect(vm.session.lowHistory).toEqual([{ runId: 1179, day: "2026-09-03", low: 7, judged: 12 }, { runId: 1196, day: "2026-09-04", low: 6, judged: 12 }]);
     expect(vm.session.understudy).toEqual({ configured: "strategist:openai/gpt-5.2", fired: 0 });
   });
 

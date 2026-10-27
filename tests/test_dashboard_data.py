@@ -572,7 +572,7 @@ def test_cond1_detail_names_the_blocker(convexity_db):
     c1 = _cond1(conn)
     assert c1["verdict"] == "NOT_OK"
     assert "ALL ROUNDTRIP_CONFIRMED" in c1["detail"]     # the clarified rule (not "≥2 exist")
-    assert f"blocked by #{bid}" in c1["detail"]          # names the specific breaker
+    assert f"blocked by L1 #{bid} \u00b7 " in c1["detail"]   # names the specific breaker, dated
 
 
 def test_latest_run_deliberation_shape(convexity_db):
@@ -1010,3 +1010,42 @@ def test_header_reports_the_latest_cycle_mode(convexity_db):
     convexity_db.execute("INSERT INTO runs (started_at, mode, note) VALUES ('2026-10-09T19:45:00+00:00','PAPER','x')")
     convexity_db.execute("INSERT INTO runs (started_at, mode, note) VALUES ('2026-10-09T20:00:00+00:00','DISCOVERY','x')")
     assert dd.header_status(convexity_db)["mode"] == "PAPER"          # DISCOVERY runs never count as the mode
+
+
+def test_run_start_map_dates_every_requested_run(convexity_db):
+    """#354: run_id -> started_at (string keys) for the UI's ET run labels; unknown ids and bad input skipped."""
+    a = convexity_db.execute("INSERT INTO runs(started_at, mode) VALUES('2026-10-26 19:45:04','PAPER')").lastrowid
+    b = convexity_db.execute("INSERT INTO runs(started_at, mode) VALUES('2026-10-27T19:45:00+00:00','PAPER')").lastrowid
+    out = dd.run_start_map(convexity_db, [a, b, 999999, True, "7", None])
+    assert out == {str(a): "2026-10-26 19:45:04", str(b): "2026-10-27T19:45:00+00:00"}
+    assert dd.run_start_map(convexity_db, []) == {}
+
+
+# ── #354: every run id the backend prints carries an ET date + a layer derived from runs.mode ──────
+def test_run_label_matches_the_ui_formatter():
+    # the exact string ui/src/data/runLabel.test.ts pins: naive-UTC DB stamp → ET weekday/date/time
+    assert dd.run_label(1816, "2026-10-26 19:45:03", "L1") == "L1 #1816 · Mon 2026-10-26 15:45 ET"
+    assert dd.run_label(1816, "2026-10-27 02:30:04", "L1") == "L1 #1816 · Mon 2026-10-26 22:30 ET"  # ET date, not UTC
+    assert dd.run_label(7, None, "L1") == "L1 #7 · date unavailable"
+
+
+def test_run_kind_is_derived_from_mode_not_assumed_l1():
+    assert [dd.run_kind(m) for m in ("PAPER", "LIVE", "DISCOVERY")] == ["L1", "L1", "L0"]
+    assert dd.run_kind("MONITOR") == "MONITOR" and dd.run_kind(None) == "run"
+
+
+def test_run_kind_map_reads_runs_mode(convexity_db):
+    conn = convexity_db
+    l1 = state.record_run(conn, mode="PAPER", equity=1)
+    l0 = state.record_run(conn, mode="DISCOVERY", equity=None)
+    assert dd.run_kind_map(conn, [l1, l0, 9999, True]) == {str(l1): "L1", str(l0): "L0"}
+
+
+def test_t4_cond1_detail_dates_every_run_id(convexity_db):
+    conn = convexity_db
+    a = _confirmed_run(conn, "AAA")
+    b = _degraded_run(conn, "BBB")
+    detail = _cond1(conn)["detail"]
+    for rid in (a, b):
+        assert dd.run_label(rid, conn.execute("SELECT started_at FROM runs WHERE id=?", (rid,)).fetchone()[0], "L1") in detail
+    assert " #" not in detail.replace("L1 #", "")      # no bare "#id" anywhere in the prose

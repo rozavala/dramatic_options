@@ -10,8 +10,9 @@
 import type {
   AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
   NextRunVM, NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
-  Snapshot, SpendVM, ViewModel,
+  OutsideFrameVM, Snapshot, SpendVM, TailFigure, ViewModel,
 } from "./types";
+import { etDate, formatRunLabel } from "./runLabel";
 import { directionLabel, levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
 const DASH = "—";
@@ -36,6 +37,12 @@ function nextRun(b: { next_at?: string | null } | null | undefined, now: string 
   return { label: mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`, at: b.next_at };
 }
 const ci = (c?: { n?: number; p95?: number | null } | null) => ({ n: c?.n ?? 0, p95: c?.p95 ?? null });
+// #352: in-frame figure first, the with-legacy one always beside it whenever positions are tagged (even when the
+// resolved counts are equal). No in-frame twin on the wire (older backend) or no tags ⇒ one number.
+const tailFigure = (all: ReturnType<typeof ci>, inFrame: { n?: number; p95?: number | null } | undefined, tagged: boolean): TailFigure => {
+  if (!tagged || !inFrame) return { ...all, withLegacy: null };
+  return { ...ci(inFrame), withLegacy: all };
+};
 const usd = (v: number | null | undefined, dp = 3): string => "$" + Number(v ?? 0).toFixed(dp);
 
 // A fail-soft panel (dd.safe) comes back as {"error": "..."}. Detect it so a crashed panel reads as
@@ -87,7 +94,8 @@ function councilStreak(recent: Snapshot["council"]["recent"] | undefined): strin
   for (let i = r.length - 1; i >= 0 && r[i].verdict === "ROUNDTRIP_CONFIRMED"; i--) s++;
   if (s === r.length) return `${s} clean`;
   const broke = r[r.length - 1 - s];
-  return s === 0 ? `0 · #${broke.run_id} not clean` : `${s} clean, then #${broke.run_id}`;
+  const label = formatRunLabel(broke.run_id, broke.started_at, broke.kind);
+  return s === 0 ? `0 · ${label} not clean` : `${s} clean, then ${label}`;
 }
 
 export function fromBackend(P: Snapshot): ViewModel {
@@ -287,7 +295,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       { level: "MODERATE+", n: (prof.MODERATE ?? 0) + (prof.HIGH ?? 0) + (prof.EXTREME ?? 0) },
     ],
     lowHistory: (seP?.low_history ?? []).map((h) => ({
-      runId: h.run_id, day: (h.started_at ?? "").slice(5, 10), low: h.low, judged: h.judged,
+      runId: h.run_id, day: etDate(h.started_at) ?? "", low: h.low, judged: h.judged,
     })),
     providerDrops: seP?.provider_drops ?? 0,
     understudy: { configured: seP?.understudy?.configured ?? null, fired: seP?.understudy?.fired ?? 0 },
@@ -333,12 +341,12 @@ export function fromBackend(P: Snapshot): ViewModel {
   const dc0 = dcP?.runs?.[0];
   const dircoherence: DirCoherenceVM | null = dcP
     ? {
-        active: dcP.active, runId: dc0?.run_id ?? null, day: String(dc0?.started_at ?? DASH).slice(0, 10),
+        active: dcP.active, runId: dc0?.run_id ?? null, day: etDate(dc0?.started_at) ?? DASH,
         unavailable: dc0?.status === "unavailable",
         withheld: (dc0?.withheld ?? []).map(dcFacts), kept: (dc0?.kept ?? []).map(dcFacts),
         noAccel: (dc0?.kept_no_accel ?? []).map((i) => i.symbol), errors: dc0?.errors ?? 0,
         reachedDespite: dc0?.reached_despite_withheld ?? [], f2Clean: dcP.f2_clean,
-        history: (dcP.runs ?? []).map((r) => ({ day: String(r.started_at ?? DASH).slice(0, 10), withheld: r.withheld.length })),
+        history: (dcP.runs ?? []).map((r) => ({ day: etDate(r.started_at) ?? DASH, withheld: r.withheld.length })),
       }
     : null;
 
@@ -347,7 +355,7 @@ export function fromBackend(P: Snapshot): ViewModel {
   const st0 = stP?.runs?.[0];
   const staleness: StalenessVM | null = st0
     ? {
-        runId: st0.run_id, day: String(st0.started_at ?? DASH).slice(0, 10),
+        runId: st0.run_id, day: etDate(st0.started_at) ?? DASH,
         unavailable: st0.status === "unavailable" ? (st0.reason ?? "not checked") : null,
         checked: st0.checked, errors: st0.errors,
         lagging: st0.lagging.map((i) => ({ symbol: i.symbol, line: `read the ${i.corpus_filed} filing · ${i.form} filed ${i.filed}` })),
@@ -366,6 +374,10 @@ export function fromBackend(P: Snapshot): ViewModel {
       ageDays: dg.iv_baseline_of_record.latest_age_days ?? null, accruing: dg.iv_baseline_of_record.accruing ?? false,
     } : null,
   };
+  const outsideFrame: OutsideFrameVM[] = (pf.outside_frame ?? []).map((o) => ({
+    book: o.book, symbol: o.symbol, kind: o.structure_kind ?? "—", dir: o.direction ?? "—", moneyness: o.moneyness ?? null, status: o.status ?? "—",
+  }));
+  const tagged = outsideFrame.length > 0;
   const booksOpen: BooksOpenVM = {
     real: (ps.real_open ?? []).length, shadow: (ps.shadow_open ?? []).length, a3: (ps.nogate_3A_open ?? []).length,
     basket: (ps.nogate_3B_open ?? []).length, shares: (ps.shares ?? []).length,
@@ -384,6 +396,7 @@ export function fromBackend(P: Snapshot): ViewModel {
   const phaseSub = edgeN > 0 ? `${edgeN}/${EDGE_TARGET} resolved bets` : "accruing — first reads after entries resolve";
 
   return {
+    runDates: { at: P.run_dates, kind: P.run_kinds }, councilBeat: h.council?.status ?? "OFFLINE",
     asOf: h.now ?? "",
     level: levelFromSystem(ss.level),
     headline: ss.headline ?? "",
@@ -420,6 +433,12 @@ export function fromBackend(P: Snapshot): ViewModel {
     clusters: (rk.clusters ?? []).map((c) => ({ name: c.cluster, premium: c.premium, cap: c.cap, dirs: (c.directions ?? []).join(", ") || "—" })),
     perf: {
       real: ci(ciP.real), shadow: ci(ciP.shadow_all), a3: ci(ciP.nogate_union_nogate), basket: ci(ciP.nogate_basket_nogate),
+      tails: {
+        real: tailFigure(ci(ciP.real), ciP.real_in_frame, tagged), shadow: tailFigure(ci(ciP.shadow_all), ciP.shadow_all_in_frame, tagged),
+        a3: tailFigure(ci(ciP.nogate_union_nogate), ciP.nogate_union_nogate_in_frame, tagged),
+        basket: tailFigure(ci(ciP.nogate_basket_nogate), ciP.nogate_basket_nogate_in_frame, tagged),
+      },
+      outsideFrame,
       paid: fmt(pbd.paid), bledPct: pbd.running_fraction != null ? Math.round(pbd.running_fraction * 100) : null,
       hits: hr.hits ?? 0, closed: hr.closed ?? 0, hitRate: hr.hit_rate != null ? Math.round(hr.hit_rate * 100) : null,
     },

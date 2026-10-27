@@ -72,6 +72,23 @@ def to_jsonable(obj: Any) -> Any:
     return obj
 
 
+def collect_run_ids(obj: Any) -> set[int]:
+    """Every integer run id the panels reference (keys ``run_id`` / ``*_run_id`` / ``last_run``), so each
+    can be dated (issue #354)."""
+    found: set[int] = set()
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(k, str) and (k == "run_id" or k.endswith("_run_id") or k == "last_run") \
+                    and isinstance(v, int) and not isinstance(v, bool):
+                found.add(v)
+            else:
+                found |= collect_run_ids(v)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            found |= collect_run_ids(v)
+    return found
+
+
 def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
     """One read-only snapshot = ``dashboard.load_all()``'s panels + ``system_status``, JSON-sanitized.
 
@@ -119,6 +136,13 @@ def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
             "staleness": dd.safe(dd.fundamentals_staleness_panel, conn),
             "why_no_entry": dd.safe(dd.why_no_entry_panel, conn, config),
         }
+        # NOT a load_all panel (like system_status): run_id -> started_at for every run id a panel shows, so
+        # the UI prints an ET date beside each one (issue #354). Read-only SELECT; fail-soft.
+        # The walk is done once and shared by both maps; dd.safe wraps it so a walk error degrades both to {"error"}.
+        run_ids = dd.safe(lambda: collect_run_ids(to_jsonable(snap)))
+        ids = run_ids if isinstance(run_ids, set) else None
+        snap["run_dates"] = dd.safe(lambda: dd.run_start_map(conn, ids)) if ids is not None else run_ids
+        snap["run_kinds"] = dd.safe(lambda: dd.run_kind_map(conn, ids)) if ids is not None else run_ids
     finally:
         conn.close()
     # system_status runs over the assembled snapshot (NOT a load_all panel) — the banner's only source.
