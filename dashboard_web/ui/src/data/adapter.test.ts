@@ -500,3 +500,47 @@ describe("fromBackend — the nightly-grade read", () => {
     expect(vm.firstEntry).toBeNull();
   });
 });
+
+describe("fromBackend — drawdown warn tier + T4 condition 5 (#355)", () => {
+  const withKill = (kr: Partial<Snapshot["risk"]["kill_rule"]>) => {
+    const s = synthetic();
+    return fromBackend({ ...s, risk: { ...s.risk, kill_rule: { ...s.risk.kill_rule, ...kr } } });
+  };
+  const kr = (book_drawdown: number, tripped: boolean, level?: "ok" | "warn" | "tripped") =>
+    withKill({ book_drawdown, tripped, level, drawdown_warn: 0.1 });
+
+  it("reads ok below 10%", () => {
+    const vm = kr(0.062, false, "ok");
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["ok", "inside frame"]);
+  });
+
+  it("a 12% fixture shows warn (not 'inside frame')", () => {
+    const vm = kr(0.12, false, "warn");
+    expect(vm.bookDD).toBe("12.0%");
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["warn", "approaching halt"]);
+    expect(vm.ddWarnPct).toBe(10);
+  });
+
+  it("a 21% fixture shows tripped", () => {
+    const vm = kr(0.21, true, "tripped");
+    expect([vm.bookDDlevel, vm.bookDDchip]).toEqual(["bad", "kill rule tripped"]);
+  });
+
+  it("the backend kill-rule `tripped` flag wins even if level is missing or stale", () => {
+    expect(kr(0.21, true, "warn").bookDDlevel).toBe("bad");
+    expect(kr(0.21, true).bookDDlevel).toBe("bad");
+  });
+
+  it("falls back to the 10% threshold on an older snapshot with no `level`", () => {
+    expect(withKill({ book_drawdown: 0.12, tripped: false }).bookDDlevel).toBe("warn");
+    expect(withKill({ book_drawdown: 0.05, tripped: false }).bookDDlevel).toBe("ok");
+  });
+
+  it("renders a `manual` non-checkable T4 row as MANUAL and keeps it out of the checkable count", () => {
+    const s = synthetic();
+    const vm = fromBackend({ ...s, t4: { ...s.t4, conditions: s.t4.conditions.map((c) => (c.id === 5 ? { ...c, checkable: false, verdict: null, manual: true } : c)) } });
+    expect(vm.t4.find((c) => c.id === 5)?.state).toBe("manual");
+    expect(vm.t4.find((c) => c.id === 4)?.state).toBe("deferred"); // unflagged non-checkable stays deferred
+    expect(vm.readiness).toEqual({ pass: 1, checkable: 2, accruing: 3 });
+  });
+});

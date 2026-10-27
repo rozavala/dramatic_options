@@ -6,7 +6,7 @@ import type { Level } from "../theme/tokens";
 export type CouncilVerdict =
   | "ROUNDTRIP_CONFIRMED" | "PROPOSER_CLEAN_NO_ROUNDTRIP" | "ROUNDTRIP_DEGRADED" | "PARSE_FAIL" | "NO_COUNCIL";
 export type T4Verdict = "MET" | "PASS" | "NOT_OK" | "BREACH" | "VACUOUS" | "IN_PROGRESS" | null;
-export type DisplayState = "pass" | "blocked" | "vacuous" | "inprogress" | "accruing" | "deferred";
+export type DisplayState = "pass" | "blocked" | "vacuous" | "inprogress" | "accruing" | "deferred" | "manual";
 
 // system_status.level → palette Level (the Overview banner color).
 export const levelFromSystem = (l?: string): Level => (l === "success" ? "ok" : l === "error" ? "bad" : "warn");
@@ -31,7 +31,21 @@ export const t4State = (v: T4Verdict): DisplayState => (v && T4_STATE[v]) || "ac
 
 // A1: the row state honoring `checkable`. !checkable → "deferred" (verdict deferred to the null layer / human),
 // matching the Streamlit tag "(accruing — verdict deferred)"; checkable → the verdict→state map above.
-export const t4RowState = (checkable: boolean, v: T4Verdict): DisplayState => (checkable ? t4State(v) : "deferred");
+// #355: a non-checkable row the backend flags `manual` (an operator checklist, e.g. condition 5) reads MANUAL, not DEFERRED.
+export const t4RowState = (checkable: boolean, v: T4Verdict, manual = false): DisplayState =>
+  checkable ? t4State(v) : manual ? "manual" : "deferred";
+
+// #355: book drawdown → [Level, chip text]. DISPLAY ONLY — "tripped" is the backend kill rule's own verdict
+// (never recomputed here); "warn" is the 10% heads-up tier below the 20% halt.
+export const DD_WARN_DEFAULT = 0.10;
+export const drawdownDisplay = (
+  kr?: { tripped?: boolean; level?: string; book_drawdown?: number; drawdown_warn?: number } | null,
+): [Level, string] => {
+  if (kr?.tripped || kr?.level === "tripped") return ["bad", "kill rule tripped"];
+  const warnAt = kr?.drawdown_warn ?? DD_WARN_DEFAULT;
+  if (kr?.level === "warn" || (kr?.level === undefined && (kr?.book_drawdown ?? 0) >= warnAt)) return ["warn", "approaching halt"];
+  return ["ok", "inside frame"];
+};
 
 // states that render as "accruing-like" (muted ◷, pulse).
 export const isAccruingState = (s: DisplayState): boolean => s === "accruing" || s === "deferred";
@@ -44,6 +58,7 @@ export const STATE_PRESENT: Record<DisplayState, [Level, string, string]> = {
   inprogress: ["acc", "◐", "IN PROGRESS"],   // ◐
   accruing:   ["mute", "◷", "ACCRUING"],     // ◷ (pulses)
   deferred:   ["mute", "◷", "DEFERRED"],     // ◷ (pulses) — non-checkable, verdict deferred
+  manual:     ["mute", "✎", "MANUAL"],       // ✎ — operator-attested checklist, not computed (#355)
 };
 
 // CALL/PUT label from the direction vocabulary (A6 — one place; the components used to each re-map this).

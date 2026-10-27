@@ -59,7 +59,8 @@ export interface Snapshot {
     frame: { frame_equity: number; book_budget: number; per_name_cap: number; cluster_cap: number; max_open: number };
   };
   risk: {
-    kill_rule: { tripped: boolean; reasons: string[]; book_drawdown: number; drawdown_halt: number; have_marks: boolean };
+    kill_rule: { tripped: boolean; reasons: string[]; book_drawdown: number; drawdown_halt: number; have_marks: boolean;
+      level?: "ok" | "warn" | "tripped"; drawdown_warn?: number }; // #355 display-only warn tier (absent on older snapshots)
     book: { open: number; max: number; open_premium: number; budget: number };
     clusters: { cluster: string; premium: number; cap: number; frac: number | null; directions: string[] }[];
   };
@@ -105,7 +106,7 @@ export interface Snapshot {
     iv_baseline_of_record?: { rows?: number; symbols?: number; sessions?: number; latest?: string | null;
       latest_age_days?: number | null; accruing?: boolean } | null;
   };
-  t4: { conditions: { id: number; name: string; checkable: boolean; verdict: T4Verdict; detail: string }[]; note: string };
+  t4: { conditions: { id: number; name: string; checkable: boolean; verdict: T4Verdict; detail: string; manual?: boolean }[]; note: string };
   // Panels below are always emitted by load_all but may be replaced by {error} (dd.safe), so they are typed
   // optional — the adapter must guard. (C: now rendered. regime/curation remain on the wire, not rendered.)
   nulls?: NullHierarchy;
@@ -319,7 +320,7 @@ export interface ViewModel {
   nextRuns: Record<TimerKey, NextRunVM | null>; // #306 — null = timer not active (PROD) → "not scheduled"
   equity: string; deltaFrame: string; bookBudget: string; headroom: string;
   equitySeries: { day: string; equity: number }[];
-  bookDD: string; bookDDlevel: Level; openN: number; maxN: number; openPrem: string;
+  bookDD: string; bookDDlevel: Level; bookDDchip: string; ddWarnPct: number; openN: number; maxN: number; openPrem: string;
   council: {
     verdict: string; vlevel: Level; runId: number | null; roundtrips: number; strategistAbstained: number;
     parseFail: number; parseCalled: number; cost: string; streak: string; models: string;

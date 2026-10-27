@@ -32,7 +32,7 @@ function MOverview({ vm }: { vm: ViewModel }) {
   const ringColor = allPass ? signal.ok.text : color.accent;
   const kpis: { label: string; value: string; color: string; sub: string; chip: string; level: Level }[] = [
     { label: "Go-live", value: `${r.pass}/${r.checkable}`, color: color.ink, sub: `${r.accruing} accruing`, chip: allPass ? "on track" : "in progress", level: allPass ? "ok" : "acc" },
-    { label: "Safety", value: vm.bookDD, color: signal.ok.text, sub: `${vm.openN}/${vm.maxN} open`, chip: "safe", level: "ok" },
+    { label: "Safety", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: `${vm.openN}/${vm.maxN} open`, chip: vm.bookDDlevel === "ok" ? "safe" : vm.bookDDchip, level: vm.bookDDlevel },
     { label: "Council", value: vm.council.vlevel === "ok" ? "Healthy" : "Degraded", color: signal[vm.council.vlevel].text, sub: `#${vm.council.runId ?? "—"}`, chip: vm.council.vlevel === "ok" ? "clean" : "check", level: vm.council.vlevel },
     { label: "Edge", value: `${vm.edgeAccrual.n}/~${vm.edgeAccrual.target}`, color: color.ink, sub: "resolved bets", chip: "accruing", level: "mute" },
   ];
@@ -90,7 +90,7 @@ function MSafety({ vm }: { vm: ViewModel }) {
   const sig = signal[c.vlevel];
   const tiles: { label: string; value: string; color: string; sub: string; series?: { equity: number }[] }[] = [
     { label: "Paper equity", value: vm.equity, color: color.ink, sub: vm.deltaFrame, series: vm.equitySeries },
-    { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: "halt at 20%" },
+    { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: `warn ${vm.ddWarnPct}% · halt 20%` },
     { label: "Positions", value: `${vm.openN}/${vm.maxN}`, color: color.ink, sub: `${vm.openPrem} at risk` },
     { label: "Headroom", value: vm.headroom, color: signal.ok.text, sub: `of ${vm.bookBudget}` },
   ];

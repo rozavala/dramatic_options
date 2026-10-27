@@ -39,7 +39,7 @@ export function Overview({ vm }: { vm: ViewModel }) {
       <StatusBanner vm={vm} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: 14 }}>
-        <Tile label="Book" chip={vm.bookDDlevel === "ok" ? "inside frame" : "kill rule tripped"} chipLevel={vm.bookDDlevel}>
+        <Tile label="Book" chip={vm.bookDDchip} chipLevel={vm.bookDDlevel}>
           <div style={big}>{vm.openN} <span style={small}>/ {vm.maxN} open</span></div>
           <div style={sub}>{vm.openPrem} premium at risk of {vm.bookBudget} · drawdown <b style={{ color: signal[vm.bookDDlevel].text }}>{dd}</b> of the 20% halt</div>
           <div style={{ height: 6, background: "#edf0f4", borderRadius: 3, marginTop: 12, overflow: "hidden" }}>
