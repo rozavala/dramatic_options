@@ -640,8 +640,17 @@ def performance_panel(conn) -> dict:
         "real": _bootstrap_p95_ci(state.convexity_realized_multiples(conn)),
         "shadow_all": _bootstrap_p95_ci([m for ms in state.shadow_realized_multiples(conn).values() for m in ms]),
     }
-    for book, ms in state.fixed_basket_realized_multiples(conn).items():
+    fb_all = state.fixed_basket_realized_multiples(conn)
+    for book, ms in fb_all.items():
         cis[f"nogate_{book}"] = _bootstrap_p95_ci(ms)
+    # Issue #352 (display of #276): the same p95s read WITHOUT the tagged wrong-side positions, so the UI can
+    # show the in-frame figure first and the with-legacy one beside it. A book with no in-frame rows is n=0.
+    cis["real_in_frame"] = _bootstrap_p95_ci(state.convexity_realized_multiples(conn, in_frame_only=True))
+    cis["shadow_all_in_frame"] = _bootstrap_p95_ci(
+        [m for ms in state.shadow_realized_multiples(conn, in_frame_only=True).values() for m in ms])
+    fb_in = state.fixed_basket_realized_multiples(conn, in_frame_only=True)
+    for book in fb_all:
+        cis[f"nogate_{book}_in_frame"] = _bootstrap_p95_ci(fb_in.get(book, []))
     return {
         "tails": tails,
         "p95_ci": cis,  # the §5 "see the overlap" substrate; no gap verdict

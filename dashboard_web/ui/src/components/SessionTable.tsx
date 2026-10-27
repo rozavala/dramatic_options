@@ -58,7 +58,7 @@ export function LowHistory({ session, dates }: { session: SessionVM; dates: RunD
         })}
       </div>
       <div className="flex justify-between font-mono" style={{ fontSize: 10.5, color: "#6a7280", marginTop: 5 }}>
-        {hist.map((h) => <span key={h.runId} title={runLabel(dates, h.runId)}>{h.day || "—"}</span>)}
+        {hist.map((h) => <span key={h.runId} title={runLabel(dates, h.runId)}>{h.day ? h.day.slice(5) : "—"}</span>)}
       </div>
     </div>
   );
