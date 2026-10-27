@@ -17,6 +17,15 @@ import state
 _ROOT = Path(__file__).resolve().parent
 
 
+@pytest.fixture(autouse=True)
+def _no_real_pages(monkeypatch):
+    """No test may page the operator: strip the Pushover keys so ``notify.send`` no-ops unless a test mocks it.
+    Several paths page (fills, unfilled orders, foreign quantity, kill rule), and a checkout with a ``.env`` would
+    otherwise send real pushes from a test run."""
+    monkeypatch.delenv("PUSHOVER_API_TOKEN", raising=False)
+    monkeypatch.delenv("PUSHOVER_USER_KEY", raising=False)
+
+
 def _apply_migration(conn, name: str) -> None:
     path = _ROOT / "scripts" / "migrations" / name
     spec = importlib.util.spec_from_file_location(path.stem, path)
