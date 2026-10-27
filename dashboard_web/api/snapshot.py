@@ -40,7 +40,7 @@ PANEL_KEYS: tuple[str, ...] = (
     "performance", "nulls", "attribution", "funnel", "council_stage", "gate_reasons", "cap_flow",
     "cost", "market_ctx", "dualread", "dualread_runtime", "cheapness", "null_attempts", "reserve",
     "curation", "data_gathered", "forward_catalysts", "session", "spend", "canary",
-    "dircoherence", "staleness",
+    "dircoherence", "staleness", "why_no_entry",
 )
 
 
@@ -117,6 +117,7 @@ def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
             "canary": dd.safe(dd.canary_panel, conn),
             "dircoherence": dd.safe(dd.direction_coherence_panel, conn),
             "staleness": dd.safe(dd.fundamentals_staleness_panel, conn),
+            "why_no_entry": dd.safe(dd.why_no_entry_panel, conn, config),
         }
     finally:
         conn.close()

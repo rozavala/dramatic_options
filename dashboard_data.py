@@ -1008,6 +1008,197 @@ def gate_reasons(conn, *, run_id: int | None = None) -> dict:
     }
 
 
+def _gate_of_record_reads(conn, now: datetime, max_age_td: int = 5) -> dict[str, dict]:
+    """{SYMBOL: latest FRESH gate-of-record (opra) ``gate_dualread`` row}. The SAME read, the same ≤``max_age_td``
+    weekday freshness and the same most-recent-row-per-symbol rule as ``state.unexpressible_symbols`` (the
+    council's expressible-first demotion), so "expressible" here is the gate's own answer, not a second opinion.
+    A row with ``structured`` NULL carries no verdict and is left out."""
+    today = now.astimezone(_ET).date()
+    out: dict[str, dict] = {}
+    seen: set[str] = set()
+    for r in conn.execute(
+        "SELECT symbol, structured, iv_rv, otm_skew, cheap, note, run_id, evaluated_at FROM gate_dualread "
+        "WHERE feed='opra' ORDER BY evaluated_at DESC, id DESC"
+    ):
+        sym = str(r["symbol"]).upper()
+        if sym in seen:
+            continue
+        seen.add(sym)
+        d = state._iso_date(r["evaluated_at"])
+        if d is None or state._weekday_age(d, today) > max_age_td or r["structured"] is None:
+            continue
+        out[sym] = dict(r)
+    return out
+
+
+def _last_order_attempt(conn, now: datetime) -> dict | None:
+    """The most recent real-book ENTRY order attempt and how it ended. Two sources, newest wins: the latest
+    ``convexity_positions`` row (filled → open/closing/closed; resting → pending; never filled → cancelled with
+    its ``exit_reason``) and the latest ``veto-fill`` eval (the broker refused/never took it, so no position row
+    exists). Read-only; never places, cancels or reconciles anything."""
+    pos = conn.execute(
+        "SELECT id, symbol, contract_symbol, contracts, total_premium, status, exit_reason, opened_at, run_id "
+        "FROM convexity_positions ORDER BY id DESC LIMIT 1").fetchone()
+    vf = conn.execute(
+        "SELECT id, symbol, evaluated_at, run_id, reasons FROM convexity_eval WHERE decision='veto-fill' "
+        "ORDER BY id DESC LIMIT 1").fetchone()
+    cand = []
+    if pos is not None:
+        cand.append((_parse_dt(pos["opened_at"]), 0, "position", pos))
+    if vf is not None:
+        cand.append((_parse_dt(vf["evaluated_at"]), 1, "veto-fill", vf))
+    cand = [c for c in cand if c[0] is not None]
+    if not cand:
+        return None
+    when, _, kind, r = max(cand, key=lambda c: (c[0], c[1]))
+    out: dict[str, Any] = {"symbol": r["symbol"], "at": when.isoformat(), "run_id": r["run_id"],
+                           "day": when.astimezone(_ET).date().isoformat(),
+                           "days_ago": (now.astimezone(_ET).date() - when.astimezone(_ET).date()).days}
+    if kind == "veto-fill":
+        why = _parse_json_list(r["reasons"])
+        out.update(kind="not_filled", result="not filled — " + (why[0] if why else "broker did not take the order"),
+                   contract=None, contracts=None, premium=None, position_id=None)
+        return out
+    status = str(r["status"] or "")
+    if status == "pending":
+        kind_, result = "resting", "resting at the broker (awaiting fill)"
+    elif status == "cancelled":
+        kind_, result = "not_filled", "not filled — " + str(r["exit_reason"] or "cancelled").replace("_", " ")
+    else:
+        kind_, result = "filled", "filled" + (f" (now {status})" if status not in ("open", "") else "")
+    out.update(kind=kind_, result=result, contract=r["contract_symbol"], contracts=r["contracts"],
+               premium=round(float(r["total_premium"]), 2) if r["total_premium"] is not None else None,
+               position_id=r["id"])
+    return out
+
+
+def _parse_json_list(raw) -> list[str]:
+    """A ``convexity_eval.reasons`` cell → list[str] (it is a JSON list, or {reasons:[…], cluster_state}); soft."""
+    try:
+        v = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, ValueError):
+        return [str(raw)] if raw else []
+    if isinstance(v, dict):
+        v = v.get("reasons")
+    if isinstance(v, list):
+        return [str(x) for x in v]
+    return [str(v)] if v else []
+
+
+# Council-side stage → the plain label the operator reads (the gate's own decision code replaces "to_gate").
+_STAGE_LABEL = {
+    "ungrounded": "council: ungrounded (no numeric evidence)",
+    "proposer_abstained": "council: proposer abstained",
+    "other": "council: dropped before the strategist",
+    "criteria_vetoed": "council: tri-criteria veto",
+    "not_included": "council: strategist excluded",
+    "below_floor": "council: below the conviction floor",
+}
+
+
+def why_no_entry_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
+    """The per-name "why no entry" read of the latest council session (issue #351): ONE row per judged name —
+    conviction vs the floor, the stage that stopped it (council stage, or the gate's own decision code when it
+    reached the gate), iv/rv or "no structure", and whether it is expressible by the gate-of-record read — plus
+    three tiles: expressible n/N, days since the last above-floor conviction, and the last order attempt.
+
+    Anchored on the SAME run as ``funnel_panel`` / ``council_stage_funnel`` and classified with the SAME rules,
+    so the rows total back to ``funnel.by_decision`` and ``council_stage.stages`` (``reconciliation`` re-checks
+    both and the UI shows a warning if either drifts). Display-only: nothing here sizes, gates or trades."""
+    now = now or datetime.now(UTC)
+    floor = (config.get("council", {}) or {}).get("conviction_floor", "MODERATE")
+    fun = funnel_panel(conn)["l1_decision"]
+    stage = council_stage_funnel(conn, config)
+    run_id = stage.get("run_id")
+    reads = _gate_of_record_reads(conn, now)
+    exp_n = sum(1 for r in reads.values() if int(r["structured"]) == 1)
+    tiles: dict[str, Any] = {
+        "expressible": {"n": exp_n, "of": len(reads),
+                        "no_structure": sorted(s for s, r in reads.items() if int(r["structured"]) == 0),
+                        "basis": "gate-of-record (opra) read, <=5 weekdays old"},
+        "last_order": _last_order_attempt(conn, now),
+        "last_above_floor": None,
+    }
+    for r in conn.execute("SELECT run_id, symbol, direction, conviction, as_of FROM council_proposals "
+                          "WHERE conviction IS NOT NULL ORDER BY run_id DESC, id DESC"):
+        if passes_floor(r["conviction"], floor):
+            d = _et_date(r["as_of"])
+            tiles["last_above_floor"] = {
+                "run_id": r["run_id"], "symbol": r["symbol"], "direction": r["direction"],
+                "conviction": r["conviction"], "day": d.isoformat() if d else None,
+                "days_ago": (now.astimezone(_ET).date() - d).days if d else None}
+            break
+    if run_id is None:
+        return {"run_id": None, "empty": True, "floor": floor, "rows": [], "tiles": tiles}
+
+    gate_rows: dict[int, dict] = {}
+    unattributed: dict[str, int] = {}
+    pids = {r["id"] for r in conn.execute("SELECT id FROM council_proposals WHERE run_id=?", (run_id,))}
+    for r in conn.execute("SELECT id, proposal_id, decision, iv_rv, otm_skew FROM convexity_eval "
+                          "WHERE run_id=? ORDER BY id", (run_id,)):
+        if r["proposal_id"] in pids:
+            gate_rows[r["proposal_id"]] = dict(r)   # a later row for the same proposal supersedes
+        else:
+            unattributed[r["decision"]] = unattributed.get(r["decision"], 0) + 1
+
+    rows: list[dict] = []
+    for p in _rows(conn, "SELECT id, symbol, direction, conviction, as_of, status, rationale FROM council_proposals "
+                         "WHERE run_id=? ORDER BY symbol, id", (run_id,)):
+        rat = _rationale(p["rationale"])
+        strat = rat.get("strategist")
+        above = passes_floor(p["conviction"], floor)
+        if isinstance(strat, dict):
+            if strat.get("include") is True:
+                st = "to_gate" if above else "below_floor"
+            elif strat.get("criteria_veto") is True:
+                st = "criteria_vetoed"
+            else:
+                st = "not_included"
+        elif rat.get("dropped") == "ungrounded (no numeric evidence)":
+            st = "ungrounded"
+        elif rat.get("dropped") == "proposer abstained (NEUTRAL)":
+            st = "proposer_abstained"
+        else:
+            st = "other"
+        g = gate_rows.get(p["id"])
+        read = reads.get(str(p["symbol"]).upper())
+        expressible = None if read is None else int(read["structured"]) == 1
+        iv_rv = skew = None
+        if g is not None and g["iv_rv"] is not None:
+            iv_rv, skew = g["iv_rv"], g["otm_skew"]
+        elif read is not None and expressible and read["iv_rv"] is not None:
+            iv_rv, skew = read["iv_rv"], read["otm_skew"]
+        rows.append({
+            "proposal_id": p["id"], "symbol": p["symbol"], "direction": p["direction"],
+            "conviction": p["conviction"] or "NEUTRAL", "above_floor": above, "stage": st,
+            "gate_decision": g["decision"] if g else None,
+            "veto_stage": (g["decision"] if g else "to the gate — no gate row yet") if st == "to_gate"
+                          else _STAGE_LABEL[st],
+            "iv_rv": None if iv_rv is None else round(float(iv_rv), 3),
+            "otm_skew": None if skew is None else round(float(skew), 2),
+            "expressible": expressible,
+            "structure_note": (read.get("note") if read and not expressible else None),
+            "iv_rv_source": "gate" if (g is not None and g["iv_rv"] is not None) else ("opra read" if iv_rv is not None else None),
+        })
+
+    by_stage: dict[str, int] = {}
+    by_decision: dict[str, int] = dict(unattributed)
+    for r in rows:
+        by_stage[r["stage"]] = by_stage.get(r["stage"], 0) + 1
+        if r["gate_decision"]:
+            by_decision[r["gate_decision"]] = by_decision.get(r["gate_decision"], 0) + 1
+    st = stage.get("stages", {})
+    stages_ok = (not stage.get("empty") and len(rows) == st.get("proposed")
+                 and all(by_stage.get(k, 0) == st.get(k, 0) for k in
+                         ("ungrounded", "proposer_abstained", "other", "criteria_vetoed", "below_floor", "to_gate")))
+    return {
+        "run_id": run_id, "empty": False, "floor": floor, "rows": rows, "tiles": tiles,
+        "totals": {"judged": len(rows), "reached_gate": by_stage.get("to_gate", 0), "by_stage": by_stage,
+                   "by_decision": by_decision, "unattributed_gate_rows": sum(unattributed.values())},
+        "reconciliation": {"by_decision_ok": by_decision == fun["by_decision"], "stages_ok": bool(stages_ok)},
+    }
+
+
 def cap_binding_flow(conn) -> dict:
     """How often the CLUSTER cap REJECTED an otherwise-passing candidate (eligible + cheap but cluster-full).
     Readable from decision codes. NOTE: partial-TIGHTENING on admits is NOT reconstructable from the current
