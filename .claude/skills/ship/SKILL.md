@@ -103,7 +103,10 @@ Paste reproduction evidence verbatim in close comments.
 
 - **Full ceremony** — the safety-critical or PIT sets, `lane:profit`, any money-moving path, any migration. One
   worktree, one branch, one PR: `git worktree add -b fix/<issue#>-<slug> "$LIVE-claude-<issue#>" origin/main`
-  (refuse to clobber an existing path); link the live venv (`ln -s "$LIVE/venv" <worktree>/venv`).
+  (refuse to clobber an existing path); give it a venv that has the dev tools: link the interactive
+  worktree's (`ln -s "$LIVE-claude/venv" <worktree>/venv`) or build one (`python3 -m venv venv && venv/bin/pip
+  install -q -r requirements.txt -r requirements-dev.txt`). Never the live checkout's venv: it is runtime-only,
+  with no pytest or ruff.
 - **Protocol lane** — the fix is a record: draft the STANDING_STATE ruling entry and, where one governs, a dated
   PREREG amendment (what changes, why, the boundary run, the new stamp, what does not change). Present the options
   and get the operator's word **before** the code; the code PR then cites the dated entry.
