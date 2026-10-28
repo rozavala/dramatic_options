@@ -394,3 +394,12 @@ def test_an_l2_dead_longer_than_the_read_window_is_stale_not_never_ran(convexity
     _run(convexity_db, "2026-10-01 15:00:02", None)               # an L2 tick 26 days earlier, nothing since
     beats = hub._loop_beats(convexity_db, datetime(2026, 10, 27, 21, 0, tzinfo=UTC))
     assert beats["l2"]["at"].startswith("2026-10-01") and beats["l2"]["status"] == "STALE"
+
+
+def test_the_1545_band_follows_et_across_the_dst_change(convexity_db):
+    # 11-02 is EST: the 15:45 L1 run starts at 20:45Z, and 19:45Z is an off-grid run (14:45 EST), not L1
+    _run(convexity_db, "2026-11-02 20:45:02", None)
+    _run(convexity_db, "2026-11-02 19:45:02", None)
+    beats = hub._loop_beats(convexity_db, datetime(2026, 11, 2, 22, 0, tzinfo=UTC))
+    assert beats["l1"]["at"].startswith("2026-11-02T20:45:02")
+    assert beats["l2"]["at"].startswith("2026-11-02T19:45:02")

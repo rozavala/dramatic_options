@@ -506,6 +506,9 @@ def test_cycle_session_stale_matrix(last, now, expected):
     ("2026-10-27T10:00:02-04:00", datetime(2026, 10, 27, 10, 55, tzinfo=_ET), "STALE"),  # 10:30 due, no run
     ("2026-11-25T16:30:02-05:00", datetime(2026, 11, 26, 14, 0, tzinfo=_ET), "ONLINE"),  # Thanksgiving: nothing due
     ("2026-11-27T16:30:02-05:00", datetime(2026, 11, 27, 20, 0, tzinfo=_ET), "ONLINE"),  # half day: ticks still run
+    # across the 11-01 fall-back: Fri 10-30 16:30 EDT run, Mon 11-02 in EST
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "STALE"),    # Mon 09:00 EST due
+    ("2026-11-02T09:00:02-05:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "ONLINE"),   # ran at 09:00 EST
     (None, datetime(2026, 10, 27, 11, 0, tzinfo=_ET), "OFFLINE"),
 ])
 def test_l2_session_stale_matrix(last, now, expected):

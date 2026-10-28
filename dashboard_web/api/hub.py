@@ -30,8 +30,11 @@ Decisions the issue left open (kept here so the contract is auditable):
     ``council_health IS NULL``) and it is stale when its most recent due timer slot has no run
     (``dd.l2_session_stale``), which, unlike the shared cycle heartbeat, stays stale overnight and at weekends.
     L1's ``last_ok`` is the later of its last council run and its last 15:45-ET run, so a run that skipped the
-    council because the kill rule tripped still counts as ran. Under the KILL switch nothing records a run, so a
-    loop job that would read ``missed`` reads ``idle`` with "paused: kill switch engaged".
+    council because the kill rule tripped still counts as ran. Under the KILL switch nothing records a run, so
+    while the switch is engaged a loop job that would read ``missed`` reads ``idle`` with "paused: kill switch
+    engaged". Once it is lifted, the slots it covered read ``missed`` until the job's next run (no KILL history is
+    kept; those runs really were skipped). A manual ``--monitor`` run counts as an L2 run, so it can mask a dead L2
+    timer until the next due slot (≤ ~50 min).
   * A unit that isn't installed (``LoadState=not-found``) is unknown — ``enabled: null``, ``last_status:
     null`` with an error — never "disabled" (#374).
 """
