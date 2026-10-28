@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -64,6 +65,7 @@ def hub_db(convexity_db, monkeypatch, tmp_path):
     monkeypatch.setattr(risk, "KILL_FILE", tmp_path / "no-such-KILL")
     monkeypatch.setattr(dd, "cycle_session_stale", lambda ts, *, now=None: "ONLINE")
     monkeypatch.setattr(dd, "council_session_stale", lambda ts, *, now=None: "ONLINE")
+    monkeypatch.setattr(dd, "l2_session_stale", lambda ts, *, now=None: "ONLINE")
     monkeypatch.setattr(hub, "_read_units", lambda: _units())
     monkeypatch.setattr(server, "_RECORDS_DIR", tmp_path / "records")
     server._hub_cache.clear()
@@ -336,3 +338,59 @@ def test_hub_no_cost_cap_configured_is_unknown_not_zero() -> None:
     for cap in (1.5, 0, None):
         c = {x["label"]: x for x in hub._checks(hdr, {**risk, "cost_cap": {"cap_usd": cap, "tripped": True}})}["Cost cap"]
         assert c["ok"] is False and c["detail"].startswith("last council run hit the cost cap")
+
+
+# ── #376: the loop jobs read their OWN runs; the KILL switch reads paused, not missed ──────────────────────────
+
+def _run(conn, started_at: str, health: str | None) -> None:
+    conn.execute("INSERT INTO runs(started_at, mode, equity, council_health) VALUES(?, 'PAPER', 100000, ?)",
+                 (started_at, health))
+
+
+def test_loop_beats_split_l1_from_l2_by_council_and_the_1545_band(convexity_db):
+    now = datetime(2026, 10, 27, 21, 0, tzinfo=UTC)              # Tue 17:00 ET (EDT)
+    _run(convexity_db, "2026-10-27 15:00:02", None)               # 11:00 ET L2 tick
+    _run(convexity_db, "2026-10-27 19:45:02", "ok")               # 15:45 ET L1 with a council
+    _run(convexity_db, "2026-10-27 19:30:01", None)               # 15:30 ET L2 tick — the last one
+    beats = hub._loop_beats(convexity_db, now)
+    assert beats["l1"]["at"].startswith("2026-10-27T19:45:02")
+    assert beats["l2"]["at"].startswith("2026-10-27T19:30:01")   # the L1 run never refreshes L2
+    assert beats["l2"]["status"] == "STALE"                       # 16:00 and 16:30 ticks are missing
+
+
+def test_a_kill_rule_skipped_l1_still_counts_as_ran(convexity_db):
+    now = datetime(2026, 10, 27, 21, 0, tzinfo=UTC)
+    _run(convexity_db, "2026-10-26 19:45:02", "ok")               # Monday's council
+    _run(convexity_db, "2026-10-27 19:45:03", None)               # Tuesday 15:45: council skipped (kill rule)
+    beats = hub._loop_beats(convexity_db, now)
+    assert beats["l1"]["at"].startswith("2026-10-27T19:45:03") and beats["l1"]["status"] == "ONLINE"
+    assert beats["l2"]["at"] is None or not beats["l2"]["at"].startswith("2026-10-27T19:45")
+
+
+def test_kill_switch_reads_paused_not_missed(hub_db, monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(dd, "l2_session_stale", lambda ts, *, now=None: "STALE")
+    assert _job(_get().json(), "dramatic-options-l2")["last_status"] == "missed"    # armed + stale, no KILL
+    server._hub_cache.clear()
+    kill = tmp_path / "KILL"
+    kill.write_text("")
+    import risk
+    monkeypatch.setattr(risk, "KILL_FILE", kill)
+    body = _get().json()
+    assert body["trading"]["state"] == "off"
+    j = _job(body, "dramatic-options-l2")
+    assert j["last_status"] == "idle" and j["error"] == "paused: kill switch engaged"
+
+
+def test_loop_read_failure_leaves_the_loop_jobs_unknown(hub_db, monkeypatch) -> None:
+    def boom(conn, now=None):
+        raise RuntimeError("runs unreadable")
+    monkeypatch.setattr(hub, "_loop_beats", boom)
+    body = _get().json()
+    for name in ("dramatic-options-l1", "dramatic-options-l2"):
+        assert _job(body, name)["last_status"] is None and _job(body, name)["error"] == "last run unreadable"
+
+
+def test_an_l2_dead_longer_than_the_read_window_is_stale_not_never_ran(convexity_db):
+    _run(convexity_db, "2026-10-01 15:00:02", None)               # an L2 tick 26 days earlier, nothing since
+    beats = hub._loop_beats(convexity_db, datetime(2026, 10, 27, 21, 0, tzinfo=UTC))
+    assert beats["l2"]["at"].startswith("2026-10-01") and beats["l2"]["status"] == "STALE"
