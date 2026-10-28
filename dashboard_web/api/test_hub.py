@@ -271,3 +271,68 @@ def test_read_units_parses_one_systemctl_call_and_fails_soft() -> None:
     assert hub._read_units(run=boom) is None
     assert hub._read_units(run=lambda *_a, **_k: SimpleNamespace(returncode=1, stdout="")) is None
     assert hub._next_due({"NextElapseUSecRealtime": ""}) is None
+
+
+# ── #374: disabled loop timers are "stopped" whatever the heartbeat says; not-installed is unknown ─────────────
+
+_OFF = {"ActiveState": "inactive", "NextElapseUSecRealtime": ""}
+
+
+def test_hub_disabled_loop_timers_are_stopped_even_with_an_online_heartbeat(hub_db, monkeypatch) -> None:
+    # PROD's shape: L1/L2 timers installed but disabled; off-hours the Cycle heartbeat still reads ONLINE (the
+    # fixture pins it ONLINE), which alone left the hub saying "on" overnight and at weekends.
+    monkeypatch.setattr(hub, "_read_units", lambda: _units(
+        {"dramatic-options-l1.timer": _OFF, "dramatic-options-l2.timer": _OFF}))
+    body = _get().json()
+    assert _check(body, "Cycle")["ok"] is True
+    assert body["trading"] == {"state": "stopped", "why": "timers disabled: L1, L2"}
+    # one loop timer is enough: L2 off means no marks or exits
+    server._hub_cache.clear()
+    monkeypatch.setattr(hub, "_read_units", lambda: _units({"dramatic-options-l2.timer": _OFF}))
+    assert _get().json()["trading"] == {"state": "stopped", "why": "timer disabled: L2"}
+    # a disabled weekly job (L0) is not the trading loop
+    server._hub_cache.clear()
+    monkeypatch.setattr(hub, "_read_units", lambda: _units({"dramatic-options-l0.timer": _OFF}))
+    assert _get().json()["trading"]["state"] == "on"
+
+
+def test_hub_kill_switch_and_kill_rule_outrank_disabled_timers() -> None:
+    jobs = [{"name": "dramatic-options-l1", "enabled": False}, {"name": "dramatic-options-l2", "enabled": False}]
+    ok = {"ok": True, "blocking": True, "detail": "x"}
+    base = [{**ok, "label": "Kill switch"}, {**ok, "label": "Kill rule"}, {**ok, "label": "Cycle"}]
+    assert hub._trading(base, None, jobs)["state"] == "stopped"
+    assert hub._trading([{**base[0], "ok": False}, *base[1:]], None, jobs)["state"] == "off"
+    assert hub._trading([base[0], {**base[1], "ok": False}, base[2]], None, jobs)["state"] == "blocked"
+    # an unreadable check does not hide the definite fact that the loop's timers are off
+    assert hub._trading([base[0], {**base[1], "ok": None}, base[2]], None, jobs)["state"] == "stopped"
+    # unreadable timers (enabled None) never count as disabled: fall back to the checks
+    assert hub._trading(base, None, [{**j, "enabled": None} for j in jobs])["state"] == "on"
+
+
+def test_hub_systemd_unreadable_falls_back_to_the_heartbeat(hub_db, monkeypatch) -> None:
+    monkeypatch.setattr(hub, "_read_units", lambda: None)
+    assert _get().json()["trading"]["state"] == "on"
+
+
+def test_hub_not_installed_unit_is_unknown_not_disabled(hub_db, monkeypatch) -> None:
+    # systemctl show exits 0 for a unit that doesn't exist: LoadState=not-found, ActiveState=inactive
+    monkeypatch.setattr(hub, "_read_units", lambda: _units(
+        {"dramatic-options-l0.timer": {"LoadState": "not-found", **_OFF}}))
+    body = _get().json()
+    j = _job(body, "dramatic-options-l0")
+    assert j["enabled"] is None and j["last_status"] is None and j["error"] == "timer not installed"
+    assert body["trading"]["state"] == "on"
+
+
+def test_hub_no_cost_cap_configured_is_unknown_not_zero() -> None:
+    hdr = {"cycle": {"status": "ONLINE", "age_hours": 1.0}}
+    risk = {"kill_rule": {"tripped": False, "book_drawdown": 0.05, "drawdown_halt": 0.2, "have_marks": True}}
+    for cc in ({}, {"cap_usd": None, "tripped": False}, {"cap_usd": 0, "tripped": False}):
+        c = {x["label"]: x for x in hub._checks(hdr, {**risk, "cost_cap": cc})}["Cost cap"]
+        assert c["ok"] is None and c["detail"] == "no cost cap configured" and c["blocking"] is False
+    c = {x["label"]: x for x in hub._checks(hdr, {**risk, "cost_cap": {"cap_usd": 1.5, "tripped": False}})}["Cost cap"]
+    assert c["ok"] is True and c["detail"] == "within the $1.5/run cap"
+    # a trip is reported from the last run's health even if the cap was since removed from config
+    for cap in (1.5, 0, None):
+        c = {x["label"]: x for x in hub._checks(hdr, {**risk, "cost_cap": {"cap_usd": cap, "tripped": True}})}["Cost cap"]
+        assert c["ok"] is False and c["detail"].startswith("last council run hit the cost cap")
