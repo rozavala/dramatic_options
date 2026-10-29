@@ -69,6 +69,11 @@ _L1_SLOT_HM = (15, 45)              # council/L1 daily slot (ET)
 _L1_GRACE_MIN = 20                  # a slot counts as "due" only once now ≥ slot + this (start/record latency)
 _L2_WINDOW_HM = ((9, 0), (16, 0))  # L2 monitor cadence window (ET)
 _L2_STALE_MIN = 50                 # one 30-min L2 interval + 20 slack before calling an intraday stall
+# The L2 timer's own slots (scripts/systemd/dramatic-options-l2.timer: Mon..Fri 09..16:00/30 America/New_York),
+# i.e. 09:00, 09:30 … 16:30 ET. Used by l2_session_stale (#376), which, unlike cycle_session_stale, remembers a
+# missed slot after the window closes.
+_L2_SLOTS_HM = tuple((h, m) for h in range(9, 17) for m in (0, 30))
+_L2_GRACE_MIN = 20                 # a slot counts as due only once now ≥ slot + this (start/record latency)
 
 
 # ── connection / paths ────────────────────────────────────────────────────────────────────────
@@ -247,6 +252,37 @@ def cycle_session_stale(last_cycle_ts, *, now: datetime | None = None) -> str:
     if now_et < open_dt + timedelta(minutes=_L2_STALE_MIN) or now_et >= close_dt:
         return "ONLINE"
     return "STALE" if (now - last).total_seconds() / 60.0 > _L2_STALE_MIN else "ONLINE"
+
+
+def _most_recent_due_l2_slot(now_et: datetime) -> datetime | None:
+    """The most recent L2 timer slot already DUE (now ≥ slot + grace) on an NYSE trading day, walking back across
+    weekends and holidays; None if none in the last ~8 days. Half days keep every slot: the timer fires them all
+    (the monitor runs mark-only once the market is shut), so each still records a run."""
+    grace = timedelta(minutes=_L2_GRACE_MIN)
+    day = now_et
+    for _ in range(8):
+        if nyse_calendar.session_close(day.date()) is not None:
+            for h, m in reversed(_L2_SLOTS_HM):
+                slot = day.replace(hour=h, minute=m, second=0, microsecond=0)
+                if now_et >= slot + grace:
+                    return slot
+        day = (day - timedelta(days=1)).replace(hour=23, minute=59)
+    return None
+
+
+def l2_session_stale(last_l2_ts, *, now: datetime | None = None) -> str:
+    """Market-aware staleness for the L2 monitor's OWN runs (#376). OFFLINE if never run; STALE iff its most
+    recent due slot is after the last L2 run, so a monitor that died at 11:00 stays STALE overnight and over the
+    weekend (``cycle_session_stale`` forgets once the window closes, and the 15:45 L1 refreshes the shared beat);
+    else ONLINE. Pure datetime (no fetch)."""
+    now = now or datetime.now(UTC)
+    last = _parse_dt(last_l2_ts)
+    if last is None:
+        return "OFFLINE"
+    slot = _most_recent_due_l2_slot(now.astimezone(_ET))
+    if slot is None:
+        return "ONLINE"
+    return "STALE" if last < slot else "ONLINE"
 
 
 def system_status(snap: dict) -> dict:
