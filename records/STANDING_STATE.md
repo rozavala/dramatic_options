@@ -89,6 +89,12 @@ The header's absence is itself a signal.
   10-20 10-Qs. Stamp `runs.model_mix.corpus_refresh = filing_date_v1` from the first L1 after deploy,
   record-segmenting (fresher packs); L1 log `Corpus refetch on filing: n (…)`. The staleness telemetry stays
   telemetry.
+- **Carry-over ON (2026-10-29, operator word; #386/#387, #349 §4):** an L1 entry still unfilled at the close is
+  re-gated through the full entry pipeline and resubmitted the next NYSE trading day from 10:00 ET, its limit walking
+  from mid to the ask in ⅓ steps hourly (the ask from 13:00), cancelled at 15:30 ET (close − 30 min on a half day);
+  one carry per approval. Pages: ORDER CARRIED / SUBMITTED / FILL / NOT FILLED. Every cancel is settled (a partial
+  fill opens the filled quantity), and a name with a working order is never entered twice. The real book's entry
+  price and date can now differ from the L1's. Execution only; `frame_version` unchanged.
 - **PREREG_REJECTION_REASON_AUDIT FROZEN (2026-10-21, operator word):** does the timing test filter losers?
   Timing-only vs narration-failed judgments on the miss ledger's big-move definition; first decision read at
   n_T ≥ 30 (≈ February 2027); nothing changes automatically.
