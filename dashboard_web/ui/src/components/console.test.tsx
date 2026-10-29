@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Section render smoke tests (H3): the consoles render on a near-empty (accruing) VM without crashing, the
 // fail-soft degraded banner (B1) and schema-warning strip (B2) appear, and the fatal state renders full-panel.
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { fromBackend } from "../data/adapter";
@@ -9,6 +9,7 @@ import type { ConsoleProps, Snapshot } from "../data/types";
 import { MobileApp } from "../mobile/MobileApp";
 import { Book } from "./Book";
 import { DesktopConsole } from "./DesktopConsole";
+import { Safety } from "./Safety";
 import { StatusBanner } from "./StatusBanner";
 
 afterEach(cleanup);
@@ -59,6 +60,64 @@ describe("MobileApp", () => {
   it("surfaces a degraded banner on mobile too (B1)", () => {
     render(<MobileApp {...props({ vm: vmFrom({ council: { error: "boom" } }) })} />);
     expect(screen.getByText(/unavailable \(fail-soft\)/i)).toBeTruthy();
+  });
+});
+
+// Diana item 3: the console leads with the Dramatic book value; the broker number is relabelled + secondary.
+describe("book value leads, broker equity is secondary", () => {
+  const bookVm = () => vmFrom({ account: { broker_equity: 99120, delta_vs_frame: -880, book_value: { value: 100200, as_of: null, note: null } } });
+
+  it("desktop Safety shows the book value and the 'Broker equity (shared account)' label", () => {
+    render(<Safety vm={bookVm()!} />);
+    expect(screen.getByText("Dramatic book value")).toBeTruthy();
+    expect(screen.getByText("$100,200")).toBeTruthy();
+    expect(screen.getByText(/Broker equity \(shared account\)/)).toBeTruthy();
+    expect(screen.getByText("$99,120")).toBeTruthy();
+    expect(screen.queryByText("Paper equity")).toBeNull();
+  });
+
+  const staleVm = () => vmFrom({
+    header: { now: "2026-10-29T16:00:00+00:00" },
+    account: { broker_equity: 99120, delta_vs_frame: -880, equity_series: [{ day: "2026-10-28", equity: 99000 }, { day: "2026-10-29", equity: 99120 }],
+      book_value: { value: 100200, as_of: "2026-10-20 15:00:00", note: null } },
+  });
+
+  it("desktop shows the oldest-mark as-of and a STALE chip on the book tile", () => {
+    render(<Safety vm={staleVm()!} />);
+    const asOf = screen.getByTestId("book-as-of");
+    expect(asOf.textContent).toContain("oldest mark 2026-10-20 15:00 UTC");
+    expect(asOf.textContent).toContain("STALE");
+  });
+
+  it("mobile shows the as-of and STALE chip too", () => {
+    render(<MobileApp {...props({ vm: staleVm() })} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Safety" }));
+    const asOf = screen.getByTestId("book-as-of");
+    expect(asOf.textContent).toContain("oldest mark 2026-10-20 15:00 UTC");
+    expect(asOf.textContent).toContain("STALE");
+  });
+
+  it("a fresh book value shows the as-of with no STALE chip", () => {
+    const vm = vmFrom({ header: { now: "2026-10-29T16:00:00+00:00" }, account: { book_value: { value: 100200, as_of: "2026-10-29 15:30:00", note: null } } });
+    render(<Safety vm={vm!} />);
+    expect(screen.getByTestId("book-as-of").textContent).not.toContain("STALE");
+  });
+
+  it("draws the equity sparkline under the broker line, not under the book value", () => {
+    render(<Safety vm={staleVm()!} />);
+    const tile = screen.getByText("Dramatic book value").parentElement!;
+    const sparks = tile.querySelectorAll("svg");
+    expect(sparks.length).toBeGreaterThan(0);
+    const brokerBlock = screen.getByText(/Broker equity \(shared account\)/).parentElement!;
+    expect(brokerBlock.querySelectorAll("svg").length).toBe(sparks.length);
+  });
+
+  it("mobile Safety shows the same label", () => {
+    render(<MobileApp {...props({ vm: bookVm() })} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Safety" }));
+    expect(screen.getByText("Dramatic book value")).toBeTruthy();
+    expect(screen.getByText("$100,200")).toBeTruthy();
+    expect(screen.getByText(/Broker equity \(shared account\)/)).toBeTruthy();
   });
 });
 

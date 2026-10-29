@@ -36,6 +36,17 @@ function nextRun(b: { next_at?: string | null } | null | undefined, now: string 
   const mins = Math.max(0, Math.round((t - ref) / 60_000));
   return { label: mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`, at: b.next_at };
 }
+// Dramatic book value as-of: the OLDEST open mark (dashboard_data.book_value). Marks refresh every L2 cycle, so
+// anything older than this (4 days covers a long weekend) means the monitor has stopped marking that position.
+const BOOK_STALE_HOURS = 96;
+function bookAsOf(raw: string | null | undefined, now: string | undefined): { label: string | null; hours: number | null } {
+  if (!raw) return { label: null, hours: null };
+  const iso = raw.replace(" ", "T");
+  const t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
+  if (Number.isNaN(t)) return { label: raw, hours: null };
+  const ref = now ? Date.parse(now) : Date.now();
+  return { label: new Date(t).toISOString().slice(0, 16).replace("T", " ") + " UTC", hours: Number.isNaN(ref) ? null : (ref - t) / 3_600_000 };
+}
 const ci = (c?: { n?: number; p95?: number | null } | null) => ({ n: c?.n ?? 0, p95: c?.p95 ?? null });
 // #352: in-frame figure first, the with-legacy one always beside it whenever positions are tagged (even when the
 // resolved counts are equal). No in-frame twin on the wire (older backend) or no tags ⇒ one number.
@@ -451,6 +462,8 @@ export function fromBackend(P: Snapshot): ViewModel {
 
   const cf = P.cap_flow;
   const delta = acc.delta_vs_frame ?? 0;
+  const bookAge = bookAsOf(acc.book_value?.value != null ? acc.book_value.as_of : null, h.now);
+  const bookStale = acc.book_value?.value != null && ((bookAge.hours != null && bookAge.hours > BOOK_STALE_HOURS) || (!!h.cycle?.status && h.cycle.status !== "ONLINE"));
   const edgeN = ci(ciP.real).n;
   // A2: honest calibration progress — resolved bets toward the first null read (NOT a hardcoded 50%).
   const phasePct = `${Math.min(100, Math.round((edgeN / EDGE_TARGET) * 100))}%`;
@@ -477,6 +490,9 @@ export function fromBackend(P: Snapshot): ViewModel {
       schema: h.schema_ok ? "ok" : "warn",
     },
     nextRuns: { cycle: nextRun(h.cycle, h.now), council: nextRun(h.council, h.now), discovery: nextRun(h.discovery, h.now) },
+    bookValue: fmt(acc.book_value?.value),
+    bookValueSub: acc.book_value?.value != null ? "frame + realized + unrealized" : (acc.book_value?.note ?? "unavailable"),
+    bookAsOf: bookAge.label, bookStale,
     equity: fmt(acc.broker_equity),
     deltaFrame: `${delta >= 0 ? "+" : "−"}$${Math.abs(delta).toLocaleString("en-US")} vs frame`,
     bookBudget: fmt(acc.frame?.book_budget), headroom: fmt(acc.headroom), equitySeries: acc.equity_series ?? [],

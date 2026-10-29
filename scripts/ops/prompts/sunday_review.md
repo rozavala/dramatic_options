@@ -27,7 +27,8 @@ Expectations and the docket come from `records/STANDING_STATE.md` and the newest
 9. Hosts: DEV + PROD uptime, reboot-required, failed units, ExecStart `-m orchestrator`, any `status=9/KILL` this
    week, PROD's lag behind main.
 10. Write `records/<date>_sunday_w<NN>.md`; refresh `records/STANDING_STATE.md` (as_of, docket, board) if anything
-    changed; commit, push, open ONE records PR (do not merge). Prepend one dated memory banner.
+    changed, and run `PYTHONPATH=. venv/bin/python scripts/ops/standing_state_issues.py` (#371) until it prints OK;
+    commit, push, open ONE records PR (do not merge). Prepend one dated memory banner.
 11. Final message: plain prose for the operator — what changed, decisions needed, the countdown to the next dated
     review in STANDING_STATE, and the PR link. End with exactly one line:
     HEADLINE: <week>; <the one thing that matters most>; PR <url or "none">

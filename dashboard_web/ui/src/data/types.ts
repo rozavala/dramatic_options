@@ -63,6 +63,8 @@ export interface Snapshot {
   };
   account: {
     broker_equity: number | null; delta_vs_frame: number | null; headroom: number;
+    /** Dramatic book value (frame + realized + unrealized) — the same figure as /api/hub `book.value`. */
+    book_value?: { value: number | null; as_of: string | null; note: string | null };
     equity_series: { day: string; equity: number }[];
     frame: { frame_equity: number; book_budget: number; per_name_cap: number; cluster_cap: number; max_open: number };
   };
@@ -384,8 +386,10 @@ export interface ViewModel {
   beats: Record<BeatKey, string>;
   beatLevels: Record<BeatKey, Level>;
   nextRuns: Record<TimerKey, NextRunVM | null>; // #306 — null = timer not active (PROD) → "not scheduled"
-  equity: string; deltaFrame: string; bookBudget: string; headroom: string;
-  equitySeries: { day: string; equity: number }[];
+  bookValue: string; bookValueSub: string;   // Dramatic book value (frame + realized + unrealized) — the lead figure
+  bookAsOf: string | null; bookStale: boolean; // oldest open mark ("YYYY-MM-DD HH:MM UTC"); stale = older than BOOK_STALE_HOURS, or the cycle heartbeat is not ONLINE
+  equity: string; deltaFrame: string; bookBudget: string; headroom: string; // equity = BROKER equity (shared account)
+  equitySeries: { day: string; equity: number }[];   // BROKER equity per day (shared account) — there is no book-value history
   bookDD: string; bookDDlevel: Level; bookDDchip: string; ddWarnPct: number; openN: number; maxN: number; openPrem: string;
   council: {
     verdict: string; vlevel: Level; runId: number | null; roundtrips: number; strategistAbstained: number;
