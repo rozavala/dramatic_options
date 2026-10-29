@@ -493,6 +493,34 @@ def test_cycle_session_stale_matrix(last, now, expected):
     assert dd.cycle_session_stale(last, now=now) == expected
 
 
+# ── #376: the L2 monitor's own staleness remembers a missed slot after the window closes ─────────────────
+@pytest.mark.parametrize("last, now, expected", [
+    # THE DEFECT: L2 died after its 11:00 run; by 20:00 ET cycle_session_stale has forgiven it (window closed)
+    ("2026-10-27T11:00:02-04:00", datetime(2026, 10, 27, 20, 0, tzinfo=_ET), "STALE"),
+    ("2026-10-27T11:00:02-04:00", datetime(2026, 10, 31, 12, 0, tzinfo=_ET), "STALE"),   # ...and all weekend
+    ("2026-10-27T16:30:02-04:00", datetime(2026, 10, 27, 23, 0, tzinfo=_ET), "ONLINE"),  # ran the last tick
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 1, 12, 0, tzinfo=_ET), "ONLINE"),   # weekend after Friday
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 2, 9, 10, tzinfo=_ET), "ONLINE"),   # Mon 09:00 not yet due
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "STALE"),    # Mon 09:00 due, no run
+    ("2026-10-27T10:00:02-04:00", datetime(2026, 10, 27, 10, 45, tzinfo=_ET), "ONLINE"), # 10:30 not due until 10:50
+    ("2026-10-27T10:00:02-04:00", datetime(2026, 10, 27, 10, 55, tzinfo=_ET), "STALE"),  # 10:30 due, no run
+    ("2026-11-25T16:30:02-05:00", datetime(2026, 11, 26, 14, 0, tzinfo=_ET), "ONLINE"),  # Thanksgiving: nothing due
+    ("2026-11-27T16:30:02-05:00", datetime(2026, 11, 27, 20, 0, tzinfo=_ET), "ONLINE"),  # half day: ticks still run
+    # across the 11-01 fall-back: Fri 10-30 16:30 EDT run, Mon 11-02 in EST
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "STALE"),    # Mon 09:00 EST due
+    ("2026-11-02T09:00:02-05:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "ONLINE"),   # ran at 09:00 EST
+    (None, datetime(2026, 10, 27, 11, 0, tzinfo=_ET), "OFFLINE"),
+])
+def test_l2_session_stale_matrix(last, now, expected):
+    assert dd.l2_session_stale(last, now=now) == expected
+
+
+def test_l2_session_stale_catches_what_the_cycle_beat_forgives():
+    last, evening = "2026-10-27T11:00:02-04:00", datetime(2026, 10, 27, 20, 0, tzinfo=_ET)
+    assert dd.cycle_session_stale(last, now=evening) == "ONLINE"
+    assert dd.l2_session_stale(last, now=evening) == "STALE"
+
+
 # ── system_status banner collapser (selection incl. an errored panel) ─────────────────────────────
 def test_system_status_green_when_all_nominal():
     snap = {
@@ -637,9 +665,47 @@ def test_open_positions_carry_expiry_and_time_stop_date(convexity_db):
     # Issue #306: the known exit date. The L2 time-stop closes at dte <= time_stop_dte (calendar days).
     _pos(convexity_db, "PL", 690.0, status="open")
     row = dd.positions_panel(convexity_db)["real_open"][0]
-    assert row["expiry"] == "2027-01-15" and row["time_stop_on"] == "2026-12-25"
+    # 2026-12-25 (Christmas, NYSE shut, a Friday) → rolls to the next trading day, Mon 2026-12-28 (display only)
+    assert row["expiry"] == "2027-01-15" and row["time_stop_on"] == "2026-12-28"
     assert dd.positions_panel(convexity_db, time_stop_dte=10)["real_open"][0]["time_stop_on"] == "2027-01-05"
     assert dd._time_stop_on(None, 21) is None and dd._time_stop_on("garbage", 21) is None
+
+
+def test_time_stop_date_rolls_off_non_trading_days():
+    # Holiday → next session; weekend → Monday; a plain trading day is untouched; holiday+weekend chains roll through.
+    assert dd._time_stop_on("2027-01-15", 21) == "2026-12-28"   # Dec 25 2026 = Christmas (Fri) → Mon
+    assert dd._time_stop_on("2026-12-31", 21) == "2026-12-10"   # Thu, ordinary trading day: unchanged
+    assert dd._time_stop_on("2027-01-17", 21) == "2026-12-28"   # Dec 27 = Sunday → Mon Dec 28
+    assert dd._time_stop_on("2027-02-14", 21) == "2027-01-25"   # Jan 24 2027 = Sunday → Mon
+    assert dd._time_stop_on("2027-06-21", 21) == "2027-06-01"   # Tue, ordinary
+
+
+def test_live_dte_is_expiry_minus_today_like_the_monitor():
+    from datetime import date
+    assert dd._live_dte("2027-01-15", date(2026, 10, 28)) == 79      # the PL case: stored entry-DTE read 198
+    assert dd._live_dte("2027-01-15T00:00:00", date(2027, 1, 15)) == 0
+    assert dd._live_dte("2027-01-15", date(2027, 1, 20)) == -5
+    assert dd._live_dte(None) is None and dd._live_dte("garbage") is None
+
+
+def test_live_dte_uses_the_et_date_not_utc():
+    # 23:30 ET Oct 28 == 03:30 UTC Oct 29: the UTC date has already rolled, the operator's (ET) day has not.
+    from datetime import UTC, date, datetime
+    now = datetime(2026, 10, 29, 3, 30, tzinfo=UTC)
+    assert now.astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d %H:%M") == "2026-10-28 23:30"
+    assert dd._live_dte("2027-01-15", now=now) == 79                 # ET Oct 28 → 79 (UTC date would say 78)
+    assert dd._live_dte("2027-01-15", now=now.astimezone(ZoneInfo("America/New_York"))) == 79   # tz-aware ET input
+    assert dd._live_dte("2027-01-15", today=date(2026, 10, 29), now=now) == 78   # explicit today wins
+
+
+def test_open_positions_days_left_is_live_not_dte_at_entry(convexity_db):
+    from datetime import date, datetime
+    _pos(convexity_db, "PL", 690.0, status="open")                     # stored dte=300 (entry), expiry 2027-01-15
+    live = (date(2027, 1, 15) - datetime.now(_ET).date()).days
+    row = dd.positions_panel(convexity_db)["real_open"][0]
+    assert row["dte"] == live and row["dte"] != 300 and row["dte_at_entry"] == 300
+    mc = dd.market_context(convexity_db)["open_positions"][0]
+    assert mc["dte"] == live                                           # same corrected field in the market panel
 
 
 # ── upcoming actions (issue #306): next_at from the systemd timers ─────────────────────────────

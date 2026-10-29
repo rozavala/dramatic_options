@@ -143,3 +143,44 @@ def test_t4_condition_5_says_manual_not_hardcoded_in_progress(convexity_db):
     c5 = next(c for c in dd.t4_scoreboard(convexity_db, CONFIG)["conditions"] if c["id"] == 5)
     assert c5["verdict"] is None and c5["checkable"] is False and c5["manual"] is True
     assert c5["detail"].startswith("manual")
+
+
+# ── #366/#377 review: the latch is written atomically BEFORE the page ─────────────────────────────────────────
+
+def test_an_unwritable_latch_never_pages_so_it_cannot_storm_every_tick(tmp_path, monkeypatch):
+    import drawdown_warn as dw
+    sent = []
+
+    def unwritable(path, level):
+        raise PermissionError("read-only data dir")
+    monkeypatch.setattr(dw, "_write_level", unwritable)
+    for _ in range(16):   # a trading day of L2 ticks at 12%
+        assert dw.page_on_upward_crossing(0.12, 0.20, tmp_path / "latch.json",
+                                          lambda *a, **k: sent.append(a) or True) is False
+    assert sent == []
+
+
+def test_a_read_only_leftover_latch_file_is_replaced_not_wedged(tmp_path):
+    import json
+    import os
+
+    import drawdown_warn as dw
+    latch = tmp_path / "latch.json"
+    latch.write_text(json.dumps({"level": "ok"}))
+    os.chmod(latch, 0o444)          # e.g. left by a manual root run; the directory stays writable
+    sent = []
+    assert dw.page_on_upward_crossing(0.12, 0.20, latch, lambda *a, **k: sent.append(a) or True) is True
+    assert json.loads(latch.read_text()) == {"level": "warn"} and len(sent) == 1
+    assert dw.page_on_upward_crossing(0.12, 0.20, latch, lambda *a, **k: sent.append(a) or True) is False
+    assert len(sent) == 1 and not (tmp_path / "latch.json.tmp").exists()
+
+
+def test_an_undelivered_page_rolls_the_latch_back_and_retries(tmp_path):
+    import json
+
+    import drawdown_warn as dw
+    latch = tmp_path / "latch.json"
+    assert dw.page_on_upward_crossing(0.12, 0.20, latch, lambda *a, **k: False) is False   # no creds / transient
+    assert json.loads(latch.read_text()) == {"level": "ok"}                               # rolled back: armed
+    assert dw.page_on_upward_crossing(0.12, 0.20, latch, lambda *a, **k: True) is True    # next cycle delivers
+    assert json.loads(latch.read_text()) == {"level": "warn"}

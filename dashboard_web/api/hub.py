@@ -26,6 +26,15 @@ Decisions the issue left open (kept here so the contract is auditable):
     ``trading.state`` is ``stopped`` (#374). The Cycle heartbeat reads ONLINE off-hours however old the last run
     is, so it alone left an inert box (PROD) reading ``on`` overnight and at weekends. A timer systemd can't
     read (``enabled: null``) falls back to the heartbeat; it never counts as disabled.
+  * The loop jobs read their OWN runs (#376). L2's ``last_ok`` is its latest run (an L2 run records no council:
+    ``council_health IS NULL``) and it is stale when its most recent due timer slot has no run
+    (``dd.l2_session_stale``), which, unlike the shared cycle heartbeat, stays stale overnight and at weekends.
+    L1's ``last_ok`` is the later of its last council run and its last 15:45-ET run, so a run that skipped the
+    council because the kill rule tripped still counts as ran. Under the KILL switch nothing records a run, so
+    while the switch is engaged a loop job that would read ``missed`` reads ``idle`` with "paused: kill switch
+    engaged". Once it is lifted, the slots it covered read ``missed`` until the job's next run (no KILL history is
+    kept; those runs really were skipped). A manual ``--monitor`` run counts as an L2 run, so it can mask a dead L2
+    timer until the next due slot (≤ ~50 min).
   * A unit that isn't installed (``LoadState=not-found``) is unknown — ``enabled: null``, ``last_status:
     null`` with an error — never "disabled" (#374).
 """
@@ -52,8 +61,8 @@ SCHEMA = 1
 
 # job (= systemd unit stem) -> which journal heartbeat / document says it last succeeded
 JOBS: dict[str, str] = {
-    "dramatic-options-l1": "council",     # the Mon–Fri 15:45 ET cycle (the only run that deliberates)
-    "dramatic-options-l2": "cycle",       # the intraday monitor; the cycle heartbeat is L1 ∪ L2
+    "dramatic-options-l1": "l1",          # the Mon–Fri 15:45 ET cycle: its council run, or its 15:45 run (#376)
+    "dramatic-options-l2": "l2",          # the intraday monitor's OWN runs, not the L1 ∪ L2 heartbeat (#376)
     "dramatic-options-l0": "discovery",   # Sun 08:00 ET
     "dramatic-options-reach": "reach",    # Sun 09:40 ET — a weekly document, not a journal row
 }
@@ -95,6 +104,51 @@ def _next_due(props: dict[str, str]) -> str | None:
     if len(parts) >= 3 and parts[-1] == "UTC":
         return _iso(f"{parts[-3]} {parts[-2]}")
     return None
+
+
+_L1_BAND_ET = ((15, 40), (16, 0))     # a run starting in [15:40, 16:00) ET is the 15:45 L1 run (L2 fires at :00/:30)
+
+
+def _in_l1_band(dt: datetime) -> bool:
+    et = dt.astimezone(dd._ET)
+    return _L1_BAND_ET[0] <= (et.hour, et.minute) < _L1_BAND_ET[1]
+
+
+def _loop_beats(conn, now: datetime | None = None) -> dict:
+    """``{"l1": beat, "l2": beat}`` from the journal's own runs (read-only), beat = ``{"at", "status"}`` in the
+    header's shape. L2 = the latest run that recorded no council; L1 = the later of the last council run and the
+    last run that started in the 15:45-ET band."""
+    now = now or datetime.now(UTC)
+    # a council run = the header's own definition (it has council_proposals rows) or a stamped council_health
+    rows = conn.execute(
+        "SELECT r.started_at, (r.council_health IS NOT NULL OR EXISTS "
+        "(SELECT 1 FROM council_proposals p WHERE p.run_id = r.id)) AS council "
+        "FROM runs r WHERE r.mode IN ('PAPER','LIVE') AND r.started_at >= ?",
+        ((now - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S"),)).fetchall()
+    l2_last = l1_last = None
+    for started_at, council in rows:
+        dt = dd._parse_dt(started_at)
+        if dt is None:
+            continue
+        if council or _in_l1_band(dt):
+            l1_last = max(l1_last or dt, dt)
+        else:
+            l2_last = max(l2_last or dt, dt)
+    if l1_last is None:   # nothing in the 10-day read: fall back to the header's newest council run ever
+        run = dd._scalar(conn, "SELECT MAX(run_id) FROM council_proposals")
+        l1_last = dd._parse_dt(dd._scalar(conn, "SELECT started_at FROM runs WHERE id=?", (run,))) if run else None
+    if l2_last is None:   # an L2 dead for more than the 10-day read is still missed, never "never ran"
+        for (started_at,) in conn.execute(
+                "SELECT r.started_at FROM runs r WHERE r.mode IN ('PAPER','LIVE') AND r.council_health IS NULL "
+                "AND NOT EXISTS (SELECT 1 FROM council_proposals p WHERE p.run_id = r.id) "
+                "ORDER BY r.started_at DESC LIMIT 50"):
+            dt = dd._parse_dt(started_at)
+            if dt is not None and not _in_l1_band(dt):
+                l2_last = dt
+                break
+    iso = lambda d: None if d is None else d.isoformat()  # noqa: E731
+    return {"l1": {"at": iso(l1_last), "status": dd.council_session_stale(iso(l1_last), now=now)},
+            "l2": {"at": iso(l2_last), "status": dd.l2_session_stale(iso(l2_last), now=now)}}
 
 
 def _job_last_ok(name: str, hdr: dict, records_dir: Path) -> tuple[str | None, bool | None]:
@@ -235,6 +289,7 @@ def build_hub(db_path: str, db_exists: bool, *, head: str | None, records_dir: P
             hdr = dd.safe(dd.header_status, conn, next_at=lambda _u: None)
             risk = dd.safe(dd.risk_panel, conn, config)
             book = dd.safe(_book, conn, config, hdr.get("mode") if isinstance(hdr, dict) else None)
+            loop = dd.safe(_loop_beats, conn)
         finally:
             conn.close()
         if isinstance(book, dict) and book.get("error"):
@@ -245,7 +300,13 @@ def build_hub(db_path: str, db_exists: bool, *, head: str | None, records_dir: P
 
     checks = _checks(hdr, risk)
     good_hdr = hdr if isinstance(hdr, dict) and not hdr.get("error") else {}
+    if db_exists and isinstance(loop, dict) and not loop.get("error"):
+        good_hdr = {**good_hdr, **loop}   # an unreadable loop read leaves l1/l2 unknown (null), never "ran"
     jobs = [_job(n, good_hdr, units, records_dir) for n in JOBS]
+    if next(c for c in checks if c["label"] == "Kill switch")["ok"] is False:
+        for j in jobs:   # under the KILL switch run_once records no run at all: paused, not missed
+            if j["name"] in _LOOP_JOBS and j["last_status"] == "missed":
+                j["last_status"], j["error"] = "idle", "paused: kill switch engaged"
     return {"schema": SCHEMA, "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "trading": _trading(checks, note, jobs), "market": None, "checks": checks,
             "jobs": jobs, "book": book, "versions": {"commit": head}}

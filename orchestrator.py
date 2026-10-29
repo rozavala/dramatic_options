@@ -26,6 +26,7 @@ import cheapness_watch
 import clusters
 import direction_coherence
 import discovery
+import drawdown_warn
 import fixed_basket
 import fundamentals_staleness
 import marker_refresh
@@ -122,6 +123,32 @@ def _print_survivorship(conn, run_id: int) -> None:
         ivrv = f"{r['iv_rv']:.2f}" if r["iv_rv"] is not None else "—"
         skew = f"{r['otm_skew']:.1f}vp" if r["otm_skew"] is not None else "—"
         log.info("  %-28s %-6s %-17s iv/rv=%s skew=%s", r["theme"], r["symbol"], r["decision"], ivrv, skew)
+
+
+def _page_drawdown_warn(conn, config: dict, *, demo: bool) -> bool:
+    """Display-only drawdown WARN page (#355/#366): one normal-priority push per upward crossing of 10%, evaluated
+    once per cycle after the monitor pass (L1 and every L2 tick).
+
+    Reads the SAME open-book drawdown the kill rule uses (``state.convexity_book_drawdown``) and never alters
+    it. Skipped entirely under ``--demo``: the demo drawdown comes from a throwaway DB, and the latch file sits
+    beside the REAL db path, so a demo run would clobber the real book's latch (and re-page). Best-effort:
+    never raises into the cycle. Returns True iff a page was sent."""
+    if demo:
+        return False
+    try:
+        book = config.get("convexity_book", {})
+        budget = float(book.get("account_equity", 0.0)) * float(book.get("book_fraction", 0.0))
+        book_dd, _have_marks = state.convexity_book_drawdown(conn, budget)
+        return drawdown_warn.page_on_upward_crossing(
+            book_dd,
+            float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)),
+            Path(config.get("database", {}).get("path", "data/dramatic_options.db"))
+            .with_name("drawdown_warn_state.json"),
+            notify.send,
+        )
+    except Exception as e:  # noqa: BLE001 — a display-tier page must never break the cycle
+        log.warning("drawdown warn page skipped (non-fatal): %s", e)
+        return False
 
 
 def _print_book_summary(conn, config: dict) -> None:
@@ -826,6 +853,12 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             except Exception as e:  # noqa: BLE001 — fail-soft: the gate null never breaks the cycle
                 log.warning("no-gate 3A mark pass failed (non-fatal): %s", e)
                 notify.send("Fixed-basket 3A mark failed (non-fatal)", str(e))
+
+        # 1d. Display-only drawdown WARN page (#355/#366, operator: L1 + L2) — right after the monitor pass, so
+        #     it reads the marks this cycle just wrote. Runs in L1 and in every L2 --monitor tick (a crossing
+        #     pages within one tick, not up to a trading day late); the latch's hysteresis keeps it to one page
+        #     per upward crossing. Never touches the kill rule; never raises.
+        _page_drawdown_warn(conn, config, demo=demo)
 
         # 2. Council pass → themes (T2). The council PROPOSES; the deterministic gates in
         #    run_paper_cycle still DISPOSE. Entries are gated BEFORE any LLM spend by
