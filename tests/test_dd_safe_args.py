@@ -8,7 +8,7 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-_SKIP = {"venv", ".venv", "node_modules", ".git"}
+_SKIP = {"venv", ".venv", "node_modules", ".git", ".claude"}   # .claude/worktrees may hold other branches' code
 
 
 def _is_safe_call(node: ast.Call) -> bool:
