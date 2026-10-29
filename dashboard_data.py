@@ -487,7 +487,32 @@ def account_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
         # account — at real money it is shared with the operator's stock, Finance and alpha_options (#279), so
         # they are never this book's balance or P&L. This is computed from the book's own journal rows only.
         "book": book_pnl(conn),
+        # The Dramatic book VALUE the console leads with — the same figure /api/hub reports as book.value.
+        "book_value": book_value(conn, config),
     }
+
+
+def book_value(conn, config: dict) -> dict:
+    """Frame equity + realized + unrealized, from the book's OWN journal (never the shared broker account).
+
+    Single source for the console (``account.book_value``) and ``/api/hub`` (``book.value``) so the two cannot
+    drift. ``value`` is None with a ``note`` when it cannot be stated honestly: no cycle yet, no frame equity
+    configured, or an open position with no mark. ``as_of`` is the OLDEST open mark (the value is only as fresh
+    as that), or the last cycle when nothing is open — raw journal timestamps, formatted by the caller."""
+    last_run = _scalar(conn, "SELECT MAX(started_at) FROM runs WHERE mode IN ('PAPER','LIVE')")
+    if last_run is None:
+        return {"value": None, "as_of": None, "note": "no cycle has run yet"}
+    frame = float((config.get("convexity_book") or {}).get("account_equity") or 0.0)
+    if frame <= 0:
+        return {"value": None, "as_of": None, "note": "no frame equity configured"}
+    pnl = book_pnl(conn)
+    if pnl["unmarked"]:
+        return {"value": None, "as_of": None,
+                "note": f"{pnl['unmarked']} open position(s) unmarked — unrealized P&L unknown"}
+    oldest = _scalar(conn, "SELECT MIN(marked_at) FROM convexity_positions "
+                           "WHERE status IN ('open','closing') AND marked_at IS NOT NULL")
+    return {"value": round(frame + pnl["realized_usd"] + pnl["unrealized_usd"], 2),
+            "as_of": oldest or last_run, "note": None}
 
 
 def book_pnl(conn) -> dict:

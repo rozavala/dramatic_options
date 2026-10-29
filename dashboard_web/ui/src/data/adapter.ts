@@ -477,6 +477,8 @@ export function fromBackend(P: Snapshot): ViewModel {
       schema: h.schema_ok ? "ok" : "warn",
     },
     nextRuns: { cycle: nextRun(h.cycle, h.now), council: nextRun(h.council, h.now), discovery: nextRun(h.discovery, h.now) },
+    bookValue: fmt(acc.book_value?.value),
+    bookValueSub: acc.book_value?.value != null ? "frame + realized + unrealized" : (acc.book_value?.note ?? "unavailable"),
     equity: fmt(acc.broker_equity),
     deltaFrame: `${delta >= 0 ? "+" : "−"}$${Math.abs(delta).toLocaleString("en-US")} vs frame`,
     bookBudget: fmt(acc.frame?.book_budget), headroom: fmt(acc.headroom), equitySeries: acc.equity_series ?? [],

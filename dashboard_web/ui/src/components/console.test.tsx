@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Section render smoke tests (H3): the consoles render on a near-empty (accruing) VM without crashing, the
 // fail-soft degraded banner (B1) and schema-warning strip (B2) appear, and the fatal state renders full-panel.
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { fromBackend } from "../data/adapter";
@@ -9,6 +9,7 @@ import type { ConsoleProps, Snapshot } from "../data/types";
 import { MobileApp } from "../mobile/MobileApp";
 import { Book } from "./Book";
 import { DesktopConsole } from "./DesktopConsole";
+import { Safety } from "./Safety";
 import { StatusBanner } from "./StatusBanner";
 
 afterEach(cleanup);
@@ -59,6 +60,28 @@ describe("MobileApp", () => {
   it("surfaces a degraded banner on mobile too (B1)", () => {
     render(<MobileApp {...props({ vm: vmFrom({ council: { error: "boom" } }) })} />);
     expect(screen.getByText(/unavailable \(fail-soft\)/i)).toBeTruthy();
+  });
+});
+
+// Diana item 3: the console leads with the Dramatic book value; the broker number is relabelled + secondary.
+describe("book value leads, broker equity is secondary", () => {
+  const bookVm = () => vmFrom({ account: { broker_equity: 99120, delta_vs_frame: -880, book_value: { value: 100200, as_of: null, note: null } } });
+
+  it("desktop Safety shows the book value and the 'Broker equity (shared account)' label", () => {
+    render(<Safety vm={bookVm()!} />);
+    expect(screen.getByText("Dramatic book value")).toBeTruthy();
+    expect(screen.getByText("$100,200")).toBeTruthy();
+    expect(screen.getByText(/Broker equity \(shared account\)/)).toBeTruthy();
+    expect(screen.getByText("$99,120")).toBeTruthy();
+    expect(screen.queryByText("Paper equity")).toBeNull();
+  });
+
+  it("mobile Safety shows the same label", () => {
+    render(<MobileApp {...props({ vm: bookVm() })} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Safety" }));
+    expect(screen.getByText("Dramatic book value")).toBeTruthy();
+    expect(screen.getByText("$100,200")).toBeTruthy();
+    expect(screen.getByText(/Broker equity \(shared account\)/)).toBeTruthy();
   });
 });
 

@@ -216,21 +216,8 @@ def _book(conn, config: dict, mode: Any) -> dict:
     """Frame equity + realized + unrealized (the book's OWN journal, never the shared broker account) with its
     as-of, or ``value: null`` with the reason. One number — no position data."""
     label = f"{(mode or 'paper').lower()} book: frame equity + realized + unrealized"
-    base = {"value": None, "label": label, "as_of": None}
-    last_run = dd._scalar(conn, "SELECT MAX(started_at) FROM runs WHERE mode IN ('PAPER','LIVE')")
-    if last_run is None:
-        return {**base, "note": "no cycle has run yet"}
-    frame = float((config.get("convexity_book") or {}).get("account_equity") or 0.0)
-    if frame <= 0:
-        return {**base, "note": "no frame equity configured"}
-    pnl = dd.book_pnl(conn)
-    if pnl["unmarked"]:
-        return {**base, "note": f"{pnl['unmarked']} open position(s) unmarked — unrealized P&L unknown"}
-    # the value is only as fresh as its OLDEST mark; with nothing open it is as fresh as the last cycle
-    oldest = dd._scalar(conn, "SELECT MIN(marked_at) FROM convexity_positions "
-                              "WHERE status IN ('open','closing') AND marked_at IS NOT NULL")
-    return {"value": round(frame + pnl["realized_usd"] + pnl["unrealized_usd"], 2), "label": label,
-            "as_of": _iso(oldest or last_run), "note": None}
+    bv = dd.book_value(conn, config)
+    return {"value": bv["value"], "label": label, "as_of": _iso(bv["as_of"]), "note": bv["note"]}
 
 
 def build_hub(db_path: str, db_exists: bool, *, head: str | None, records_dir: Path) -> dict:
