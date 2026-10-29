@@ -38,7 +38,10 @@ _COMMON = (
     "that has already happened does NOT by itself disqualify the name; it disqualifies only if the "
     "evidence shows the driver's change has peaked, stalled or reversed (growth decelerating, backlog "
     "shrinking), so no further leg is likely within the horizon. Judge whether the next leg is still "
-    "ahead, not whether the last one happened. Reason only from the EVIDENCE provided. If the evidence lacks numeric content, "
+    "ahead, not whether the last one happened. The driver must still be visibly changing in THIS name's own "
+    "current evidence — its fresh price markers or its latest filing; the basket's story alone does not show it, "
+    "and a stale or annual-only figure cannot establish acceleration. Reason only from the EVIDENCE provided. "
+    "If the evidence lacks numeric content, "
     "return NEUTRAL rather than inventing facts. Use confidence strictly from {LOW, MODERATE, HIGH, "
     "EXTREME, NEUTRAL}. Reply with ONE JSON object and nothing else."
 )
