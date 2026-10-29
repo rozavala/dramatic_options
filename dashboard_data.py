@@ -69,6 +69,11 @@ _L1_SLOT_HM = (15, 45)              # council/L1 daily slot (ET)
 _L1_GRACE_MIN = 20                  # a slot counts as "due" only once now ≥ slot + this (start/record latency)
 _L2_WINDOW_HM = ((9, 0), (16, 0))  # L2 monitor cadence window (ET)
 _L2_STALE_MIN = 50                 # one 30-min L2 interval + 20 slack before calling an intraday stall
+# The L2 timer's own slots (scripts/systemd/dramatic-options-l2.timer: Mon..Fri 09..16:00/30 America/New_York),
+# i.e. 09:00, 09:30 … 16:30 ET. Used by l2_session_stale (#376), which, unlike cycle_session_stale, remembers a
+# missed slot after the window closes.
+_L2_SLOTS_HM = tuple((h, m) for h in range(9, 17) for m in (0, 30))
+_L2_GRACE_MIN = 20                 # a slot counts as due only once now ≥ slot + this (start/record latency)
 
 
 # ── connection / paths ────────────────────────────────────────────────────────────────────────
@@ -247,6 +252,37 @@ def cycle_session_stale(last_cycle_ts, *, now: datetime | None = None) -> str:
     if now_et < open_dt + timedelta(minutes=_L2_STALE_MIN) or now_et >= close_dt:
         return "ONLINE"
     return "STALE" if (now - last).total_seconds() / 60.0 > _L2_STALE_MIN else "ONLINE"
+
+
+def _most_recent_due_l2_slot(now_et: datetime) -> datetime | None:
+    """The most recent L2 timer slot already DUE (now ≥ slot + grace) on an NYSE trading day, walking back across
+    weekends and holidays; None if none in the last ~8 days. Half days keep every slot: the timer fires them all
+    (the monitor runs mark-only once the market is shut), so each still records a run."""
+    grace = timedelta(minutes=_L2_GRACE_MIN)
+    day = now_et
+    for _ in range(8):
+        if nyse_calendar.session_close(day.date()) is not None:
+            for h, m in reversed(_L2_SLOTS_HM):
+                slot = day.replace(hour=h, minute=m, second=0, microsecond=0)
+                if now_et >= slot + grace:
+                    return slot
+        day = (day - timedelta(days=1)).replace(hour=23, minute=59)
+    return None
+
+
+def l2_session_stale(last_l2_ts, *, now: datetime | None = None) -> str:
+    """Market-aware staleness for the L2 monitor's OWN runs (#376). OFFLINE if never run; STALE iff its most
+    recent due slot is after the last L2 run, so a monitor that died at 11:00 stays STALE overnight and over the
+    weekend (``cycle_session_stale`` forgets once the window closes, and the 15:45 L1 refreshes the shared beat);
+    else ONLINE. Pure datetime (no fetch)."""
+    now = now or datetime.now(UTC)
+    last = _parse_dt(last_l2_ts)
+    if last is None:
+        return "OFFLINE"
+    slot = _most_recent_due_l2_slot(now.astimezone(_ET))
+    if slot is None:
+        return "ONLINE"
+    return "STALE" if last < slot else "ONLINE"
 
 
 def system_status(snap: dict) -> dict:
@@ -471,6 +507,7 @@ def account_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
                    "ORDER BY day", (now.date().isoformat(),))
     open_premium = state.convexity_book_open_premium(conn)
     age = _age_hours(broker["started_at"], now=now) if broker else None
+    pnl = book_pnl(conn)    # once per snapshot: read by both "book" and book_value below
     return {
         "broker_equity": None if broker is None else round(float(broker["equity"]), 2),
         "as_of": None if broker is None else broker["started_at"],
@@ -486,8 +523,34 @@ def account_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
         # The convexity book's OWN money (issue #302). broker_equity / equity_series above are the WHOLE Alpaca
         # account — at real money it is shared with the operator's stock, Finance and alpha_options (#279), so
         # they are never this book's balance or P&L. This is computed from the book's own journal rows only.
-        "book": book_pnl(conn),
+        "book": pnl,
+        # The Dramatic book VALUE the console leads with — the same figure /api/hub reports as book.value.
+        "book_value": book_value(conn, config, pnl=pnl),
     }
+
+
+def book_value(conn, config: dict, *, pnl: dict | None = None) -> dict:
+    """Frame equity + realized + unrealized, from the book's OWN journal (never the shared broker account).
+
+    Single source for the console (``account.book_value``) and ``/api/hub`` (``book.value``) so the two cannot
+    drift. ``value`` is None with a ``note`` when it cannot be stated honestly: no cycle yet, no frame equity
+    configured, or an open position with no mark. ``as_of`` is the OLDEST open mark (the value is only as fresh
+    as that), or the last cycle when nothing is open — raw journal timestamps, formatted by the caller.
+    ``pnl`` is an already-computed ``book_pnl(conn)`` (account_panel passes its own); omitted → computed here."""
+    last_run = _scalar(conn, "SELECT MAX(started_at) FROM runs WHERE mode IN ('PAPER','LIVE')")
+    if last_run is None:
+        return {"value": None, "as_of": None, "note": "no cycle has run yet"}
+    frame = float((config.get("convexity_book") or {}).get("account_equity") or 0.0)
+    if frame <= 0:
+        return {"value": None, "as_of": None, "note": "no frame equity configured"}
+    pnl = pnl if pnl is not None else book_pnl(conn)
+    if pnl["unmarked"]:
+        return {"value": None, "as_of": None,
+                "note": f"{pnl['unmarked']} open position(s) unmarked — unrealized P&L unknown"}
+    oldest = _scalar(conn, "SELECT MIN(marked_at) FROM convexity_positions "
+                           "WHERE status IN ('open','closing') AND marked_at IS NOT NULL")
+    return {"value": round(frame + pnl["realized_usd"] + pnl["unrealized_usd"], 2),
+            "as_of": oldest or last_run, "note": None}
 
 
 def book_pnl(conn) -> dict:

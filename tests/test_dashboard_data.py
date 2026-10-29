@@ -493,6 +493,34 @@ def test_cycle_session_stale_matrix(last, now, expected):
     assert dd.cycle_session_stale(last, now=now) == expected
 
 
+# ── #376: the L2 monitor's own staleness remembers a missed slot after the window closes ─────────────────
+@pytest.mark.parametrize("last, now, expected", [
+    # THE DEFECT: L2 died after its 11:00 run; by 20:00 ET cycle_session_stale has forgiven it (window closed)
+    ("2026-10-27T11:00:02-04:00", datetime(2026, 10, 27, 20, 0, tzinfo=_ET), "STALE"),
+    ("2026-10-27T11:00:02-04:00", datetime(2026, 10, 31, 12, 0, tzinfo=_ET), "STALE"),   # ...and all weekend
+    ("2026-10-27T16:30:02-04:00", datetime(2026, 10, 27, 23, 0, tzinfo=_ET), "ONLINE"),  # ran the last tick
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 1, 12, 0, tzinfo=_ET), "ONLINE"),   # weekend after Friday
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 2, 9, 10, tzinfo=_ET), "ONLINE"),   # Mon 09:00 not yet due
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "STALE"),    # Mon 09:00 due, no run
+    ("2026-10-27T10:00:02-04:00", datetime(2026, 10, 27, 10, 45, tzinfo=_ET), "ONLINE"), # 10:30 not due until 10:50
+    ("2026-10-27T10:00:02-04:00", datetime(2026, 10, 27, 10, 55, tzinfo=_ET), "STALE"),  # 10:30 due, no run
+    ("2026-11-25T16:30:02-05:00", datetime(2026, 11, 26, 14, 0, tzinfo=_ET), "ONLINE"),  # Thanksgiving: nothing due
+    ("2026-11-27T16:30:02-05:00", datetime(2026, 11, 27, 20, 0, tzinfo=_ET), "ONLINE"),  # half day: ticks still run
+    # across the 11-01 fall-back: Fri 10-30 16:30 EDT run, Mon 11-02 in EST
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "STALE"),    # Mon 09:00 EST due
+    ("2026-11-02T09:00:02-05:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "ONLINE"),   # ran at 09:00 EST
+    (None, datetime(2026, 10, 27, 11, 0, tzinfo=_ET), "OFFLINE"),
+])
+def test_l2_session_stale_matrix(last, now, expected):
+    assert dd.l2_session_stale(last, now=now) == expected
+
+
+def test_l2_session_stale_catches_what_the_cycle_beat_forgives():
+    last, evening = "2026-10-27T11:00:02-04:00", datetime(2026, 10, 27, 20, 0, tzinfo=_ET)
+    assert dd.cycle_session_stale(last, now=evening) == "ONLINE"
+    assert dd.l2_session_stale(last, now=evening) == "STALE"
+
+
 # ── system_status banner collapser (selection incl. an errored panel) ─────────────────────────────
 def test_system_status_green_when_all_nominal():
     snap = {
