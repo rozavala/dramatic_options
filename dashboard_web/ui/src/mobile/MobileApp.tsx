@@ -109,9 +109,9 @@ function MOverview({ vm }: { vm: ViewModel }) {
 function MSafety({ vm }: { vm: ViewModel }) {
   const c = vm.council;
   const sig = signal[c.vlevel];
-  const tiles: { label: string; value: string; color: string; sub: string; series?: { equity: number }[]; secondary?: { label: string; value: string; sub: string } }[] = [
-    { label: "Dramatic book value", value: vm.bookValue, color: color.ink, sub: vm.bookValueSub, series: vm.equitySeries,
-      secondary: { label: "Broker equity (shared account)", value: vm.equity, sub: vm.deltaFrame } },
+  const tiles: { label: string; value: string; color: string; sub: string; secondary?: { label: string; value: string; sub: string; series?: { equity: number }[] }; asOf?: { label: string | null; stale: boolean } }[] = [
+    { label: "Dramatic book value", value: vm.bookValue, color: color.ink, sub: vm.bookValueSub, asOf: { label: vm.bookAsOf, stale: vm.bookStale },
+      secondary: { label: "Broker equity (shared account)", value: vm.equity, sub: vm.deltaFrame, series: vm.equitySeries } },
     { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: `warn ${vm.ddWarnPct}% · halt 20%` },
     { label: "Positions", value: `${vm.openN}/${vm.maxN}`, color: color.ink, sub: `${vm.openPrem} at risk` },
     { label: "Headroom", value: vm.headroom, color: signal.ok.text, sub: `of ${vm.bookBudget}` },
@@ -137,13 +137,18 @@ function MSafety({ vm }: { vm: ViewModel }) {
             <div style={{ fontSize: 10.5, color: "#5f6675" }}>{t.label}</div>
             <div className="font-mono" style={{ fontSize: 19, fontWeight: 700, color: t.color, marginTop: 6, letterSpacing: "-.3px" }}>{t.value}</div>
             <div style={{ fontSize: 9.5, color: "#5f6675", marginTop: 2, lineHeight: 1.3 }}>{t.sub}</div>
+            {t.asOf && (t.asOf.label || t.asOf.stale) && (
+              <div data-testid="book-as-of" style={{ fontSize: 9.5, color: "#5f6675", marginTop: 2, lineHeight: 1.3 }}>
+                {t.asOf.label && <>oldest mark {t.asOf.label}</>}{t.asOf.stale && <Chip level="warn" style={{ marginLeft: 5 }}>STALE</Chip>}
+              </div>
+            )}
             {t.secondary && (
               <div style={{ marginTop: 7, paddingTop: 6, borderTop: "1px solid #edf0f4", fontSize: 9.5, color: "#5f6675", lineHeight: 1.3 }}>
                 {t.secondary.label} <span className="font-mono" style={{ color: "#414956" }}>{t.secondary.value}</span>
                 <div>{t.secondary.sub}</div>
+                {t.secondary.series && <Sparkline series={t.secondary.series} height={24} />}
               </div>
             )}
-            {t.series && <Sparkline series={t.series} height={24} />}
           </div>
         ))}
       </div>

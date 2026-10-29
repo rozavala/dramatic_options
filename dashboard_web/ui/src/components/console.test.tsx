@@ -76,6 +76,42 @@ describe("book value leads, broker equity is secondary", () => {
     expect(screen.queryByText("Paper equity")).toBeNull();
   });
 
+  const staleVm = () => vmFrom({
+    header: { now: "2026-10-29T16:00:00+00:00" },
+    account: { broker_equity: 99120, delta_vs_frame: -880, equity_series: [{ day: "2026-10-28", equity: 99000 }, { day: "2026-10-29", equity: 99120 }],
+      book_value: { value: 100200, as_of: "2026-10-20 15:00:00", note: null } },
+  });
+
+  it("desktop shows the oldest-mark as-of and a STALE chip on the book tile", () => {
+    render(<Safety vm={staleVm()!} />);
+    const asOf = screen.getByTestId("book-as-of");
+    expect(asOf.textContent).toContain("oldest mark 2026-10-20 15:00 UTC");
+    expect(asOf.textContent).toContain("STALE");
+  });
+
+  it("mobile shows the as-of and STALE chip too", () => {
+    render(<MobileApp {...props({ vm: staleVm() })} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Safety" }));
+    const asOf = screen.getByTestId("book-as-of");
+    expect(asOf.textContent).toContain("oldest mark 2026-10-20 15:00 UTC");
+    expect(asOf.textContent).toContain("STALE");
+  });
+
+  it("a fresh book value shows the as-of with no STALE chip", () => {
+    const vm = vmFrom({ header: { now: "2026-10-29T16:00:00+00:00" }, account: { book_value: { value: 100200, as_of: "2026-10-29 15:30:00", note: null } } });
+    render(<Safety vm={vm!} />);
+    expect(screen.getByTestId("book-as-of").textContent).not.toContain("STALE");
+  });
+
+  it("draws the equity sparkline under the broker line, not under the book value", () => {
+    render(<Safety vm={staleVm()!} />);
+    const tile = screen.getByText("Dramatic book value").parentElement!;
+    const sparks = tile.querySelectorAll("svg");
+    expect(sparks.length).toBeGreaterThan(0);
+    const brokerBlock = screen.getByText(/Broker equity \(shared account\)/).parentElement!;
+    expect(brokerBlock.querySelectorAll("svg").length).toBe(sparks.length);
+  });
+
   it("mobile Safety shows the same label", () => {
     render(<MobileApp {...props({ vm: bookVm() })} />);
     fireEvent.click(screen.getByRole("tab", { name: "Safety" }));

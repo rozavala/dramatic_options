@@ -146,6 +146,19 @@ def test_console_book_value_equals_the_hub_book_value(hub_db) -> None:
     assert console["value"] is None and hub_book["value"] is None and console["note"] == hub_book["note"]
 
 
+def test_account_panel_computes_book_pnl_once_and_book_value_is_unchanged(hub_db, monkeypatch) -> None:
+    import dashboard_data as dd
+
+    config = server.load_config()
+    expected = dd.book_value(hub_db, config)
+    calls: list[int] = []
+    real = dd.book_pnl
+    monkeypatch.setattr(dd, "book_pnl", lambda conn: (calls.append(1), real(conn))[1])
+    panel = dd.account_panel(hub_db, config)
+    assert len(calls) == 1
+    assert panel["book_value"] == expected and panel["book"]["realized_usd"] == real(hub_db)["realized_usd"]
+
+
 def test_hub_book_is_null_with_a_reason_when_unmarked_or_no_cycle(hub_db) -> None:
     hub_db.execute("UPDATE convexity_positions SET mark=NULL, marked_at=NULL")
     hub_db.commit()

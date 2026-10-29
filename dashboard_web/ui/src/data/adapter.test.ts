@@ -182,6 +182,27 @@ describe("fromBackend", () => {
     expect(vm.bookValueSub).toBe("frame + realized + unrealized");
   });
 
+  it("states the book value's as-of (oldest mark) and is not stale when fresh", () => {
+    expect(vm.bookAsOf).toBe("2026-10-14 16:00 UTC");
+    expect(vm.bookStale).toBe(false);
+  });
+
+  it("flags the book value stale when the oldest mark is older than 4 days, or the cycle heartbeat is not ONLINE", () => {
+    const snap = synthetic();
+    const old = fromBackend({ ...snap, account: { ...snap.account, book_value: { value: 100200, as_of: "2026-10-09 15:00:00", note: null } } } as Snapshot);
+    expect(old.bookAsOf).toBe("2026-10-09 15:00 UTC");
+    expect(old.bookStale).toBe(true);
+    const down = fromBackend({ ...snap, header: { ...snap.header, cycle: { ...snap.header.cycle, status: "STALE" } } } as Snapshot);
+    expect(down.bookStale).toBe(true);
+  });
+
+  it("shows no as-of or stale flag when the book value is unavailable", () => {
+    const snap = synthetic();
+    const v = fromBackend({ ...snap, header: { ...snap.header, cycle: { ...snap.header.cycle, status: "STALE" } }, account: { ...snap.account, book_value: { value: null, as_of: null, note: "no cycle has run yet" } } } as Snapshot);
+    expect(v.bookAsOf).toBeNull();
+    expect(v.bookStale).toBe(false);
+  });
+
   it("reads an unavailable book value as a dash with the reason, never a silent zero", () => {
     const snap = synthetic();
     const v = fromBackend({ ...snap, account: { ...snap.account, book_value: { value: null, as_of: null, note: "1 open position(s) unmarked — unrealized P&L unknown" } } } as Snapshot);

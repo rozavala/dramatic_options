@@ -387,8 +387,9 @@ export interface ViewModel {
   beatLevels: Record<BeatKey, Level>;
   nextRuns: Record<TimerKey, NextRunVM | null>; // #306 — null = timer not active (PROD) → "not scheduled"
   bookValue: string; bookValueSub: string;   // Dramatic book value (frame + realized + unrealized) — the lead figure
+  bookAsOf: string | null; bookStale: boolean; // oldest open mark ("YYYY-MM-DD HH:MM UTC"); stale = older than BOOK_STALE_HOURS, or the cycle heartbeat is not ONLINE
   equity: string; deltaFrame: string; bookBudget: string; headroom: string; // equity = BROKER equity (shared account)
-  equitySeries: { day: string; equity: number }[];
+  equitySeries: { day: string; equity: number }[];   // BROKER equity per day (shared account) — there is no book-value history
   bookDD: string; bookDDlevel: Level; bookDDchip: string; ddWarnPct: number; openN: number; maxN: number; openPrem: string;
   council: {
     verdict: string; vlevel: Level; runId: number | null; roundtrips: number; strategistAbstained: number;
