@@ -401,11 +401,13 @@ or reversed). The proposer's role text and the strategist's role text are unchan
   under the §10.7 wording; its first decision read (~February 2027) shows whether the old timing test filtered
   losers. Judgments under §10.10 are its own segment.
 
-### 10.11 Criterion (3): the driver must show in the name's own current evidence — DRAFT for the 2026-11-02 look
+### 10.11 Criterion (3): the driver must show in the name's own current evidence (dated amendment, 2026-10-29, operator word)
 
-**Status: DRAFT, not in force.** It awaits the operator's word at the 2026-11-02 look. The trigger was pre-committed
-on 2026-10-27 (STANDING_STATE, "Driver-scope count"): at ≥ 3 by 11-02, clarify criterion (3) to the name-level
-reading as one dated change. **The count reached 3 on 2026-10-29 (L1 #1867), all silver_deficit:**
+**Status: FROZEN 2026-10-29.** Operator's word: *"adopt 388"*. That is **ahead of** the 2026-11-02 look the trigger
+named, an operational deviation of the decision date recorded as such (the precedent is the F4 review held early at
+§10.10). The trigger was pre-committed on 2026-10-27 (STANDING_STATE, "Driver-scope count"): at ≥ 3 by 11-02,
+clarify criterion (3) to the name-level reading as one dated change. **The count reached 3 on 2026-10-29 (L1 #1867),
+all silver_deficit:**
 
 | Verdict | Driver cited | The name's own evidence |
 |---|---|---|
@@ -416,7 +418,7 @@ reading as one dated change. **The count reached 3 on 2026-10-29 (L1 #1867), all
 AG and PAAS flipped from earlier "not at inflection" reads (10-22, 10-27) on the same or weaker figures. HL flipped
 back to "not at inflection" on 10-29.
 
-**The change (operator's direction, 2026-10-29: "draft the narrow"):** one sentence appended to criterion (3) in
+**The change (operator's direction, 2026-10-29: "draft the narrow"; adopted the same day):** one sentence appended to criterion (3) in
 `_COMMON`, so all three roles inherit it. Role texts and JSON keys are unchanged.
 
 > *"The driver must still be visibly changing in THIS name's own current evidence — its fresh price markers or its
