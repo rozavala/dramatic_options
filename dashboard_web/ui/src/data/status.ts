@@ -38,6 +38,8 @@ export const t4RowState = (checkable: boolean, v: T4Verdict, manual = false): Di
 // #355: book drawdown → [Level, chip text]. DISPLAY ONLY — "tripped" is the backend kill rule's own verdict
 // (never recomputed here); "warn" is the 10% heads-up tier below the 20% halt.
 export const DD_WARN_DEFAULT = 0.10;
+// The kill rule's second leg (months dry) is not computed by the console — surfaced as such, never as a blank.
+export const DRY_MONTHS_LINE = "Dry-months leg: not computed (pending Rodrigo)";
 export const drawdownDisplay = (
   kr?: { tripped?: boolean; level?: string; book_drawdown?: number; drawdown_warn?: number; have_marks?: boolean } | null,
 ): [Level, string] => {

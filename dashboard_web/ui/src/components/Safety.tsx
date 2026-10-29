@@ -1,11 +1,11 @@
-import { clusterLevel } from "../data/status";
+import { clusterLevel, DRY_MONTHS_LINE } from "../data/status";
 import type { ViewModel } from "../data/types";
 import { color, signal, type Level } from "../theme/tokens";
 import { Sparkline } from "./Sparkline";
 import { runLabel } from "../data/runLabel";
 import { Card, Chip, StaleChip } from "./primitives";
 
-function Tile({ label, value, valColor, sub, bar, secondary, asOf }: { label: string; value: React.ReactNode; valColor?: string; sub: string; bar?: { frac: number; level: Level }; secondary?: { label: string; value: string; sub: string; series?: { equity: number }[] }; asOf?: { label: string | null; stale: boolean } }) {
+function Tile({ label, value, valColor, sub, bar, secondary, asOf }: { label: string; value: React.ReactNode; valColor?: string; sub: React.ReactNode; bar?: { frac: number; level: Level }; secondary?: { label: string; value: string; sub: string; series?: { equity: number }[] }; asOf?: { label: string | null; stale: boolean } }) {
   return (
     <Card style={{ padding: "16px 17px" }}>
       <div style={{ fontSize: 12, color: "#414956" }}>{label}</div>
@@ -49,13 +49,17 @@ export function Safety({ vm }: { vm: ViewModel }) {
   const empty = vm.clusters.filter((cl) => cl.premium <= 0);
   const dr = vm.dualread;
   const rt = vm.dualreadRuntime;
-  const ddFrac = (parseFloat(vm.bookDD) || 0) / 20;
+  const ddFrac = vm.haltFrac ? (parseFloat(vm.bookDD) || 0) / 100 / vm.haltFrac : 0;
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
       <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: 14 }}>
         <Tile label="Dramatic book value" value={vm.bookValue} sub={vm.bookValueSub} asOf={{ label: vm.bookAsOf, stale: vm.bookStale }}
           secondary={{ label: "Broker equity (shared account)", value: vm.equity, sub: `${vm.deltaFrame} · informational`, series: vm.equitySeries }} />
-        <Tile label="Book drawdown" value={vm.bookDD} valColor={signal[vm.bookDDlevel].text} sub={`warns at ${vm.ddWarnPct}% · the kill rule halts new entries at 20%`} bar={{ frac: ddFrac, level: vm.bookDDlevel }} />
+        <Tile label="Book drawdown" value={vm.bookDD} valColor={signal[vm.bookDDlevel].text} sub={<>
+          warns at {vm.ddWarnPct}% · the kill rule halts new entries at {vm.haltPct ?? "—"}%
+          <div data-testid="kill-distance" style={{ color: "#2c3645", fontWeight: 500, marginTop: 3 }}>{vm.ddToHalt} of book loss to the halt</div>
+          <div style={{ marginTop: 3 }}>{DRY_MONTHS_LINE}</div>
+        </>} bar={{ frac: ddFrac, level: vm.bookDDlevel }} />
         <Tile label="Open positions" value={<>{vm.openN} <span style={{ fontSize: 15, color: "#6a7280", fontWeight: 500 }}>/ {vm.maxN}</span></>} sub={`${vm.openPrem} premium at risk · ${vm.openN} slot${vm.openN === 1 ? "" : "s"} used`} bar={{ frac: vm.maxN ? vm.openN / vm.maxN : 0, level: "acc" }} />
         <Tile label="Headroom" value={vm.headroom} valColor={signal.ok.text} sub={`of the ${vm.bookBudget} book budget · per name ≤ $1,000`} bar={{ frac: 1 - Math.min(1, vm.openN / Math.max(1, vm.maxN)), level: "ok" }} />
       </div>
