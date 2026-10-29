@@ -5,13 +5,24 @@ import { Sparkline } from "./Sparkline";
 import { runLabel } from "../data/runLabel";
 import { Card, Chip, StaleChip } from "./primitives";
 
-function Tile({ label, value, valColor, sub, series, bar }: { label: string; value: React.ReactNode; valColor?: string; sub: string; series?: { equity: number }[]; bar?: { frac: number; level: Level } }) {
+function Tile({ label, value, valColor, sub, bar, secondary, asOf }: { label: string; value: React.ReactNode; valColor?: string; sub: string; bar?: { frac: number; level: Level }; secondary?: { label: string; value: string; sub: string; series?: { equity: number }[] }; asOf?: { label: string | null; stale: boolean } }) {
   return (
     <Card style={{ padding: "16px 17px" }}>
       <div style={{ fontSize: 12, color: "#414956" }}>{label}</div>
       <div className="font-mono" style={{ fontSize: 25, fontWeight: 700, marginTop: 9, color: valColor ?? "#141b28", letterSpacing: "-.5px" }}>{value}</div>
       <div style={{ fontSize: 11.5, color: "#6a7280", marginTop: 3 }}>{sub}</div>
-      {series && <Sparkline series={series} height={30} />}
+      {asOf && (asOf.label || asOf.stale) && (
+        <div data-testid="book-as-of" style={{ fontSize: 10.5, color: "#6a7280", marginTop: 2 }}>
+          {asOf.label && <>oldest mark {asOf.label}</>}{asOf.stale && <Chip level="warn" style={{ marginLeft: 6 }}>STALE</Chip>}
+        </div>
+      )}
+      {secondary && (
+        <div style={{ marginTop: 9, paddingTop: 7, borderTop: "1px solid #edf0f4" }}>
+          <div style={{ fontSize: 11, color: "#6a7280" }}>{secondary.label} <span className="font-mono" style={{ color: "#414956" }}>{secondary.value}</span></div>
+          <div style={{ fontSize: 10.5, color: "#6a7280", marginTop: 1 }}>{secondary.sub}</div>
+          {secondary.series && <Sparkline series={secondary.series} height={30} />}
+        </div>
+      )}
       {bar && (
         <div style={{ height: 6, background: "#edf0f4", borderRadius: 3, marginTop: 14, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${Math.max(1, Math.min(100, bar.frac * 100))}%`, background: signal[bar.level].text, borderRadius: 3 }} />
@@ -42,7 +53,8 @@ export function Safety({ vm }: { vm: ViewModel }) {
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
       <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: 14 }}>
-        <Tile label="Paper equity" value={vm.equity} sub={`${vm.deltaFrame} · informational`} series={vm.equitySeries} />
+        <Tile label="Dramatic book value" value={vm.bookValue} sub={vm.bookValueSub} asOf={{ label: vm.bookAsOf, stale: vm.bookStale }}
+          secondary={{ label: "Broker equity (shared account)", value: vm.equity, sub: `${vm.deltaFrame} · informational`, series: vm.equitySeries }} />
         <Tile label="Book drawdown" value={vm.bookDD} valColor={signal[vm.bookDDlevel].text} sub={`warns at ${vm.ddWarnPct}% · the kill rule halts new entries at 20%`} bar={{ frac: ddFrac, level: vm.bookDDlevel }} />
         <Tile label="Open positions" value={<>{vm.openN} <span style={{ fontSize: 15, color: "#6a7280", fontWeight: 500 }}>/ {vm.maxN}</span></>} sub={`${vm.openPrem} premium at risk · ${vm.openN} slot${vm.openN === 1 ? "" : "s"} used`} bar={{ frac: vm.maxN ? vm.openN / vm.maxN : 0, level: "acc" }} />
         <Tile label="Headroom" value={vm.headroom} valColor={signal.ok.text} sub={`of the ${vm.bookBudget} book budget · per name ≤ $1,000`} bar={{ frac: 1 - Math.min(1, vm.openN / Math.max(1, vm.maxN)), level: "ok" }} />

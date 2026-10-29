@@ -123,6 +123,44 @@ def test_hub_book_is_frame_plus_realized_plus_unrealized_with_oldest_mark_as_of(
     assert body["book"]["label"]
 
 
+def test_console_book_value_equals_the_hub_book_value(hub_db) -> None:
+    """Diana item 3: the console leads with the SAME figure /api/hub reports — pinned across the live paths
+    (/api/snapshot account.book_value vs /api/hub book.value), the marked, the realized-only and the null cases."""
+    def both() -> tuple[dict, dict]:
+        server._hub_cache.clear()
+        server._snapshot_cache.clear()
+        return _get("/api/snapshot?nocache=1").json()["account"]["book_value"], _get().json()["book"]
+
+    console, hub_book = both()
+    assert console["value"] is not None and console["value"] == hub_book["value"]
+    assert hub._iso(console["as_of"]) == hub_book["as_of"] and console["note"] == hub_book["note"]
+
+    hub_db.execute("UPDATE convexity_positions SET status='closed', closed_at=?, realized_pnl=-150.0, mark=NULL",
+                   (_STARTED,))
+    hub_db.commit()
+    console, hub_book = both()
+    frame = float(server.load_config()["convexity_book"]["account_equity"])
+    assert console["value"] == hub_book["value"] == round(frame - 150.0, 2)
+
+    hub_db.execute("UPDATE convexity_positions SET status='open', closed_at=NULL, realized_pnl=NULL")
+    hub_db.commit()
+    console, hub_book = both()  # open with no mark → neither side states a number
+    assert console["value"] is None and hub_book["value"] is None and console["note"] == hub_book["note"]
+
+
+def test_account_panel_computes_book_pnl_once_and_book_value_is_unchanged(hub_db, monkeypatch) -> None:
+    import dashboard_data as dd
+
+    config = server.load_config()
+    expected = dd.book_value(hub_db, config)
+    calls: list[int] = []
+    real = dd.book_pnl
+    monkeypatch.setattr(dd, "book_pnl", lambda conn: (calls.append(1), real(conn))[1])
+    panel = dd.account_panel(hub_db, config)
+    assert len(calls) == 1
+    assert panel["book_value"] == expected and panel["book"]["realized_usd"] == real(hub_db)["realized_usd"]
+
+
 def test_hub_book_is_null_with_a_reason_when_unmarked_or_no_cycle(hub_db) -> None:
     hub_db.execute("UPDATE convexity_positions SET mark=NULL, marked_at=NULL")
     hub_db.commit()
