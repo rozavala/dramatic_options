@@ -1360,12 +1360,18 @@ def _book_table(conn, sql: str, params: tuple = ()) -> list[dict]:
     return _rows(conn, sql, params)
 
 
-def _live_dte(expiry: Any, today: date | None = None) -> int | None:
-    """Calendar days from ``today`` to ``expiry`` — the SAME arithmetic monitor.py's exit loop uses
-    (``(expiry - today).days``, UTC date), so the dashboard's "days left" can't disagree with the time-stop.
-    The stored ``dte`` column is the DTE *at entry* and never moves; None when expiry is unparseable."""
+def _live_dte(expiry: Any, today: date | None = None, now: datetime | None = None) -> int | None:
+    """Calendar days from ``today`` to ``expiry``; None when expiry is unparseable. The stored ``dte`` column is
+    the DTE *at entry* and never moves.
+
+    ``today`` defaults to the America/New_York date of ``now`` (itself defaulting to the wall clock) — the
+    operator's calendar day. monitor.py's exit loop does the same ``(expiry - today).days`` subtraction on the
+    UTC date, so between 20:00 and 24:00 ET the monitor's count is one day lower than this display; DISPLAY
+    ONLY — monitor.py is untouched. ``now``/``today`` are injectable so tests can't flake across midnight."""
+    if today is None:
+        today = (now or datetime.now(UTC)).astimezone(_ET).date()
     try:
-        return (date.fromisoformat(str(expiry)[:10]) - (today or datetime.now(UTC).date())).days
+        return (date.fromisoformat(str(expiry)[:10]) - today).days
     except (TypeError, ValueError):
         return None
 

@@ -660,10 +660,20 @@ def test_live_dte_is_expiry_minus_today_like_the_monitor():
     assert dd._live_dte(None) is None and dd._live_dte("garbage") is None
 
 
-def test_open_positions_days_left_is_live_not_dte_at_entry(convexity_db):
+def test_live_dte_uses_the_et_date_not_utc():
+    # 23:30 ET Oct 28 == 03:30 UTC Oct 29: the UTC date has already rolled, the operator's (ET) day has not.
     from datetime import UTC, date, datetime
+    now = datetime(2026, 10, 29, 3, 30, tzinfo=UTC)
+    assert now.astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d %H:%M") == "2026-10-28 23:30"
+    assert dd._live_dte("2027-01-15", now=now) == 79                 # ET Oct 28 → 79 (UTC date would say 78)
+    assert dd._live_dte("2027-01-15", now=now.astimezone(ZoneInfo("America/New_York"))) == 79   # tz-aware ET input
+    assert dd._live_dte("2027-01-15", today=date(2026, 10, 29), now=now) == 78   # explicit today wins
+
+
+def test_open_positions_days_left_is_live_not_dte_at_entry(convexity_db):
+    from datetime import date, datetime
     _pos(convexity_db, "PL", 690.0, status="open")                     # stored dte=300 (entry), expiry 2027-01-15
-    live = (date(2027, 1, 15) - datetime.now(UTC).date()).days
+    live = (date(2027, 1, 15) - datetime.now(_ET).date()).days
     row = dd.positions_panel(convexity_db)["real_open"][0]
     assert row["dte"] == live and row["dte"] != 300 and row["dte_at_entry"] == 300
     mc = dd.market_context(convexity_db)["open_positions"][0]
