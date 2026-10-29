@@ -106,13 +106,14 @@ def test_no_cancel_all_or_close_all_path_exists():
 
 
 def test_cancels_only_take_ids_from_this_projects_journal():
-    # The only live cancel callers are the monitor's reconcilers, which pass ids read from this project's
-    # own journal rows (pos['close_order_id'] / the pending entry's order id) — never an id listed from
-    # the account.
+    # The only live cancel callers are the monitor's reconcilers and the carry-over (#386), which pass ids read
+    # from this project's own journal rows (pos['close_order_id'] / a pending entry's or carry attempt's order id)
+    # — never an id listed from the account.
     callers = [rel for rel, src in _py_sources() if re.search(r"\.cancel_order\(", src)]
-    assert sorted(callers) == ["monitor.py", "scripts/smoke_order_roundtrip.py"]
-    mon = (REPO / "monitor.py").read_text()
-    assert "get_orders" not in mon and "list_orders" not in mon
+    assert sorted(callers) == ["carry.py", "monitor.py", "scripts/smoke_order_roundtrip.py"]
+    for rel in ("monitor.py", "carry.py"):
+        src = (REPO / rel).read_text()
+        assert "get_orders" not in src and "list_orders" not in src, rel
 
 
 # ── 2. positions are this project's, never the account's ─────────────────────────────────────────

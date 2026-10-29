@@ -860,6 +860,25 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
         #     per upward crossing. Never touches the kill rule; never raises.
         _page_drawdown_warn(conn, config, demo=demo)
 
+        # 1e. Carry-over (#386; execution.carry_unfilled, default off): an L1 entry that went unfilled at the close
+        #     is re-gated and resubmitted the next session, walking from mid to the ask, through the SAME
+        #     run_paper_cycle pipeline as an L1 entry (every check re-runs on fresh data). After reconcile_pending
+        #     (which turns the unfilled entry into a carry intent), in L1 and every L2 tick.
+        if not demo:
+            try:
+                import carry
+
+                carry_ok, _why = entries_allowed(forward_enabled=bool(config.get("forward_enabled", False)),
+                                                 market_open=market_open, demo=demo)
+                placed = carry.work_carried(conn, config=config, clock=clock, provider=provider, broker=broker,
+                                            run_id=run_id, chain_cache=chain_cache,
+                                            shadow_provider=shadow_gate_provider, market_open=market_open,
+                                            entries_ok=carry_ok)
+                if placed:
+                    log.info("Carry-over: placed %d attempt(s).", placed)
+            except Exception as e:  # noqa: BLE001 — fail-closed: an error here places nothing and never breaks the cycle
+                log.warning("carry-over pass failed (non-fatal; nothing placed): %s", e)
+
         # 2. Council pass → themes (T2). The council PROPOSES; the deterministic gates in
         #    run_paper_cycle still DISPOSE. Entries are gated BEFORE any LLM spend by
         #    FORWARD_ENABLED + market-open (PR2 §B): an inert env or a closed market pays

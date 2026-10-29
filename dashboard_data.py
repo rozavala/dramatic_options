@@ -1169,6 +1169,8 @@ def _position_outcome(pos) -> tuple[str, str]:
     status = str(pos["status"] or "")
     if status == "pending":
         return "resting", "resting at the broker (awaiting fill)"
+    if status == "carried":   # #386: unfilled at the close, re-gated and resubmitted next session (no order yet)
+        return "resting", "carried to the next session (re-gated and resubmitted from 10:00 ET)"
     if status == "cancelled":
         return "not_filled", "not filled — " + str(pos["exit_reason"] or "cancelled").replace("_", " ")
     return "filled", "filled" + (f" (now {status})" if status not in ("open", "") else "")
