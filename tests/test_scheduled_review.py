@@ -58,3 +58,9 @@ def test_each_job_waits_for_the_run_it_reviews():
     assert "ExecMainExitTimestamp" in text and "until ran_today" in text and "NOT RUN" in text
     assert text.index("until ran_today") < text.index("CMD=(claude")
 
+
+
+def test_both_jobs_run_the_standing_state_issue_check():
+    # #371: STANDING_STATE's "Open issues" bullet is diffed against GitHub on every scheduled run (read-only)
+    for name in ("nightly_grade.md", "sunday_review.md"):
+        assert "scripts/ops/standing_state_issues.py" in (PROMPTS / name).read_text(), name
