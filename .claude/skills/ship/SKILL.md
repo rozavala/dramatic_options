@@ -103,7 +103,10 @@ Paste reproduction evidence verbatim in close comments.
 
 - **Full ceremony** — the safety-critical or PIT sets, `lane:profit`, any money-moving path, any migration. One
   worktree, one branch, one PR: `git worktree add -b fix/<issue#>-<slug> "$LIVE-claude-<issue#>" origin/main`
-  (refuse to clobber an existing path); link the live venv (`ln -s "$LIVE/venv" <worktree>/venv`).
+  (refuse to clobber an existing path); give it a venv that has the dev tools: link the interactive
+  worktree's (`ln -s "$LIVE-claude/venv" <worktree>/venv`) or build one (`python3 -m venv venv && venv/bin/pip
+  install -q -r requirements.txt -r requirements-dev.txt`). Never the live checkout's venv: it is runtime-only,
+  with no pytest or ruff.
 - **Protocol lane** — the fix is a record: draft the STANDING_STATE ruling entry and, where one governs, a dated
   PREREG amendment (what changes, why, the boundary run, the new stamp, what does not change). Present the options
   and get the operator's word **before** the code; the code PR then cites the dated entry.
@@ -210,7 +213,10 @@ On the word, for each PR in dependency order:
 3. `gh pr merge <N> --merge --match-head-commit <sha>` (merge commits, never squash); confirm `state=MERGED`.
 4. **Verify the deploy:** the `Deploy dramatic_options` run for the merge commit completes green, the live checkout's
    HEAD (`git -C "$LIVE" log -1`) and `/api/version` show it, `systemctl --failed` stays empty.
-5. Update the next PR's branch (siblings often touch the same UI files) and repeat.
+5. Update the next PR's branch (siblings often touch the same UI files) and repeat. **At most 4 merges per 15
+   minutes:** every merge deploys and restarts `dramatic-options-web`, whose unit allows 5 starts per 900 s
+   (`StartLimitBurst=5`); a 6th leaves the dashboard failed (`start-limit-hit`) until the window slides and
+   something starts it again. Check `systemctl --failed` after each deploy.
 
 A draft is never merged; marking a PR ready is its author's signal. Remove only this run's merged worktrees and
 branches. File reviewer follow-ups as issues with a lane label and a Payoff line.
