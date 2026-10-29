@@ -177,7 +177,7 @@ def run_paper_cycle(
             state.record_convexity_eval(
                 conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
                 direction=theme.direction, decision="skip-already-open", proposal_id=theme.proposal_id,
-                reasons=[f"{theme.symbol} already has an open position"],
+                reasons=[f"{theme.symbol} already has an open position or a working order"],
             )
             continue
         try:
