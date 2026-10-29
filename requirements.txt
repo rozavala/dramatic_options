@@ -9,6 +9,11 @@ python-dotenv==1.2.2
 # pinned rather than relied on transitively (build principle: pin what you import).
 numpy==2.4.6
 requests==2.34.2
+# SECURITY FLOOR, not an exact pin (2026-10-29, rozavala/real_options#5062): certifi < 2026.10.23 still trusts
+# the compromised "emSign ECC Root CA - G3"; 2026.10.23 drops it. certifi is requests' CA bundle (transitive), so a
+# floor lets it keep moving forward with CA removals. Verify: python -c "import certifi;print('emSign ECC Root CA -
+# G3' in open(certifi.where()).read())" must print False.
+certifi>=2026.10.23
 # T2 council: heterogeneous LLM router. Three SDKs cover all SPEC §5 providers — openai
 # also serves xAI/Grok + Perplexity via base_url. Lazy-imported inside the provider adapters,
 # so CI / `orchestrator.py --demo` / tests (FakeRouter) need none of these installed.
