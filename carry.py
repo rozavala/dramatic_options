@@ -85,10 +85,28 @@ def attempt_of(row) -> int | None:
     return int(of) if of is not None else None
 
 
+def filled_qty(info: dict | None) -> int:
+    """Contracts the venue reports filled on an order (alpaca-py gives a string or a number; missing → 0)."""
+    try:
+        return int(float((info or {}).get("filled_qty") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def settle_terminal(info: dict) -> dict:
+    """A terminal order (canceled / expired / rejected) that filled any contracts first is a (partial) FILL, never
+    "unfilled": Alpaca reports a partially filled order that was then cancelled or expired as canceled/expired WITH
+    ``filled_qty > 0``, and dropping it would leave a real position the journal doesn't hold."""
+    q = filled_qty(info)
+    if q > 0:
+        return {"state": "filled", "filled_avg_price": info.get("filled_avg_price"), "filled_qty": q, "partial": True}
+    return {"state": "canceled"}
+
+
 def cancel_and_settle(broker, order_id: str) -> dict | None:
-    """Cancel, then READ the order: ``{"state": "filled", …}`` if it filled first, ``{"state": "canceled"}`` once
-    it is gone, or None when the outcome isn't known yet (pending_cancel / unreadable). The caller must not drop a
-    row or submit a new order on None."""
+    """Cancel, then READ the order: ``{"state": "filled", …}`` if it filled (fully, or partly before the cancel),
+    ``{"state": "canceled"}`` once it is gone with nothing filled, or None when the outcome isn't known yet
+    (pending_cancel / unreadable). The caller must not drop a row or submit a new order on None."""
     if hasattr(broker, "cancel_order"):
         broker.cancel_order(order_id)
     info = broker.order_status(order_id) if hasattr(broker, "order_status") else None
@@ -98,19 +116,22 @@ def cancel_and_settle(broker, order_id: str) -> dict | None:
     if st == "filled":
         return info
     if st in _TERMINAL:
-        return {"state": "canceled"}
+        return settle_terminal(info)
     return None
 
 
 def confirm_fill(conn, pos, info: dict, now_iso: str) -> None:
-    """Flip a 'pending' row to 'open' at the broker's fill price, and page it."""
+    """Flip a 'pending' row to 'open' at the broker's fill price and filled quantity (a partial fill opens only what
+    filled), and page it."""
     price = float(info.get("filled_avg_price") or pos["entry_premium_per_contract"] / CONTRACT_MULTIPLIER)
     per_contract = price * CONTRACT_MULTIPLIER
+    q = filled_qty(info) or int(pos["contracts"])
     state.confirm_convexity_fill(conn, int(pos["id"]), entry_premium_per_contract=per_contract,
-                                 total_premium=per_contract * int(pos["contracts"]), opened_at=now_iso)
-    log.info("FILLED (reconciled) #%d %s @ %.2f", pos["id"], pos["contract_symbol"], price)
+                                 total_premium=per_contract * q, opened_at=now_iso, contracts=q)
+    part = f" (partial: {q} of {pos['contracts']})" if q != int(pos["contracts"]) else ""
+    log.info("FILLED (reconciled) #%d %s @ %.2f x%d%s", pos["id"], pos["contract_symbol"], price, q, part)
     _page("REAL-BOOK FILL", f"#{pos['id']} {pos['contract_symbol']} filled @ {price:.2f} "
-                            f"({pos['contracts']}x, ${per_contract * int(pos['contracts']):,.0f}).")
+                            f"({q}x, ${per_contract * q:,.0f}){part}.")
 
 
 def make_intent(conn, pos, config: dict, now: datetime) -> bool:
@@ -138,11 +159,13 @@ def _attempts(conn, intent) -> list:
     return [r for r in rows if attempt_of(r) == int(intent["id"])]
 
 
-def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_cache=None,
+def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_cache=None, shadow_provider=None,
                  market_open: bool, entries_ok: bool) -> int:
-    """One pass over the carry intents (call after ``reconcile_pending``). Returns the number of attempts placed."""
+    """One pass over the carry intents (call after ``reconcile_pending``). Returns the number of attempts placed.
+    ``shadow_provider`` is the INDICATIVE dual-read arm, passed exactly as the L1 path passes it."""
     cfg = settings(config)
     if cfg is None:
+        _wind_down(conn, broker, clock)   # switched off with intents alive: cancel their attempts, end them
         return 0
     from paper_loop import run_paper_cycle
     from themes import Theme
@@ -160,6 +183,11 @@ def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_c
         attempts = _attempts(conn, intent)
         if any(a["status"] in ("open", "closing", "closed") for a in attempts):
             state.drop_convexity_position(conn, int(intent["id"]), reason="carry_filled")
+            continue
+        if any(a["status"] == "cancelled" and a["exit_reason"] == "order_rejected" for a in attempts):
+            state.drop_convexity_position(conn, int(intent["id"]), reason="carry_rejected")   # never retry a rejection
+            _page("REAL-BOOK ORDER NOT FILLED",
+                  f"#{intent['id']} {intent['symbol']}: the venue rejected the carry attempt; not retried.")
             continue
         working = [a for a in attempts if a["status"] == "pending"]
         if now >= until:
@@ -205,7 +233,7 @@ def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_c
                       thesis=str(rat.get("thesis") or ""), proposal_id=intent["proposal_id"],
                       source="sentinel" if sentinel_id is not None else "hand-seed", sentinel_id=sentinel_id)
         res = run_paper_cycle(config=config, conn=conn, clock=clock, provider=provider, broker=broker,
-                              themes=[theme], run_id=run_id, chain_cache=chain_cache,
+                              themes=[theme], run_id=run_id, chain_cache=chain_cache, shadow_provider=shadow_provider,
                               walk={theme.symbol: {"intent_id": int(intent["id"]), "step": k,
                                                    "fraction": k / cfg["steps"]}})
         if res.opened:
@@ -220,6 +248,26 @@ def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_c
         _page("REAL-BOOK ORDER NOT FILLED",
               f"#{intent['id']} {intent['symbol']}: carry dropped at re-gate ({why}); nothing submitted.")
     return placed
+
+
+def _wind_down(conn, broker, clock) -> None:
+    """The switch went off with intents alive: cancel each working attempt (settled, so a fill is kept) and end the
+    intent ``carry_disabled``. An attempt whose cancel can't be confirmed is left for the next tick."""
+    now_iso = clock.now().isoformat()
+    for intent in state.carried_convexity_positions(conn):
+        unsure = False
+        for a in _attempts(conn, intent):
+            if a["status"] != "pending":
+                continue
+            info = cancel_and_settle(broker, a["order_id"]) if a["order_id"] else {"state": "canceled"}
+            if info is None:
+                unsure = True
+            elif info["state"] == "filled":
+                confirm_fill(conn, a, info, now_iso)
+            else:
+                state.drop_convexity_position(conn, int(a["id"]), reason="carry_disabled")
+        if not unsure:
+            state.drop_convexity_position(conn, int(intent["id"]), reason="carry_disabled")
 
 
 def _et_hm(iso: str) -> str:

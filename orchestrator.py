@@ -871,7 +871,8 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                 carry_ok, _why = entries_allowed(forward_enabled=bool(config.get("forward_enabled", False)),
                                                  market_open=market_open, demo=demo)
                 placed = carry.work_carried(conn, config=config, clock=clock, provider=provider, broker=broker,
-                                            run_id=run_id, chain_cache=chain_cache, market_open=market_open,
+                                            run_id=run_id, chain_cache=chain_cache,
+                                            shadow_provider=shadow_gate_provider, market_open=market_open,
                                             entries_ok=carry_ok)
                 if placed:
                     log.info("Carry-over: placed %d attempt(s).", placed)

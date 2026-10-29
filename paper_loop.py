@@ -148,7 +148,9 @@ def run_paper_cycle(
 
     # Dedup: one open position per underlying for T1 (one name per theme). Re-running the loop
     # must not stack duplicate bets on a theme that is already on.
-    open_syms = state.open_position_symbols(conn)
+    # pending counts too (#386): a working order — an L1 entry or a carry attempt whose cancel isn't confirmed yet —
+    # must never be joined by a second buy for the same name
+    open_syms = state.entry_blocked_symbols(conn)
 
     def _eligibility(c):
         return contract_eligible(

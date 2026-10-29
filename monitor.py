@@ -334,7 +334,9 @@ def reconcile_pending(*, conn, broker, clock: Clock, config: dict) -> int:
         if info is None:
             continue
         st = str(info.get("state", "")).lower()
-        is_attempt = carry.attempt_of(pos) is not None
+        is_attempt = carry.attempt_of(pos) is not None and carry.settings(config) is not None
+        if st in ("canceled", "cancelled", "expired", "rejected") and carry.filled_qty(info) > 0:
+            st, info = "filled", carry.settle_terminal(info)   # partly filled before it ended: open what filled
         if st == "filled":
             carry.confirm_fill(conn, pos, info, now_iso)
             n += 1
@@ -343,7 +345,8 @@ def reconcile_pending(*, conn, broker, clock: Clock, config: dict) -> int:
         elif st in ("canceled", "cancelled", "expired", "rejected"):
             state.drop_convexity_position(conn, int(pos["id"]), reason=f"order_{st}")
             n += 1
-            _page_unfilled(pos, f"order {st} at the broker")
+            if not is_attempt:   # a carry attempt's ending is paged once, by the carry worker
+                _page_unfilled(pos, f"order {st} at the broker")
         elif st in ("new", "accepted", "pending_new", "partially_filled"):
             if is_attempt:
                 continue                             # a carry attempt keeps working until its own cancel time

@@ -276,14 +276,23 @@ def confirm_convexity_fill(
     entry_premium_per_contract: float,
     total_premium: float,
     opened_at: str,
+    contracts: int | None = None,
 ) -> None:
-    """Flip a 'pending' position to 'open' at the actual fill price (reconciliation). Atomic."""
+    """Flip a 'pending' position to 'open' at the actual fill price (reconciliation). ``contracts`` records a partial
+    fill's real quantity (None keeps the ordered quantity). Atomic."""
     with conn:
-        conn.execute(
-            "UPDATE convexity_positions SET status = 'open', "
-            "entry_premium_per_contract = ?, total_premium = ?, opened_at = ? WHERE id = ?",
-            (float(entry_premium_per_contract), float(total_premium), opened_at, position_id),
-        )
+        if contracts is None:
+            conn.execute(
+                "UPDATE convexity_positions SET status = 'open', "
+                "entry_premium_per_contract = ?, total_premium = ?, opened_at = ? WHERE id = ?",
+                (float(entry_premium_per_contract), float(total_premium), opened_at, position_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE convexity_positions SET status = 'open', contracts = ?, "
+                "entry_premium_per_contract = ?, total_premium = ?, opened_at = ? WHERE id = ?",
+                (int(contracts), float(entry_premium_per_contract), float(total_premium), opened_at, position_id),
+            )
 
 
 def close_convexity_position(
@@ -411,6 +420,13 @@ def count_open_sentinel_positions(conn: sqlite3.Connection) -> int:
 # path reads these; the kill rule, drawdown, dedup and the dashboard keep _EXPOSURE_STATES (open + closing), since a
 # resting order holds no position yet. Before the carry-over an entry rested ~12 minutes; now one can work all day.
 _COMMITTED_STATES = "('open', 'closing', 'pending')"
+
+
+def entry_blocked_symbols(conn: sqlite3.Connection) -> set[str]:
+    """Underlyings a NEW entry must skip: a live position, or an order still working at the venue (#386 review —
+    an unconfirmed carry cancel left an attempt pending, and the 15:45 L1 would have placed a second buy)."""
+    rows = conn.execute(f"SELECT DISTINCT symbol FROM convexity_positions WHERE status IN {_COMMITTED_STATES}").fetchall()
+    return {r["symbol"] for r in rows}
 
 
 def count_committed_positions(conn: sqlite3.Connection) -> int:

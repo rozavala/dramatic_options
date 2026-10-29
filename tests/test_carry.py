@@ -55,11 +55,16 @@ class Venue(PaperBroker):
 
     def cancel_order(self, oid):
         self.cancelled.append(oid)
-        if self.orders.get(oid, {}).get("state") == "new":
-            self.orders[oid] = {"state": "canceled"}
+        o = self.orders.get(oid, {})
+        if o.get("state") in ("new", "partially_filled"):   # Alpaca: a cancel keeps whatever already filled
+            self.orders[oid] = {**o, "state": "canceled"}
 
     def fill(self, oid, px):
-        self.orders[oid] = {"state": "filled", "filled_avg_price": px, "filled_qty": 1}
+        qty = next(s["qty"] for s in self.submitted if s["oid"] == oid)
+        self.orders[oid] = {"state": "filled", "filled_avg_price": px, "filled_qty": str(qty)}
+
+    def partial(self, oid, qty, px):
+        self.orders[oid] = {"state": "partially_filled", "filled_avg_price": px, "filled_qty": str(qty)}
 
 
 @pytest.fixture
@@ -243,3 +248,92 @@ def test_a_working_order_reserves_sizing_budget():
                      [("open", 500.0), ("pending", 800.0), ("carried", 900.0), ("cancelled", 700.0)])
     assert state.count_committed_positions(conn) == 2 and state.committed_book_premium(conn) == 1300.0
     assert state.count_open_convexity_positions(conn) == 1     # the kill rule / dashboard view is unchanged
+
+
+
+# ── #387 review fixes ──────────────────────────────────────────────────────────────────────────────────────────
+
+def _carried(conn, venue):
+    entry = _l1_entry(conn, venue)
+    _tick(conn, venue, "2026-01-02T16:00:05-05:00", market_open=False, entries_ok=False)
+    return entry
+
+
+def test_a_partial_fill_before_a_step_cancel_opens_what_filled_and_ends_the_walk(env):
+    conn, venue, pages = env
+    entry = _carried(conn, venue)
+    _tick(conn, venue, "2026-01-05T10:00:05-05:00")
+    a0 = venue.submitted[-1]
+    assert a0["qty"] >= 2
+    venue.partial(a0["oid"], 1, 2.0)
+    n = len(venue.submitted)
+    _tick(conn, venue, "2026-01-05T11:00:05-05:00")          # the step cancel finds 1 contract filled
+    pos = conn.execute("SELECT * FROM convexity_positions WHERE status='open'").fetchone()
+    assert pos is not None and pos["contracts"] == 1 and abs(pos["total_premium"] - 200.0) < 1e-6
+    assert len(venue.submitted) == n and _row(conn, entry["id"])["exit_reason"] == "carry_filled"
+    assert any(p[0] == "REAL-BOOK FILL" and "partial: 1 of" in p[1] for p in pages)
+
+
+def test_a_partial_fill_on_the_ordinary_l1_path_is_kept_not_dropped(env):
+    conn, venue, _ = env
+    entry = _l1_entry(conn, venue)
+    venue.orders["o1"] = {"state": "canceled", "filled_avg_price": 1.9, "filled_qty": "2"}
+    off = {**CFG, "execution": {"cancel_unfilled": True, "carry_unfilled": False}}
+    reconcile_pending(conn=conn, broker=venue, clock=FixedClock(_utc("2026-01-02T16:00:05-05:00")), config=off)
+    row = _row(conn, entry["id"])
+    assert row["status"] == "open" and row["contracts"] == 2
+
+
+def test_an_unconfirmed_cancel_never_lets_the_1545_l1_place_a_second_order(env):
+    conn, venue, _ = env
+    _carried(conn, venue)
+    _tick(conn, venue, "2026-01-05T13:00:05-05:00")
+    working = venue.submitted[-1]["oid"]
+    venue.cancel_order = lambda oid: (venue.cancelled.append(oid),
+                                      venue.orders.__setitem__(oid, {"state": "pending_cancel"}))
+    _tick(conn, venue, "2026-01-05T15:30:05-05:00")           # the lapse can't confirm the cancel
+    assert conn.execute("SELECT status FROM convexity_positions WHERE order_id=?", (working,)).fetchone()[0] == "pending"
+    n = len(venue.submitted)
+    clock = FixedClock(_utc("2026-01-05T15:45:05-05:00"))
+    res = paper_loop.run_paper_cycle(config=CFG, conn=conn, clock=clock,
+                                     provider=SyntheticChainProvider(as_of=clock.now().date()), broker=venue,
+                                     themes=[Theme("copper", "FCX", "bullish", "cheap")], run_id=None)
+    assert res.opened == 0 and len(venue.submitted) == n       # skip-already-open: no second buy
+
+
+def test_a_rejected_attempt_is_not_retried(env):
+    conn, venue, pages = env
+    entry = _carried(conn, venue)
+    _tick(conn, venue, "2026-01-05T10:00:05-05:00")
+    venue.orders[venue.submitted[-1]["oid"]] = {"state": "rejected"}
+    n = len(venue.submitted)
+    for t in ("10:30", "11:00", "11:30"):
+        _tick(conn, venue, f"2026-01-05T{t}:05-05:00")
+    assert len(venue.submitted) == n and _row(conn, entry["id"])["exit_reason"] == "carry_rejected"
+
+
+def test_switching_carry_off_winds_down_live_intents(env):
+    conn, venue, _ = env
+    entry = _carried(conn, venue)
+    _tick(conn, venue, "2026-01-05T10:00:05-05:00")
+    working = venue.submitted[-1]["oid"]
+    off = {**CFG, "execution": {"cancel_unfilled": True, "carry_unfilled": False}}
+    clock = FixedClock(_utc("2026-01-05T10:30:05-05:00"))
+    carry.work_carried(conn, config=off, clock=clock, provider=SyntheticChainProvider(as_of=clock.now().date()),
+                       broker=venue, run_id=None, market_open=True, entries_ok=True)
+    assert working in venue.cancelled and _row(conn, entry["id"])["exit_reason"] == "carry_disabled"
+    assert state.count_committed_positions(conn) == 0
+
+
+def test_the_dashboard_says_carried_not_filled():
+    import dashboard_data as dd
+    assert dd._position_outcome({"status": "carried", "exit_reason": None}) == (
+        "resting", "carried to the next session (re-gated and resubmitted from 10:00 ET)")
+
+
+def test_the_carry_attempt_gets_the_same_dual_read_arm_as_l1():
+    import inspect
+
+    import orchestrator
+    assert "shadow_provider=shadow_gate_provider" in inspect.getsource(orchestrator.run_once)
+    assert "shadow_provider=shadow_provider" in inspect.getsource(carry.work_carried)
