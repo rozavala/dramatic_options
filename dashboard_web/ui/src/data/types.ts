@@ -386,7 +386,7 @@ export interface ViewModel {
   nextRuns: Record<TimerKey, NextRunVM | null>; // #306 — null = timer not active (PROD) → "not scheduled"
   equity: string; deltaFrame: string; bookBudget: string; headroom: string;
   equitySeries: { day: string; equity: number }[];
-  bookDD: string; bookDDlevel: Level; bookDDchip: string; ddWarnPct: number; openN: number; maxN: number; openPrem: string;
+  bookDD: string; bookDDlevel: Level; bookDDchip: string; ddWarnPct: number; haltPct: number | null; haltFrac: number | null; ddToHalt: string; openN: number; maxN: number; openPrem: string;
   council: {
     verdict: string; vlevel: Level; runId: number | null; roundtrips: number; strategistAbstained: number;
     parseFail: number; parseCalled: number; cost: string; streak: string; models: string;

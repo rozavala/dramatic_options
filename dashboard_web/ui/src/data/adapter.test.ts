@@ -616,3 +616,40 @@ describe("fromBackend — drawdown warn tier + T4 condition 5 (#355)", () => {
     expect(closed.readiness.allPass).toBe(true);
   });
 });
+
+describe("fromBackend — kill tile dollar distance to the halt", () => {
+  // frame: $100k acct × 10% = $10,000 book; halt 20% = $2,000 of loss; 6.83% drawdown = $683 lost ⇒ $1,317 left
+  const withKill = (kr: Partial<Snapshot["risk"]["kill_rule"]>, budget = 10000) => {
+    const s = synthetic();
+    return fromBackend({ ...s, account: { ...s.account, frame: { ...s.account.frame, book_budget: budget } },
+      risk: { ...s.risk, kill_rule: { ...s.risk.kill_rule, ...kr } } });
+  };
+
+  it("pins the dollar figure: (halt − drawdown) × book frame", () => {
+    const vm = withKill({ book_drawdown: 0.0683, drawdown_halt: 0.2 });
+    expect(vm.ddToHalt).toBe("$1,317");
+    expect(vm.haltPct).toBe(20);
+  });
+
+  it("takes the halt fraction from the snapshot, not a hard-coded 20", () => {
+    const vm = withKill({ book_drawdown: 0.0683, drawdown_halt: 0.25 });
+    expect(vm.ddToHalt).toBe("$1,817");
+    expect(vm.haltPct).toBe(25);
+    expect(vm.haltFrac).toBe(0.25);
+  });
+
+  it("scales with the book frame", () => {
+    expect(withKill({ book_drawdown: 0.05, drawdown_halt: 0.2 }, 5000).ddToHalt).toBe("$750");
+  });
+
+  it("reads $0 at or past the halt, never negative", () => {
+    expect(withKill({ book_drawdown: 0.21, drawdown_halt: 0.2, tripped: true }).ddToHalt).toBe("$0");
+  });
+
+  it("with no halt in the snapshot there is no distance (no guessed 20%)", () => {
+    const s = synthetic();
+    const { drawdown_halt: _drop, ...rest } = s.risk.kill_rule;
+    const vm = fromBackend({ ...s, risk: { ...s.risk, kill_rule: rest as Snapshot["risk"]["kill_rule"] } });
+    expect([vm.ddToHalt, vm.haltPct, vm.haltFrac]).toEqual(["—", null, null]);
+  });
+});
