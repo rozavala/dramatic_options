@@ -20,6 +20,7 @@ function synthetic(): Snapshot {
     },
     account: {
       broker_equity: 99120, delta_vs_frame: -880, headroom: 5740,
+      book_value: { value: 100200, as_of: "2026-10-14 16:00:00", note: null },
       equity_series: [{ day: "10-01", equity: 100000 }, { day: "10-14", equity: 99120 }],
       frame: { frame_equity: 100000, book_budget: 10000, per_name_cap: 1000, cluster_cap: 2000, max_open: 15 },
     },
@@ -173,6 +174,40 @@ describe("fromBackend", () => {
     expect(vm.equity).toBe("$99,120");
     expect(vm.deltaFrame.startsWith("−$880")).toBe(true); // negative → minus glyph
     expect(vm.headroom).toBe("$5,740");
+  });
+
+  it("leads with the Dramatic book value; the broker figure stays separate (Diana item 3)", () => {
+    expect(vm.bookValue).toBe("$100,200");
+    expect(vm.bookValue).not.toBe(vm.equity);
+    expect(vm.bookValueSub).toBe("frame + realized + unrealized");
+  });
+
+  it("states the book value's as-of (oldest mark) and is not stale when fresh", () => {
+    expect(vm.bookAsOf).toBe("2026-10-14 16:00 UTC");
+    expect(vm.bookStale).toBe(false);
+  });
+
+  it("flags the book value stale when the oldest mark is older than 4 days, or the cycle heartbeat is not ONLINE", () => {
+    const snap = synthetic();
+    const old = fromBackend({ ...snap, account: { ...snap.account, book_value: { value: 100200, as_of: "2026-10-09 15:00:00", note: null } } } as Snapshot);
+    expect(old.bookAsOf).toBe("2026-10-09 15:00 UTC");
+    expect(old.bookStale).toBe(true);
+    const down = fromBackend({ ...snap, header: { ...snap.header, cycle: { ...snap.header.cycle, status: "STALE" } } } as Snapshot);
+    expect(down.bookStale).toBe(true);
+  });
+
+  it("shows no as-of or stale flag when the book value is unavailable", () => {
+    const snap = synthetic();
+    const v = fromBackend({ ...snap, header: { ...snap.header, cycle: { ...snap.header.cycle, status: "STALE" } }, account: { ...snap.account, book_value: { value: null, as_of: null, note: "no cycle has run yet" } } } as Snapshot);
+    expect(v.bookAsOf).toBeNull();
+    expect(v.bookStale).toBe(false);
+  });
+
+  it("reads an unavailable book value as a dash with the reason, never a silent zero", () => {
+    const snap = synthetic();
+    const v = fromBackend({ ...snap, account: { ...snap.account, book_value: { value: null, as_of: null, note: "1 open position(s) unmarked — unrealized P&L unknown" } } } as Snapshot);
+    expect(v.bookValue).toBe("—");
+    expect(v.bookValueSub).toContain("unmarked");
   });
 
   it("maps the council health + summarises model_mix to the three role models", () => {

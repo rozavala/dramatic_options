@@ -14,16 +14,21 @@ does not read "inside frame" right up to the halt:
     already paged (priority 1) by the orchestrator's kill-rule page, so a jump straight to ``tripped`` is not
     double-paged here. Best-effort: never raises, never blocks a cycle.
 
-Where it runs: ``page_on_upward_crossing`` has no caller in this PR (the orchestrator hook is a separate, held PR).
-When wired it runs ONLY in L1 (the once-a-day 15:45 ET non-monitor cycle) — never in the 30-minute L2
-``--monitor`` runs that refresh the marks — so a crossing can page up to a trading day late, and never on a day L1
-doesn't run (nor on PROD with the timers off). ``drawdown_level`` is what the dashboard shows, independent of paging.
+Where it runs (#366, operator 2026-10-27 "L1 + L2"): the orchestrator evaluates it once per cycle right after the
+monitor pass, so in L1 and in every 30-minute L2 ``--monitor`` tick; a crossing pages within one tick. Never under
+``--demo``, never on PROD with the timers off. ``drawdown_level`` is what the dashboard shows, independent of paging.
+
+Latch writes are atomic (temp file + ``os.replace``, which needs only the directory writable, so a read-only latch
+file left by a manual run doesn't wedge it) and happen BEFORE the page: if the latch can't be written, nothing is
+paged (a WARNING is logged and the dashboard tier still shows ``warn``). Paging first and failing the write would
+re-page on every 30-minute tick. An undelivered page rolls the latch back, so the next cycle retries.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -52,6 +57,14 @@ def _read_last(path: Path) -> str:
         return "ok"
 
 
+def _write_level(path: Path, level: str) -> None:
+    """Atomically record the level: a temp file then ``os.replace`` (only the directory must be writable)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps({"level": level}))
+    os.replace(tmp, path)
+
+
 def page_on_upward_crossing(
     book_drawdown: float, halt: float, state_path: str | Path, send: Callable[..., bool],
     warn: float = WARN_FRACTION,
@@ -65,7 +78,14 @@ def page_on_upward_crossing(
         last = _read_last(path)
         if level == "ok" and last != "ok" and book_drawdown >= warn * REARM_RATIO:
             return False  # inside the hysteresis band: stay latched (no re-arm, nothing to record)
-        paged = False
+        if level == last:
+            return False
+        try:
+            _write_level(path, level)   # record FIRST: an unwritable latch must never become a page every tick
+        except OSError as e:
+            log.warning("drawdown warn latch unwritable (%s) — not paging, so it can't repeat every tick: %s",
+                        path, e)
+            return False
         if level == "warn" and last == "ok":
             paged = bool(send(
                 "Book drawdown warning",
@@ -73,12 +93,13 @@ def page_on_upward_crossing(
                 f"(display-only; the kill rule halts new entries at {halt:.0%}).",
                 priority=0,
             ))
-            if not paged:
-                return False  # undelivered (no creds / transient) → stay armed and retry next cycle
-        if level != last:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps({"level": level}))
-        return paged
+            if not paged:   # undelivered (no creds / transient) → roll back so the next cycle retries
+                try:
+                    _write_level(path, last)
+                except OSError:
+                    pass    # the retry is lost; the dashboard tier still shows warn
+            return paged
+        return False
     except Exception as e:  # noqa: BLE001 — paging is best-effort, never fatal to a cycle
         log.warning("drawdown warn page failed (non-fatal): %s", e)
         return False

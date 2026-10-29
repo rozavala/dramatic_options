@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -64,6 +65,7 @@ def hub_db(convexity_db, monkeypatch, tmp_path):
     monkeypatch.setattr(risk, "KILL_FILE", tmp_path / "no-such-KILL")
     monkeypatch.setattr(dd, "cycle_session_stale", lambda ts, *, now=None: "ONLINE")
     monkeypatch.setattr(dd, "council_session_stale", lambda ts, *, now=None: "ONLINE")
+    monkeypatch.setattr(dd, "l2_session_stale", lambda ts, *, now=None: "ONLINE")
     monkeypatch.setattr(hub, "_read_units", lambda: _units())
     monkeypatch.setattr(server, "_RECORDS_DIR", tmp_path / "records")
     server._hub_cache.clear()
@@ -119,6 +121,44 @@ def test_hub_book_is_frame_plus_realized_plus_unrealized_with_oldest_mark_as_of(
     assert body["book"]["value"] == round(frame + 200.0, 2)
     assert body["book"]["as_of"] == "2026-10-27T14:00:00Z" and body["book"]["note"] is None
     assert body["book"]["label"]
+
+
+def test_console_book_value_equals_the_hub_book_value(hub_db) -> None:
+    """Diana item 3: the console leads with the SAME figure /api/hub reports — pinned across the live paths
+    (/api/snapshot account.book_value vs /api/hub book.value), the marked, the realized-only and the null cases."""
+    def both() -> tuple[dict, dict]:
+        server._hub_cache.clear()
+        server._snapshot_cache.clear()
+        return _get("/api/snapshot?nocache=1").json()["account"]["book_value"], _get().json()["book"]
+
+    console, hub_book = both()
+    assert console["value"] is not None and console["value"] == hub_book["value"]
+    assert hub._iso(console["as_of"]) == hub_book["as_of"] and console["note"] == hub_book["note"]
+
+    hub_db.execute("UPDATE convexity_positions SET status='closed', closed_at=?, realized_pnl=-150.0, mark=NULL",
+                   (_STARTED,))
+    hub_db.commit()
+    console, hub_book = both()
+    frame = float(server.load_config()["convexity_book"]["account_equity"])
+    assert console["value"] == hub_book["value"] == round(frame - 150.0, 2)
+
+    hub_db.execute("UPDATE convexity_positions SET status='open', closed_at=NULL, realized_pnl=NULL")
+    hub_db.commit()
+    console, hub_book = both()  # open with no mark → neither side states a number
+    assert console["value"] is None and hub_book["value"] is None and console["note"] == hub_book["note"]
+
+
+def test_account_panel_computes_book_pnl_once_and_book_value_is_unchanged(hub_db, monkeypatch) -> None:
+    import dashboard_data as dd
+
+    config = server.load_config()
+    expected = dd.book_value(hub_db, config)
+    calls: list[int] = []
+    real = dd.book_pnl
+    monkeypatch.setattr(dd, "book_pnl", lambda conn: (calls.append(1), real(conn))[1])
+    panel = dd.account_panel(hub_db, config)
+    assert len(calls) == 1
+    assert panel["book_value"] == expected and panel["book"]["realized_usd"] == real(hub_db)["realized_usd"]
 
 
 def test_hub_book_is_null_with_a_reason_when_unmarked_or_no_cycle(hub_db) -> None:
@@ -336,3 +376,68 @@ def test_hub_no_cost_cap_configured_is_unknown_not_zero() -> None:
     for cap in (1.5, 0, None):
         c = {x["label"]: x for x in hub._checks(hdr, {**risk, "cost_cap": {"cap_usd": cap, "tripped": True}})}["Cost cap"]
         assert c["ok"] is False and c["detail"].startswith("last council run hit the cost cap")
+
+
+# ── #376: the loop jobs read their OWN runs; the KILL switch reads paused, not missed ──────────────────────────
+
+def _run(conn, started_at: str, health: str | None) -> None:
+    conn.execute("INSERT INTO runs(started_at, mode, equity, council_health) VALUES(?, 'PAPER', 100000, ?)",
+                 (started_at, health))
+
+
+def test_loop_beats_split_l1_from_l2_by_council_and_the_1545_band(convexity_db):
+    now = datetime(2026, 10, 27, 21, 0, tzinfo=UTC)              # Tue 17:00 ET (EDT)
+    _run(convexity_db, "2026-10-27 15:00:02", None)               # 11:00 ET L2 tick
+    _run(convexity_db, "2026-10-27 19:45:02", "ok")               # 15:45 ET L1 with a council
+    _run(convexity_db, "2026-10-27 19:30:01", None)               # 15:30 ET L2 tick — the last one
+    beats = hub._loop_beats(convexity_db, now)
+    assert beats["l1"]["at"].startswith("2026-10-27T19:45:02")
+    assert beats["l2"]["at"].startswith("2026-10-27T19:30:01")   # the L1 run never refreshes L2
+    assert beats["l2"]["status"] == "STALE"                       # 16:00 and 16:30 ticks are missing
+
+
+def test_a_kill_rule_skipped_l1_still_counts_as_ran(convexity_db):
+    now = datetime(2026, 10, 27, 21, 0, tzinfo=UTC)
+    _run(convexity_db, "2026-10-26 19:45:02", "ok")               # Monday's council
+    _run(convexity_db, "2026-10-27 19:45:03", None)               # Tuesday 15:45: council skipped (kill rule)
+    beats = hub._loop_beats(convexity_db, now)
+    assert beats["l1"]["at"].startswith("2026-10-27T19:45:03") and beats["l1"]["status"] == "ONLINE"
+    assert beats["l2"]["at"] is None or not beats["l2"]["at"].startswith("2026-10-27T19:45")
+
+
+def test_kill_switch_reads_paused_not_missed(hub_db, monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(dd, "l2_session_stale", lambda ts, *, now=None: "STALE")
+    assert _job(_get().json(), "dramatic-options-l2")["last_status"] == "missed"    # armed + stale, no KILL
+    server._hub_cache.clear()
+    kill = tmp_path / "KILL"
+    kill.write_text("")
+    import risk
+    monkeypatch.setattr(risk, "KILL_FILE", kill)
+    body = _get().json()
+    assert body["trading"]["state"] == "off"
+    j = _job(body, "dramatic-options-l2")
+    assert j["last_status"] == "idle" and j["error"] == "paused: kill switch engaged"
+
+
+def test_loop_read_failure_leaves_the_loop_jobs_unknown(hub_db, monkeypatch) -> None:
+    def boom(conn, now=None):
+        raise RuntimeError("runs unreadable")
+    monkeypatch.setattr(hub, "_loop_beats", boom)
+    body = _get().json()
+    for name in ("dramatic-options-l1", "dramatic-options-l2"):
+        assert _job(body, name)["last_status"] is None and _job(body, name)["error"] == "last run unreadable"
+
+
+def test_an_l2_dead_longer_than_the_read_window_is_stale_not_never_ran(convexity_db):
+    _run(convexity_db, "2026-10-01 15:00:02", None)               # an L2 tick 26 days earlier, nothing since
+    beats = hub._loop_beats(convexity_db, datetime(2026, 10, 27, 21, 0, tzinfo=UTC))
+    assert beats["l2"]["at"].startswith("2026-10-01") and beats["l2"]["status"] == "STALE"
+
+
+def test_the_1545_band_follows_et_across_the_dst_change(convexity_db):
+    # 11-02 is EST: the 15:45 L1 run starts at 20:45Z, and 19:45Z is an off-grid run (14:45 EST), not L1
+    _run(convexity_db, "2026-11-02 20:45:02", None)
+    _run(convexity_db, "2026-11-02 19:45:02", None)
+    beats = hub._loop_beats(convexity_db, datetime(2026, 11, 2, 22, 0, tzinfo=UTC))
+    assert beats["l1"]["at"].startswith("2026-11-02T20:45:02")
+    assert beats["l2"]["at"].startswith("2026-11-02T19:45:02")
