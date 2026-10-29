@@ -1359,13 +1359,14 @@ def market_context(conn) -> dict:
     name's spot lags; needs cache parsing) — mark÷entry is the robust one."""
     positions = []
     for r in conn.execute(
-        "SELECT symbol, contract_symbol, dte, moneyness, entry_premium_per_contract AS entry, mark, marked_at, opened_at "
+        "SELECT symbol, contract_symbol, dte, expiry, moneyness, entry_premium_per_contract AS entry, mark, marked_at, opened_at "
         "FROM convexity_positions WHERE status IN ('open','closing') ORDER BY id"
     ):
         # mark is per-SHARE, entry_premium_per_contract is per-contract dollars (=per-share·100):
         # the live multiple = (mark·100) / entry_per_contract.
         mult = (float(r["mark"]) * 100.0 / float(r["entry"])) if (r["mark"] is not None and r["entry"]) else None
-        positions.append({"symbol": r["symbol"], "contract": r["contract_symbol"], "dte": r["dte"],
+        live = _live_dte(r["expiry"])  # live days-left (monitor.py's arithmetic), not the stored DTE-at-entry
+        positions.append({"symbol": r["symbol"], "contract": r["contract_symbol"], "dte": r["dte"] if live is None else live,
                           "moneyness": r["moneyness"], "mark_over_entry": None if mult is None else round(mult, 3),
                           "marked_at": r["marked_at"]})
     iv = [float(r["iv_rv"]) for r in conn.execute("SELECT iv_rv FROM convexity_eval WHERE iv_rv IS NOT NULL")]
@@ -1395,12 +1396,37 @@ def _book_table(conn, sql: str, params: tuple = ()) -> list[dict]:
     return _rows(conn, sql, params)
 
 
-def _time_stop_on(expiry: Any, time_stop_dte: int) -> str | None:
-    """The first calendar day the L2 time-stop fires (``dte <= time_stop_dte``, monitor.py), or None."""
+def _live_dte(expiry: Any, today: date | None = None, now: datetime | None = None) -> int | None:
+    """Calendar days from ``today`` to ``expiry``; None when expiry is unparseable. The stored ``dte`` column is
+    the DTE *at entry* and never moves.
+
+    ``today`` defaults to the America/New_York date of ``now`` (itself defaulting to the wall clock) — the
+    operator's calendar day. monitor.py's exit loop does the same ``(expiry - today).days`` subtraction on the
+    UTC date, so between 20:00 and 24:00 ET the monitor's count is one day lower than this display; DISPLAY
+    ONLY — monitor.py is untouched. ``now``/``today`` are injectable so tests can't flake across midnight."""
+    if today is None:
+        today = (now or datetime.now(UTC)).astimezone(_ET).date()
     try:
-        return (date.fromisoformat(str(expiry)[:10]) - timedelta(days=time_stop_dte)).isoformat()
+        return (date.fromisoformat(str(expiry)[:10]) - today).days
     except (TypeError, ValueError):
         return None
+
+
+def _time_stop_on(expiry: Any, time_stop_dte: int) -> str | None:
+    """The first calendar day the L2 time-stop fires (``dte <= time_stop_dte``, monitor.py), or None.
+
+    DISPLAY ONLY: a day the market is shut (holiday/weekend) rolls forward to the next NYSE trading day, the
+    first session the monitor can actually act on it. monitor.py's trigger is ``dte <= time_stop_dte`` and is
+    untouched — this never feeds an exit."""
+    try:
+        d = date.fromisoformat(str(expiry)[:10]) - timedelta(days=time_stop_dte)
+    except (TypeError, ValueError):
+        return None
+    for _ in range(10):  # longest NYSE closure run is a few days; bounded so a table gap can't loop
+        if nyse_calendar.is_trading_day(d):
+            break
+        d += timedelta(days=1)
+    return d.isoformat()
 
 
 def positions_panel(conn, *, stale_pending_cycles: int = 6, time_stop_dte: int = 21) -> dict:
@@ -1417,6 +1443,10 @@ def positions_panel(conn, *, stale_pending_cycles: int = 6, time_stop_dte: int =
                                     "ORDER BY closed_at DESC LIMIT 25")
     pending = _book_table(conn, "SELECT id, symbol, opened_at FROM convexity_positions WHERE status='pending'")
     for p in real_open:  # issue #306: the known exit date — the L2 time-stop closes at <= time_stop_dte days
+        p["dte_at_entry"] = p["dte"]
+        live = _live_dte(p.get("expiry"))
+        if live is not None:  # live days-left from expiry; fall back to the entry value only if no expiry
+            p["dte"] = live
         p["time_stop_on"] = _time_stop_on(p.get("expiry"), time_stop_dte)
     return {
         "real_open": real_open,
