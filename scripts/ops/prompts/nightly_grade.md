@@ -44,7 +44,8 @@ that differs from the newest banner is a FINDING unless STANDING_STATE records a
    `dashboard_data.book_pnl(conn)`; `dashboard_data.spend_panel(conn, config)`.
 3. Box: live checkout HEAD = origin/main; no failed units; the app answers 200 at
    https://all-options-dev.tail57521e.ts.net:8602/; installed `/etc/systemd/system/dramatic-options-l{0,1,2}.service`
-   ExecStart is `-m orchestrator`.
+   ExecStart is `-m orchestrator`; `PYTHONPATH=. venv/bin/python scripts/ops/standing_state_issues.py` (read-only,
+   #371): a DRIFT line (an open issue STANDING_STATE doesn't list, or a wrong count) is a finding; quote the line.
 4. Prepend ONE dated banner to the memory file (same format and density as the newest one; insert it directly above
    the newest banner, never edit older ones).
 5. Final message: a concise plain-prose report for the operator. End with exactly one line:
