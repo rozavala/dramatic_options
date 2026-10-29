@@ -20,6 +20,8 @@ class FakeBroker:
 
     def cancel_order(self, oid):
         self.cancelled.append(oid)
+        if (self._statuses.get(oid) or {}).get("state") in ("new", "accepted", "pending_new", "partially_filled"):
+            self._statuses[oid] = {"state": "canceled"}   # the real venue reports the cancel
 
 
 def _pending(conn, *, contract, oid, contracts=1, entry_pc=200.0):
@@ -104,3 +106,34 @@ def test_fill_page_failure_never_breaks_reconcile(convexity_db, monkeypatch):
     row = convexity_db.execute(
         "SELECT status FROM convexity_positions WHERE id=?", (pid,)).fetchone()
     assert row["status"] == "open"
+
+
+
+# ── #386: a cancel is always followed by a status read ─────────────────────────────────────────────────────────
+
+class RacingBroker(FakeBroker):
+    """The order fills between the status read and the cancel: the venue then reports it filled."""
+
+    def cancel_order(self, oid):
+        self.cancelled.append(oid)
+        self._statuses[oid] = {"state": "filled", "filled_avg_price": 2.05, "filled_qty": 1}
+
+
+def test_a_fill_that_races_the_cancel_is_confirmed_not_dropped(convexity_db):
+    pid = _pending(convexity_db, contract="FCX261218C00080000", oid="r1")
+    broker = RacingBroker({"r1": {"state": "new"}})
+    reconcile_pending(conn=convexity_db, broker=broker, clock=CLOCK, config=CONFIG)
+    row = convexity_db.execute("SELECT status, entry_premium_per_contract FROM convexity_positions WHERE id=?",
+                               (pid,)).fetchone()
+    assert broker.cancelled == ["r1"] and row["status"] == "open"
+    assert abs(row["entry_premium_per_contract"] - 205.0) < 1e-6
+
+
+def test_an_unconfirmed_cancel_leaves_the_order_pending(convexity_db):
+    class Sticky(FakeBroker):
+        def cancel_order(self, oid):
+            self.cancelled.append(oid)
+            self._statuses[oid] = {"state": "pending_cancel"}
+    pid = _pending(convexity_db, contract="FCX261218C00080000", oid="s1")
+    reconcile_pending(conn=convexity_db, broker=Sticky({"s1": {"state": "new"}}), clock=CLOCK, config=CONFIG)
+    assert convexity_db.execute("SELECT status FROM convexity_positions WHERE id=?", (pid,)).fetchone()[0] == "pending"

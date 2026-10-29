@@ -407,6 +407,46 @@ def count_open_sentinel_positions(conn: sqlite3.Connection) -> int:
     return int(row["n"]) if row else 0
 
 
+# Sizing's view of the book (#386): a 'pending' order is premium the book has already committed to. Only the sizing
+# path reads these; the kill rule, drawdown, dedup and the dashboard keep _EXPOSURE_STATES (open + closing), since a
+# resting order holds no position yet. Before the carry-over an entry rested ~12 minutes; now one can work all day.
+_COMMITTED_STATES = "('open', 'closing', 'pending')"
+
+
+def count_committed_positions(conn: sqlite3.Connection) -> int:
+    row = conn.execute(
+        f"SELECT COUNT(*) AS n FROM convexity_positions WHERE status IN {_COMMITTED_STATES}").fetchone()
+    return int(row["n"]) if row else 0
+
+
+def committed_book_premium(conn: sqlite3.Connection) -> float:
+    row = conn.execute(
+        "SELECT COALESCE(SUM(total_premium), 0.0) AS s FROM convexity_positions "
+        f"WHERE status IN {_COMMITTED_STATES}").fetchone()
+    return float(row["s"]) if row else 0.0
+
+
+def carried_convexity_positions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Carry intents (#386): an L1 entry that went unfilled and is to be re-gated next session."""
+    return conn.execute("SELECT * FROM convexity_positions WHERE status = 'carried' ORDER BY id").fetchall()
+
+
+def carry_convexity_position(conn: sqlite3.Connection, position_id: int, *, carry: dict) -> None:
+    """Turn an unfilled 'pending' entry into a carry intent: status 'carried', ``rationale.carry_intent = carry``
+    (its next-session window). It holds no order and no exposure; each attempt is its own 'pending' row. Atomic."""
+    import json
+
+    row = conn.execute("SELECT rationale FROM convexity_positions WHERE id = ?", (position_id,)).fetchone()
+    try:
+        rat = json.loads(row["rationale"] or "{}") if row else {}
+    except (TypeError, ValueError):
+        rat = {}
+    rat["carry_intent"] = carry
+    with conn:
+        conn.execute("UPDATE convexity_positions SET status = 'carried', order_id = NULL, rationale = ? WHERE id = ?",
+                     (json.dumps(rat, default=str), position_id))
+
+
 def convexity_book_open_premium(conn: sqlite3.Connection) -> float:
     """Total premium-at-risk across live (open/closing) positions (the book's current usage)."""
     row = conn.execute(

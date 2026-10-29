@@ -311,11 +311,20 @@ def reconcile_pending(*, conn, broker, clock: Clock, config: dict) -> int:
     ``broker`` must expose ``order_status(order_id) -> dict|None`` with at least
     ``{state, filled_avg_price, filled_qty}``. DRY_RUN positions are never pending, so this is
     a no-op in the default path. Returns the number of positions reconciled.
+
+    A cancel is always followed by a status read (``carry.cancel_and_settle``): an order that filled between the
+    status check and the cancel is confirmed, never dropped as "unfilled" (that would leave a real position the
+    journal doesn't hold), and an unknown outcome leaves the row pending for the next tick. With
+    ``execution.carry_unfilled`` on (#386), an unfilled L1 entry becomes a carry intent instead of being dropped,
+    and a carry attempt is left working (``carry.work_carried`` owns it until its cancel time).
     """
+    import carry
+
     if not hasattr(broker, "order_status"):
         return 0
     cancel_unfilled = bool(config.get("execution", {}).get("cancel_unfilled", True))
-    now_iso = clock.now().isoformat()
+    now = clock.now()
+    now_iso = now.isoformat()
     n = 0
     for pos in state.pending_convexity_positions(conn):
         oid = pos["order_id"]
@@ -325,36 +334,33 @@ def reconcile_pending(*, conn, broker, clock: Clock, config: dict) -> int:
         if info is None:
             continue
         st = str(info.get("state", "")).lower()
+        is_attempt = carry.attempt_of(pos) is not None
         if st == "filled":
-            price = float(info.get("filled_avg_price") or pos["entry_premium_per_contract"] / CONTRACT_MULTIPLIER)
-            per_contract = price * CONTRACT_MULTIPLIER
-            state.confirm_convexity_fill(
-                conn, int(pos["id"]), entry_premium_per_contract=per_contract,
-                total_premium=per_contract * int(pos["contracts"]), opened_at=now_iso,
-            )
+            carry.confirm_fill(conn, pos, info, now_iso)
             n += 1
-            log.info("FILLED (reconciled) #%d %s @ %.2f", pos["id"], pos["contract_symbol"], price)
-            # The fill is the moment a real-book position becomes REAL — page it (the 07-01 PL
-            # fill reconciled silently and went unnoticed for three days;
-            # records/2026-07-04_first_real_entry_ERRATUM.md §3.2). Never breaks the reconcile.
-            try:
-                import notify
-
-                notify.send("REAL-BOOK FILL",
-                            f"#{pos['id']} {pos['contract_symbol']} filled @ {price:.2f} "
-                            f"({pos['contracts']}x, ${per_contract * int(pos['contracts']):,.0f}).")
-            except Exception:  # noqa: BLE001 — paging must never break the reconcile
-                log.warning("fill page failed to send")
+        elif st == "expired" and not is_attempt and carry.make_intent(conn, pos, config, now):
+            n += 1                                   # the DAY order lapsed at the close: carry it to the next session
         elif st in ("canceled", "cancelled", "expired", "rejected"):
             state.drop_convexity_position(conn, int(pos["id"]), reason=f"order_{st}")
             n += 1
             _page_unfilled(pos, f"order {st} at the broker")
-        elif cancel_unfilled and st in ("new", "accepted", "pending_new", "partially_filled"):
-            if hasattr(broker, "cancel_order"):
-                broker.cancel_order(oid)
-            state.drop_convexity_position(conn, int(pos["id"]), reason="cancelled_unfilled")
-            n += 1
-            _page_unfilled(pos, f"cancelled unfilled (was {st})")
+        elif st in ("new", "accepted", "pending_new", "partially_filled"):
+            if is_attempt:
+                continue                             # a carry attempt keeps working until its own cancel time
+            if not cancel_unfilled:
+                continue
+            settled = carry.cancel_and_settle(broker, oid)
+            if settled is None:
+                continue                             # outcome unknown: leave it pending, never drop a live order
+            if settled["state"] == "filled":
+                carry.confirm_fill(conn, pos, settled, now_iso)
+                n += 1
+            elif carry.make_intent(conn, pos, config, now):
+                n += 1
+            else:
+                state.drop_convexity_position(conn, int(pos["id"]), reason="cancelled_unfilled")
+                n += 1
+                _page_unfilled(pos, f"cancelled unfilled (was {st})")
     return n
 
 
