@@ -213,7 +213,10 @@ On the word, for each PR in dependency order:
 3. `gh pr merge <N> --merge --match-head-commit <sha>` (merge commits, never squash); confirm `state=MERGED`.
 4. **Verify the deploy:** the `Deploy dramatic_options` run for the merge commit completes green, the live checkout's
    HEAD (`git -C "$LIVE" log -1`) and `/api/version` show it, `systemctl --failed` stays empty.
-5. Update the next PR's branch (siblings often touch the same UI files) and repeat.
+5. Update the next PR's branch (siblings often touch the same UI files) and repeat. **At most 4 merges per 15
+   minutes:** every merge deploys and restarts `dramatic-options-web`, whose unit allows 5 starts per 900 s
+   (`StartLimitBurst=5`); a 6th leaves the dashboard failed (`start-limit-hit`) until the window slides and
+   something starts it again. Check `systemctl --failed` after each deploy.
 
 A draft is never merged; marking a PR ready is its author's signal. Remove only this run's merged worktrees and
 branches. File reviewer follow-ups as issues with a lane label and a Payoff line.
