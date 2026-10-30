@@ -727,8 +727,14 @@ def _cancel_resting_entries_on_kill(cli_live: bool, demo: bool) -> int:
     orders, so nothing new can fill after a kill. That means the journal's 'pending' rows (an L1 entry or a carry
     attempt, #386), and it ends live carry intents. Exits ('closing' rows) are never touched: a resting
     SELL_TO_CLOSE reduces risk. Ids come only from this journal, never from an account listing (the account is
-    shared). Each cancel is settled: a fill found is confirmed, never dropped, and an unconfirmed cancel is left for
-    the next tick. Best-effort: never raises, so the KILL halt always holds. Returns the number cancelled."""
+    shared).
+
+    Every cancel is settled: a fill found is confirmed, never dropped, and an unconfirmed cancel stays pending for the
+    next tick. A carry intent ends only once none of its attempts is unconfirmed (an ended intent with a live attempt
+    would leave that order unmanaged). A row placed on a venue other than the one the current config reaches (KILL
+    pulled together with a PAPER / LIVE flip) is never sent to the wrong endpoint: it stays pending and is named in a
+    priority-1 page for a manual cancel. Best-effort: never raises, so the KILL halt always holds. Returns the number
+    cancelled."""
     if demo:
         return 0
     try:
@@ -741,29 +747,47 @@ def _cancel_resting_entries_on_kill(cli_live: bool, demo: bool) -> int:
             intents = state.carried_convexity_positions(conn)
             if not pending and not intents:
                 return 0
-            for intent in intents:
-                state.drop_convexity_position(conn, int(intent["id"]), reason="kill_cancelled")
-            n = 0
+            cancelled, filled, unsure, wrong_venue = 0, 0, set(), []
             if pending:
-                api_key, secret_key = require_alpaca_credentials(config)
-                broker = _select_broker(config, is_live=live_allowed(config, cli_live), api_key=api_key,
-                                        secret_key=secret_key,
+                is_live = live_allowed(config, cli_live)
+                api_key, secret_key = require_alpaca_credentials(config)   # raising here changes nothing
+                broker = _select_broker(config, is_live=is_live, api_key=api_key, secret_key=secret_key,
                                         dry_run=bool(config.get("safety", {}).get("dry_run", True)), equity=None)
                 now_iso = datetime.now(UTC).isoformat()
                 for pos in pending:
+                    run = conn.execute("SELECT mode FROM runs WHERE id = ?", (pos["run_id"],)).fetchone() \
+                        if pos["run_id"] is not None else None
+                    if run is not None and (str(run["mode"]).upper() == "LIVE") != is_live:
+                        wrong_venue.append(pos)
+                        unsure.add(carry.attempt_of(pos))
+                        continue
                     info = carry.cancel_and_settle(broker, pos["order_id"]) if pos["order_id"] else None
                     if info is None:
+                        unsure.add(carry.attempt_of(pos))
                         log.warning("KILL: could not confirm the cancel of #%d %s — retried on the next tick",
                                     pos["id"], pos["contract_symbol"])
                     elif info["state"] == "filled":
                         carry.confirm_fill(conn, pos, info, now_iso)   # filled before the cancel: it is real
+                        filled += 1
                     else:
                         state.drop_convexity_position(conn, int(pos["id"]), reason="kill_cancelled")
-                        n += 1
-            notify.send("KILL: resting entry orders cancelled",
-                        f"cancelled {n} resting entry order(s), ended {len(intents)} carry intent(s); exits untouched.",
-                        priority=1)
-            return n
+                        cancelled += 1
+            ended = 0
+            for intent in intents:
+                if int(intent["id"]) not in unsure:   # its attempts are all settled: safe to end it
+                    state.drop_convexity_position(conn, int(intent["id"]), reason="kill_cancelled")
+                    ended += 1
+            if wrong_venue:
+                notify.send("KILL: resting order on another venue — cancel by hand",
+                            "; ".join(f"#{p['id']} {p['contract_symbol']} order {p['order_id']}" for p in wrong_venue)
+                            + " was placed on the other venue than the current config reaches; not cancelled.",
+                            priority=1)
+            if cancelled or filled or ended:
+                notify.send("KILL: resting entry orders",
+                            f"cancelled {cancelled}, filled before the cancel {filled}, carry intents ended {ended}; "
+                            f"unconfirmed {len(pending) - cancelled - filled - len(wrong_venue)} (retried next tick); "
+                            "exits untouched.", priority=1)
+            return cancelled
         finally:
             conn.close()
     except Exception as e:  # noqa: BLE001 — the KILL halt must hold whatever happens here

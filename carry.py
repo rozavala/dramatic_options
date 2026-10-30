@@ -103,6 +103,17 @@ def settle_terminal(info: dict) -> dict:
     return {"state": "canceled"}
 
 
+def live_attempt(conn, pos) -> bool:
+    """A carry attempt whose intent is still alive ('carried'). An attempt whose intent ended (lapse, veto, KILL,
+    switch-off) is an ordinary order again, so reconcile settles it instead of leaving it to a worker that will
+    never visit it."""
+    of = attempt_of(pos)
+    if of is None:
+        return False
+    row = conn.execute("SELECT status FROM convexity_positions WHERE id = ?", (of,)).fetchone()
+    return row is not None and row["status"] == "carried"
+
+
 def cancel_and_settle(broker, order_id: str) -> dict | None:
     """Cancel, then READ the order: ``{"state": "filled", …}`` if it filled (fully, or partly before the cancel),
     ``{"state": "canceled"}`` once it is gone with nothing filled, or None when the outcome isn't known yet

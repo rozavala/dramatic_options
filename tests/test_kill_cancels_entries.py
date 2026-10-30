@@ -59,7 +59,8 @@ def test_kill_cancels_resting_entries_and_still_halts(kill):
     venue.orders["o1"] = {"state": "new"}
     assert orchestrator.run_once() == 0
     assert venue.cancelled == ["o1"] and tuple(_status(conn, pid))[:2] == ("cancelled", "kill_cancelled")
-    assert pages and pages[0][0][0] == "KILL: resting entry orders cancelled" and pages[0][1] == {"priority": 1}
+    assert pages and pages[0][0][0] == "KILL: resting entry orders" and pages[0][1] == {"priority": 1}
+    assert "cancelled 1" in pages[0][0][1]
 
 
 def test_a_fill_found_at_the_kill_cancel_is_kept(kill):
@@ -79,19 +80,75 @@ def test_an_exit_order_is_never_touched(kill):
     assert venue.cancelled == [] and _status(conn, pid)["status"] == "closing"
 
 
-def test_carry_intents_end_and_an_unconfirmed_cancel_is_left_for_the_next_tick(kill):
-    conn, venue, _ = kill
+def test_an_intent_outlives_kill_ticks_until_its_attempt_is_confirmed_cancelled(kill):
+    # #391 review (HIGH): ending the intent first orphaned an unconfirmed attempt once KILL was lifted
+    conn, venue, pages = kill
     intent = _row(conn, status="carried", rationale={"carry_intent": {"day": "2026-11-02"}})
-    stuck = _row(conn, status="pending", oid="o4", rationale={"carry": {"of": intent, "step": 1}})
+    att = _row(conn, status="pending", oid="o4", rationale={"carry": {"of": intent, "step": 1}})
     venue.orders["o4"] = {"state": "pending_cancel"}
     orchestrator.run_once()
+    assert _status(conn, intent)["status"] == "carried" and _status(conn, att)["status"] == "pending"
+    assert pages == []                                            # nothing happened: no page
+    venue.orders["o4"] = {"state": "canceled"}                     # the next tick confirms it
+    orchestrator.run_once()
+    assert tuple(_status(conn, att))[:2] == ("cancelled", "kill_cancelled")
     assert tuple(_status(conn, intent))[:2] == ("cancelled", "kill_cancelled")
-    assert _status(conn, stuck)["status"] == "pending"            # not dropped while it may still be live
+
+
+def test_an_intent_with_no_attempt_ends_at_once(kill):
+    conn, _, _ = kill
+    intent = _row(conn, status="carried", rationale={"carry_intent": {"day": "2026-11-02"}})
+    orchestrator.run_once()
+    assert tuple(_status(conn, intent))[:2] == ("cancelled", "kill_cancelled")
+
+
+def test_a_credentials_error_changes_nothing(kill, monkeypatch):
+    conn, venue, _ = kill
+    intent = _row(conn, status="carried", rationale={"carry_intent": {"day": "2026-11-02"}})
+    att = _row(conn, status="pending", oid="o6", rationale={"carry": {"of": intent, "step": 0}})
+
+    def boom(cfg):
+        raise RuntimeError("no keys")
+    monkeypatch.setattr(orchestrator, "require_alpaca_credentials", boom)
+    assert orchestrator.run_once() == 0
+    assert _status(conn, intent)["status"] == "carried" and _status(conn, att)["status"] == "pending"
+
+
+def test_an_order_on_the_other_venue_is_never_sent_to_the_wrong_endpoint(kill):
+    conn, venue, pages = kill
+    run_id = state.record_run(conn, mode="LIVE", equity=10000.0, note="t")
+    pid = _row(conn, status="pending", oid="o7")
+    conn.execute("UPDATE convexity_positions SET run_id=? WHERE id=?", (run_id, pid))
+    conn.commit()
+    venue.orders["o7"] = {"state": "new"}
+    orchestrator.run_once()                                        # config is paper (live_allowed False)
+    assert venue.cancelled == [] and _status(conn, pid)["status"] == "pending"
+    assert pages and "another venue" in pages[0][0][0] and "o7" in pages[0][0][1]
+
+
+def test_reconcile_settles_an_attempt_whose_intent_has_ended(convexity_db):
+    # the orphan defense: an attempt is the carry worker's only while its intent is alive
+    from datetime import UTC, datetime
+
+    from clock import FixedClock
+    from monitor import reconcile_pending
+    intent = _row(convexity_db, status="cancelled", rationale={"carry_intent": {"day": "2026-11-02"}})
+    att = _row(convexity_db, status="pending", oid="o8", rationale={"carry": {"of": intent, "step": 2}})
+    venue = Venue({"o8": {"state": "new"}})
+    cfg = {"execution": {"cancel_unfilled": True, "carry_unfilled": True}}
+    reconcile_pending(conn=convexity_db, broker=venue, clock=FixedClock(datetime(2026, 11, 2, 18, tzinfo=UTC)),
+                      config=cfg)
+    assert venue.cancelled == ["o8"] and _status(convexity_db, att)["status"] == "cancelled"
 
 
 def test_demo_and_an_empty_journal_do_nothing(kill, monkeypatch):
     conn, venue, pages = kill
+    pid = _row(conn, status="pending", oid="o9")
+    venue.orders["o9"] = {"state": "new"}
     assert orchestrator._cancel_resting_entries_on_kill(False, demo=True) == 0
+    assert venue.cancelled == [] and _status(conn, pid)["status"] == "pending"   # the demo guard matters
+    conn.execute("DELETE FROM convexity_positions")
+    conn.commit()
     monkeypatch.setattr(orchestrator, "_select_broker", lambda *a, **k: pytest.fail("no broker needed"))
     assert orchestrator._cancel_resting_entries_on_kill(False, demo=False) == 0 and pages == []
 
