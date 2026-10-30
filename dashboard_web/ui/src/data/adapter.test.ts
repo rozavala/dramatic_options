@@ -681,6 +681,18 @@ describe("fromBackend — kill tile dollar distance to the halt", () => {
     expect(withKill({ book_drawdown: 0.21, drawdown_halt: 0.2, tripped: true }).ddToHalt).toBe("$0");
   });
 
+  it("a zero or missing book frame has no distance, never a $0 that reads as tripped", () => {
+    expect(withKill({ book_drawdown: 0.05, drawdown_halt: 0.2 }, 0).ddToHalt).toBe("—");
+    expect(withKill({ book_drawdown: 0.05, drawdown_halt: 0.2 }, -1).ddToHalt).toBe("—");
+  });
+
+  it("the line names what the kill rule measures, and flags an unmarked book", () => {
+    expect(withKill({ book_drawdown: 0.0683, drawdown_halt: 0.2, have_marks: true }).ddToHaltLine)
+      .toBe("$1,317 of open-book mark loss to the halt");
+    expect(withKill({ book_drawdown: 0, drawdown_halt: 0.2, have_marks: false }).ddToHaltLine)
+      .toBe("$2,000 of open-book mark loss to the halt (no marks yet)");
+  });
+
   it("with no halt in the snapshot there is no distance (no guessed 20%)", () => {
     const s = synthetic();
     const { drawdown_halt: _drop, ...rest } = s.risk.kill_rule;

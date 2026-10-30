@@ -20,38 +20,46 @@ const snap = (halt: number | undefined): Snapshot => ({
 }) as unknown as Snapshot;
 
 describe("kill tile — dollar distance to the halt", () => {
-  it("desktop: shows $1,317 of book loss to the halt, the config halt %, and the dry-months line", () => {
+  it("desktop: shows $1,317 of open-book mark loss to the halt, the config halt %, and the dry-months line", () => {
     const { container, getByTestId } = render(<Safety vm={fromBackend(snap(0.2))} />);
-    expect(getByTestId("kill-distance").textContent).toBe("$1,317 of book loss to the halt");
+    expect(getByTestId("kill-distance").textContent).toBe("$1,317 of open-book mark loss to the halt");
     expect(container.textContent).toContain("halts new entries at 20%");
     expect(container.textContent).toContain(DRY);
   });
 
   it("desktop: the halt % and the dollar figure follow the snapshot's drawdown_halt", () => {
     const { container, getByTestId } = render(<Safety vm={fromBackend(snap(0.25))} />);
-    expect(getByTestId("kill-distance").textContent).toBe("$1,817 of book loss to the halt");
+    expect(getByTestId("kill-distance").textContent).toBe("$1,817 of open-book mark loss to the halt");
     expect(container.textContent).toContain("halts new entries at 25%");
     expect(container.textContent).not.toContain("halts new entries at 20%");
   });
 
   it("desktop: no halt in the snapshot ⇒ dashes, not a hard-coded 20%", () => {
     const { container, getByTestId } = render(<Safety vm={fromBackend(snap(undefined))} />);
-    expect(getByTestId("kill-distance").textContent).toBe("— of book loss to the halt");
-    expect(container.textContent).toContain("halts new entries at —%");
+    expect(getByTestId("kill-distance").textContent).toBe("— of open-book mark loss to the halt");
+    expect(container.textContent).toContain("halts new entries at —");
+    expect(container.textContent).not.toContain("—%");
   });
 
   it("mobile: the Safety tab shows the same dollar figure, halt % and dry-months line", () => {
     const { container, getByRole } = render(<MobileApp vm={fromBackend(snap(0.2))} loading={false} error={null} fatal={null} refresh={() => {}} />);
     fireEvent.click(getByRole("tab", { name: "Safety" }));
     expect(container.textContent).toContain("halt 20%");
-    expect(container.textContent).toContain("$1,317 of book loss to the halt");
+    expect(container.textContent).toContain("$1,317 of open-book mark loss to the halt");
     expect(container.textContent).toContain(DRY);
+  });
+
+  it("desktop: with nothing marked yet the full distance is flagged as unmeasured", () => {
+    const s = snap(0.2);
+    const vm = fromBackend({ ...s, risk: { ...s.risk, kill_rule: { ...s.risk.kill_rule, book_drawdown: 0, have_marks: false } } } as Snapshot);
+    const { getByTestId } = render(<Safety vm={vm} />);
+    expect(getByTestId("kill-distance").textContent).toBe("$2,000 of open-book mark loss to the halt (no marks yet)");
   });
 
   it("mobile: halt % follows the snapshot", () => {
     const { container, getByRole } = render(<MobileApp vm={fromBackend(snap(0.25))} loading={false} error={null} fatal={null} refresh={() => {}} />);
     fireEvent.click(getByRole("tab", { name: "Safety" }));
     expect(container.textContent).toContain("halt 25%");
-    expect(container.textContent).toContain("$1,817 of book loss to the halt");
+    expect(container.textContent).toContain("$1,817 of open-book mark loss to the halt");
   });
 });

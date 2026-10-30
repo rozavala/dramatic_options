@@ -112,7 +112,7 @@ function MSafety({ vm }: { vm: ViewModel }) {
   const tiles: { label: string; value: string; color: string; sub: React.ReactNode; secondary?: { label: string; value: string; sub: string; series?: { equity: number }[] }; asOf?: { label: string | null; stale: boolean } }[] = [
     { label: "Dramatic book value", value: vm.bookValue, color: color.ink, sub: vm.bookValueSub, asOf: { label: vm.bookAsOf, stale: vm.bookStale },
       secondary: { label: "Broker equity (shared account)", value: vm.equity, sub: vm.deltaFrame, series: vm.equitySeries } },
-    { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: <>warn {vm.ddWarnPct}% · halt {vm.haltPct ?? "—"}%<br />{vm.ddToHalt} of book loss to the halt<br />{DRY_MONTHS_LINE}</> },
+    { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: <>warn {vm.ddWarnPct}% · halt {vm.haltPct == null ? "—" : `${vm.haltPct}%`}<br />{vm.ddToHaltLine}<br />{DRY_MONTHS_LINE}</> },
     { label: "Positions", value: `${vm.openN}/${vm.maxN}`, color: color.ink, sub: `${vm.openPrem} at risk` },
     { label: "Headroom", value: vm.headroom, color: signal.ok.text, sub: `of ${vm.bookBudget}` },
   ];

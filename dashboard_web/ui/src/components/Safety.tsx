@@ -56,8 +56,8 @@ export function Safety({ vm }: { vm: ViewModel }) {
         <Tile label="Dramatic book value" value={vm.bookValue} sub={vm.bookValueSub} asOf={{ label: vm.bookAsOf, stale: vm.bookStale }}
           secondary={{ label: "Broker equity (shared account)", value: vm.equity, sub: `${vm.deltaFrame} · informational`, series: vm.equitySeries }} />
         <Tile label="Book drawdown" value={vm.bookDD} valColor={signal[vm.bookDDlevel].text} sub={<>
-          warns at {vm.ddWarnPct}% · the kill rule halts new entries at {vm.haltPct ?? "—"}%
-          <div data-testid="kill-distance" style={{ color: "#2c3645", fontWeight: 500, marginTop: 3 }}>{vm.ddToHalt} of book loss to the halt</div>
+          warns at {vm.ddWarnPct}% · the kill rule halts new entries at {vm.haltPct == null ? "—" : `${vm.haltPct}%`}
+          <div data-testid="kill-distance" style={{ color: "#2c3645", fontWeight: 500, marginTop: 3 }}>{vm.ddToHaltLine}</div>
           <div style={{ marginTop: 3 }}>{DRY_MONTHS_LINE}</div>
         </>} bar={{ frac: ddFrac, level: vm.bookDDlevel }} />
         <Tile label="Open positions" value={<>{vm.openN} <span style={{ fontSize: 15, color: "#6a7280", fontWeight: 500 }}>/ {vm.maxN}</span></>} sub={`${vm.openPrem} premium at risk · ${vm.openN} slot${vm.openN === 1 ? "" : "s"} used`} bar={{ frac: vm.maxN ? vm.openN / vm.maxN : 0, level: "acc" }} />
