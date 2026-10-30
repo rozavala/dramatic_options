@@ -88,7 +88,10 @@ def test_an_intent_outlives_kill_ticks_until_its_attempt_is_confirmed_cancelled(
     venue.orders["o4"] = {"state": "pending_cancel"}
     orchestrator.run_once()
     assert _status(conn, intent)["status"] == "carried" and _status(conn, att)["status"] == "pending"
-    assert pages == []                                            # nothing happened: no page
+    assert pages and "UNCONFIRMED 1" in pages[0][0][1]            # an unconfirmed cancel is never silent
+    import json
+    assert json.loads(conn.execute("SELECT rationale FROM convexity_positions WHERE id=?",
+                                   (intent,)).fetchone()[0])["carry_intent"]["killed"] is True
     venue.orders["o4"] = {"state": "canceled"}                     # the next tick confirms it
     orchestrator.run_once()
     assert tuple(_status(conn, att))[:2] == ("cancelled", "kill_cancelled")
@@ -161,3 +164,50 @@ def test_an_error_never_breaks_the_halt(kill, monkeypatch):
         raise RuntimeError("no keys")
     monkeypatch.setattr(orchestrator, "require_alpaca_credentials", boom)
     assert orchestrator.run_once() == 0                           # KILL still halts, nothing raised
+
+
+
+def test_a_killed_intent_never_places_a_new_attempt_after_kill_is_lifted(kill, monkeypatch):
+    # #391 re-review: KILL lifted before the next tick — the carry worker must wind the intent down, not resume it
+    from datetime import UTC, datetime
+
+    import carry
+    from clock import FixedClock
+    from monitor import reconcile_pending
+    conn, venue, _ = kill
+    intent = _row(conn, status="carried",
+                  rationale={"carry_intent": {"day": "2026-11-02", "start": "2026-11-02T15:00:00+00:00",
+                                              "until": "2026-11-02T20:30:00+00:00"}})
+    att = _row(conn, status="pending", oid="a1", rationale={"carry": {"of": intent, "step": 1}})
+    venue.orders["a1"] = {"state": "pending_cancel"}
+    orchestrator.run_once()                                        # KILL: cancel unconfirmed → intent marked killed
+    venue.orders["a1"] = {"state": "canceled"}                     # KILL lifted; the cancel lands
+    cfg = {"execution": {"cancel_unfilled": True, "carry_unfilled": True}, "forward_enabled": True}
+    clock = FixedClock(datetime(2026, 11, 2, 17, 0, tzinfo=UTC))   # 12:00 ET, inside the window
+    reconcile_pending(conn=conn, broker=venue, clock=clock, config=cfg)
+    placed = carry.work_carried(conn, config=cfg, clock=clock, provider=None, broker=venue, run_id=None,
+                                market_open=True, entries_ok=True)
+    assert placed == 0
+    assert tuple(_status(conn, intent))[:2] == ("cancelled", "kill_cancelled")
+    assert _status(conn, att)["status"] == "cancelled"
+
+
+def test_a_fill_found_under_kill_ends_its_intent_as_filled(kill):
+    conn, venue, _ = kill
+    intent = _row(conn, status="carried", rationale={"carry_intent": {"day": "2026-11-02"}})
+    att = _row(conn, status="pending", oid="f1", rationale={"carry": {"of": intent, "step": 2}})
+    venue.orders["f1"] = {"state": "filled", "filled_qty": "3", "filled_avg_price": 1.5}
+    orchestrator.run_once()
+    assert _status(conn, att)["status"] == "open"
+    assert tuple(_status(conn, intent))[:2] == ("cancelled", "carry_filled")
+
+
+def test_a_matching_venue_row_with_a_real_run_is_cancelled(kill):
+    conn, venue, _ = kill
+    run_id = state.record_run(conn, mode="PAPER", equity=100000.0, note="t")
+    pid = _row(conn, status="pending", oid="m1")
+    conn.execute("UPDATE convexity_positions SET run_id=? WHERE id=?", (run_id, pid))
+    conn.commit()
+    venue.orders["m1"] = {"state": "new"}
+    orchestrator.run_once()
+    assert venue.cancelled == ["m1"] and tuple(_status(conn, pid))[:2] == ("cancelled", "kill_cancelled")

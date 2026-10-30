@@ -463,6 +463,23 @@ def carry_convexity_position(conn: sqlite3.Connection, position_id: int, *, carr
                      (json.dumps(rat, default=str), position_id))
 
 
+def mark_carry_killed(conn: sqlite3.Connection, position_id: int) -> None:
+    """Flag a carry intent as killed (#391): the carry worker settles its working attempt and ends it, never placing
+    a new one, even if the KILL switch is lifted before that happens. Atomic."""
+    import json
+
+    row = conn.execute("SELECT rationale FROM convexity_positions WHERE id = ?", (position_id,)).fetchone()
+    try:
+        rat = json.loads(row["rationale"] or "{}") if row else {}
+    except (TypeError, ValueError):
+        rat = {}
+    rat = rat if isinstance(rat, dict) else {}
+    rat.setdefault("carry_intent", {})["killed"] = True
+    with conn:
+        conn.execute("UPDATE convexity_positions SET rationale = ? WHERE id = ?",
+                     (json.dumps(rat, default=str), position_id))
+
+
 def convexity_book_open_premium(conn: sqlite3.Connection) -> float:
     """Total premium-at-risk across live (open/closing) positions (the book's current usage)."""
     row = conn.execute(

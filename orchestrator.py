@@ -747,7 +747,7 @@ def _cancel_resting_entries_on_kill(cli_live: bool, demo: bool) -> int:
             intents = state.carried_convexity_positions(conn)
             if not pending and not intents:
                 return 0
-            cancelled, filled, unsure, wrong_venue = 0, 0, set(), []
+            cancelled, filled, unsure, wrong_venue, filled_intents = 0, 0, set(), [], set()
             if pending:
                 is_live = live_allowed(config, cli_live)
                 api_key, secret_key = require_alpaca_credentials(config)   # raising here changes nothing
@@ -769,23 +769,34 @@ def _cancel_resting_entries_on_kill(cli_live: bool, demo: bool) -> int:
                     elif info["state"] == "filled":
                         carry.confirm_fill(conn, pos, info, now_iso)   # filled before the cancel: it is real
                         filled += 1
+                        filled_intents.add(carry.attempt_of(pos))
                     else:
                         state.drop_convexity_position(conn, int(pos["id"]), reason="kill_cancelled")
                         cancelled += 1
             ended = 0
             for intent in intents:
-                if int(intent["id"]) not in unsure:   # its attempts are all settled: safe to end it
-                    state.drop_convexity_position(conn, int(intent["id"]), reason="kill_cancelled")
-                    ended += 1
+                iid = int(intent["id"])
+                if iid in unsure:
+                    # an attempt's cancel is unconfirmed: keep the intent so the attempt stays managed, but mark it
+                    # killed — the carry worker then only settles it and never places a new attempt, even if KILL is
+                    # lifted before the next tick
+                    state.mark_carry_killed(conn, iid)
+                    continue
+                state.drop_convexity_position(conn, iid, reason="carry_filled" if iid in filled_intents
+                                              else "kill_cancelled")
+                ended += 1
             if wrong_venue:
                 notify.send("KILL: resting order on another venue — cancel by hand",
                             "; ".join(f"#{p['id']} {p['contract_symbol']} order {p['order_id']}" for p in wrong_venue)
                             + " was placed on the other venue than the current config reaches; not cancelled.",
                             priority=1)
-            if cancelled or filled or ended:
+            unconfirmed = len(pending) - cancelled - filled - len(wrong_venue)
+            if cancelled or filled or ended or unconfirmed:
+                # an unconfirmed cancel pages too, every tick it persists: a failed cancel request is swallowed by
+                # the broker, and silence would read as "entries pulled"
                 notify.send("KILL: resting entry orders",
                             f"cancelled {cancelled}, filled before the cancel {filled}, carry intents ended {ended}; "
-                            f"unconfirmed {len(pending) - cancelled - filled - len(wrong_venue)} (retried next tick); "
+                            f"UNCONFIRMED {unconfirmed} (retried next tick — check the venue if it persists); "
                             "exits untouched.", priority=1)
             return cancelled
         finally:

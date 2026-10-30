@@ -201,7 +201,7 @@ def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_c
                   f"#{intent['id']} {intent['symbol']}: the venue rejected the carry attempt; not retried.")
             continue
         working = [a for a in attempts if a["status"] == "pending"]
-        if now >= until:
+        if now >= until or win.get("killed"):   # past its cancel time, or killed under KILL (#391): wind it down
             filled = False
             for a in working:
                 info = cancel_and_settle(broker, a["order_id"]) if a["order_id"] else {"state": "canceled"}
@@ -215,8 +215,9 @@ def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_c
                     state.drop_convexity_position(conn, int(a["id"]), reason="carry_lapsed")
             if filled is None:
                 continue
-            state.drop_convexity_position(conn, int(intent["id"]), reason="carry_filled" if filled else "carry_lapsed")
-            if not filled:
+            end = "carry_filled" if filled else ("kill_cancelled" if win.get("killed") else "carry_lapsed")
+            state.drop_convexity_position(conn, int(intent["id"]), reason=end)
+            if not filled and not win.get("killed"):
                 _page("REAL-BOOK ORDER NOT FILLED",
                       f"#{intent['id']} {intent['symbol']} {intent['contract_symbol']}: carry lapsed unfilled at "
                       f"{_et_hm(win['until'])} ET.")
