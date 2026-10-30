@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fromBackend } from "../data/adapter";
 import type { Snapshot } from "../data/types";
 import { MobileApp } from "../mobile/MobileApp";
+import { Overview } from "./Overview";
 import { Safety } from "./Safety";
 
 beforeEach(() => { vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {}))); });
@@ -54,6 +55,14 @@ describe("kill tile — dollar distance to the halt", () => {
     const vm = fromBackend({ ...s, risk: { ...s.risk, kill_rule: { ...s.risk.kill_rule, book_drawdown: 0, have_marks: false } } } as Snapshot);
     const { getByTestId } = render(<Safety vm={vm} />);
     expect(getByTestId("kill-distance").textContent).toBe("$2,000 of open-book mark loss to the halt (no marks yet)");
+  });
+
+  it("overview: the Book card's halt % follows the snapshot too (no hard-coded 20)", () => {
+    expect(render(<Overview vm={fromBackend(snap(0.25))} />).container.textContent).toContain("of the 25% halt");
+    cleanup();
+    const { container } = render(<Overview vm={fromBackend(snap(undefined))} />);
+    expect(container.textContent).toContain("of the — halt");
+    expect(container.textContent).not.toContain("20% halt");
   });
 
   it("mobile: halt % follows the snapshot", () => {
