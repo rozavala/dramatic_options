@@ -722,9 +722,59 @@ def run_discover(demo: bool = False) -> int:
             Path(demo_db.name).unlink(missing_ok=True)
 
 
+def _cancel_resting_entries_on_kill(cli_live: bool, demo: bool) -> int:
+    """#389 (operator word 2026-10-29, option a): under the KILL switch, cancel this project's own RESTING ENTRY
+    orders, so nothing new can fill after a kill. That means the journal's 'pending' rows (an L1 entry or a carry
+    attempt, #386), and it ends live carry intents. Exits ('closing' rows) are never touched: a resting
+    SELL_TO_CLOSE reduces risk. Ids come only from this journal, never from an account listing (the account is
+    shared). Each cancel is settled: a fill found is confirmed, never dropped, and an unconfirmed cancel is left for
+    the next tick. Best-effort: never raises, so the KILL halt always holds. Returns the number cancelled."""
+    if demo:
+        return 0
+    try:
+        import carry
+
+        config = load_config()
+        conn = get_db(config)
+        try:
+            pending = state.pending_convexity_positions(conn)
+            intents = state.carried_convexity_positions(conn)
+            if not pending and not intents:
+                return 0
+            for intent in intents:
+                state.drop_convexity_position(conn, int(intent["id"]), reason="kill_cancelled")
+            n = 0
+            if pending:
+                api_key, secret_key = require_alpaca_credentials(config)
+                broker = _select_broker(config, is_live=live_allowed(config, cli_live), api_key=api_key,
+                                        secret_key=secret_key,
+                                        dry_run=bool(config.get("safety", {}).get("dry_run", True)), equity=None)
+                now_iso = datetime.now(UTC).isoformat()
+                for pos in pending:
+                    info = carry.cancel_and_settle(broker, pos["order_id"]) if pos["order_id"] else None
+                    if info is None:
+                        log.warning("KILL: could not confirm the cancel of #%d %s — retried on the next tick",
+                                    pos["id"], pos["contract_symbol"])
+                    elif info["state"] == "filled":
+                        carry.confirm_fill(conn, pos, info, now_iso)   # filled before the cancel: it is real
+                    else:
+                        state.drop_convexity_position(conn, int(pos["id"]), reason="kill_cancelled")
+                        n += 1
+            notify.send("KILL: resting entry orders cancelled",
+                        f"cancelled {n} resting entry order(s), ended {len(intents)} carry intent(s); exits untouched.",
+                        priority=1)
+            return n
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001 — the KILL halt must hold whatever happens here
+        log.warning("KILL: resting-entry cancel failed (halt still holds): %s", e)
+        return 0
+
+
 def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = False) -> int:
     if kill_switch_active():
         log.warning("KILL switch engaged — halting. Remove the KILL file/env to resume.")
+        _cancel_resting_entries_on_kill(cli_live, demo)   # #389: nothing new can fill after a kill
         return 0
 
     config = load_config()
