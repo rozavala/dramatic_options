@@ -27,7 +27,7 @@ const sub: React.CSSProperties = { fontSize: 11.5, color: "#6a7280", marginTop: 
 export function Overview({ vm }: { vm: ViewModel }) {
   const se = vm.session;
   const dd = vm.bookDD;
-  const ddFrac = parseFloat(dd) / 20 || 0;
+  const ddFrac = vm.haltFrac ? (parseFloat(dd) || 0) / 100 / vm.haltFrac : 0;   // the halt comes from the snapshot, as on Safety
   const councilOk = vm.council.vlevel === "ok";
   const pos = vm.positions[0];
   const running = pos && pos.mark != null ? pos.premiumUsd * (pos.mark - 1) : null;
@@ -43,7 +43,7 @@ export function Overview({ vm }: { vm: ViewModel }) {
       <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: 14 }}>
         <Tile label="Book" chip={vm.bookDDchip} chipLevel={vm.bookDDlevel}>
           <div style={big}>{vm.openN} <span style={small}>/ {vm.maxN} open</span></div>
-          <div style={sub}>{vm.openPrem} premium at risk of {vm.bookBudget} · drawdown <b style={{ color: signal[vm.bookDDlevel].text }}>{dd}</b> of the 20% halt</div>
+          <div style={sub}>{vm.openPrem} premium at risk of {vm.bookBudget} · drawdown <b style={{ color: signal[vm.bookDDlevel].text }}>{dd}</b> of the {vm.haltPct == null ? "—" : `${vm.haltPct}%`} halt</div>
           <div style={{ height: 6, background: "#edf0f4", borderRadius: 3, marginTop: 12, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${Math.min(100, ddFrac * 100)}%`, background: signal[vm.bookDDlevel].text, borderRadius: 3 }} />
           </div>

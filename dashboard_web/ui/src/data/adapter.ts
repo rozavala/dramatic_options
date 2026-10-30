@@ -23,6 +23,19 @@ const EDGE_TARGET = 30;
 const fmt = (v: number | null | undefined): string =>
   v == null ? DASH : "$" + Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 });
 const pct = (v: number | null | undefined): string => (v == null ? DASH : (v * 100).toFixed(1) + "%");
+// Kill-tile distance to the halt, in dollars: (halt − drawdown) × book frame. The halt fraction is read from the
+// snapshot (config kill_rule.book_drawdown_halt) — never defaulted here: absent ⇒ no distance, not a guessed 20%.
+// Past the halt reads $0 (the tripped chip carries the rest). The kill rule measures OPEN-BOOK MARK loss
+// (state.convexity_book_drawdown: realized losses don't count, unmarked positions carry at cost), so the line says so,
+// and with nothing marked yet the drawdown is a placeholder 0 — flagged, not shown as a measured full distance.
+// A missing or non-positive book frame has no distance ("—"), never "$0", which would read as tripped.
+function haltDistance(kr: { book_drawdown?: number; drawdown_halt?: number; have_marks?: boolean } | null | undefined, budget: number | null | undefined) {
+  const halt = kr?.drawdown_halt;
+  const line = (d: string) => `${d} of open-book mark loss to the halt${kr?.have_marks === false ? " (no marks yet)" : ""}`;
+  if (halt == null || !(halt > 0)) return { haltPct: null, haltFrac: null, ddToHalt: DASH, ddToHaltLine: line(DASH) };
+  const left = budget == null || !(budget > 0) ? null : Math.max(0, (halt - (kr?.book_drawdown ?? 0)) * budget);
+  return { haltPct: Math.round(halt * 1000) / 10, haltFrac: halt, ddToHalt: fmt(left), ddToHaltLine: line(fmt(left)) };
+}
 const ageH = (b?: { age_hours: number | null } | null): string =>
   b && b.age_hours != null ? Math.round(b.age_hours) + "h" : DASH;
 const beatLevel = (b?: { status?: string } | null) => (b && b.status && b.status !== "ONLINE" ? "warn" : "ok");
@@ -498,6 +511,7 @@ export function fromBackend(P: Snapshot): ViewModel {
     bookBudget: fmt(acc.frame?.book_budget), headroom: fmt(acc.headroom), equitySeries: acc.equity_series ?? [],
     bookDD: pct(rk.kill_rule?.book_drawdown), bookDDlevel: drawdownDisplay(rk.kill_rule)[0], bookDDchip: drawdownDisplay(rk.kill_rule)[1],
     ddWarnPct: Math.round((rk.kill_rule?.drawdown_warn ?? DD_WARN_DEFAULT) * 100),
+    ...haltDistance(rk.kill_rule, acc.frame?.book_budget ?? rk.book?.budget),
     openN: rk.book?.open ?? 0, maxN: rk.book?.max ?? 0, openPrem: fmt(rk.book?.open_premium),
     council: {
       verdict: verdictLabel, vlevel, runId: ch.run_id ?? null, roundtrips: ch.roundtrip?.n ?? 0,
