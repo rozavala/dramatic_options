@@ -6,13 +6,13 @@ does not read "inside frame" right up to the halt:
 
   • ``drawdown_level`` — ``ok`` / ``warn`` (≥ ``WARN_FRACTION``) / ``tripped`` (≥ the halt, the SAME ``>=`` the kill
     rule uses). It is derived from the drawdown + halt the kill rule already computed; it never feeds back.
-  • ``page_on_upward_crossing`` — one normal-priority (0) Pushover each time the level rises ``ok`` → ``warn``. The
-    last-seen level is remembered in a tiny sidecar JSON next to the DB (no schema change), so a restart or a
-    steady 12% never re-pages, and an UNDELIVERED page stays armed (retried next cycle). Hysteresis: after a
-    page the alert re-arms only once drawdown falls below ``REARM_RATIO`` × the warn level (~9%), so a book
-    drifting 9.9% ↔ 10.1% pages once, not on every rise back over 10%. A trip is
-    already paged (priority 1) by the orchestrator's kill-rule page, so a jump straight to ``tripped`` is not
-    double-paged here. Best-effort: never raises, never blocks a cycle.
+  • ``page_on_upward_crossing`` — one Pushover each time the level rises: ``ok`` → ``warn`` at normal priority (0),
+    and into ``tripped`` at priority 1 (#370: the kill rule's halt, paged by the first tick that sees it, L2
+    included, instead of waiting for the next L1). The last-seen level is remembered in a tiny sidecar JSON next
+    to the DB (no schema change), so a restart or a steady 12% never re-pages, and an UNDELIVERED page stays
+    armed (retried next cycle). Hysteresis: a fall is recorded only below ``REARM_RATIO`` × the threshold it
+    falls through (~18% for a trip, ~9% for the warn), so a book drifting 9.9% ↔ 10.1% or 19.9% ↔ 20.1% pages
+    once, not on every rise back over the line. Best-effort: never raises, never blocks a cycle.
 
 Where it runs (#366, operator 2026-10-27 "L1 + L2"): the orchestrator evaluates it once per cycle right after the
 monitor pass, so in L1 and in every 30-minute L2 ``--monitor`` tick; a crossing pages within one tick. Never under
@@ -65,19 +65,28 @@ def _write_level(path: Path, level: str) -> None:
     os.replace(tmp, path)
 
 
+def _held_level(book_drawdown: float, last: str, halt: float, warn: float) -> str:
+    """The level to remember: the current level, except that a fall re-arms only below ``REARM_RATIO`` × the
+    threshold it falls through. A trip is held down to ~18%; a warn (or a trip falling that far) down to ~9%."""
+    level = drawdown_level(book_drawdown, halt, warn)
+    if last == "tripped" and level != "tripped" and book_drawdown >= halt * REARM_RATIO:
+        return "tripped"
+    if last != "ok" and level == "ok" and warn < halt and book_drawdown >= warn * REARM_RATIO:
+        return "warn"
+    return level
+
+
 def page_on_upward_crossing(
     book_drawdown: float, halt: float, state_path: str | Path, send: Callable[..., bool],
     warn: float = WARN_FRACTION,
 ) -> bool:
-    """Page once when the level climbs ``ok`` → ``warn``; record the level either way. Returns True iff paged.
-    Back to ``ok`` is recorded only below ``warn × REARM_RATIO`` (hysteresis); in the band between, the
-    remembered level is held so the next climb over ``warn`` does not page again."""
+    """Page once per upward crossing: ``ok`` → ``warn`` (priority 0) and ``ok``/``warn`` → ``tripped`` (priority 1,
+    #370). Record the level either way; falls are silent and held by the hysteresis in ``_held_level``. Returns
+    True iff paged."""
     try:
         path = Path(state_path)
-        level = drawdown_level(book_drawdown, halt, warn)
         last = _read_last(path)
-        if level == "ok" and last != "ok" and book_drawdown >= warn * REARM_RATIO:
-            return False  # inside the hysteresis band: stay latched (no re-arm, nothing to record)
+        level = _held_level(book_drawdown, last, halt, warn)
         if level == last:
             return False
         try:
@@ -86,20 +95,28 @@ def page_on_upward_crossing(
             log.warning("drawdown warn latch unwritable (%s) — not paging, so it can't repeat every tick: %s",
                         path, e)
             return False
-        if level == "warn" and last == "ok":
+        if _RANK[level] <= _RANK[last]:
+            return False
+        if level == "tripped":
+            paged = bool(send(
+                "Kill rule tripped — new entries halted",
+                f"Book drawdown {book_drawdown:.1%} reached the {halt:.0%} kill rule: new entries are halted while "
+                f"it stays there (the monitor and exits keep running).",
+                priority=1,
+            ))
+        else:
             paged = bool(send(
                 "Book drawdown warning",
                 f"Book drawdown {book_drawdown:.1%} crossed the {warn:.0%} warn level "
                 f"(display-only; the kill rule halts new entries at {halt:.0%}).",
                 priority=0,
             ))
-            if not paged:   # undelivered (no creds / transient) → roll back so the next cycle retries
-                try:
-                    _write_level(path, last)
-                except OSError:
-                    pass    # the retry is lost; the dashboard tier still shows warn
-            return paged
-        return False
+        if not paged:   # undelivered (no creds / transient) → roll back so the next cycle retries
+            try:
+                _write_level(path, last)
+            except OSError:
+                pass    # the retry is lost; the dashboard tier still shows the level
+        return paged
     except Exception as e:  # noqa: BLE001 — paging is best-effort, never fatal to a cycle
         log.warning("drawdown warn page failed (non-fatal): %s", e)
         return False
