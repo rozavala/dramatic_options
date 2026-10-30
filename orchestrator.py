@@ -126,8 +126,8 @@ def _print_survivorship(conn, run_id: int) -> None:
 
 
 def _page_drawdown_warn(conn, config: dict, *, demo: bool) -> bool:
-    """Display-only drawdown WARN page (#355/#366): one normal-priority push per upward crossing of 10%, evaluated
-    once per cycle after the monitor pass (L1 and every L2 tick).
+    """Drawdown pages (#355/#366, #370): one push per upward crossing, normal priority at the 10% warn and priority 1
+    at the kill rule's halt, evaluated once per cycle after the monitor pass (L1 and every L2 tick).
 
     Reads the SAME open-book drawdown the kill rule uses (``state.convexity_book_drawdown``) and never alters
     it. Skipped entirely under ``--demo``: the demo drawdown comes from a throwaway DB, and the latch file sits
@@ -939,11 +939,11 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                 log.warning("no-gate 3A mark pass failed (non-fatal): %s", e)
                 notify.send("Fixed-basket 3A mark failed (non-fatal)", str(e))
 
-        # 1d. Display-only drawdown WARN page (#355/#366, operator: L1 + L2) — right after the monitor pass, so
-        #     it reads the marks this cycle just wrote. Runs in L1 and in every L2 --monitor tick (a crossing
-        #     pages within one tick, not up to a trading day late); the latch's hysteresis keeps it to one page
-        #     per upward crossing. Never touches the kill rule; never raises.
-        _page_drawdown_warn(conn, config, demo=demo)
+        # 1d. Drawdown pages (#355/#366 warn, #370 kill-rule trip; operator: L1 + L2) — right after the monitor
+        #     pass, so it reads the marks this cycle just wrote. Runs in L1 and in every L2 --monitor tick (a
+        #     crossing pages within one tick, not up to a trading day late); the latch's hysteresis keeps it to one
+        #     page per upward crossing. Notification only: never touches the kill rule; never raises.
+        dd_paged = _page_drawdown_warn(conn, config, demo=demo)
 
         # 1e. Carry-over (#386; execution.carry_unfilled, default off): an L1 entry that went unfilled at the close
         #     is re-gated and resubmitted the next session, walking from mid to the ask, through the SAME
@@ -1121,8 +1121,11 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             notify.send("Dual-read §5 executor DEGRADED",
                                         f"the runtime tripwire executor errored (entries already "
                                         f"ran; no revert/page evaluated this cycle): {e}", priority=1)
-                    if result.halted:
-                        # Kill switch / kill rule halted NEW entries (exit 0) → page in-app (PR2 R-C).
+                    if result.halted and not dd_paged:
+                        # Kill switch / kill rule halted NEW entries (exit 0) → page in-app (PR2 R-C); repeats each
+                        # L1 while halted. Skipped when 1d paged this cycle: the marks haven't moved since, so a halt
+                        # now is the trip 1d just paged (a 1d warn page means the rule isn't tripped, which leaves
+                        # only a KILL file touched mid-cycle, by the operator, unpaged here).
                         notify.send(
                             "Kill rule tripped — new entries halted",
                             "; ".join(result.notes) or "halted", priority=1,

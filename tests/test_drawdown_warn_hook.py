@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import inspect
 import json
+from datetime import UTC, datetime
 
 import pytest
 
@@ -12,6 +13,8 @@ import drawdown_warn
 import notify
 import orchestrator
 import state
+from clock import FixedClock
+from paper_loop import kill_rule_status
 
 CONFIG = {
     "convexity_book": {"account_equity": 100_000.0, "book_fraction": 0.10},
@@ -106,3 +109,22 @@ def test_an_l1_and_an_l2_run_on_one_crossing_send_one_page_and_a_new_crossing_pa
     _remark(convexity_db, 0.12)                                                        # a new upward crossing
     assert orchestrator._page_drawdown_warn(convexity_db, cfg, demo=False) is True
     assert sent == [("Book drawdown warning", 0), ("Book drawdown warning", 0)]
+
+
+# ── #370: the kill-rule trip pages from the L2 monitor too ───────────────────────────────────────────────────────
+
+def test_an_l2_tick_that_finds_the_book_tripped_pages_the_kill_rule_once(convexity_db, tmp_path, sent):
+    cfg = _cfg(tmp_path)
+    _book_at_drawdown(convexity_db, 0.21)
+    assert kill_rule_status(convexity_db, cfg, FixedClock(datetime(2026, 6, 1, tzinfo=UTC))).tripped  # same rule
+    assert orchestrator._page_drawdown_warn(convexity_db, cfg, demo=False) is True     # the L2 tick that trips
+    assert sent == [("Kill rule tripped — new entries halted", 1)]
+    assert orchestrator._page_drawdown_warn(convexity_db, cfg, demo=False) is False    # later ticks: latched
+    assert len(sent) == 1
+
+
+def test_the_l1_halt_page_is_skipped_only_in_the_cycle_1d_paged():
+    src = inspect.getsource(orchestrator.run_once)
+    assert "dd_paged = _page_drawdown_warn(conn, config, demo=demo)" in src
+    assert "if result.halted and not dd_paged:" in src
+    assert src.index("dd_paged = _page_drawdown_warn(") < src.index("if result.halted and not dd_paged:")

@@ -96,8 +96,8 @@ def test_exactly_one_page_per_upward_crossing(tmp_path):
     assert len(s.calls) == 1 and s.calls[0][2] == 0                     # normal priority
     assert path(0.08) is False and len(s.calls) == 1                    # falling is silent
     assert path(0.11) is True and len(s.calls) == 2                     # crossing #2
-    assert path(0.21) is False and len(s.calls) == 2                    # trip is paged by the kill-rule page
-    assert path(0.12) is False and len(s.calls) == 2                    # tripped → warn is downward
+    assert path(0.21) is True and len(s.calls) == 3 and s.calls[2][2] == 1  # the trip pages at priority 1 (#370)
+    assert path(0.12) is False and len(s.calls) == 3                    # tripped → warn is downward
     assert json.loads(p.read_text()) == {"level": "warn"}
 
 
@@ -114,9 +114,43 @@ def test_hysteresis_drift_around_threshold_pages_once(tmp_path):
 
 def test_hysteresis_holds_tripped_in_band(tmp_path):
     p, s = tmp_path / "w.json", _Sender()
-    assert dw.page_on_upward_crossing(0.21, 0.20, p, s) is False         # ok → tripped: kill page's job
-    assert dw.page_on_upward_crossing(0.095, 0.20, p, s) is False        # 9–10% band: stays latched
-    assert dw.page_on_upward_crossing(0.11, 0.20, p, s) is False and not s.calls
+    assert dw.page_on_upward_crossing(0.21, 0.20, p, s) is True          # ok → tripped: the trip page (#370)
+    assert dw.page_on_upward_crossing(0.095, 0.20, p, s) is False        # 9–10% band: held at warn, not re-armed
+    assert dw.page_on_upward_crossing(0.11, 0.20, p, s) is False and len(s.calls) == 1
+
+
+# ── #370: the kill-rule trip pages from whichever tick sees it first (L2 included) ─────────────────────────────
+
+def test_a_trip_pages_once_at_priority_1_and_l2_ticks_do_not_repeat_it(tmp_path):
+    p, s = tmp_path / "w.json", _Sender()
+    path = lambda d: dw.page_on_upward_crossing(d, 0.20, p, s)  # noqa: E731
+    assert path(0.05) is False
+    assert path(0.20) is True                                            # the SAME >= the kill rule uses
+    assert s.calls[0][0] == "Kill rule tripped — new entries halted" and s.calls[0][2] == 1
+    assert "20.0%" in s.calls[0][1] and "kill rule" in s.calls[0][1]
+    for d in (0.22, 0.25, 0.21):                                         # a trading day of L2 ticks while tripped
+        assert path(d) is False
+    assert len(s.calls) == 1 and json.loads(p.read_text()) == {"level": "tripped"}
+
+
+def test_a_trip_from_warn_pages_and_a_drift_around_the_halt_pages_once(tmp_path):
+    p, s = tmp_path / "w.json", _Sender()
+    path = lambda d: dw.page_on_upward_crossing(d, 0.20, p, s)  # noqa: E731
+    assert path(0.12) is True and s.calls[-1][2] == 0                    # warn
+    assert path(0.201) is True and s.calls[-1][2] == 1                   # warn → tripped
+    for d in (0.199, 0.201, 0.185, 0.202):                               # 19.9 <-> 20.1 drift, never below 18%
+        assert path(d) is False
+    assert len(s.calls) == 2 and json.loads(p.read_text()) == {"level": "tripped"}
+    assert path(0.15) is False and json.loads(p.read_text()) == {"level": "warn"}  # below ~18%: trip re-armed
+    assert path(0.21) is True and len(s.calls) == 3                      # a genuine re-trip pages again
+
+
+def test_an_undelivered_trip_page_retries_next_tick(tmp_path):
+    p = tmp_path / "w.json"
+    assert dw.page_on_upward_crossing(0.21, 0.20, p, _Sender(ok=False)) is False
+    assert json.loads(p.read_text()) == {"level": "ok"}                  # rolled back: still armed
+    up = _Sender()
+    assert dw.page_on_upward_crossing(0.21, 0.20, p, up) is True and up.calls[0][2] == 1
 
 
 def test_restart_does_not_repage_but_undelivered_page_retries(tmp_path):
