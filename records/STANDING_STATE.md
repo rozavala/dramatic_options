@@ -1,10 +1,10 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-10-27T05:30Z · supersedes: 2026-10-25T15:00Z · L1 #1816 (10-26): the §10.10 tripwire cleared on both
-sessions · HL the first above-floor verdict since #508, ordered and cancelled unfilled · W43's four issues fixed
-(#340, #341, #342, #343) · the driver-scope count (#348) · order quotes + pages (#350) · the carry-over proposal
-(#349, awaiting the word) · **PROD promoted to `2892d64` (#356)**. On top of the W43 Sunday review
-(`records/2026-10-25_sunday_w43.md`).**
+**as_of: 2026-10-30T04:30Z · supersedes: 2026-10-27T05:30Z · **PROD promoted to `a7548e8` (#392)**: carries the
+carry-over (#387/#390, ON), criterion (3) name-level evidence (#388, §10.11 FROZEN 2026-10-29), KILL cancels resting
+entries (#391), the drawdown warn in L1+L2 (#377), the L2 kill-trip page (#393, closes #370, operator sign-off
+2026-10-30) and the certifi floor (#385; PROD's venv verified clean) · the EPA pin re-verified 2026-10-30 (#394, dates
+only) · 0 open issues. On top of the 10-27 header and the W43 Sunday review (`records/2026-10-25_sunday_w43.md`).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -175,10 +175,10 @@ The header's absence is itself a signal.
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
 
 ## Board & book
-- Box: DEV = main `4e94c2d` (up since 2026-10-17); **PROD = `2892d64` (#356, promoted 2026-10-27 05:14 UTC — level
-  with main)**, inert: timers disabled, `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`
+- Box: DEV = main (up since 2026-10-17); **PROD = `a7548e8` (#392, promoted 2026-10-30 04:21 UTC — level with main
+  `dcfe4d7`)**, inert: timers disabled, `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`
   (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
-  (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD.
+  (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD. PROD's first #392 deploy failed at `git fetch` (a stale `origin/claude` tracking ref blocked `claude/*` branches); pruned with the operator's go, deploy re-run green.
 - Apps:
   - DEV: `https://all-options-dev.tail57521e.ts.net:8602`
   - PROD: `https://all-options-prod.tail57521e.ts.net:8602`
@@ -190,8 +190,6 @@ The header's absence is itself a signal.
 - Book: real 1 (PL, $690, unrealized ≈ −$681 on 10-26). Null books accruing (shadow · 3A · 3B · shares). **Last
   above-floor conviction: run #1816, 2026-10-26 (HL MODERATE)** — real order #2, 5× `HL270617C00017000` LIMIT 1.76
   ($880), cancelled unfilled at the 16:00 L2; before it, #508 (2026-07-10).
-- Open issues: 6, all dashboard/API read-only (filed 2026-10-27): #351 "why no entry" per name · #352 Edge tails
-  in-frame first · #353 cached `/api/status` + docs call :8601 retired (PR #361) · #354 ET date + STALE chip on run ids · #355 display-only
-  10% drawdown warn + T4 condition 5 · #357 `GET /api/hub` (the hub's shared status contract; pairs with #353).
-  W43's #340–#343 are fixed (#344–#347).
+- Open issues: 0 (2026-10-30). The 10-27 dashboard batch #351–#355/#357 shipped (#359–#365, #364); #370 closed by
+  #393. Open PR: #382 (the other worker's kill-tile distance; review posted, awaiting its rebase).
 - NVDA opra canary at or above 1.0 for 9 prints (10-26 1.0535) after eight below (low 0.9818).
