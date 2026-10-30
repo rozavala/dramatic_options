@@ -145,6 +145,10 @@ def test_a_trip_from_warn_pages_and_a_drift_around_the_halt_pages_once(tmp_path)
     assert path(0.21) is True and len(s.calls) == 3                      # a genuine re-trip pages again
 
 
+def test_a_meaningless_warn_never_appears_after_a_trip():
+    assert dw._held_level(0.17, "tripped", 0.20, 0.20) == "ok"           # warn >= halt: ok ↔ tripped only
+
+
 def test_an_undelivered_trip_page_retries_next_tick(tmp_path):
     p = tmp_path / "w.json"
     assert dw.page_on_upward_crossing(0.21, 0.20, p, _Sender(ok=False)) is False

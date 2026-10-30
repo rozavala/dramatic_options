@@ -123,8 +123,19 @@ def test_an_l2_tick_that_finds_the_book_tripped_pages_the_kill_rule_once(convexi
     assert len(sent) == 1
 
 
-def test_the_l1_halt_page_is_skipped_only_in_the_cycle_1d_paged():
+def test_the_l1_halt_page_is_skipped_only_for_the_kill_rule_halt_1d_paged():
     src = inspect.getsource(orchestrator.run_once)
+    dedup = 'trip_paged = dd_paged and any(n.startswith("kill rule tripped") for n in result.notes)'
     assert "dd_paged = _page_drawdown_warn(conn, config, demo=demo)" in src
-    assert "if result.halted and not dd_paged:" in src
-    assert src.index("dd_paged = _page_drawdown_warn(") < src.index("if result.halted and not dd_paged:")
+    assert dedup in src and "if result.halted and not trip_paged:" in src
+    assert src.index("dd_paged = _page_drawdown_warn(") < src.index(dedup) < src.index("if result.halted and not trip_paged:")
+
+
+def test_the_dedup_matches_the_note_the_kill_rule_halt_writes(convexity_db):
+    from paper_loop import run_paper_cycle
+
+    _book_at_drawdown(convexity_db, 0.21)
+    cfg = {**CONFIG, "convexity_book": {**CONFIG["convexity_book"], "account_equity": 100_000.0}}
+    res = run_paper_cycle(config=cfg, conn=convexity_db, clock=FixedClock(datetime(2026, 6, 1, tzinfo=UTC)),
+                          provider=None, broker=None, themes=[])
+    assert res.halted and any(n.startswith("kill rule tripped") for n in res.notes)

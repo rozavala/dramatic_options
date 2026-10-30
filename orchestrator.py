@@ -1121,11 +1121,11 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             notify.send("Dual-read §5 executor DEGRADED",
                                         f"the runtime tripwire executor errored (entries already "
                                         f"ran; no revert/page evaluated this cycle): {e}", priority=1)
-                    if result.halted and not dd_paged:
+                    trip_paged = dd_paged and any(n.startswith("kill rule tripped") for n in result.notes)
+                    if result.halted and not trip_paged:
                         # Kill switch / kill rule halted NEW entries (exit 0) → page in-app (PR2 R-C); repeats each
-                        # L1 while halted. Skipped when 1d paged this cycle: the marks haven't moved since, so a halt
-                        # now is the trip 1d just paged (a 1d warn page means the rule isn't tripped, which leaves
-                        # only a KILL file touched mid-cycle, by the operator, unpaged here).
+                        # L1 while halted. Skipped only when the halt IS the kill rule and 1d paged this cycle: the
+                        # marks haven't moved since, so that page was this trip. Any other halt reason still pages.
                         notify.send(
                             "Kill rule tripped — new entries halted",
                             "; ".join(result.notes) or "halted", priority=1,
