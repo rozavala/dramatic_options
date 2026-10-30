@@ -114,6 +114,11 @@ def test_cancels_only_take_ids_from_this_projects_journal():
     for rel in ("monitor.py", "carry.py"):
         src = (REPO / rel).read_text()
         assert "get_orders" not in src and "list_orders" not in src, rel
+    # cancels routed through carry.cancel_and_settle (#386/#389) count too: the reconcile, the carry worker and the
+    # KILL path, all passing ids read from this project's own journal rows
+    settle_callers = [rel for rel, src in _py_sources() if re.search(r"\bcancel_and_settle\(", src)]
+    assert sorted(settle_callers) == ["carry.py", "monitor.py", "orchestrator.py"]
+    assert "get_orders" not in (REPO / "orchestrator.py").read_text()
 
 
 # ── 2. positions are this project's, never the account's ─────────────────────────────────────────

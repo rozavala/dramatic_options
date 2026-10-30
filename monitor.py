@@ -334,7 +334,7 @@ def reconcile_pending(*, conn, broker, clock: Clock, config: dict) -> int:
         if info is None:
             continue
         st = str(info.get("state", "")).lower()
-        is_attempt = carry.attempt_of(pos) is not None and carry.settings(config) is not None
+        is_attempt = carry.settings(config) is not None and carry.live_attempt(conn, pos)
         if st in ("canceled", "cancelled", "expired", "rejected") and carry.filled_qty(info) > 0:
             st, info = "filled", carry.settle_terminal(info)   # partly filled before it ended: open what filled
         if st == "filled":

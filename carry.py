@@ -103,6 +103,17 @@ def settle_terminal(info: dict) -> dict:
     return {"state": "canceled"}
 
 
+def live_attempt(conn, pos) -> bool:
+    """A carry attempt whose intent is still alive ('carried'). An attempt whose intent ended (lapse, veto, KILL,
+    switch-off) is an ordinary order again, so reconcile settles it instead of leaving it to a worker that will
+    never visit it."""
+    of = attempt_of(pos)
+    if of is None:
+        return False
+    row = conn.execute("SELECT status FROM convexity_positions WHERE id = ?", (of,)).fetchone()
+    return row is not None and row["status"] == "carried"
+
+
 def cancel_and_settle(broker, order_id: str) -> dict | None:
     """Cancel, then READ the order: ``{"state": "filled", …}`` if it filled (fully, or partly before the cancel),
     ``{"state": "canceled"}`` once it is gone with nothing filled, or None when the outcome isn't known yet
@@ -190,7 +201,7 @@ def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_c
                   f"#{intent['id']} {intent['symbol']}: the venue rejected the carry attempt; not retried.")
             continue
         working = [a for a in attempts if a["status"] == "pending"]
-        if now >= until:
+        if now >= until or win.get("killed"):   # past its cancel time, or killed under KILL (#391): wind it down
             filled = False
             for a in working:
                 info = cancel_and_settle(broker, a["order_id"]) if a["order_id"] else {"state": "canceled"}
@@ -204,8 +215,9 @@ def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_c
                     state.drop_convexity_position(conn, int(a["id"]), reason="carry_lapsed")
             if filled is None:
                 continue
-            state.drop_convexity_position(conn, int(intent["id"]), reason="carry_filled" if filled else "carry_lapsed")
-            if not filled:
+            end = "carry_filled" if filled else ("kill_cancelled" if win.get("killed") else "carry_lapsed")
+            state.drop_convexity_position(conn, int(intent["id"]), reason=end)
+            if not filled and not win.get("killed"):
                 _page("REAL-BOOK ORDER NOT FILLED",
                       f"#{intent['id']} {intent['symbol']} {intent['contract_symbol']}: carry lapsed unfilled at "
                       f"{_et_hm(win['until'])} ET.")
