@@ -246,7 +246,14 @@
   },
   "execution": {
     "_comment": "Real Alpaca paper order path (broker.AlpacaPaperBroker). SENDING is gated by safety.dry_run: dry_run=true (default) logs the intended order + simulates the fill — nothing is transmitted; dry_run=false actually submits to the PAPER endpoint. cancel_unfilled: at reconcile, cancel a still-resting limit (it re-evaluates next cycle) instead of leaving it open.",
-    "cancel_unfilled": true
+    "cancel_unfilled": true,
+    "_comment_carry": "#386 (operator word 2026-10-29, #349 §4): carry_unfilled=true turns an L1 entry still unfilled at the close into a carry intent; the next NYSE trading day it is re-gated through the full entry pipeline and resubmitted from carry_start_et, the limit walking from mid to the ask in carry_walk_steps steps every carry_step_minutes; cancelled at carry_cancel_et (or the close minus carry_close_buffer_min on a half day). One carry per approval. Off by default; turned on by a dated edit.",
+    "carry_unfilled": true,
+    "carry_start_et": "10:00",
+    "carry_cancel_et": "15:30",
+    "carry_walk_steps": 3,
+    "carry_step_minutes": 60,
+    "carry_close_buffer_min": 30
   },
   "themes_path": "themes.json"
 }

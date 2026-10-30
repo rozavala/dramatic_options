@@ -92,11 +92,11 @@ is tested against (`dashboard_web/api/test_snapshot_parity.py`) and can still be
 - **Keyless:** the unit omits `EnvironmentFile` **and** sets `DRAMATIC_SKIP_DOTENV=1`, so
   `config_loader.load_config` loads `config.json` tunables but **never reads `.env`** — the read-only process
   holds no broker/LLM/Pushover keys. Confirm on the box:
-  `tr '\0' '\n' </proc/$(pgrep -f 'server.port 8601')/environ | grep -cE 'ALPACA|GEMINI|XAI|ANTHROPIC|PUSHOVER'` ⇒ 0.
+  `tr '\0' '\n' </proc/$(pgrep -f 'uvicorn.*server:app')/environ | grep -cE 'ALPACA|GEMINI|XAI|ANTHROPIC|PUSHOVER'` ⇒ 0.
 - **Fail-soft:** arming swallows errors and is **outside** the verify/rollback gate — a dashboard problem never
   fails or rolls back the trading deploy. `streamlit` installs from `requirements-dashboard.txt` (deploy STEP 3),
   kept out of `requirements.txt`; a CI `test-dashboard` job installs the combined venv so a dep conflict fails CI.
-- Stricter exposure (if the tailnet trust set changes): keep a localhost bind + SSH tunnel, or a Tailscale ACL on 8601/8602.
+- Stricter exposure (if the tailnet trust set changes): keep a localhost bind + SSH tunnel, or a Tailscale ACL on 8602.
 - **Web dashboard = installable app (2026-10-06).** It binds **127.0.0.1:8602** and is reached ONLY through each box's
   tailnet-only HTTPS proxy, the Real Options same-port pattern: `tailscale serve --bg --https=8602 http://127.0.0.1:8602`
   → `https://all-options-dev.tail57521e.ts.net:8602` (DEV) / `https://all-options-prod.tail57521e.ts.net:8602` (PROD). It

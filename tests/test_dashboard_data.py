@@ -436,12 +436,49 @@ def test_council_session_stale_matrix(last, now, expected):
     assert dd.council_session_stale(last, now=now) == expected
 
 
-def test_council_session_stale_holiday_is_accepted_false_stale():
-    # A weekday holiday with no run is the documented benign false-STALE (no holiday calendar is modeled).
-    # Pin it so the behavior is explicit: MLK Mon 2026-01-19, last run the prior Fri → STALE (accepted; raw
-    # age is shown beside it). A static holiday set is the deferred mitigation.
-    assert dd.council_session_stale("2026-01-16T15:45:00-05:00",
-                                    now=datetime(2026, 1, 19, 17, 0, tzinfo=_ET)) == "STALE"
+def test_council_session_stale_holiday_is_not_false_stale():
+    # #367: MLK Mon 2026-01-19 has no council slot, so last run the prior Fri is still ONLINE that evening —
+    # but the NEXT full day's missed slot (Tue 01-20 17:00, nothing ran) is a real STALE.
+    last = "2026-01-16T15:45:00-05:00"
+    assert dd.council_session_stale(last, now=datetime(2026, 1, 19, 17, 0, tzinfo=_ET)) == "ONLINE"
+    assert dd.council_session_stale(last, now=datetime(2026, 1, 20, 17, 0, tzinfo=_ET)) == "STALE"
+
+
+@pytest.mark.parametrize("last, now, expected", [
+    # Thanksgiving Thu 11-26 (closed): last run Wed 11-25 → no false STALE all day / evening
+    ("2026-11-25T15:45:00-05:00", datetime(2026, 11, 26, 17, 0, tzinfo=_ET), "ONLINE"),
+    # half day Fri 11-27: market shut by the 15:45 slot, no council runs → not STALE that evening...
+    ("2026-11-25T15:45:00-05:00", datetime(2026, 11, 27, 17, 0, tzinfo=_ET), "ONLINE"),
+    # ...but Mon 11-30 evening with nothing since Wed is a real miss
+    ("2026-11-25T15:45:00-05:00", datetime(2026, 11, 30, 17, 0, tzinfo=_ET), "STALE"),
+    # Christmas Eve half day Thu 12-24, Christmas Fri 12-25, and the weekend after
+    ("2026-12-23T15:45:00-05:00", datetime(2026, 12, 24, 17, 0, tzinfo=_ET), "ONLINE"),
+    ("2026-12-23T15:45:00-05:00", datetime(2026, 12, 25, 17, 0, tzinfo=_ET), "ONLINE"),
+    ("2026-12-23T15:45:00-05:00", datetime(2026, 12, 26, 12, 0, tzinfo=_ET), "ONLINE"),
+    # normal day Tue 2026-10-27: slot due at 16:05, missed → STALE; ran → ONLINE
+    ("2026-10-26T15:45:00-04:00", datetime(2026, 10, 27, 17, 0, tzinfo=_ET), "STALE"),
+    ("2026-10-27T15:45:10-04:00", datetime(2026, 10, 27, 17, 0, tzinfo=_ET), "ONLINE"),
+])
+def test_council_session_stale_nyse_calendar(last, now, expected):
+    assert dd.council_session_stale(last, now=now) == expected
+
+
+@pytest.mark.parametrize("last, now, expected", [
+    # holidays: nothing scheduled to be fresh even mid-morning with an old last run
+    ("2026-11-25T15:30:00-05:00", datetime(2026, 11, 26, 11, 0, tzinfo=_ET), "ONLINE"),   # Thanksgiving
+    ("2026-12-24T12:30:00-05:00", datetime(2026, 12, 25, 11, 0, tzinfo=_ET), "ONLINE"),   # Christmas
+    # half day 11-27: stall inside the 09:00-13:00 window is still caught...
+    ("2026-11-27T09:30:00-05:00", datetime(2026, 11, 27, 11, 0, tzinfo=_ET), "STALE"),
+    ("2026-11-27T10:45:00-05:00", datetime(2026, 11, 27, 11, 0, tzinfo=_ET), "ONLINE"),
+    # ...but the window ends at the 13:00 early close, not 16:00 (no late STALE at 14:00 / 15:30)
+    ("2026-11-27T12:30:00-05:00", datetime(2026, 11, 27, 14, 0, tzinfo=_ET), "ONLINE"),
+    ("2026-12-24T12:30:00-05:00", datetime(2026, 12, 24, 15, 30, tzinfo=_ET), "ONLINE"),
+    ("2026-12-24T09:30:00-05:00", datetime(2026, 12, 24, 12, 45, tzinfo=_ET), "STALE"),
+    # normal day: window runs to 16:00, so a 14:00 stall IS flagged
+    ("2026-10-27T12:30:00-04:00", datetime(2026, 10, 27, 14, 0, tzinfo=_ET), "STALE"),
+])
+def test_cycle_session_stale_nyse_calendar(last, now, expected):
+    assert dd.cycle_session_stale(last, now=now) == expected
 
 
 @pytest.mark.parametrize("last, now, expected", [
@@ -454,6 +491,34 @@ def test_council_session_stale_holiday_is_accepted_false_stale():
 ])
 def test_cycle_session_stale_matrix(last, now, expected):
     assert dd.cycle_session_stale(last, now=now) == expected
+
+
+# ── #376: the L2 monitor's own staleness remembers a missed slot after the window closes ─────────────────
+@pytest.mark.parametrize("last, now, expected", [
+    # THE DEFECT: L2 died after its 11:00 run; by 20:00 ET cycle_session_stale has forgiven it (window closed)
+    ("2026-10-27T11:00:02-04:00", datetime(2026, 10, 27, 20, 0, tzinfo=_ET), "STALE"),
+    ("2026-10-27T11:00:02-04:00", datetime(2026, 10, 31, 12, 0, tzinfo=_ET), "STALE"),   # ...and all weekend
+    ("2026-10-27T16:30:02-04:00", datetime(2026, 10, 27, 23, 0, tzinfo=_ET), "ONLINE"),  # ran the last tick
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 1, 12, 0, tzinfo=_ET), "ONLINE"),   # weekend after Friday
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 2, 9, 10, tzinfo=_ET), "ONLINE"),   # Mon 09:00 not yet due
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "STALE"),    # Mon 09:00 due, no run
+    ("2026-10-27T10:00:02-04:00", datetime(2026, 10, 27, 10, 45, tzinfo=_ET), "ONLINE"), # 10:30 not due until 10:50
+    ("2026-10-27T10:00:02-04:00", datetime(2026, 10, 27, 10, 55, tzinfo=_ET), "STALE"),  # 10:30 due, no run
+    ("2026-11-25T16:30:02-05:00", datetime(2026, 11, 26, 14, 0, tzinfo=_ET), "ONLINE"),  # Thanksgiving: nothing due
+    ("2026-11-27T16:30:02-05:00", datetime(2026, 11, 27, 20, 0, tzinfo=_ET), "ONLINE"),  # half day: ticks still run
+    # across the 11-01 fall-back: Fri 10-30 16:30 EDT run, Mon 11-02 in EST
+    ("2026-10-30T16:30:02-04:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "STALE"),    # Mon 09:00 EST due
+    ("2026-11-02T09:00:02-05:00", datetime(2026, 11, 2, 9, 25, tzinfo=_ET), "ONLINE"),   # ran at 09:00 EST
+    (None, datetime(2026, 10, 27, 11, 0, tzinfo=_ET), "OFFLINE"),
+])
+def test_l2_session_stale_matrix(last, now, expected):
+    assert dd.l2_session_stale(last, now=now) == expected
+
+
+def test_l2_session_stale_catches_what_the_cycle_beat_forgives():
+    last, evening = "2026-10-27T11:00:02-04:00", datetime(2026, 10, 27, 20, 0, tzinfo=_ET)
+    assert dd.cycle_session_stale(last, now=evening) == "ONLINE"
+    assert dd.l2_session_stale(last, now=evening) == "STALE"
 
 
 # ── system_status banner collapser (selection incl. an errored panel) ─────────────────────────────
@@ -572,7 +637,7 @@ def test_cond1_detail_names_the_blocker(convexity_db):
     c1 = _cond1(conn)
     assert c1["verdict"] == "NOT_OK"
     assert "ALL ROUNDTRIP_CONFIRMED" in c1["detail"]     # the clarified rule (not "≥2 exist")
-    assert f"blocked by #{bid}" in c1["detail"]          # names the specific breaker
+    assert f"blocked by L1 #{bid} \u00b7 " in c1["detail"]   # names the specific breaker, dated
 
 
 def test_latest_run_deliberation_shape(convexity_db):
@@ -600,9 +665,47 @@ def test_open_positions_carry_expiry_and_time_stop_date(convexity_db):
     # Issue #306: the known exit date. The L2 time-stop closes at dte <= time_stop_dte (calendar days).
     _pos(convexity_db, "PL", 690.0, status="open")
     row = dd.positions_panel(convexity_db)["real_open"][0]
-    assert row["expiry"] == "2027-01-15" and row["time_stop_on"] == "2026-12-25"
+    # 2026-12-25 (Christmas, NYSE shut, a Friday) → rolls to the next trading day, Mon 2026-12-28 (display only)
+    assert row["expiry"] == "2027-01-15" and row["time_stop_on"] == "2026-12-28"
     assert dd.positions_panel(convexity_db, time_stop_dte=10)["real_open"][0]["time_stop_on"] == "2027-01-05"
     assert dd._time_stop_on(None, 21) is None and dd._time_stop_on("garbage", 21) is None
+
+
+def test_time_stop_date_rolls_off_non_trading_days():
+    # Holiday → next session; weekend → Monday; a plain trading day is untouched; holiday+weekend chains roll through.
+    assert dd._time_stop_on("2027-01-15", 21) == "2026-12-28"   # Dec 25 2026 = Christmas (Fri) → Mon
+    assert dd._time_stop_on("2026-12-31", 21) == "2026-12-10"   # Thu, ordinary trading day: unchanged
+    assert dd._time_stop_on("2027-01-17", 21) == "2026-12-28"   # Dec 27 = Sunday → Mon Dec 28
+    assert dd._time_stop_on("2027-02-14", 21) == "2027-01-25"   # Jan 24 2027 = Sunday → Mon
+    assert dd._time_stop_on("2027-06-21", 21) == "2027-06-01"   # Tue, ordinary
+
+
+def test_live_dte_is_expiry_minus_today_like_the_monitor():
+    from datetime import date
+    assert dd._live_dte("2027-01-15", date(2026, 10, 28)) == 79      # the PL case: stored entry-DTE read 198
+    assert dd._live_dte("2027-01-15T00:00:00", date(2027, 1, 15)) == 0
+    assert dd._live_dte("2027-01-15", date(2027, 1, 20)) == -5
+    assert dd._live_dte(None) is None and dd._live_dte("garbage") is None
+
+
+def test_live_dte_uses_the_et_date_not_utc():
+    # 23:30 ET Oct 28 == 03:30 UTC Oct 29: the UTC date has already rolled, the operator's (ET) day has not.
+    from datetime import UTC, date, datetime
+    now = datetime(2026, 10, 29, 3, 30, tzinfo=UTC)
+    assert now.astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d %H:%M") == "2026-10-28 23:30"
+    assert dd._live_dte("2027-01-15", now=now) == 79                 # ET Oct 28 → 79 (UTC date would say 78)
+    assert dd._live_dte("2027-01-15", now=now.astimezone(ZoneInfo("America/New_York"))) == 79   # tz-aware ET input
+    assert dd._live_dte("2027-01-15", today=date(2026, 10, 29), now=now) == 78   # explicit today wins
+
+
+def test_open_positions_days_left_is_live_not_dte_at_entry(convexity_db):
+    from datetime import date, datetime
+    _pos(convexity_db, "PL", 690.0, status="open")                     # stored dte=300 (entry), expiry 2027-01-15
+    live = (date(2027, 1, 15) - datetime.now(_ET).date()).days
+    row = dd.positions_panel(convexity_db)["real_open"][0]
+    assert row["dte"] == live and row["dte"] != 300 and row["dte_at_entry"] == 300
+    mc = dd.market_context(convexity_db)["open_positions"][0]
+    assert mc["dte"] == live                                           # same corrected field in the market panel
 
 
 # ── upcoming actions (issue #306): next_at from the systemd timers ─────────────────────────────
@@ -1010,3 +1113,42 @@ def test_header_reports_the_latest_cycle_mode(convexity_db):
     convexity_db.execute("INSERT INTO runs (started_at, mode, note) VALUES ('2026-10-09T19:45:00+00:00','PAPER','x')")
     convexity_db.execute("INSERT INTO runs (started_at, mode, note) VALUES ('2026-10-09T20:00:00+00:00','DISCOVERY','x')")
     assert dd.header_status(convexity_db)["mode"] == "PAPER"          # DISCOVERY runs never count as the mode
+
+
+def test_run_start_map_dates_every_requested_run(convexity_db):
+    """#354: run_id -> started_at (string keys) for the UI's ET run labels; unknown ids and bad input skipped."""
+    a = convexity_db.execute("INSERT INTO runs(started_at, mode) VALUES('2026-10-26 19:45:04','PAPER')").lastrowid
+    b = convexity_db.execute("INSERT INTO runs(started_at, mode) VALUES('2026-10-27T19:45:00+00:00','PAPER')").lastrowid
+    out = dd.run_start_map(convexity_db, [a, b, 999999, True, "7", None])
+    assert out == {str(a): "2026-10-26 19:45:04", str(b): "2026-10-27T19:45:00+00:00"}
+    assert dd.run_start_map(convexity_db, []) == {}
+
+
+# ── #354: every run id the backend prints carries an ET date + a layer derived from runs.mode ──────
+def test_run_label_matches_the_ui_formatter():
+    # the exact string ui/src/data/runLabel.test.ts pins: naive-UTC DB stamp → ET weekday/date/time
+    assert dd.run_label(1816, "2026-10-26 19:45:03", "L1") == "L1 #1816 · Mon 2026-10-26 15:45 ET"
+    assert dd.run_label(1816, "2026-10-27 02:30:04", "L1") == "L1 #1816 · Mon 2026-10-26 22:30 ET"  # ET date, not UTC
+    assert dd.run_label(7, None, "L1") == "L1 #7 · date unavailable"
+
+
+def test_run_kind_is_derived_from_mode_not_assumed_l1():
+    assert [dd.run_kind(m) for m in ("PAPER", "LIVE", "DISCOVERY")] == ["L1", "L1", "L0"]
+    assert dd.run_kind("MONITOR") == "MONITOR" and dd.run_kind(None) == "run"
+
+
+def test_run_kind_map_reads_runs_mode(convexity_db):
+    conn = convexity_db
+    l1 = state.record_run(conn, mode="PAPER", equity=1)
+    l0 = state.record_run(conn, mode="DISCOVERY", equity=None)
+    assert dd.run_kind_map(conn, [l1, l0, 9999, True]) == {str(l1): "L1", str(l0): "L0"}
+
+
+def test_t4_cond1_detail_dates_every_run_id(convexity_db):
+    conn = convexity_db
+    a = _confirmed_run(conn, "AAA")
+    b = _degraded_run(conn, "BBB")
+    detail = _cond1(conn)["detail"]
+    for rid in (a, b):
+        assert dd.run_label(rid, conn.execute("SELECT started_at FROM runs WHERE id=?", (rid,)).fetchone()[0], "L1") in detail
+    assert " #" not in detail.replace("L1 #", "")      # no bare "#id" anywhere in the prose

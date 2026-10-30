@@ -85,12 +85,18 @@ def run_paper_cycle(
     run_id: int | None = None,
     chain_cache=None,
     shadow_provider: ChainProvider | None = None,
+    walk: dict[str, dict] | None = None,
 ) -> CycleResult:
     """Run one paper cycle over the active themes. Returns a CycleResult.
 
     ``chain_cache`` (optional ``PointInTimeCache``): when supplied, each theme's current
     chain snapshot is persisted (append-only) so an IV-rank baseline accrues over time
     (PREREG §4b). ``None`` (e.g. the offline demo) skips persistence.
+
+    ``walk`` (#386, the carry-over): ``{symbol: {"intent_id", "step", "fraction"}}`` for a carried entry's
+    next-session attempt. That theme goes through EVERY check below exactly as an L1 entry does; only the limit
+    differs (``mid + fraction × (ask − mid)``, never above the ask), its order id gets a ``-c<step>`` suffix and
+    its rationale records the carry. ``None`` = the ordinary L1 path, unchanged.
     """
     result = CycleResult()
     as_of_dt = clock.now()
@@ -142,7 +148,9 @@ def run_paper_cycle(
 
     # Dedup: one open position per underlying for T1 (one name per theme). Re-running the loop
     # must not stack duplicate bets on a theme that is already on.
-    open_syms = state.open_position_symbols(conn)
+    # pending counts too (#386): a working order — an L1 entry or a carry attempt whose cancel isn't confirmed yet —
+    # must never be joined by a second buy for the same name
+    open_syms = state.entry_blocked_symbols(conn)
 
     def _eligibility(c):
         return contract_eligible(
@@ -169,7 +177,7 @@ def run_paper_cycle(
             state.record_convexity_eval(
                 conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
                 direction=theme.direction, decision="skip-already-open", proposal_id=theme.proposal_id,
-                reasons=[f"{theme.symbol} already has an open position"],
+                reasons=[f"{theme.symbol} already has an open position or a working order"],
             )
             continue
         try:
@@ -180,6 +188,7 @@ def run_paper_cycle(
                 as_of=as_of, as_of_dt=as_of_dt, as_of_iso=as_of_iso, run_id=run_id,
                 result=result, chain_cache=chain_cache,
                 shadow_provider=shadow_provider, dualread_veto_active=dualread_veto_active,
+                walk=(walk or {}).get(theme.symbol),
             )
         except Exception as e:  # noqa: BLE001 — fail-closed: log, never open on error
             result.errors += 1
@@ -226,7 +235,7 @@ def run_paper_cycle(
     # PL entry went unnoticed for THREE DAYS because only failures paged;
     # records/2026-07-04_first_real_entry_ERRATUM.md §3.2). Entries are rare-by-design, so the
     # page cost is ~zero; paging must never break the cycle.
-    if result.opened > 0:
+    if result.opened > 0 and walk is None:   # a carry attempt pages through its own ORDER SUBMITTED / FILL pages
         try:
             import notify
 
@@ -253,7 +262,7 @@ def _quote(c) -> dict:
 def _process_theme(
     theme: Theme, *, config, conn, provider, broker, eligibility, account_equity, gate, book,
     cluster_map, cluster_fraction, as_of, as_of_dt, as_of_iso, run_id, result: CycleResult,
-    chain_cache=None, shadow_provider=None, dualread_veto_active=False,
+    chain_cache=None, shadow_provider=None, dualread_veto_active=False, walk: dict | None = None,
 ) -> None:
     # Correlation-cluster exposure cap (PREREG §5 amendment) — COARSE check FIRST, before the slot
     # reservation: a structurally-full cluster records the structural ``veto-cluster-cap`` (the true
@@ -398,7 +407,15 @@ def _process_theme(
     # cluster budget tightens the greedy allocation to a bounded partial (composes into sizing's min()).
     from convexity_sizing import convexity_position_size
 
-    premium_per_contract = structure.entry_premium * 100.0
+    # The entry limit: mid for an L1 entry; for a carried attempt (#386) the walk price — mid + fraction × (ask − mid),
+    # never above the ask. Sizing and every cap below use THIS price, so a walked limit can only shrink the order.
+    entry_px = structure.entry_premium
+    if walk is not None:
+        ask = structure.contract.ask
+        frac = min(max(float(walk.get("fraction", 0.0)), 0.0), 1.0)
+        if ask is not None and ask > entry_px:
+            entry_px = round(min(entry_px + frac * (ask - entry_px), ask), 2)
+    premium_per_contract = entry_px * 100.0
     if cluster_remaining is not None and cluster_remaining < premium_per_contract:
         result.vetoed += 1
         state.record_convexity_eval(
@@ -416,9 +433,11 @@ def _process_theme(
         book_fraction=float(book.get("book_fraction", 0.10)),
         per_name_fraction=float(book.get("per_name_fraction", 0.01)),
         max_open_positions=int(book.get("max_open_positions", 15)),
-        open_positions_count=state.count_open_convexity_positions(conn),
-        open_premium_total=state.convexity_book_open_premium(conn),
-        entry_premium_per_share=structure.entry_premium,
+        # committed = open + closing + pending (#386): a working order reserves its slot and premium, so a carried
+        # attempt and a same-cycle entry can't both be sized against budget the other already holds
+        open_positions_count=state.count_committed_positions(conn),
+        open_premium_total=state.committed_book_premium(conn),
+        entry_premium_per_share=entry_px,
         cluster_remaining=cluster_remaining,
     )
     if sizing.contracts < 1:
@@ -463,8 +482,9 @@ def _process_theme(
     # 4. Paper fill (simulated at mid).
     fill = broker.submit_paper(
         contract_symbol=structure.contract.symbol, qty=sizing.contracts, side="buy",
-        limit_price=structure.entry_premium,
-        client_order_id=make_client_order_id("open", structure.contract.symbol, str(as_of)),
+        limit_price=entry_px,
+        client_order_id=make_client_order_id("open", structure.contract.symbol, str(as_of))
+        + (f"-c{int(walk['step'])}" if walk is not None else ""),
     )
     if not fill.filled:
         result.vetoed += 1
@@ -490,6 +510,8 @@ def _process_theme(
         "rv": verdict.rv, "atm_iv": verdict.atm_iv, "wing_iv": verdict.wing_iv,
         "quote": q,
     }
+    if walk is not None:
+        rationale["carry"] = {"of": walk.get("intent_id"), "step": int(walk.get("step", 0)), "limit": entry_px}
     pos_id = state.record_convexity_position(
         conn, run_id=run_id, opened_at=as_of_iso, theme=theme.name, symbol=theme.symbol,
         direction=theme.direction, structure_kind=structure.kind,
@@ -511,7 +533,7 @@ def _process_theme(
         conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
         direction=theme.direction, eligible=True, gate_cheap=True,
         iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
-        decision=("submit-pending" if pending else "open"), position_id=pos_id,
+        decision=(("carry-" if walk is not None else "") + ("submit-pending" if pending else "open")), position_id=pos_id,
         proposal_id=theme.proposal_id, reasons=list(verdict.reasons), cluster_state=cluster_state,
     )
     result.opened += 1
@@ -524,7 +546,7 @@ def _process_theme(
     )
     # A real order is resting at the broker: page it as it happens (2026-10-27 — HL's first above-floor order since
     # July was submitted and cancelled unfilled 12 minutes later, and the operator learned of it from the grade).
-    if pending:
+    if pending and (walk is None or int(walk.get("step", 0)) == 0):   # a carry pages its first attempt only
         try:
             import notify
 

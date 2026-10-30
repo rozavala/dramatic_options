@@ -26,6 +26,7 @@ import cheapness_watch
 import clusters
 import direction_coherence
 import discovery
+import drawdown_warn
 import fixed_basket
 import fundamentals_staleness
 import marker_refresh
@@ -122,6 +123,32 @@ def _print_survivorship(conn, run_id: int) -> None:
         ivrv = f"{r['iv_rv']:.2f}" if r["iv_rv"] is not None else "—"
         skew = f"{r['otm_skew']:.1f}vp" if r["otm_skew"] is not None else "—"
         log.info("  %-28s %-6s %-17s iv/rv=%s skew=%s", r["theme"], r["symbol"], r["decision"], ivrv, skew)
+
+
+def _page_drawdown_warn(conn, config: dict, *, demo: bool) -> bool:
+    """Drawdown pages (#355/#366, #370): one push per upward crossing, normal priority at the 10% warn and priority 1
+    at the kill rule's halt, evaluated once per cycle after the monitor pass (L1 and every L2 tick).
+
+    Reads the SAME open-book drawdown the kill rule uses (``state.convexity_book_drawdown``) and never alters
+    it. Skipped entirely under ``--demo``: the demo drawdown comes from a throwaway DB, and the latch file sits
+    beside the REAL db path, so a demo run would clobber the real book's latch (and re-page). Best-effort:
+    never raises into the cycle. Returns True iff a page was sent."""
+    if demo:
+        return False
+    try:
+        book = config.get("convexity_book", {})
+        budget = float(book.get("account_equity", 0.0)) * float(book.get("book_fraction", 0.0))
+        book_dd, _have_marks = state.convexity_book_drawdown(conn, budget)
+        return drawdown_warn.page_on_upward_crossing(
+            book_dd,
+            float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)),
+            Path(config.get("database", {}).get("path", "data/dramatic_options.db"))
+            .with_name("drawdown_warn_state.json"),
+            notify.send,
+        )
+    except Exception as e:  # noqa: BLE001 — a display-tier page must never break the cycle
+        log.warning("drawdown warn page skipped (non-fatal): %s", e)
+        return False
 
 
 def _print_book_summary(conn, config: dict) -> None:
@@ -695,9 +722,94 @@ def run_discover(demo: bool = False) -> int:
             Path(demo_db.name).unlink(missing_ok=True)
 
 
+def _cancel_resting_entries_on_kill(cli_live: bool, demo: bool) -> int:
+    """#389 (operator word 2026-10-29, option a): under the KILL switch, cancel this project's own RESTING ENTRY
+    orders, so nothing new can fill after a kill. That means the journal's 'pending' rows (an L1 entry or a carry
+    attempt, #386), and it ends live carry intents. Exits ('closing' rows) are never touched: a resting
+    SELL_TO_CLOSE reduces risk. Ids come only from this journal, never from an account listing (the account is
+    shared).
+
+    Every cancel is settled: a fill found is confirmed, never dropped, and an unconfirmed cancel stays pending for the
+    next tick. A carry intent ends only once none of its attempts is unconfirmed (an ended intent with a live attempt
+    would leave that order unmanaged). A row placed on a venue other than the one the current config reaches (KILL
+    pulled together with a PAPER / LIVE flip) is never sent to the wrong endpoint: it stays pending and is named in a
+    priority-1 page for a manual cancel. Best-effort: never raises, so the KILL halt always holds. Returns the number
+    cancelled."""
+    if demo:
+        return 0
+    try:
+        import carry
+
+        config = load_config()
+        conn = get_db(config)
+        try:
+            pending = state.pending_convexity_positions(conn)
+            intents = state.carried_convexity_positions(conn)
+            if not pending and not intents:
+                return 0
+            cancelled, filled, unsure, wrong_venue, filled_intents = 0, 0, set(), [], set()
+            if pending:
+                is_live = live_allowed(config, cli_live)
+                api_key, secret_key = require_alpaca_credentials(config)   # raising here changes nothing
+                broker = _select_broker(config, is_live=is_live, api_key=api_key, secret_key=secret_key,
+                                        dry_run=bool(config.get("safety", {}).get("dry_run", True)), equity=None)
+                now_iso = datetime.now(UTC).isoformat()
+                for pos in pending:
+                    run = conn.execute("SELECT mode FROM runs WHERE id = ?", (pos["run_id"],)).fetchone() \
+                        if pos["run_id"] is not None else None
+                    if run is not None and (str(run["mode"]).upper() == "LIVE") != is_live:
+                        wrong_venue.append(pos)
+                        unsure.add(carry.attempt_of(pos))
+                        continue
+                    info = carry.cancel_and_settle(broker, pos["order_id"]) if pos["order_id"] else None
+                    if info is None:
+                        unsure.add(carry.attempt_of(pos))
+                        log.warning("KILL: could not confirm the cancel of #%d %s — retried on the next tick",
+                                    pos["id"], pos["contract_symbol"])
+                    elif info["state"] == "filled":
+                        carry.confirm_fill(conn, pos, info, now_iso)   # filled before the cancel: it is real
+                        filled += 1
+                        filled_intents.add(carry.attempt_of(pos))
+                    else:
+                        state.drop_convexity_position(conn, int(pos["id"]), reason="kill_cancelled")
+                        cancelled += 1
+            ended = 0
+            for intent in intents:
+                iid = int(intent["id"])
+                if iid in unsure:
+                    # an attempt's cancel is unconfirmed: keep the intent so the attempt stays managed, but mark it
+                    # killed — the carry worker then only settles it and never places a new attempt, even if KILL is
+                    # lifted before the next tick
+                    state.mark_carry_killed(conn, iid)
+                    continue
+                state.drop_convexity_position(conn, iid, reason="carry_filled" if iid in filled_intents
+                                              else "kill_cancelled")
+                ended += 1
+            if wrong_venue:
+                notify.send("KILL: resting order on another venue — cancel by hand",
+                            "; ".join(f"#{p['id']} {p['contract_symbol']} order {p['order_id']}" for p in wrong_venue)
+                            + " was placed on the other venue than the current config reaches; not cancelled.",
+                            priority=1)
+            unconfirmed = len(pending) - cancelled - filled - len(wrong_venue)
+            if cancelled or filled or ended or unconfirmed:
+                # an unconfirmed cancel pages too, every tick it persists: a failed cancel request is swallowed by
+                # the broker, and silence would read as "entries pulled"
+                notify.send("KILL: resting entry orders",
+                            f"cancelled {cancelled}, filled before the cancel {filled}, carry intents ended {ended}; "
+                            f"UNCONFIRMED {unconfirmed} (retried next tick — check the venue if it persists); "
+                            "exits untouched.", priority=1)
+            return cancelled
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001 — the KILL halt must hold whatever happens here
+        log.warning("KILL: resting-entry cancel failed (halt still holds): %s", e)
+        return 0
+
+
 def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = False) -> int:
     if kill_switch_active():
         log.warning("KILL switch engaged — halting. Remove the KILL file/env to resume.")
+        _cancel_resting_entries_on_kill(cli_live, demo)   # #389: nothing new can fill after a kill
         return 0
 
     config = load_config()
@@ -826,6 +938,31 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             except Exception as e:  # noqa: BLE001 — fail-soft: the gate null never breaks the cycle
                 log.warning("no-gate 3A mark pass failed (non-fatal): %s", e)
                 notify.send("Fixed-basket 3A mark failed (non-fatal)", str(e))
+
+        # 1d. Drawdown pages (#355/#366 warn, #370 kill-rule trip; operator: L1 + L2) — right after the monitor
+        #     pass, so it reads the marks this cycle just wrote. Runs in L1 and in every L2 --monitor tick (a
+        #     crossing pages within one tick, not up to a trading day late); the latch's hysteresis keeps it to one
+        #     page per upward crossing. Notification only: never touches the kill rule; never raises.
+        dd_paged = _page_drawdown_warn(conn, config, demo=demo)
+
+        # 1e. Carry-over (#386; execution.carry_unfilled, default off): an L1 entry that went unfilled at the close
+        #     is re-gated and resubmitted the next session, walking from mid to the ask, through the SAME
+        #     run_paper_cycle pipeline as an L1 entry (every check re-runs on fresh data). After reconcile_pending
+        #     (which turns the unfilled entry into a carry intent), in L1 and every L2 tick.
+        if not demo:
+            try:
+                import carry
+
+                carry_ok, _why = entries_allowed(forward_enabled=bool(config.get("forward_enabled", False)),
+                                                 market_open=market_open, demo=demo)
+                placed = carry.work_carried(conn, config=config, clock=clock, provider=provider, broker=broker,
+                                            run_id=run_id, chain_cache=chain_cache,
+                                            shadow_provider=shadow_gate_provider, market_open=market_open,
+                                            entries_ok=carry_ok)
+                if placed:
+                    log.info("Carry-over: placed %d attempt(s).", placed)
+            except Exception as e:  # noqa: BLE001 — fail-closed: an error here places nothing and never breaks the cycle
+                log.warning("carry-over pass failed (non-fatal; nothing placed): %s", e)
 
         # 2. Council pass → themes (T2). The council PROPOSES; the deterministic gates in
         #    run_paper_cycle still DISPOSE. Entries are gated BEFORE any LLM spend by
@@ -984,8 +1121,11 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                             notify.send("Dual-read §5 executor DEGRADED",
                                         f"the runtime tripwire executor errored (entries already "
                                         f"ran; no revert/page evaluated this cycle): {e}", priority=1)
-                    if result.halted:
-                        # Kill switch / kill rule halted NEW entries (exit 0) → page in-app (PR2 R-C).
+                    trip_paged = dd_paged and any(n.startswith("kill rule tripped") for n in result.notes)
+                    if result.halted and not trip_paged:
+                        # Kill switch / kill rule halted NEW entries (exit 0) → page in-app (PR2 R-C); repeats each
+                        # L1 while halted. Skipped only when the halt IS the kill rule and 1d paged this cycle: the
+                        # marks haven't moved since, so that page was this trip. Any other halt reason still pages.
                         notify.send(
                             "Kill rule tripped — new entries halted",
                             "; ".join(result.notes) or "halted", priority=1,

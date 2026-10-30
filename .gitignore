@@ -47,5 +47,10 @@ OPRA_REVERTED
 # keeping the seed file tracked. (Same class of bug as the Phase-0 data/ source swallow.)
 !themes.json
 
-# Claude Code — local/operational, never committed (settings, worktrees, task locks)
-.claude/
+# Claude Code — local/operational state is never committed (settings, worktrees, task locks, handoff, skill
+# run state). The project skills ARE tracked (.claude/skills/{triage,ship,handoff}, the real_options /
+# alpha_options layout), so every checkout and the scheduled-review runner gets the same procedures.
+.claude/*
+!.claude/skills/
+.claude/skills/*/last-run.md
+.claude/skills/*/reports/

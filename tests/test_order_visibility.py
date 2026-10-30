@@ -83,6 +83,8 @@ class _StatusBroker:
 
     def cancel_order(self, oid):
         self.cancelled.append(oid)
+        if (self._s.get(oid) or {}).get("state") in ("new", "accepted", "pending_new", "partially_filled"):
+            self._s[oid] = {"state": "canceled"}   # the real venue reports the cancel
 
 
 def _pending(conn, oid):
