@@ -95,8 +95,9 @@ jobs:
               git clean -fd 2>/dev/null || true
             fi
 
-            # Fetch and switch to the target ref
-            git fetch &&
+            # Fetch and switch to the target ref. --prune drops tracking refs for deleted branches: a stale
+            # origin/claude blocked every origin/claude/* ref and failed the 2026-10-30 PROD deploy at this fetch.
+            git fetch --prune &&
             git checkout ${{ github.ref_name }} &&
             git reset --hard origin/${{ github.ref_name }} &&
 
