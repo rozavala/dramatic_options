@@ -34,13 +34,14 @@ The header's absence is itself a signal.
   (0 hits is a WARNING). **Record consequence:** every segment from ~07-10 to 10-23 judged `under_narrated`
   without the meter (the F4 pack's 44% included). **Tripwire:** Monday is also §10.10's second session, so its
   read carries both changes; restored counts are more likely to tighten `under_narrated` than loosen it.
-- **Driver-scope count (2026-10-27, operator word; decision at the 11-02 look):** criterion (3) doesn't say whether
-  "the driver" is the basket thesis's or the name's own. HL flipped on the same figures (10-23 not at inflection,
-  "the driver has stalled"; 10-26 MODERATE, "a durable driver still playing out through multiple deficit-year prints"
-  while its qtr revenue acceleration was −0.835). The wording stays as is and HL's verdict stands; the nightly grade
-  counts `at_inflection = true` verdicts resting on a **basket-level** driver while the name's own figures decelerate.
-  **Count: 1 (HL 10-26, above floor).** At ≥ 3 by 11-02, clarify (3) to the name-level reading as one dated change
-  (a tightening; C stays ruled out).
+- **⭐ Criterion (3), name-level evidence (2026-10-29, operator word "adopt 388"; PREREG_COUNCIL_GATE_SEPARATION
+  §10.11; adopted ahead of the 11-02 look):** one sentence appended to (3): *"The driver must still be visibly
+  changing in THIS name's own current evidence — its fresh price markers or its latest filing; the basket's story
+  alone does not show it, and a stale or annual-only figure cannot establish acceleration."* It followed the
+  driver-scope count reaching 3 on 10-29 (HL, AG, PAAS; all silver_deficit). New pins `cd34e754aa48ca09 /
+  98f11177de0612e0 / bc33c3e2dd66f0e4`; `runs.model_mix.prompts` changes from the first L1 after deploy (planned Fri
+  10-30): a new record segment. Expected: fewer above-floor verdicts than 10-23 → 10-29 (2 in 5 sessions); zero at
+  the floor for 10 consecutive sessions ⇒ an operator look.
 - **Mandate:** the §10.7 tri-criteria thesis-only council (structural ∧ under_narrated ∧ at_inflection at
   ≥ MODERATE). Hard seam, HARK leash, never-backtest-the-council all standing.
 - **PREREG_DIRECTION_COHERENCE (FROZEN 2026-09-24):**
@@ -162,8 +163,8 @@ The header's absence is itself a signal.
   STUB) run to 11-08 (the DST hour no longer costs them a scan). The union 35 → ~27 + new.
   KMT pin #18 expires. Tenor: the cliff names regain structure only with a July-2027 listing or when Jan-2028 enters
   the window (~2027-01-21).
-- **2026-11-02:** posture LOOK (PREREG_THEMATIC_CONVEXITY §6 amendment) + the driver-scope decision (≥ 3 ⇒ clarify
-  criterion (3) to the name-level reading).
+- **2026-11-02:** posture LOOK (PREREG_THEMATIC_CONVEXITY §6 amendment). (The driver-scope decision it also held was
+  taken early, on 10-29: §10.11.)
 - **~2026-11-03:** one-night shadow check of the candidate council models (claude-opus-5-5 / gemini-3.8-flash /
   grok-4.7) on real packs — parse rate, cost, latency only (no outcome scoring).
 - **2026-11-05 (after the F4 review):** the planned model refresh, all roles at once, one dated segment; plumbing in

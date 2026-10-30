@@ -400,3 +400,42 @@ or reversed). The proposer's role text and the strategist's role text are unchan
 - **The check on this decision:** PREREG_REJECTION_REASON_AUDIT (frozen 2026-10-21) scores the judgments made
   under the §10.7 wording; its first decision read (~February 2027) shows whether the old timing test filtered
   losers. Judgments under §10.10 are its own segment.
+
+### 10.11 Criterion (3): the driver must show in the name's own current evidence (dated amendment, 2026-10-29, operator word)
+
+**Status: FROZEN 2026-10-29.** Operator's word: *"adopt 388"*. That is **ahead of** the 2026-11-02 look the trigger
+named, an operational deviation of the decision date recorded as such (the precedent is the F4 review held early at
+§10.10). The trigger was pre-committed on 2026-10-27 (STANDING_STATE, "Driver-scope count"): at ≥ 3 by 11-02,
+clarify criterion (3) to the name-level reading as one dated change. **The count reached 3 on 2026-10-29 (L1 #1867),
+all silver_deficit:**
+
+| Verdict | Driver cited | The name's own evidence |
+|---|---|---|
+| HL 10-26 #1816, MODERATE (above floor) | "a durable driver still playing out through multiple deficit-year prints" | qtr revenue acceleration −0.835, 3m momentum −0.043 (from +0.185) |
+| AG 10-29 #1867, MODERATE (above floor) | "deficit dynamics still feeding producer margins over the next 6-12 months" | "+124.2% revenue acceleration" from a 10-month-old annual print; 12m momentum +1.079 → +0.391 |
+| PAAS 10-29 #1867, LOW | "the deficit driver remains live through the horizon" | 3m −0.057, rv_accel −0.211 |
+
+AG and PAAS flipped from earlier "not at inflection" reads (10-22, 10-27) on the same or weaker figures. HL flipped
+back to "not at inflection" on 10-29.
+
+**The change (operator's direction, 2026-10-29: "draft the narrow"; adopted the same day):** one sentence appended to criterion (3) in
+`_COMMON`, so all three roles inherit it. Role texts and JSON keys are unchanged.
+
+> *"The driver must still be visibly changing in THIS name's own current evidence — its fresh price markers or its
+> latest filing; the basket's story alone does not show it, and a stale or annual-only figure cannot establish
+> acceleration."*
+
+- **Why narrow:** the failure was evidence, not the basket thesis. AG's acceleration came from a stale annual print
+  while its own fresh markers fell. A silver name with fresh, rising figures still passes; a broad "name-level
+  only" rule would not be needed for that.
+- **Unchanged:** the rest of (3) (§10.10), criteria (1) and (2), the MODERATE floor, the tri-criteria `include` rule,
+  thesis-only, the gate, sizing, the risk frame, the model roster.
+- **Pins:** `_COMMON cd34e754aa48ca09 · ADVERSARY 98f11177de0612e0 · STRATEGIST bc33c3e2dd66f0e4`. The
+  `runs.model_mix.prompts` stamp changes from the first L1 after deploy: a new record segment (never pool Brier
+  across it).
+- **What to expect (pinned blind):** fewer above-floor verdicts than the 10-23 → 10-29 week (2 in 5 sessions); the
+  basket-level passes of the count above would not pass. If zero names reach the floor for 10 consecutive sessions,
+  an operator look is owed (the wording may be too tight; nothing reverts automatically).
+- **The check on this decision:** PREREG_REJECTION_REASON_AUDIT (~February 2027) reads whether the timing test
+  filters losers; §10.11 judgments are their own segment.
+
