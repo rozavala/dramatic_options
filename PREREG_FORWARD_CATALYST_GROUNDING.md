@@ -349,3 +349,27 @@ calls `sentinel_context_pack` with no catalysts (the §6 leash). `grounded` is u
 
 **Record segmentation.** `runs.model_mix.forward_catalysts = "forward_catalyst_v1+sentinel_v1"` from the
 first L1 after the switch is set.
+
+## §12 Amendment (2026-10-31, operator word "A", #403; from the first L1 after deploy) — the §3 named deviation, re-read
+
+**Why.** The §3 named deviation pins that the fundamentals tokenizer (`fundamental_evidence_tokens`) EXCLUDES dates
+from the authenticity filter's evidence pool, because date digits are noise that would let a fabricated number pass
+the digit-substring match, and that a symmetry-minded cleanup must not "fix" this back. The side effect it did not
+foresee: a council role that cites a rendered filing date (`period 2026-06-30, filed 2026-08-07`) has the date split
+into year/month/day digit runs that miss the date-free pool, and is dampened one level. L1 #1884 (2026-10-30, the
+first session under PREREG_COUNCIL_GATE_SEPARATION §10.11, which asks for "its latest filing") showed it: the FRO
+adversary's 6 flags equal a verbatim quote of one rendered fundamentals line. 47 of 179 dampened strategist outputs
+cite an ISO date; none had a raw conviction ≥ MODERATE, so no entry has yet been lost.
+
+**The change (council roles only).** A full ISO date in a proposer / adversary / strategist text is checked WHOLE
+against the dates rendered in that agent's prompt block (`council/filters.py::rendered_dates`): shown → accepted;
+not shown → one `unsupported date` flag. The date is removed before the figure scan. The discovery framer keeps the
+pre-amendment scan (its L0 runs carry no quote-filter stamp to segment on).
+
+**What does not change.** §3's rule holds as pinned: **the digit pool stays date-free**, so "2026", "06" or "30" never
+become citable figures and a fabricated bare number still flags. This channel's own date tokens
+(`catalyst_cite_tokens`), K, N, the char bound and the §4 counters are unchanged; a catalyst date remains accepted.
+
+**Record segmentation.** `runs.model_mix.quote_filter = "musd_billions_v1+iso_dates_v1"` from the first L1 after deploy
+(final convictions can change; raw ones cannot). The §10.11 read uses raw and final convictions so the two
+changes stay separable.

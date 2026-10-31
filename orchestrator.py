@@ -199,7 +199,10 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
         mix["corpus_refresh"] = "filing_date_v1"  # #340 (2026-10-25): a raw fetched on/before the newest 10-Q/10-K's ET date refetches; record-segmenting
         mix["corpus"] = "fundamentals_v2"  # §9: pack-change record-segmentation (v2 = IFRS taxonomy + tag-recency + annual fallback; zero migration)
         mix["coverage_meter"] = "analyst_v2"  # §19 meter restored on the __data.json endpoint + the unknown line (#337, 2026-10-24); v1 = the dead /api endpoint (no counts since ~07-10)
-        mix["quote_filter"] = "musd_billions_v1"  # 2026-10-23: $B restatements of a rendered $M figure no longer dampen; verdict-mapping change, record-segmenting
+        # 2026-10-23 musd_billions_v1: $B restatements of a rendered $M figure no longer dampen. 2026-10-31 iso_dates_v1 (#403):
+        # a council role citing a date it was shown (e.g. the filing date) no longer dampens; an unshown date flags once.
+        # Both are verdict-mapping changes, record-segmenting.
+        mix["quote_filter"] = "musd_billions_v1+iso_dates_v1"
         if int(config.get("council", {}).get("cheap_reserve_slots", 0) or 0) > 0:
             # PREREG gate_cheap_reserve §6: judged-set composition change — record-segmenting from deploy.
             mix["union_rank"] = "cheap_reserve_v1"
