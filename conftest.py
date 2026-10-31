@@ -55,6 +55,7 @@ def convexity_db(tmp_path):
     _apply_migration(conn, "0016_marker_asof.py")
     _apply_migration(conn, "0017_cheapness_watch.py")
     _apply_migration(conn, "0018_null_book_attempts.py")
+    _apply_migration(conn, "0020_agent_flag_details.py")
     try:
         yield conn
     finally:

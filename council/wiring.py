@@ -133,6 +133,7 @@ def council_to_themes(
                 conn, proposal_id=proposal_id, role=ao.role, provider=ao.provider, model=ao.model,
                 confidence=ao.confidence, stance=ao.stance, weakest_point=ao.weakest_point,
                 raw=ao.raw, flagged_unsupported=ao.flagged_unsupported, cost_usd=ao.cost_usd,
+                flagged_details=ao.flagged_details,
             )
         if is_trade:
             themes.append(p.to_theme(proposal_id))
