@@ -11,6 +11,7 @@ writes. Writes use the connection as a context manager for atomic transactions.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -947,8 +948,12 @@ def record_agent_output(
     raw: Any = None,
     flagged_unsupported: int = 0,
     cost_usd: float | None = None,
+    flagged_details: Sequence[str] = (),
 ) -> int:
-    """Insert one agent's contribution to a proposal (proposer/adversary/strategist). Atomic."""
+    """Insert one agent's contribution to a proposal (proposer/adversary/strategist). Atomic.
+
+    ``flagged_details`` (#402) is the authenticity filter's list of WHICH claims it flagged, stored as a JSON list
+    beside the count (``[]`` when nothing was flagged; NULL only on rows recorded before migration 0020)."""
     import json
 
     if not isinstance(raw, str):
@@ -956,11 +961,11 @@ def record_agent_output(
     with conn:
         cur = conn.execute(
             "INSERT INTO council_agent_outputs (proposal_id, role, provider, model, confidence, "
-            "stance, weakest_point, raw, flagged_unsupported, cost_usd, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            "stance, weakest_point, raw, flagged_unsupported, cost_usd, flagged_details, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
             (
                 proposal_id, role, provider, model, confidence, stance, weakest_point, raw,
-                int(flagged_unsupported), cost_usd,
+                int(flagged_unsupported), cost_usd, json.dumps(list(flagged_details)),
             ),
         )
     return int(cur.lastrowid)

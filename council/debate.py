@@ -87,6 +87,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     proposer_ao = AgentOutput(
         "proposer", presp.provider, presp.model, pconf, candidate.direction,
         None, praw, flagged_unsupported=pfr.flagged, cost_usd=presp.cost_usd,
+        flagged_details=tuple(pfr.details),
     )
     if pconf == "NEUTRAL":  # proposer abstained → drop without spending on adversary/strategist
         return _neutral_proposal(candidate, pack, reason="proposer abstained (NEUTRAL)",
@@ -102,7 +103,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     adversary_ao = AgentOutput(
         "adversary", aresp.provider, aresp.model, aconf, against_stance,
         str(araw.get("weakest_point", "")) or None, araw, flagged_unsupported=afr.flagged,
-        cost_usd=aresp.cost_usd,
+        cost_usd=aresp.cost_usd, flagged_details=tuple(afr.details),
     )
 
     # 3. Strategist — synthesize (randomized for/against order), conviction-dampened.
@@ -134,7 +135,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     strategist_ao = AgentOutput(
         "strategist", sresp.provider, sresp.model, sconf, str(sraw.get("direction", candidate.direction)),
         str(sraw.get("weakest_point", "")) or None, sraw, flagged_unsupported=sfr.flagged,
-        cost_usd=sresp.cost_usd,
+        cost_usd=sresp.cost_usd, flagged_details=tuple(sfr.details),
     )
 
     direction = str(sraw.get("direction", candidate.direction)).strip().lower()
