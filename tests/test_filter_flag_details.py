@@ -90,3 +90,20 @@ def test_migration_0020_is_idempotent_and_leaves_old_rows_null(convexity_db):
     convexity_db.execute("INSERT INTO council_agent_outputs (proposal_id, role, raw, flagged_unsupported, created_at) "
                          "VALUES (?, 'proposer', '{}', 1, datetime('now'))", (pid,))   # a pre-0020-shaped write
     assert convexity_db.execute("SELECT flagged_details FROM council_agent_outputs").fetchone()[0] is None
+
+
+def test_migration_0020_fails_loudly_without_the_table():
+    import importlib.util
+    import sqlite3
+    from pathlib import Path
+
+    import pytest
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "migrations" / "0020_agent_flag_details.py"
+    spec = importlib.util.spec_from_file_location("m0020b", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    with pytest.raises(sqlite3.OperationalError):        # never a silent no-op recorded as applied
+        mod.apply(conn)
