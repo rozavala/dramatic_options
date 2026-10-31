@@ -95,3 +95,11 @@ def test_all_three_council_roles_accept_the_dates_they_were_shown():
 
 def test_the_run_stamp_names_the_filter_version():
     assert 'mix["quote_filter"] = "musd_billions_v1+iso_dates_v1"' in inspect.getsource(orchestrator)
+
+
+def test_a_date_embedded_in_a_longer_digit_run_is_a_figure_not_a_date():
+    # "12026-06-3012" contains the rendered 2026-06-30, but it is not that date; it must not be accepted and stripped.
+    conf, res = _council(["capacity reached 12026-06-3012 units"])
+    assert conf == "LOW" and res.details == ["unsupported figure: 12026", "unsupported figure: 06",
+                                             "unsupported figure: 3012"]
+    assert _council(["filed 2026-06-30."])[1].flagged == 0                 # sentence punctuation is still a boundary

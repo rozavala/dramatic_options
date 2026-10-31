@@ -15,7 +15,7 @@ from collections.abc import Collection
 from dataclasses import dataclass
 
 _NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
-_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_ISO_DATE = re.compile(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)")  # whole dates only: one embedded in a longer digit run is a figure
 _QUOTE = re.compile(r'"([^"]{4,})"')  # quoted spans of ≥4 chars (attributed claims)
 
 _RANK = {"NEUTRAL": 0, "LOW": 1, "MODERATE": 2, "HIGH": 3, "EXTREME": 4}
