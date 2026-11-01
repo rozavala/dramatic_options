@@ -1,6 +1,8 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-11-01T15:30Z · supersedes: 2026-10-30T04:30Z · **Sunday W44 review** (`records/2026-11-01_sunday_w44.md`): L0 #1887 at 13:00 UTC (DST) dormed the 8 09-20 lineages as docketed (AG/HL/PAAS leave the union), re-activated 6 (CCJ/ERO/FLNC/NEE/NNE/TGB), 2 new (FIG bear, CF bull) → active 35; KMT pin #19 re-pinned dates-only (August Comtrade still 0 rows); EPA + NRC FR docs unchanged; expressible 39 of 50; #341's Sunday wait passed on its first live check · the #403 ISO-date ruling (10-31) starts Mon 11-02 · 0 open issues. On top of the 10-30 header (PROD promoted to `a7548e8`, #392).**
+**as_of: 2026-11-01T23:20Z · supersedes: 2026-10-30T04:30Z · **Sunday W44 review** (`records/2026-11-01_sunday_w44.md`): L0 #1887 at 13:00 UTC (DST) dormed the 8 09-20 lineages as docketed (AG/HL/PAAS leave the union), re-activated 6 (CCJ/ERO/FLNC/NEE/NNE/TGB), 2 new (FIG bear, CF bull) → active 35; KMT pin #19 re-pinned dates-only (August Comtrade still 0 rows); EPA + NRC FR docs unchanged; expressible 39 of 50; #341's Sunday wait passed on its first live check · the #403 ISO-date ruling (10-31) starts Mon 11-02 · **operator decisions 11-01**
+(`records/2026-11-01_operator_decisions.md`): model refresh moved to ~11-12, KMT pin retired at its 11-08 expiry, NRC
+2026-21801 reviewed and not pinned, PROD journal access pending the operator's step · 0 open issues. On top of the 10-30 header (PROD promoted to `a7548e8`, #392).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -8,6 +10,12 @@ Maintained by CC; updated on every ruling, clock change, staged-PR change, or pe
 The header's absence is itself a signal.
 
 ## Rulings in force
+- **Operator decisions 2026-11-01 (operator word; `records/2026-11-01_operator_decisions.md`):**
+  - **KMT forward-catalyst pin RETIRED at expiry:** pin #19 runs to 2026-11-08 and is **not re-pinned**; the Sunday
+    review reports the lapse. It rendered into no council prompt (KMT is neither a universe name nor a sentinel).
+  - **NRC 2026-21801 reviewed, NOT pinned:** procedural, no expressible name (NNE unstructured, BWXT a bearish
+    lineage), short pin life.
+  - **Model refresh moved from 11-05 to ~11-12**, so it doesn't land inside §10.11's first sessions (see docket).
 - **⭐ Criterion (3) RE-SPECIFIED (2026-10-23, the F4 review held early at session 21, operator word "B";
   PREREG_COUNCIL_GATE_SEPARATION §10.10; `records/2026-10-23_f4_review_early.md`):** "AT A LIVE INFLECTION — the
   driver is still changing within the option's 6-12-month horizon; a move that already happened disqualifies
@@ -134,8 +142,9 @@ The header's absence is itself a signal.
   **Sun 11-01: PASSED** (the review started after the 14:40 reach run's cards, 14:45). Mon 11-02 (the grade waiting for the 20:45 L1) is the second check.
 - **BNTX (bench Tier A):** $930 / 19.2% / 235 d on the 10-25 Sunday quote, but **`no_otm_eligible_contract_in_tenor_window`
   on the 11-01 Sunday read** — the in-band read did not hold. Returns only on a fresh operator word and a mid-session read.
-- **NRC 2026-21801 (effective 2026-11-25, DOE/DoW-authorized reactor designs in NRC licensing):** a class-(a)-shaped
-  pin suggestion for `nuclear_fuel` (BWXT / NNE; re-verified unchanged on the FR API 11-01); unpinned — the operator's read.
+- **PROD journal access (operator's step, 11-01 decision #5):** the review user `console` can't read PROD's journal,
+  so PROD's `status=9` check is unread. Step: `sudo usermod -aG systemd-journal console` on PROD (read-only). Until then
+  the Sunday review reports it as *unreadable*, never 0.
 - **HL / AG / PAAS (silver_deficit; HL above floor 10-26 #1816, AG above floor 10-29 #1867, both cancelled unfilled
   before carry-over):** all three went dormant at the 11-01 L0 (last seen 09-20); they return only if re-surfaced.
 
@@ -162,16 +171,19 @@ The header's absence is itself a signal.
 - **2026-11-03:** May-2027 contracts (201 d on 11-01) fall under §12's 200-day admission runway (admission reads only).
 - **~2026-11-03:** one-night shadow check of the candidate council models (claude-opus-5-5 / gemini-3.8-flash /
   grok-4.7) on real packs — parse rate, cost, latency only (no outcome scoring).
-- **2026-11-05 (after the F4 review):** the planned model refresh, all roles at once, one dated segment; plumbing in
+- **~2026-11-12 (moved from 11-05 by the operator, 11-01):** the planned model refresh, all roles at once, one dated
+  segment, after §10.11 has ~10 sessions; plumbing in
   #331 (`council.anthropic` knobs, refusal routing, unpriced-model guard). Gemini/xAI prices to verify at the switch.
 - **2026-11-04:** formerly the F4 date (session 30) — the review was held early on 10-23; a dated look at the
   §10.10 segment's first two weeks instead.
-- **Sun 2026-11-08:** the 09-27 five (ATKR, CDE, FLY, FRO, STUB) go dormant unless re-surfaced; KMT pin #19 expires
-  (if August Comtrade is still 0 rows, record it at the re-pin).
+- **Sun 2026-11-08:** the 09-27 five (ATKR, CDE, FLY, FRO, STUB) go dormant unless re-surfaced; **KMT pin #19 expires and is
+  NOT re-pinned** (retired, 11-01 decision).
 - **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
-- **~2026-11-23:** May-2027 contracts drop under the gate's 180-day floor; the 12 names selecting a May-2027 wing
-  (SMCI/LHX/KTOS/UEC/NXE/SMR/BWXT/FLNC/RDW/FLY/FRO/KLAR on 11-01) keep structure only with a June-or-later wing.
-- **2026-11-25:** the NRC DOE/DoW-design rule's effective date (unpinned).
+- **Mon 2026-11-23:** May-2027 drops under the gate's 180-day floor, on the first session after the November monthly
+  expires (Fri 11-20). SMCI/KLAR/NXE/FRO have later wings. **LHX/UEC/SMR/BWXT/FLNC/RDW/FLY have only Jan-2028 after
+  May; KTOS has Dec-2027.** If no Aug-2027 quarterly lists, those 8 lose structure (KTOS to ~12-17, the 7 to
+  ~2027-01-21) and expressible falls 39 → ~31. Read which of the 8 list Aug-2027, plus the nightly `record_ok`.
+- **2026-11-25:** the NRC DOE/DoW-design rule's effective date (reviewed, not pinned — 11-01 decision).
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
 
 ## Board & book
