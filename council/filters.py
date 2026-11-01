@@ -11,9 +11,11 @@ not over-penalize legitimate reasoning. Full strip-from-prompt is an iterative u
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from dataclasses import dataclass
 
 _NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_ISO_DATE = re.compile(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)")  # whole dates only: one embedded in a longer digit run is a figure
 _QUOTE = re.compile(r'"([^"]{4,})"')  # quoted spans of ≥4 chars (attributed claims)
 
 _RANK = {"NEUTRAL": 0, "LOW": 1, "MODERATE": 2, "HIGH": 3, "EXTREME": 4}
@@ -34,8 +36,14 @@ def _digits(s: str) -> str:
     return s.replace(",", "")
 
 
-def authenticity_scan(texts: list[str], evidence: str) -> FilterResult:
-    """Count quoted spans + numeric figures in ``texts`` that appear nowhere in ``evidence``."""
+def authenticity_scan(texts: list[str], evidence: str, *, dates: Collection[str] | None = None) -> FilterResult:
+    """Count quoted spans + numeric figures in ``texts`` that appear nowhere in ``evidence``.
+
+    ``dates`` (#403, the council roles): each full ISO date in the text is checked WHOLE — accepted iff it is one of
+    the dates the agent was shown, else ONE ``unsupported date`` flag — and taken out before the figure scan, so a
+    cited filing date no longer sheds year/month/day fragments that miss the pool. The digit pool itself stays
+    date-free (``fundamental_evidence_tokens``), so a fabricated bare number still flags. ``None`` keeps the
+    pre-#403 scan unchanged (the discovery framer, whose runs carry no quote_filter stamp)."""
     ev = _norm(evidence)
     ev_compact = _digits(ev)
     flagged = 0
@@ -47,7 +55,14 @@ def authenticity_scan(texts: list[str], evidence: str) -> FilterResult:
             if _norm(q) not in ev:
                 flagged += 1
                 details.append(f'unsupported quote: "{q[:48]}"')
-        for n in _NUM.findall(t):
+        body = t
+        if dates is not None:
+            for d in _ISO_DATE.findall(t):
+                if d not in dates:
+                    flagged += 1
+                    details.append(f"unsupported date: {d}")
+            body = _ISO_DATE.sub(" ", t)
+        for n in _NUM.findall(body):
             if _digits(n) not in ev_compact:
                 flagged += 1
                 details.append(f"unsupported figure: {n}")
@@ -74,10 +89,19 @@ def evidence_text(pack) -> str:
                      *fundamental_evidence_tokens(pack), *catalyst_evidence_strings(pack)])
 
 
-def apply_filter(texts: list[str], pack, *, confidence: str) -> tuple[str, FilterResult]:
-    """Returns (possibly-dampened confidence, FilterResult). Ungrounded pack → NEUTRAL backstop."""
+def rendered_dates(pack) -> frozenset[str]:
+    """Every full ISO date in the prompt block the agent was shown (fundamentals period/filed, catalyst event and
+    pin dates, dated marker lines, the falsifier's deadline, ...) — what a council role may cite as a date (#403)."""
+    return frozenset(_ISO_DATE.findall(pack.as_prompt_block()))
+
+
+def apply_filter(texts: list[str], pack, *, confidence: str,
+                 accept_rendered_dates: bool = False) -> tuple[str, FilterResult]:
+    """Returns (possibly-dampened confidence, FilterResult). Ungrounded pack → NEUTRAL backstop.
+    ``accept_rendered_dates`` (#403): the council's three roles pass True — see ``authenticity_scan``."""
     if not pack.grounded:
         return "NEUTRAL", FilterResult(0, ["ungrounded — early exit"])
-    res = authenticity_scan(texts, evidence_text(pack))
+    res = authenticity_scan(texts, evidence_text(pack),
+                            dates=rendered_dates(pack) if accept_rendered_dates else None)
     conf = dampen(confidence) if res.flagged > 0 else str(confidence or "").strip().upper()
     return conf, res

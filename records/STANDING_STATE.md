@@ -24,6 +24,14 @@ The header's absence is itself a signal.
   margin excluded). Found at L1 #1798 (PWR strategist MODERATE → LOW on `$33.55B` for the rendered `$33550.0M`; FLNC
   `$6.4B`). Stamp `runs.model_mix.quote_filter = musd_billions_v1`, record-segmenting (final convictions change; raw
   ones don't). The §10.10 tripwire is read on both raw and final convictions so the two changes stay separable.
+- **Quote filter: rendered ISO dates accepted (2026-10-31, operator word "A"; #403; PREREG_FORWARD_CATALYST_GROUNDING
+  §12; from the first L1 after deploy, planned Mon 11-02):** a council role citing a full ISO date its prompt block
+  showed (a fundamentals `period`/`filed` date, a catalyst or marker date) is no longer dampened; an unshown date
+  flags once (`unsupported date: …`). The figure pool stays date-free; the discovery framer is unchanged. Found at
+  L1 #1884 (FRO adversary 6 flags = a verbatim fundamentals line; SMR strategist on a cited filing date); 47 of 179
+  dampened strategist outputs cite a date, none raw ≥ MODERATE. Stamp `runs.model_mix.quote_filter =
+  musd_billions_v1+iso_dates_v1`, record-segmenting (final convictions change; raw ones don't); the §10.11 read is
+  taken on raw and final convictions so the two stay separable. #402 (merged 10-31) now stores which claim flagged.
 - **Analyst-coverage meter RESTORED (2026-10-24, operator word; #337/#338; from the first L1 after deploy, planned
   Mon 10-26):** stockanalysis.com's `/api/symbol/s/{T}/overview` has 404'd since ~07-10, so no council pack carried
   the §19 `ANALYST_COVERAGE` line for three months; sentinel packs fell back to `NEWS_COVERAGE: N article(s)` where
