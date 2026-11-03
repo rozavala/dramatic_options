@@ -77,10 +77,11 @@ matters, and every filter that cuts shots must earn its keep.
 
 1. **More independent shots** (Bessembinder): top-K slot filling inside the gate, measured against the
    brain-off shadow book → draft D1.
-2. **Keep names expressible**: the 11-23 tenor cliff and the $1,000 cap → drafts D2 (tenor) and D3 (wide
-   verticals), both pending calibration v2.
-3. **Losses smaller without capping the tail** (Kaminski & Lo): falsifier salvage and house-money rolls →
-   calibration v2 first, then a draft only if the pre-stated rule says so.
+2. **Keep names expressible**: the $1,000 cap → draft D3 (wide verticals; calibration v2 Rule V passed).
+   The 540-day tenor failed Rule T and is not drafted.
+3. **Losses smaller without capping the tail** (Kaminski & Lo): calibration v2 found neither falsifier
+   salvage (at a = 0.7 accuracy) nor house-money rolls met their rules; the forward falsifier-accuracy
+   ledger (D3b) measures what salvage would need.
 4. **Our own IV history** (Goyal & Saretto, Vasquez, An et al.): graduate the gate's baseline and record
    term structure and ΔIV → draft D4.
 5. **Deterministic driver and narration evidence** (DellaVigna & Pollet, Cohen & Frazzini, Lazy Prices,

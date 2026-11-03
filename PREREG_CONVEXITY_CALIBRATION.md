@@ -145,6 +145,14 @@ the commit and the rule verdicts. Same caveats as §3: constant σ_entry through
 an IV re-rating is not modelled. In particular a falsified thesis is sold at its *diffusion* mark; a real
 mark after bad news is probably lower, so salvage cells are an **upper bound** on salvage value.
 
+**FINDING (2026-11-03, 5,000 paths, seed 7; `records/2026-11-03_calibration_v2_finding.md`):**
+J **CONFIRMED** (hold still beats delta@0.5 under jumps; the GBM cells reproduce the June numbers) ·
+S **NOT A CANDIDATE** (p* improves everywhere, but false alarms cost strong winners 17% at a = 0.7, over
+the 15% bar; passes at a = 0.9) · R **NOT A CANDIDATE** at 3× and 5× (P(M ≥ 1) falls about 5 pp; p99 rises) ·
+V **CANDIDATE** (short +75% wing: premium 0.71×, mean M 0.98× of naked; p99 10.7× → 7.0×) ·
+T **NOT A CANDIDATE** (540 d loses at μ = 0). The amendment's expectation that jumps raise mean M
+mechanically was wrong (slightly lower); recorded as found.
+
 ## 5. Reported metrics (calibration, not a gate)
 
 Per grid cell, over its sample of option-return multiples (multiple = exit value / entry
