@@ -2,7 +2,7 @@ import type { TelemetryVM } from "../data/types";
 import { Card, Chip } from "./primitives";
 
 // 2026-11-03 profit-program telemetry (records/2026-11-03_profit_program_DRAFTS.md): D0 execution ledger,
-// D4 IV history, D3b falsifier ledger, D5 capex cycle. Display only — nothing here gates an entry or reaches a council prompt.
+// D4 IV history, D3b falsifier ledger, D5 capex cycle, D6 coverage trend. Display only — nothing here gates an entry or reaches a council prompt.
 
 const th: React.CSSProperties = { textAlign: "left", fontSize: 11, color: "#6a7280", fontWeight: 500, padding: "5px 8px", borderBottom: "1px solid #edf0f4", whiteSpace: "nowrap" };
 const td: React.CSSProperties = { padding: "6px 8px", borderBottom: "1px solid #f3f5f8", fontSize: 12, color: "#141b28", whiteSpace: "nowrap" };
@@ -135,6 +135,32 @@ export function CapexCycleCard({ t }: { t: TelemetryVM }) {
   );
 }
 
+export function AttentionCard({ t }: { t: TelemetryVM }) {
+  const x = t.attention;
+  return (
+    <Card style={{ padding: "18px 20px" }}>
+      <div data-testid="tel-attention">
+        <Head title="Analyst coverage trend" sub={x ? `${x.status}. ${x.note}` : "panel unavailable"}
+          chip={<Chip level="mute">telemetry</Chip>} />
+        {x && x.rows.length > 0 ? (
+          <div style={{ overflowX: "auto", maxHeight: 360 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead><tr><th style={th}>Name</th><th style={{ ...th, textAlign: "right" }}>analysts</th>
+                <th style={th}>~90-day change</th><th style={th}>Label</th><th style={th}>As of</th></tr></thead>
+              <tbody>
+                {x.rows.map((r) => (
+                  <tr key={r.symbol}><td style={td}>{r.symbol}</td><td style={num}>{r.count}</td><td style={td}>{r.change}</td>
+                    <td style={td}>{r.label}</td><td style={td}>{r.asOf}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : x && <Empty>No coverage history yet (recorded at each L1 for the names the council judges).</Empty>}
+      </div>
+    </Card>
+  );
+}
+
 export function Telemetry({ t }: { t: TelemetryVM }) {
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
@@ -142,6 +168,7 @@ export function Telemetry({ t }: { t: TelemetryVM }) {
       <IvHistoryCard t={t} />
       <FalsifierCard t={t} />
       <CapexCycleCard t={t} />
+      <AttentionCard t={t} />
     </div>
   );
 }

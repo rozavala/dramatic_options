@@ -145,6 +145,7 @@ export interface Snapshot {
   iv_history?: IvHistoryPanel;      // D4 (2026-11-03): own-history IV/RV + skew percentiles, term slope, dIV
   falsifiers?: FalsifierPanel;      // D3b (2026-11-03): the forward falsifier-accuracy ledger
   capex_cycle?: CapexCyclePanel;    // D5 step 1 (2026-11-03): per-cluster TTM capex YoY + acceleration
+  attention?: AttentionPanel;       // D6 step 1 (2026-11-03): analyst-coverage history + ~90-day trend
   _fatal?: string;
 }
 
@@ -475,6 +476,11 @@ export interface CapexCycleRow {
   yoy: number | null; yoy_prev: number | null; accel: number | null; phase: string; latest_period: string | null;
 }
 export interface CapexCyclePanel { as_of: string | null; rows: CapexCycleRow[]; note: string }
+export interface AttentionRow {
+  symbol: string; count: number; as_of: string; count_then: number | null; then: string | null;
+  change: number | null; label: string; stale_days: number;
+}
+export interface AttentionPanel { rows: AttentionRow[]; records: number; since: string | null; status: string; note: string }
 export interface TelemetryVM {
   exec: { read: string; approvals: number; reached: number; decided: number; filled: number; fillRate: string;
     carryDecided: number; carryFilled: number;
@@ -486,4 +492,6 @@ export interface TelemetryVM {
     waiting: { key: string; symbol: string; threshold: string; after: string }[] } | null;
   capex: { asOf: string; note: string;
     rows: { cluster: string; n: string; ttm: string; yoy: string; accel: string; phase: string }[] } | null;
+  attention: { status: string; note: string;
+    rows: { symbol: string; count: string; change: string; label: string; asOf: string }[] } | null;
 }

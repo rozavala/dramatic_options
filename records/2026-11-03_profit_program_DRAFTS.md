@@ -14,7 +14,8 @@ config blocks are added.
 | D1 ranked backfill | **built, inert** (`backfill.py`; PREREG_THEMATIC_CONVEXITY §5 amendment 2026-11-03) | a dated edit adding `convexity_book.backfill = {"enabled": true}` (the one `frame_version` boundary) |
 | D3 verticals | **built, inert**: selector + probe (step 1); order path (step 2: `broker.submit_spread`, migration 0021, `paper_loop`, `monitor`, carry walk, shadow/3A/3B parity; PREREG §5 amendment 2026-11-03b) | the checklist below, then a dated edit adding `convexity_gate.vertical_for_over_cap = {"enabled": true}` |
 | D5 step 1 capex cycle | **built** (`capex_cycle.py`; L1 writes one `capex_cycle` record per day from the corpus's XBRL capex; dashboard Edge → Telemetry) | merge; filing diff and per-cluster driver series are later D5 parts |
-| D6 / D7 | drafts, not started | — |
+| D6 step 1 coverage trend | **built** (`attention.py`; the L1 keeps the analyst counts the council already fetched for the names it judged, daily; dashboard Edge → Telemetry). News counts are NOT used (record §19: a broken attention meter) | merge; the ~90-day trend reads after 80 days of history. Wikipedia page views and the ETF-launch marker are later D6 parts (page views need a DEV live check first) |
+| D7 | draft, not started | the operator's timing call (with the ~11-12 model refresh or separately) |
 
 **D3 switch-on checklist (in order):**
 1. On DEV, run the paper multi-leg round-trip and paste its output into a dated record:

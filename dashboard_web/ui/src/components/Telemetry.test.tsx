@@ -22,6 +22,9 @@ const P = {
   capex_cycle: { as_of: "2026-11-03T21:00:00+00:00", note: "Telemetry only.", rows: [{ cluster: "ai_capex_power",
     n_with_data: 6, members: ["VRT", "PWR", "GEV", "ETN", "CCJ", "CEG", "NEE"], missing: ["NEE"], ttm_now_musd: 41234.5,
     yoy: 0.31, yoy_prev: 0.22, accel: 0.09, phase: "capex boom, accelerating", latest_period: "2026-09-30" }] },
+  attention: { records: 90, since: "2026-08-01", status: "trend live (90 days of history)", note: "Telemetry only.",
+    rows: [{ symbol: "NTSK", count: 9, as_of: "2026-11-03", count_then: 5, then: "2026-08-05", change: 4,
+      label: "covered, coverage rising", stale_days: 0 }] },
 } as unknown as Snapshot;
 
 describe("profit telemetry", () => {
@@ -31,6 +34,7 @@ describe("profit telemetry", () => {
     expect(t.exec?.rows[0].attempts).toBe(1);
     expect(t.iv?.rows[0].ivrvPct).toBe("—");
     expect(t.fals).toBeNull();
+    expect(t.attention?.rows[0]).toMatchObject({ count: "9", change: "+4 since 2026-08-05", label: "covered, coverage rising" });
     expect(t.capex?.rows[0]).toMatchObject({ n: "6/7", yoy: "31%", accel: "+9 pp", phase: "capex boom, accelerating" });
   });
 
@@ -40,5 +44,6 @@ describe("profit telemetry", () => {
     expect(screen.getByTestId("tel-iv").textContent).toContain("101 of 120");
     expect(screen.getByTestId("tel-fals").textContent).toContain("panel unavailable");
     expect(screen.getByTestId("tel-capex").textContent).toContain("ai_capex_power");
+    expect(screen.getByTestId("tel-attention").textContent).toContain("coverage rising");
   });
 });
