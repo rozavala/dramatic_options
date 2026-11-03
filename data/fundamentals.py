@@ -183,6 +183,11 @@ class FundamentalsData:
         path.write_text(resp.text)
         return resp.json()
 
+    def quarterly_revenue_points(self, symbol: str) -> list[dict[str, Any]]:
+        """The name's quarterly revenue points ({start, end, val, filed}); the falsifier ledger (D3b) reads these
+        and filters by ``filed`` itself."""
+        return self._points(symbol)
+
     def revenue_growth_asof(self, symbol: str, as_of: datetime) -> float | None:
         pts = self._points(symbol)
         if not pts:

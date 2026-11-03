@@ -1049,6 +1049,21 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                     append_run_note(conn, run_id, " · " + st_line)
                                 except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
                                     log.warning("fundamentals-staleness check failed (non-fatal): %s", e)
+                            # D3b: the forward falsifier-accuracy ledger. Appends a read once per spec × name when the
+                            # named quarter becomes visible; TELEMETRY ONLY (never sells, gates or vetoes). Fail-soft.
+                            if fund_dep is not None and not demo:
+                                try:
+                                    import falsifier_ledger
+
+                                    new_reads = falsifier_ledger.record_due(
+                                        symbols_of=falsifier_ledger.basket_symbols_of(config),
+                                        points_of=fund_dep.quarterly_revenue_points,
+                                        close_of=lambda s: (provider.closes(s, window=5) or [None])[-1],
+                                        as_of=clock.now())
+                                    log.info("Falsifier ledger: %d new read(s) %s", len(new_reads),
+                                             [(r["symbol"], r["value"], r["fired"]) for r in new_reads])
+                                except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                                    log.warning("falsifier ledger failed (non-fatal): %s", e)
                         except BudgetExceeded as e:
                             # Soft, exit-0 condition: OnFailure can't catch it → page in-app (PR2 R-C).
                             log.error("Council cost cap hit (%s) — fail-closed: NO entries this cycle.", e)
