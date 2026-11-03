@@ -51,3 +51,16 @@ def test_configuring_again_never_stacks_a_second_handler():
     orchestrator._configure_logging()
     orchestrator._configure_logging()
     _handler()
+
+
+def test_a_checkout_imported_through_a_symlink_still_logs_project_info(tmp_path):
+    # record.pathname keeps the symlinked spelling, the resolved repo dir does not: both must count as project code
+    import subprocess
+    import sys
+
+    link = tmp_path / "checkout"
+    link.symlink_to(REPO, target_is_directory=True)
+    code = (f"import sys; sys.path.insert(0, {str(link)!r}); import orchestrator; "
+            "from data.forward_catalysts import ForwardCatalysts; ForwardCatalysts('/nonexistent/pins.json')")
+    out = subprocess.run([sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, timeout=120)
+    assert " INFO data.forward_catalysts: forward_catalysts: no pin file at /nonexistent/pins.json" in out.stderr

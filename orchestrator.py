@@ -66,14 +66,16 @@ from state import append_run_note, get_db, record_run
 from themes import active_themes, load_themes
 
 log = logging.getLogger("orchestrator")
-_REPO_DIR = str(Path(__file__).resolve().parent) + os.sep
+# Both spellings of the repo dir: record.pathname is the code's co_filename, which keeps a symlinked path unresolved
+# (a script run through a symlinked checkout), while the modules' own paths may be resolved.
+_REPO_DIRS = tuple({str(Path(__file__).resolve().parent) + os.sep, os.path.dirname(os.path.abspath(__file__)) + os.sep})
 
 
 def _own_info(record: logging.LogRecord) -> bool:
     """INFO from this project's code, WARNING+ from everyone. A library's INFO stays out: httpx and the LLM SDKs log
     every request (URL included) at INFO."""
     return record.levelno >= logging.WARNING or (
-        record.pathname.startswith(_REPO_DIR) and "site-packages" not in record.pathname)
+        record.pathname.startswith(_REPO_DIRS) and "site-packages" not in record.pathname)
 
 
 def _configure_logging() -> None:
