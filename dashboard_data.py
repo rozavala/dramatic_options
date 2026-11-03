@@ -2211,3 +2211,11 @@ def falsifier_panel(config: dict) -> dict:
     import falsifier_ledger
 
     return falsifier_ledger.panel(symbols_of=falsifier_ledger.basket_symbols_of(config))
+
+
+def capex_cycle_panel(cache_dir: str | Path) -> dict:
+    """D5 step 1: per-cluster TTM capex YoY and acceleration (latest daily record). Read-only, no fetch."""
+    import capex_cycle
+    from data.cache import PointInTimeCache
+
+    return capex_cycle.panel(PointInTimeCache(cache_dir, offline=True))

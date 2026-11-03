@@ -13,7 +13,8 @@ config blocks are added.
 | D3b falsifier ledger | **built** (`falsifier_ledger.py`, `falsifier_specs.json`, L1 hook) | merge; **operator to confirm the five CC-encoded specs** |
 | D1 ranked backfill | **built, inert** (`backfill.py`; PREREG_THEMATIC_CONVEXITY §5 amendment 2026-11-03) | a dated edit adding `convexity_book.backfill = {"enabled": true}` (the one `frame_version` boundary) |
 | D3 verticals | **built, inert**: selector + probe (step 1); order path (step 2: `broker.submit_spread`, migration 0021, `paper_loop`, `monitor`, carry walk, shadow/3A/3B parity; PREREG §5 amendment 2026-11-03b) | the checklist below, then a dated edit adding `convexity_gate.vertical_for_over_cap = {"enabled": true}` |
-| D5 / D6 / D7 | drafts, not started | — |
+| D5 step 1 capex cycle | **built** (`capex_cycle.py`; L1 writes one `capex_cycle` record per day from the corpus's XBRL capex; dashboard Edge → Telemetry) | merge; filing diff and per-cluster driver series are later D5 parts |
+| D6 / D7 | drafts, not started | — |
 
 **D3 switch-on checklist (in order):**
 1. On DEV, run the paper multi-leg round-trip and paste its output into a dated record:

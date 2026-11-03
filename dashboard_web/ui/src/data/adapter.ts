@@ -104,6 +104,7 @@ export function buildTelemetry(P: Snapshot): TelemetryVM {
   const ex = ok(P.execution) ? P.execution! : null;
   const iv = ok(P.iv_history) ? P.iv_history! : null;
   const fa = ok(P.falsifiers) ? P.falsifiers! : null;
+  const cx = ok(P.capex_cycle) ? P.capex_cycle! : null;
   return {
     exec: ex && {
       read: ex.summary.read, approvals: ex.summary.all.approvals, reached: ex.summary.all.reached_order,
@@ -123,6 +124,13 @@ export function buildTelemetry(P: Snapshot): TelemetryVM {
         value: pct(Number(r.value)), threshold: pct(Number(r.threshold)), fired: String(r.fired) === "1" })),
       waiting: (fa.waiting ?? []).map((w) => ({ key: `${w.spec_id}/${w.symbol}`, symbol: w.symbol,
         threshold: pct(w.threshold), after: w.first_filed_after ?? DASH })),
+    },
+    capex: cx && {
+      asOf: cx.as_of ? cx.as_of.slice(0, 10) : DASH, note: cx.note,
+      rows: (cx.rows ?? []).map((r) => ({ cluster: r.cluster, n: `${r.n_with_data}/${(r.members ?? []).length}`,
+        ttm: r.ttm_now_musd == null ? DASH : `$${Math.round(r.ttm_now_musd).toLocaleString()}M`,
+        yoy: pct(r.yoy), accel: r.accel == null ? DASH : `${r.accel > 0 ? "+" : ""}${Math.round(r.accel * 100)} pp`,
+        phase: r.phase })),
     },
   };
 }
@@ -245,6 +253,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence], ["staleness", P.staleness],
       ["why_no_entry", P.why_no_entry],
       ["execution", P.execution], ["iv_history", P.iv_history], ["falsifiers", P.falsifiers],
+      ["capex_cycle", P.capex_cycle],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
