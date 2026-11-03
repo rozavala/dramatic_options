@@ -217,8 +217,13 @@ def record_convexity_position(
     order_id: str | None = None,
     proposal_id: int | None = None,
     entry_spot: float | None = None,
+    short_contract_symbol: str | None = None,
+    short_strike: float | None = None,
 ) -> int:
     """Insert a paper position. Returns its id. Atomic.
+
+    ``short_contract_symbol``/``short_strike`` (migration 0021): the short leg of a debit call vertical; then
+    ``entry_premium_per_contract`` is the NET debit. None = a single-leg position.
 
     ``status`` is 'open' for a simulated/confirmed fill, or 'pending' when a real Alpaca
     order is resting and awaiting reconciliation (then ``order_id`` carries the broker id).
@@ -242,7 +247,15 @@ def record_convexity_position(
                 total_premium, status, rationale, order_id, proposal_id, entry_spot,
             ),
         )
+        _set_short_leg(conn, "convexity_positions", cur.lastrowid, short_contract_symbol, short_strike)
     return int(cur.lastrowid)
+
+
+def _set_short_leg(conn, table: str, row_id, short_contract_symbol, short_strike) -> None:
+    """Write a vertical's short leg onto a just-inserted row (inside the caller's transaction)."""
+    if short_contract_symbol:
+        conn.execute(f"UPDATE {table} SET short_contract_symbol = ?, short_strike = ? WHERE id = ?",
+                     (short_contract_symbol, short_strike, row_id))
 
 
 def open_convexity_positions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -580,6 +593,8 @@ def record_shadow_position(
     entry_premium_per_contract: float,
     total_premium: float,
     entry_spot: float | None = None,
+    short_contract_symbol: str | None = None,
+    short_strike: float | None = None,
 ) -> int:
     """Book a simulated (NEVER broker) shadow position at the chain mid. Returns its id. Atomic."""
     with conn:
@@ -594,6 +609,7 @@ def record_shadow_position(
                 entry_premium_per_contract, total_premium, entry_spot,
             ),
         )
+        _set_short_leg(conn, "shadow_positions", cur.lastrowid, short_contract_symbol, short_strike)
     return int(cur.lastrowid)
 
 
@@ -701,7 +717,11 @@ def journal_contract_quantity(conn: sqlite3.Connection, contract_symbol: str) ->
     row = conn.execute(
         "SELECT COALESCE(SUM(contracts), 0) FROM convexity_positions "
         "WHERE contract_symbol = ? AND status IN ('open', 'closing')", (contract_symbol,)).fetchone()
-    return int(row[0] or 0)
+    # A vertical's short leg (migration 0021) is a NEGATIVE venue quantity in that contract.
+    short = conn.execute(
+        "SELECT COALESCE(SUM(contracts), 0) FROM convexity_positions "
+        "WHERE short_contract_symbol = ? AND status IN ('open', 'closing')", (contract_symbol,)).fetchone()
+    return int(row[0] or 0) - int(short[0] or 0)
 
 
 def convexity_realized_multiples(conn: sqlite3.Connection, *, in_frame_only: bool = False) -> list[float]:
@@ -726,7 +746,7 @@ def record_fixed_basket_position(
     conn: sqlite3.Connection, *, run_id: int | None, book: str, origin: str, opened_at: str, theme: str,
     symbol: str, direction: str, structure_kind: str, contract_symbol: str, expiry: str, strike: float,
     dte: int, moneyness: float, contracts: int, entry_premium_per_contract: float, total_premium: float,
-    entry_spot: float | None = None,
+    entry_spot: float | None = None, short_contract_symbol: str | None = None, short_strike: float | None = None,
 ) -> int:
     """Book a simulated (NEVER broker) no-gate position at the chain mid. Returns its id. Atomic."""
     with conn:
@@ -738,6 +758,7 @@ def record_fixed_basket_position(
             (run_id, book, origin, opened_at, theme, symbol, direction, structure_kind, contract_symbol,
              expiry, strike, dte, moneyness, contracts, entry_premium_per_contract, total_premium, entry_spot),
         )
+        _set_short_leg(conn, "fixed_basket_positions", cur.lastrowid, short_contract_symbol, short_strike)
     return int(cur.lastrowid)
 
 

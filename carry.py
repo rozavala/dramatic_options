@@ -134,7 +134,8 @@ def cancel_and_settle(broker, order_id: str) -> dict | None:
 def confirm_fill(conn, pos, info: dict, now_iso: str) -> None:
     """Flip a 'pending' row to 'open' at the broker's fill price and filled quantity (a partial fill opens only what
     filled), and page it."""
-    price = float(info.get("filled_avg_price") or pos["entry_premium_per_contract"] / CONTRACT_MULTIPLIER)
+    # abs(): a multi-leg (vertical) order may report its net price signed; a single leg is always positive.
+    price = abs(float(info.get("filled_avg_price") or pos["entry_premium_per_contract"] / CONTRACT_MULTIPLIER))
     per_contract = price * CONTRACT_MULTIPLIER
     q = filled_qty(info) or int(pos["contracts"])
     state.confirm_convexity_fill(conn, int(pos["id"]), entry_premium_per_contract=per_contract,

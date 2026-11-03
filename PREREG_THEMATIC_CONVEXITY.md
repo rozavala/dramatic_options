@@ -243,6 +243,51 @@ This **widens** entries (more shots), so it is a riskier §5 edit than the clust
 that every frozen gate and cap still disposes, the path is capped at one per week, and it has a pre-stated
 stop. No edge claim.
 
+**Amendment 2026-11-03b — wide debit call verticals for over-cap names (operator word 2026-11-03; draft D3;
+calibration v2 Rule V: CANDIDATE, `records/2026-11-03_calibration_v2_finding.md`).** *Written before the
+order-path code.* Nine names (NVDA, LHX, LMT, CEG, NOC, ETN, VRT, PWR, GEV on the 11-01 read) cannot take one
+naked contract under the $1,000 per-name cap, so the book can never express them. Rule V found a long
+≈25%-OTM / short ≈+75%-OTM call vertical keeps ≈0.98× the naked mean multiple at ≈0.71× the premium, at the
+cost of the tail (p99 ≈10.7× → ≈7×).
+
+- **Inert until switched on:** active only when `convexity_gate.vertical_for_over_cap` exists with
+  `enabled: true`. An absent block is off. The dated enabling edit is the `frame_version` boundary (the hash
+  covers `convexity_gate`).
+- **When:** a **bullish** theme whose gate-of-record naked contract passed eligibility, the side guard and
+  the frozen §4 gate, but whose **one-contract premium exceeds the per-name cap**. No other veto falls back
+  to a vertical: book, cluster, slots and gate vetoes stand as written. Bearish theses are out of scope
+  (put verticals were not calibrated).
+- **Structure:** long = the gate-of-record wing, unchanged. Short = the call at the same expiry and OCC class
+  nearest +75% OTM (`short_moneyness`, default 0.75), eligible under §3, strictly above the long strike, and
+  no nearer than +50% (`min_short_moneyness`): a narrower spread is a different payoff object. Net debit =
+  long mid − short mid, > 0 and < the width; else no structure (fail-closed). The short leg is not
+  cheapness-gated (selling a rich wing only lowers the debit).
+- **Sizing and caps:** the **net debit** is the premium-at-risk (the defined max loss). Per-name, cluster
+  and book caps and flat-by-slots sizing apply to it unchanged.
+- **Orders:** one atomic multi-leg limit order (buy-to-open long, sell-to-open short, 1:1), never legged. The
+  L1 limit is the mid debit; a carry walks it toward the natural debit (long ask − short bid) as #386 walks a
+  single leg. The shared-account guards (reserved roots, restricted list) apply to **both** legs; the
+  foreign-quantity check reads **both** contracts; the live per-order notional ceiling and the reserve check
+  apply to the net debit. A venue that refuses multi-leg orders (options approval level) is a rejected
+  order, fail-closed and paged.
+- **Exits (§6a, on the spread's value):** the mark is long mid − short mid. Profit-take at 10× the net debit,
+  time-stop at 21 DTE, expiry at intrinsic(long) − intrinsic(short). A close is one atomic multi-leg order
+  at the mid credit. When the long leg's bid is under `min_close_bid`, the close books in-DB at mark, as for
+  a single leg.
+- **Null books stay paired:** the shadow book and 3A apply the same over-cap rule, so the council and gate
+  contrasts still differ in one variable. 3B already skips names it cannot size; it gets the same rule.
+- **Recorded:** the row carries the short leg's symbol and strike (`short_contract_symbol`, `short_strike`;
+  migration 0021). `structure_kind` stays `C`, so a vertical is the row with a short leg.
+
+> **Dated note 2026-11-03c (independent review of the order-path diff, before any merge; the bullet above is left
+> as written):** a close priced at the **mid** credit can rest unfilled day after day on wide far-OTM quotes and
+> reach expiry, where an in-the-money long is exercised or the short assigned (outside the defined-risk frame). The
+> close is therefore priced at the **natural credit** (long bid − short ask), the two-leg equivalent of a single
+> leg selling at the bid; the mid is used only when the natural credit is not positive, and a spread with no
+> positive credit is booked at mark like an unsellable single leg. A refused multi-leg open or close pages (a
+> close at most once per position per day), and a broker without a multi-leg path leaves the spread open, never
+> booked closed. The short leg is chosen as stated: among eligible calls ≥ +50% OTM, the one nearest +75%.
+
 ## 6. Kill rule (frozen)
 
 Halt **new entries** for human review if **either**:

@@ -35,6 +35,7 @@ from datetime import date, datetime
 import clusters
 import restricted as restricted_list
 import state
+import verticals
 from clock import Clock
 from convexity_data import ChainProvider, QuoteProvider
 from convexity_gate import is_cheap_convexity, realized_vol
@@ -250,6 +251,15 @@ def _eval_and_book(
     )
     if not verdict.cheap:
         return "not_cheap", premium_pc
+    # The SAME over-cap vertical rule the real book applies (PREREG §5 amendment 2026-11-03b; inert when off).
+    vert, vwhy = verticals.maybe_vertical(
+        chain, structure, config={"convexity_gate": gate}, direction=theme.direction,
+        underlying_price=underlying_price, eligibility=eligibility, symbol=theme.symbol,
+        per_name_cap=account_equity * float(book.get("per_name_fraction", 0.01)))
+    if vwhy is not None:
+        return "no_vertical", premium_pc
+    entry_ps = round(vert.net_debit, 2) if vert is not None else structure.entry_premium
+    premium_pc = entry_ps * CONTRACT_MULTIPLIER
     # The SAME deterministic cluster cap the real book applies (only the council selection differs).
     # Shadow books 'open' immediately (no broker → no 'pending'), so the open-only basis already counts
     # within-cycle cluster-mates — the real book's committed/pending fix (#12) isn't needed here.
@@ -267,7 +277,7 @@ def _eval_and_book(
         max_open_positions=int(book.get("max_open_positions", 15)),
         open_positions_count=state.count_open_shadow_positions(conn),
         open_premium_total=state.shadow_book_open_premium(conn),
-        entry_premium_per_share=structure.entry_premium,
+        entry_premium_per_share=entry_ps,
         cluster_remaining=cluster_remaining,
     )
     if sizing.contracts < 1:
@@ -279,6 +289,8 @@ def _eval_and_book(
         strike=structure.contract.strike, dte=structure.dte, moneyness=structure.moneyness,
         contracts=sizing.contracts, entry_premium_per_contract=premium_pc,
         total_premium=premium_pc * sizing.contracts, entry_spot=underlying_price,
+        short_contract_symbol=(vert.short.symbol if vert is not None else None),
+        short_strike=(vert.short.strike if vert is not None else None),
     )
     return "booked", premium_pc
 
@@ -318,7 +330,8 @@ def mark_shadow_positions(
         # 1. Expiry → close at intrinsic.
         if expiry is not None and today >= expiry:
             up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
-            intrinsic = _intrinsic_value(kind, float(pos["strike"]), up)
+            intrinsic = (verticals.position_intrinsic(pos, up) if verticals.is_vertical(pos)
+                         else _intrinsic_value(kind, float(pos["strike"]), up))
             _close(conn, pid, exit_price=intrinsic, entry_pc=entry_pc, contracts=contracts,
                    total_premium=total_premium, reason="expiry", as_of=as_of_iso)
             res.expired += 1
@@ -327,7 +340,8 @@ def mark_shadow_positions(
 
         # 2. Mark to current mid.
         try:
-            mid = quote_provider.option_mid(pos["contract_symbol"])
+            mid = (verticals.position_mid(pos, quote_provider) if verticals.is_vertical(pos)
+                   else quote_provider.option_mid(pos["contract_symbol"]))
         except Exception as e:  # noqa: BLE001 — per-POSITION fail-soft (the 2026-07-06 CDE2
             # lesson): one unquotable row must not abort the pass tail or page every cycle.
             log.warning("shadow mark failed for %s (%s): %s", pos["symbol"],

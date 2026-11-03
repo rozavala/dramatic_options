@@ -100,7 +100,7 @@ def build_ledger(conn: sqlite3.Connection) -> list[dict]:
             "direction": p["direction"], "conviction": p["conviction"],
             "under_carry": (_et_date(p["as_of"]) or "") >= CARRY_ON_ET_DATE,
             "position_id": None, "contract": None, "contracts": None, "limit": None, "mid": None, "ask": None,
-            "spread_pct": None, "attempts": [], "fill_px": None, "outcome": None,
+            "spread_pct": None, "attempts": [], "fill_px": None, "outcome": None, "short_contract": None,
         }
         if l1 is None:
             first = evals[0]["decision"] if evals else None
@@ -121,6 +121,8 @@ def build_ledger(conn: sqlite3.Connection) -> list[dict]:
             "attempts": [{"id": a["id"], "step": (_json(a["rationale"]).get("carry") or {}).get("step"),
                           "limit": _px(a), "status": a["status"], "exit_reason": a["exit_reason"]} for a in atts],
             "outcome": _outcome(orig, atts),
+            # a vertical's limit/fill are NET debits; mid/ask above are the LONG leg's quote
+            "short_contract": (orig["short_contract_symbol"] if "short_contract_symbol" in orig.keys() else None),
         })
         filled = orig if orig["status"] in _FILLED else next((a for a in atts if a["status"] in _FILLED), None)
         row["fill_px"] = _px(filled) if filled is not None else None
