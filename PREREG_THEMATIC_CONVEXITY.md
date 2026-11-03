@@ -203,6 +203,46 @@ entry-premium cap**:
 This only **tightens** the frame (the lowest-risk §5 edit) and makes no edge claim — pure concentration
 risk-control. Converged over the operator's R2/R3/R4 plan red-team. *(Operator-authorized 2026-06-03.)*
 
+**Amendment 2026-11-03 — ranked backfill for an idle book (operator word 2026-11-03, "follow your suggested
+steps"; draft D1 in `records/2026-11-03_profit_program_DRAFTS.md`).** *Written before the code.* The book
+held 1 of 15 slots for months; three above-floor verdicts since July. With a skewed payoff the number of
+independent shots sets the odds of a large winner (Bessembinder 2018), and the council's value over
+brain-off is not yet measured (the null hierarchy's "council (real − shadow)" step has no matured data).
+This adds one labelled entry path that fills idle slots from the council's own ranking, inside the
+unchanged gates:
+
+- **Inert until switched on.** Active only when `convexity_book.backfill` exists with `enabled: true`.
+  An absent block is off, so merging the code changes nothing. The dated config edit that adds the block
+  is the single `frame_version` boundary (the hash covers `convexity_book`).
+- **Trigger (deterministic, from state):** committed slots now (open + closing + pending + carried) ≤
+  `max_open_positions − empty_slots_min` (10 ⇒ ≤ 5 committed), **and** the most committed slots on any
+  day of the trailing `lookback_days` (28) was also ≤ that.
+- **Quota:** at most `per_week` (1) backfill entry per trailing 7 days, counting every backfill order that
+  holds or held exposure or a working order. A carry attempt of an approved backfill is the same entry,
+  never a second one.
+- **Pool:** this L1's council proposals that did **not** clear the floor and tri-criteria, with
+  `structural_vs_fad = structural` and conviction ≥ LOW (NEUTRAL = abstain or parse failure, never
+  eligible). Direction coherence has already been applied upstream.
+- **Rank (deterministic):** number of the three criteria the strategist asserted true (desc), then
+  conviction (desc), then the latest fresh gate-of-record IV/RV (asc; a name without a fresh cheap read
+  ranks after every name with one), then symbol. The top `candidates` (3) go to the gates **after** every
+  above-floor name; the first to clear every gate is the week's entry.
+- **Everything else is unchanged:** §3 eligibility, the §4 gate, side guard, dual-read veto, cluster and
+  per-name caps, flat-by-slots sizing, the book cap, the §6 kill rule, the restricted list and the
+  foreign-quantity check. Conviction still never sizes.
+- **Labelled and scored apart:** the position's rationale carries `origin = backfill`, the proposal's
+  rationale carries `backfill.rank`, and the dashboard's `real_by_origin` reports `backfill` as its own
+  origin.
+- **Stop rule (pre-stated):** backfill suspends itself (logged and paged once per run) when ≥ 8 backfill
+  entries are ≥ 90 days old **and** their running premium-bled fraction exceeds the comparator's by more
+  than 25 percentage points. The comparator is above-floor entries aged ≥ 90 days if there are ≥ 3 of
+  them, else the brain-off shadow book's entries aged ≥ 90 days. A suspension is lifted only by a dated
+  operator edit.
+
+This **widens** entries (more shots), so it is a riskier §5 edit than the cluster cap; the protection is
+that every frozen gate and cap still disposes, the path is capped at one per week, and it has a pre-stated
+stop. No edge claim.
+
 ## 6. Kill rule (frozen)
 
 Halt **new entries** for human review if **either**:
