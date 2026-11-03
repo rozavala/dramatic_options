@@ -1101,7 +1101,8 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                 symbols=uni_syms, provider_record=provider,
                                 provider_shadow=shadow_gate_provider,
                                 market_closes=lambda s: provider.closes(s, window=300),
-                                gate=config.get("convexity_gate", {}), eligibility=_sweep_elig)
+                                gate=config.get("convexity_gate", {}), eligibility=_sweep_elig,
+                                term_cache=chain_cache)   # D4: the nightly IV term record (telemetry)
                             log.info("Gate dual-read sweep: %s", counts)
                         except Exception as e:  # noqa: BLE001 — measurement never halts the cycle
                             log.warning("gate dual-read sweep failed (non-fatal): %s", e)
