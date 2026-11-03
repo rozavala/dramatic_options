@@ -141,6 +141,9 @@ export interface Snapshot {
   dircoherence?: DirCoherencePanel; // PREREG_DIRECTION_COHERENCE: what the union filter withheld (direction_coherence_panel)
   staleness?: StalenessPanel;       // #269: names judged on an older quarter than their latest filing (fundamentals_staleness_panel)
   why_no_entry?: WhyNoEntryPanel;   // #351: per-name "why no entry" of the latest session + expressible / last above-floor / last order tiles
+  execution?: ExecutionPanel;       // D0 (2026-11-03): approvals followed to the broker
+  iv_history?: IvHistoryPanel;      // D4 (2026-11-03): own-history IV/RV + skew percentiles, term slope, dIV
+  falsifiers?: FalsifierPanel;      // D3b (2026-11-03): the forward falsifier-accuracy ledger
   _fatal?: string;
 }
 
@@ -431,6 +434,7 @@ export interface ViewModel {
   canary: CanaryVM | null;            // the gate-rich canary (NVDA) iv/rv trend
   dircoherence: DirCoherenceVM | null; // the direction-coherence union filter, latest L1 + recent nights
   staleness: StalenessVM | null;       // names judged on an older quarter than their latest filed report
+  telemetry: TelemetryVM;              // 2026-11-03 profit-program telemetry (D0 / D4 / D3b), display only
   whyNoEntry: WhyNoEntryVM;            // #351 — per-name why-no-entry table + expressible / last above-floor / last order tiles
   wingMismatch: string[];             // latest dual-read session's wing-mismatch names (boundary class)
   dataAccrual: DataAccrualVM;         // chain-snapshot store, with the honesty flag
@@ -445,4 +449,33 @@ export interface ConsoleProps {
   error: string | null;
   fatal: string | null;
   refresh: () => void;
+}
+
+// ── 2026-11-03 profit-program telemetry (records/2026-11-03_profit_program_DRAFTS.md) ─────────────────────────
+export interface ExecutionRow {
+  proposal_id: number; date: string | null; symbol: string; conviction: string | null; outcome: string;
+  limit: number | null; mid: number | null; ask: number | null; fill_px: number | null; under_carry: boolean;
+  attempts: { step: number | null; limit: number | null; status: string }[];
+}
+export interface ExecutionBlock { approvals: number; reached_order: number; decided: number; filled: number; fill_rate: number | null }
+export interface ExecutionPanel { summary: { all: ExecutionBlock; under_carry: ExecutionBlock; read: string }; rows: ExecutionRow[] }
+export interface IvHistoryRow {
+  symbol: string; sessions: number; iv_rv: number | null; iv_rv_pct: number | null; skew: number | null; skew_pct: number | null;
+  term_sessions: number; term_slope: number | null; d_iv_call: number | null; d_iv_put: number | null;
+}
+export interface IvHistoryPanel { rows: IvHistoryRow[]; status: string; note: string; max_term_sessions: number }
+export interface FalsifierRow { read_at: string; spec_id: string; symbol: string; value: string; threshold: string; fired: string }
+export interface FalsifierPanel {
+  rows: FalsifierRow[]; waiting: { spec_id: string; symbol: string; threshold: number | null; first_filed_after: string | null }[];
+  summary: { reads: number; fired: number; not_fired: number }; note: string;
+}
+export interface TelemetryVM {
+  exec: { read: string; approvals: number; reached: number; decided: number; filled: number; fillRate: string;
+    carryDecided: number; carryFilled: number;
+    rows: { key: number; date: string; symbol: string; outcome: string; limit: string; ask: string; fill: string; attempts: number }[] } | null;
+  iv: { status: string; termSessions: number;
+    rows: { symbol: string; n: number; ivrv: string; ivrvPct: string; skew: string; slope: string; dIvC: string; dIvP: string }[] } | null;
+  fals: { reads: number; fired: number; note: string;
+    rows: { key: string; readAt: string; symbol: string; value: string; threshold: string; fired: boolean }[];
+    waiting: { key: string; symbol: string; threshold: string; after: string }[] } | null;
 }

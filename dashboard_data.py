@@ -2186,3 +2186,26 @@ def fundamentals_staleness_panel(conn, *, n: int = STALENESS_RUNS_N) -> dict:
             runs.append({"run_id": r["id"], "started_at": r["started_at"], **parsed})
     return {"runs": runs, "latest_lagging": runs[0]["lagging"] if runs else []}
 
+
+
+# ── 2026-11-03 profit-program telemetry (records/2026-11-03_profit_program_DRAFTS.md) ────────────────────────
+def execution_panel(conn) -> dict:
+    """D0: every council approval followed to the broker (fill rate, overall and under carry-over)."""
+    import execution_ledger
+
+    return execution_ledger.panel(conn)
+
+
+def iv_history_panel(conn, cache_dir: str | Path) -> dict:
+    """D4: own-history IV/RV + skew percentiles, term slope, 21-session ATM call/put dIV. Read-only, no fetch."""
+    import iv_history
+    from data.cache import PointInTimeCache
+
+    return iv_history.panel(conn, PointInTimeCache(cache_dir, offline=True))
+
+
+def falsifier_panel(config: dict) -> dict:
+    """D3b: the forward falsifier-accuracy ledger (sealed reads + specs still waiting for their quarter)."""
+    import falsifier_ledger
+
+    return falsifier_ledger.panel(symbols_of=falsifier_ledger.basket_symbols_of(config))

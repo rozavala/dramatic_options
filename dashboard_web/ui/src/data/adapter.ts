@@ -10,7 +10,7 @@
 import type {
   AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
   NextRunVM, NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
-  OutsideFrameVM, Snapshot, SpendVM, TailFigure, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
+  OutsideFrameVM, Snapshot, SpendVM, TailFigure, TelemetryVM, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
 } from "./types";
 import { etDate, formatRunLabel } from "./runLabel";
 import { DD_WARN_DEFAULT, directionLabel, drawdownDisplay, levelFromSystem, t4RowState, verdictDisplay } from "./status";
@@ -96,6 +96,37 @@ const orderDetail = (o: { contract: string | null; contracts: number | null; pre
 // #351 — the "why no entry" table. Where a row's name reached the gate and an order exists, the ORDER'S REAL
 // outcome replaces the gate stamp (gate_decision stays "submit-pending" after a cancel — it is not the outcome).
 // Dates come from the server already on the ET calendar; nothing here re-derives a day from a UTC stamp.
+/** 2026-11-03 telemetry (D0 / D4 / D3b). A missing or errored panel is null (the card says "not yet"). */
+export function buildTelemetry(P: Snapshot): TelemetryVM {
+  const n2 = (v: number | null | undefined, d = 2) => (v == null ? DASH : Number(v).toFixed(d));
+  const pct = (v: number | null | undefined) => (v == null ? DASH : `${Math.round(Number(v) * 100)}%`);
+  const ok = (p: unknown) => p != null && !panelError(p);
+  const ex = ok(P.execution) ? P.execution! : null;
+  const iv = ok(P.iv_history) ? P.iv_history! : null;
+  const fa = ok(P.falsifiers) ? P.falsifiers! : null;
+  return {
+    exec: ex && {
+      read: ex.summary.read, approvals: ex.summary.all.approvals, reached: ex.summary.all.reached_order,
+      decided: ex.summary.all.decided, filled: ex.summary.all.filled, fillRate: pct(ex.summary.all.fill_rate),
+      carryDecided: ex.summary.under_carry.decided, carryFilled: ex.summary.under_carry.filled,
+      rows: (ex.rows ?? []).map((r) => ({ key: r.proposal_id, date: r.date ?? DASH, symbol: r.symbol, outcome: r.outcome,
+        limit: n2(r.limit), ask: n2(r.ask), fill: n2(r.fill_px), attempts: (r.attempts ?? []).length })),
+    },
+    iv: iv && {
+      status: iv.status, termSessions: iv.max_term_sessions ?? 0,
+      rows: (iv.rows ?? []).map((r) => ({ symbol: r.symbol, n: r.sessions, ivrv: n2(r.iv_rv), ivrvPct: pct(r.iv_rv_pct),
+        skew: n2(r.skew, 1), slope: n2(r.term_slope, 1), dIvC: n2(r.d_iv_call, 1), dIvP: n2(r.d_iv_put, 1) })),
+    },
+    fals: fa && {
+      reads: fa.summary.reads, fired: fa.summary.fired, note: fa.note,
+      rows: (fa.rows ?? []).map((r) => ({ key: `${r.spec_id}/${r.symbol}`, readAt: r.read_at, symbol: r.symbol,
+        value: pct(Number(r.value)), threshold: pct(Number(r.threshold)), fired: String(r.fired) === "1" })),
+      waiting: (fa.waiting ?? []).map((w) => ({ key: `${w.spec_id}/${w.symbol}`, symbol: w.symbol,
+        threshold: pct(w.threshold), after: w.first_filed_after ?? DASH })),
+    },
+  };
+}
+
 function buildWhyNoEntry(P: Snapshot): WhyNoEntryVM {
   const w = P.why_no_entry;
   const blank: WhyNoEntryVM = {
@@ -213,6 +244,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
       ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence], ["staleness", P.staleness],
       ["why_no_entry", P.why_no_entry],
+      ["execution", P.execution], ["iv_history", P.iv_history], ["falsifiers", P.falsifiers],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
@@ -386,6 +418,7 @@ export function fromBackend(P: Snapshot): ViewModel {
   };
 
   const whyNoEntry = buildWhyNoEntry(P);
+  const telemetry = buildTelemetry(P);
 
   // Month-to-date spend vs the per-provider tripwire (spend_panel).
   const spP = panelError(P.spend) ? null : P.spend;
@@ -561,6 +594,6 @@ export function fromBackend(P: Snapshot): ViewModel {
     t4: cond,
     readiness,
     edgeAccrual: { n: edgeN, target: EDGE_TARGET }, phasePct, phaseSub,
-    session, spend, canary, dircoherence, staleness, whyNoEntry, wingMismatch, dataAccrual, booksOpen, firstEntry,
+    session, spend, canary, dircoherence, staleness, whyNoEntry, telemetry, wingMismatch, dataAccrual, booksOpen, firstEntry,
   };
 }
