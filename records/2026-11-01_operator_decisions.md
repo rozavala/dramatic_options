@@ -12,7 +12,7 @@ after the W44 Sunday review (`records/2026-11-01_sunday_w44.md`, PR #406). The t
 | 2 | "Move the 11-05 model refresh back about a week, to around 11-12." | **MOVED to ~2026-11-12.** §10.11 began 10-30 and the ISO-date filter (#403) begins 11-02. A 11-05 swap would land at about session 5 of §10.11's 10-session floor-drought clock and confound it. The ~11-03 shadow check (parse rate, cost, latency; no outcome scoring) is unchanged. | STANDING_STATE docket |
 | 3 | "Let the KMT pin expire on 11-08 instead of renewing it every week." | **RETIRED at expiry.** KMT pin #19 (`as_of` 2026-11-01) runs to 2026-11-08 and is **not re-pinned**. The 11-08 Sunday run reports the expiry and leaves the item to lapse. | STANDING_STATE rulings; `scripts/ops/prompts/sunday_review.md` §4 |
 | 4 | "Don't pin the NRC reactor-design rule (2026-21801)." | **REVIEWED, NOT PINNED.** It drops off the staged list. | STANDING_STATE |
-| 5 | "Fix the PROD journal access (small, your step)." | **PENDING the operator's step on PROD** (sudo). Until the step is done, the Sunday review reports PROD's `status=9` check as *unreadable*, never as 0. | STANDING_STATE staged; `scripts/ops/prompts/sunday_review.md` §9 |
+| 5 | "Fix the PROD journal access (small, your step)." | **DONE 2026-11-03** by the operator (`console` now in `systemd-journal`; verified from DEV). The first read since 10-25: 10 lines, 0 `status=9`. The prompt's UNREADABLE rule stays as a guard. | STANDING_STATE board; `scripts/ops/prompts/sunday_review.md` §9 |
 | 6 | "BNTX: no action." | **No action.** | — |
 | 7 | "The May-2027 cutoff (~11-23): check it next Sunday." | **Checked today instead** (see below). It stays on the docket with the 11-23 listing check named. | STANDING_STATE docket |
 | 8 | "The BWXT headline the homonym guard dropped: no issue yet." | **No issue.** File one only if a universe name loses a real headline to the guard again. | — |
@@ -46,7 +46,7 @@ sudo usermod -aG systemd-journal console
 ssh all-options-prod 'id -nG; journalctl -u dramatic-options-l2 -n 1 --no-pager -q'
 ```
 
-The group grants read-only journal access. Once it is in place, change the STANDING_STATE staged item to done.
+The group grants read-only journal access. **Done 2026-11-03:** `id -nG` shows `console sudo users systemd-journal`. Since 10-25, `journalctl -u 'dramatic-options-*'` returns 10 lines (the 10-30 web restart at the #392 promote) and 0 `status=9`.
 
 ## #7: the May-2027 check (live OPRA, read 2026-11-01)
 

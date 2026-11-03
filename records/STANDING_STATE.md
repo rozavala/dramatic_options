@@ -2,7 +2,7 @@
 
 **as_of: 2026-11-01T23:20Z · supersedes: 2026-10-30T04:30Z · **Sunday W44 review** (`records/2026-11-01_sunday_w44.md`): L0 #1887 at 13:00 UTC (DST) dormed the 8 09-20 lineages as docketed (AG/HL/PAAS leave the union), re-activated 6 (CCJ/ERO/FLNC/NEE/NNE/TGB), 2 new (FIG bear, CF bull) → active 35; KMT pin #19 re-pinned dates-only (August Comtrade still 0 rows); EPA + NRC FR docs unchanged; expressible 39 of 50; #341's Sunday wait passed on its first live check · the #403 ISO-date ruling (10-31) starts Mon 11-02 · **operator decisions 11-01**
 (`records/2026-11-01_operator_decisions.md`): model refresh moved to ~11-12, KMT pin retired at its 11-08 expiry, NRC
-2026-21801 reviewed and not pinned, PROD journal access pending the operator's step · 0 open issues. On top of the 10-30 header (PROD promoted to `a7548e8`, #392).**
+2026-21801 reviewed and not pinned, PROD journal access DONE 2026-11-03 (`console` ∈ `systemd-journal`; 0 `status=9` since 10-25) · 2 open issues (#407, #408, filed 11-03). On top of the 10-30 header (PROD promoted to `a7548e8`, #392).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -142,9 +142,6 @@ The header's absence is itself a signal.
   **Sun 11-01: PASSED** (the review started after the 14:40 reach run's cards, 14:45). Mon 11-02 (the grade waiting for the 20:45 L1) is the second check.
 - **BNTX (bench Tier A):** $930 / 19.2% / 235 d on the 10-25 Sunday quote, but **`no_otm_eligible_contract_in_tenor_window`
   on the 11-01 Sunday read** — the in-band read did not hold. Returns only on a fresh operator word and a mid-session read.
-- **PROD journal access (operator's step, 11-01 decision #5):** the review user `console` can't read PROD's journal,
-  so PROD's `status=9` check is unread. Step: `sudo usermod -aG systemd-journal console` on PROD (read-only). Until then
-  the Sunday review reports it as *unreadable*, never 0.
 - **HL / AG / PAAS (silver_deficit; HL above floor 10-26 #1816, AG above floor 10-29 #1867, both cancelled unfilled
   before carry-over):** all three went dormant at the 11-01 L0 (last seen 09-20); they return only if re-surfaced.
 
@@ -190,7 +187,7 @@ The header's absence is itself a signal.
 - Box: DEV = main `1062d07` (up since 2026-10-17); **PROD = `a7548e8` (#392, promoted 2026-10-30 04:21 UTC; 6 PRs behind
   main on 11-01: #395/#399/#400/#401/#404/#405)**, inert: timers disabled, `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`
   (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
-  (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD. PROD's first #392 deploy failed at `git fetch` (a stale `origin/claude` tracking ref blocked `claude/*` branches); pruned with the operator's go, deploy re-run green.
+  (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD. PROD's journal is readable by the review user from 2026-11-03 (`systemd-journal`). PROD's first #392 deploy failed at `git fetch` (a stale `origin/claude` tracking ref blocked `claude/*` branches); pruned with the operator's go, deploy re-run green.
 - Apps:
   - DEV: `https://all-options-dev.tail57521e.ts.net:8602`
   - PROD: `https://all-options-prod.tail57521e.ts.net:8602`
@@ -203,6 +200,8 @@ The header's absence is itself a signal.
   above-floor conviction: run #1867, 2026-10-29 (AG MODERATE)** — real order #3, 6× `AG270617C00020000` LIMIT 1.48
   ($888), cancelled unfilled at the 16:00 L2; before it #1816 (2026-10-26, HL, order #2 cancelled unfilled) and #508
   (2026-07-10).
-- Open issues: 0 (2026-11-01). The 10-27 dashboard batch #351–#355/#357 shipped (#359–#365, #364); #370 closed by
+- Open issues: 2 (2026-11-03): #407 (logging: only the orchestrator/council loggers have a handler — monitor/carry/
+  broker/paper_loop INFO dropped; lane:profit) and #408 (edgar_index caches a quarter's full-index fetched before the
+  quarter closed; lane:sweep), both filed 11-03. The 10-27 dashboard batch #351–#355/#357 shipped (#359–#365, #364); #370 closed by
   #393. Open PRs: none besides the W44 records PR (#382 superseded by #401, merged).
 - NVDA opra canary at or above 1.0 for 13 prints (10-30 1.0824) after eight below (low 0.9818).
