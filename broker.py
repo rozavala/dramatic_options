@@ -120,6 +120,16 @@ class PaperBroker:
             f"paper-sim {side} {qty}x {contract_symbol} @ {limit_price:.2f}",
         )
 
+    def submit_spread(
+        self, *, long_symbol: str, short_symbol: str, qty: int, action: str, limit_price: float,
+        client_order_id: str | None = None,
+    ) -> Fill:
+        """Simulated vertical (PREREG §5 amendment 2026-11-03b): fills at the supplied NET price."""
+        if qty < 1 or limit_price <= 0:
+            return Fill(False, 0.0, 0, f"rejected: qty={qty} px={limit_price}")
+        return Fill(True, float(limit_price), int(qty),
+                    f"paper-sim {action} vertical {qty}x +{long_symbol}/-{short_symbol} @ {limit_price:.2f}")
+
 
 class _AlpacaBrokerBase:
     """Shared Alpaca order broker (own ``TradingClient``; the read-only ``AlpacaClient`` stays
@@ -232,6 +242,79 @@ class _AlpacaBrokerBase:
         return Fill(True, limit, int(qty),
                     f"alpaca {self._venue} SUBMITTED {intent_label} {qty}x {contract_symbol} LIMIT {limit:.2f} (resting)",
                     order_id=oid, pending=True)
+
+    def submit_spread(
+        self, *, long_symbol: str, short_symbol: str, qty: int, action: str, limit_price: float,
+        client_order_id: str | None = None,
+    ) -> Fill:
+        """One ATOMIC multi-leg limit order for a debit call vertical (PREREG §5 amendment 2026-11-03b); never legged.
+
+        ``action="open"``: buy-to-open ``long_symbol`` + sell-to-open ``short_symbol``, ``limit_price`` = the NET
+        debit. ``action="close"``: sell-to-close the long + buy-to-close the short, ``limit_price`` = the NET credit.
+        The price is sent POSITIVE either way. Alpaca's documented mleg examples are positive debits; whether a
+        positive close price is read as "receive ≥ X" (intended) or "pay ≤ X" (then simply marketable on a long
+        spread worth ≥ 0) could not be confirmed from the docs, and neither reading costs more than the natural
+        price. Verify with the paper smoke round-trip before enabling (records/2026-11-03 vertical plan).
+
+        Guards, every mode: the shared-account rejection on BOTH legs (an open is an opening trade on each leg), the
+        subclass real-money precheck on the NET notional. DRY_RUN simulates. A venue that refuses multi-leg orders
+        (options approval level) returns an unfilled Fill (fail-closed)."""
+        if qty < 1 or limit_price <= 0:
+            return Fill(False, 0.0, 0, f"rejected: qty={qty} px={limit_price}")
+        limit = round(float(limit_price), 2)
+        opening = str(action).lower() == "open"
+        label = f"{'open' if opening else 'close'}_vertical"
+        for leg in (long_symbol, short_symbol):
+            shared = shared_account_reject(leg, is_buy=opening)
+            if shared is not None:
+                log.error(shared)
+                return Fill(False, 0.0, 0, shared)
+        rejected = self._reject_precheck(contract_symbol=long_symbol, qty=int(qty), limit=limit, is_buy=opening)
+        if rejected is not None:
+            log.error(rejected.note)
+            return rejected
+        if self._dry_run:
+            note = (f"DRY_RUN (not sent): {label} {qty}x +{long_symbol}/-{short_symbol} LIMIT {limit:.2f} "
+                    f"[{self._venue}]")
+            log.info(note)
+            return Fill(True, limit, int(qty), note)
+        try:
+            from alpaca.trading.enums import (
+                OrderClass,
+                OrderSide,
+                OrderType,
+                PositionIntent,
+                TimeInForce,
+            )
+            from alpaca.trading.requests import LimitOrderRequest, OptionLegRequest
+
+            if opening:
+                legs = [OptionLegRequest(symbol=long_symbol, ratio_qty=1, side=OrderSide.BUY,
+                                         position_intent=PositionIntent.BUY_TO_OPEN),
+                        OptionLegRequest(symbol=short_symbol, ratio_qty=1, side=OrderSide.SELL,
+                                         position_intent=PositionIntent.SELL_TO_OPEN)]
+            else:
+                legs = [OptionLegRequest(symbol=long_symbol, ratio_qty=1, side=OrderSide.SELL,
+                                         position_intent=PositionIntent.SELL_TO_CLOSE),
+                        OptionLegRequest(symbol=short_symbol, ratio_qty=1, side=OrderSide.BUY,
+                                         position_intent=PositionIntent.BUY_TO_CLOSE)]
+            req = LimitOrderRequest(qty=int(qty), order_class=OrderClass.MLEG, type=OrderType.LIMIT,
+                                    time_in_force=TimeInForce.DAY, limit_price=limit, legs=legs,
+                                    client_order_id=client_order_id)
+            order = self._trading.submit_order(req)
+        except Exception as e:  # noqa: BLE001 — fail-closed: never crash the cycle
+            note = f"alpaca {label} FAILED for +{long_symbol}/-{short_symbol}: {e}"
+            log.error(note)
+            return Fill(False, 0.0, 0, note)
+        oid = str(getattr(order, "id", "") or "")
+        filled_price = getattr(order, "filled_avg_price", None)
+        if filled_price:
+            return Fill(True, abs(float(filled_price)), int(qty),
+                        f"alpaca {self._venue} FILLED {label} {qty}x +{long_symbol}/-{short_symbol} "
+                        f"@ {abs(float(filled_price)):.2f}", order_id=oid)
+        return Fill(True, limit, int(qty),
+                    f"alpaca {self._venue} SUBMITTED {label} {qty}x +{long_symbol}/-{short_symbol} LIMIT "
+                    f"{limit:.2f} (resting)", order_id=oid, pending=True)
 
     # ── reconciliation surface (used by monitor.reconcile_pending) ─────────────
     def order_status(self, order_id: str) -> dict | None:

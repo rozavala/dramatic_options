@@ -2,8 +2,9 @@
 
 ## Status after the operator's word (2026-11-03, in session: "Sure, let's do that. Let's follow your suggested steps
 and get this implemented ASAP" — the order D0 → D4 → D3b → D1 → D3)
-All on branch `claude/youthful-goodall-q5hban`, **not merged**. Merging changes no live behavior: the telemetry
-items are read-only, and D1 is inert until its config block is added.
+D0–D3 step 1 merged in rozavala/dramatic_options#411 (2026-11-03, DEV deploy green). D3 step 2 follows on the same
+branch. Merging changes no live behavior: the telemetry items are read-only, and D1 and D3 are inert until their
+config blocks are added.
 
 | Item | State | What switches it on |
 |---|---|---|
@@ -11,13 +12,21 @@ items are read-only, and D1 is inert until its config block is added.
 | D4 IV history | **built** (`iv_history.py`; the sweep now writes `iv_term_snapshot` nightly) | merge; percentiles at 120 sessions (~early Dec), term/ΔIV after 21 sessions |
 | D3b falsifier ledger | **built** (`falsifier_ledger.py`, `falsifier_specs.json`, L1 hook) | merge; **operator to confirm the five CC-encoded specs** |
 | D1 ranked backfill | **built, inert** (`backfill.py`; PREREG_THEMATIC_CONVEXITY §5 amendment 2026-11-03) | a dated edit adding `convexity_book.backfill = {"enabled": true}` (the one `frame_version` boundary) |
-| D3 verticals | **step 1 built**: selector `verticals.py` + read-only `scripts/probe_vertical_feasibility.py` | step 2 (the order path) is its own phase — see below |
+| D3 verticals | **built, inert**: selector + probe (step 1); order path (step 2: `broker.submit_spread`, migration 0021, `paper_loop`, `monitor`, carry walk, shadow/3A/3B parity; PREREG §5 amendment 2026-11-03b) | the checklist below, then a dated edit adding `convexity_gate.vertical_for_over_cap = {"enabled": true}` |
 | D5 / D6 / D7 | drafts, not started | — |
 
-**D3 step 2 (not built, its own phase):** multi-leg broker orders with per-leg shared-account checks and foreign-
-quantity reads; a second-leg column (migration); spread marking, expiry intrinsic, close and reconcile in the
-monitor; carry walking on the net debit; the same structure in the shadow and 3A books so the null contrasts
-stay paired; then a `convexity_gate.vertical_for_over_cap` switch and its own frame boundary.
+**D3 switch-on checklist (in order):**
+1. On DEV, run the paper multi-leg round-trip and paste its output into a dated record:
+   `python scripts/smoke_order_roundtrip.py --endpoint paper --contract <long OCC> --limit <debit>
+   --vertical-short <short OCC> --sell-limit <credit> --send` (pick the pair with
+   `scripts/probe_vertical_feasibility.py`). It proves the account accepts multi-leg orders and records how the
+   venue signs the net fill. The code sends positive prices and reads fills with `abs()`; Alpaca's docs could not
+   be reached from the cloud session to confirm the credit sign, and neither reading can cost more than the
+   natural price, but the round-trip is the evidence.
+2. Before T4: confirm the live account's options approval level allows multi-leg (selling the short leg).
+3. The dated enabling edit (`convexity_gate.vertical_for_over_cap.enabled = true`), which moves `frame_version`.
+Known gap: the dashboard's positions table shows the long leg only (the short leg is on the row and in the
+rationale).
 
 ---
 

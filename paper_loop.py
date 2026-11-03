@@ -425,6 +425,26 @@ def _process_theme(
         )
         return
 
+    # 2c. Over-cap call vertical (PREREG §5 amendment 2026-11-03b; inert unless
+    # convexity_gate.vertical_for_over_cap.enabled). A bullish name whose ONE naked contract exceeds the per-name cap
+    # is expressed as long this gated wing / short ≈+75%; the NET debit is then the premium-at-risk for every cap.
+    import verticals
+
+    vert, vwhy = verticals.maybe_vertical(
+        chain, structure, config=config, direction=theme.direction, underlying_price=underlying_price,
+        eligibility=eligibility, symbol=theme.symbol,
+        per_name_cap=account_equity * float(book.get("per_name_fraction", 0.01)))
+    if vwhy is not None:
+        result.vetoed += 1
+        state.record_convexity_eval(
+            conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+            direction=theme.direction, eligible=True, gate_cheap=True,
+            iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
+            decision="veto-vertical", proposal_id=theme.proposal_id,
+            reasons=[f"naked contract over the per-name cap and no vertical: {vwhy}"],
+        )
+        return
+
     # 3. Sizing under the frozen caps. FINE cluster check first — a cluster with room but < one
     # contract records the structural veto-cluster-cap (not a generic veto-sizing); otherwise the
     # cluster budget tightens the greedy allocation to a bounded partial (composes into sizing's min()).
@@ -433,7 +453,10 @@ def _process_theme(
     # The entry limit: mid for an L1 entry; for a carried attempt (#386) the walk price — mid + fraction × (ask − mid),
     # never above the ask. Sizing and every cap below use THIS price, so a walked limit can only shrink the order.
     entry_px = structure.entry_premium
-    if walk is not None:
+    if vert is not None:   # the vertical's mid debit; a carry walks it toward the natural debit (long ask − short bid)
+        entry_px = (verticals.walk_limit(vert, float(walk.get("fraction", 0.0))) if walk is not None
+                    else round(vert.net_debit, 2))
+    elif walk is not None:
         ask = structure.contract.ask
         frac = min(max(float(walk.get("fraction", 0.0)), 0.0), 1.0)
         if ask is not None and ask > entry_px:
@@ -479,12 +502,19 @@ def _process_theme(
     # project's journal explains. A mismatch (another project holds it) or an unreadable venue → no entry.
     # A broker with no venue (the simulated PaperBroker) has no ``venue_quantity`` and skips the check.
     if callable(getattr(broker, "venue_quantity", None)):
-        venue_qty = broker.venue_quantity(structure.contract.symbol)
-        journal_qty = state.journal_contract_quantity(conn, structure.contract.symbol)
-        if venue_qty is None or venue_qty != journal_qty:
+        # a vertical reads BOTH contracts (the short leg is a negative venue quantity the journal must explain)
+        why = None
+        for leg in ([structure.contract.symbol] + ([vert.short.symbol] if vert is not None else [])):
+            venue_qty = broker.venue_quantity(leg)
+            journal_qty = state.journal_contract_quantity(conn, leg)
+            if venue_qty is None or venue_qty != journal_qty:
+                why = ("venue quantity unreadable" if venue_qty is None
+                       else f"venue holds {venue_qty} but this journal explains {journal_qty}")
+                if leg != structure.contract.symbol:
+                    why = f"short leg {leg}: {why}"
+                break
+        if why is not None:
             result.vetoed += 1
-            why = ("venue quantity unreadable" if venue_qty is None
-                   else f"venue holds {venue_qty} but this journal explains {journal_qty}")
             state.record_convexity_eval(
                 conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
                 direction=theme.direction, eligible=True, gate_cheap=True,
@@ -502,13 +532,23 @@ def _process_theme(
                 log.warning("foreign-quantity page failed to send")
             return
 
-    # 4. Paper fill (simulated at mid).
-    fill = broker.submit_paper(
-        contract_symbol=structure.contract.symbol, qty=sizing.contracts, side="buy",
-        limit_price=entry_px,
-        client_order_id=make_client_order_id("open", structure.contract.symbol, str(as_of))
-        + (f"-c{int(walk['step'])}" if walk is not None else ""),
-    )
+    # 4. Paper fill (simulated at mid). A vertical is ONE atomic multi-leg order, never legged.
+    coid = (make_client_order_id("open", structure.contract.symbol, str(as_of))
+            + (f"-c{int(walk['step'])}" if walk is not None else ""))
+    if vert is not None:
+        if not callable(getattr(broker, "submit_spread", None)):
+            from broker import Fill
+
+            fill = Fill(False, 0.0, 0, "broker has no multi-leg order path (fail-closed)")
+        else:
+            fill = broker.submit_spread(long_symbol=structure.contract.symbol, short_symbol=vert.short.symbol,
+                                        qty=sizing.contracts, action="open", limit_price=entry_px,
+                                        client_order_id=coid)
+    else:
+        fill = broker.submit_paper(
+            contract_symbol=structure.contract.symbol, qty=sizing.contracts, side="buy",
+            limit_price=entry_px, client_order_id=coid,
+        )
     if not fill.filled:
         result.vetoed += 1
         state.record_convexity_eval(
@@ -535,6 +575,11 @@ def _process_theme(
     }
     if theme.entry_origin:
         rationale["origin"] = theme.entry_origin   # PREREG §5 amendment 2026-11-03: scored apart (real_by_origin)
+    if vert is not None:
+        rationale["vertical"] = {"short": vert.short.symbol, "short_strike": vert.short.strike,
+                                 "short_moneyness": round(vert.short_moneyness, 4), "width": vert.width,
+                                 "naked_premium": round(structure.entry_premium, 4),
+                                 "short_quote": _quote(vert.short)}
     if walk is not None:
         rationale["carry"] = {"of": walk.get("intent_id"), "step": int(walk.get("step", 0)), "limit": entry_px}
     pos_id = state.record_convexity_position(
@@ -546,6 +591,8 @@ def _process_theme(
         total_premium=fill_premium_per_contract * sizing.contracts, rationale=rationale,
         status=status, order_id=getattr(fill, "order_id", None),
         proposal_id=theme.proposal_id, entry_spot=underlying_price,
+        short_contract_symbol=(vert.short.symbol if vert is not None else None),
+        short_strike=(vert.short.strike if vert is not None else None),
     )
     # Link the council proposal to the position it became (T2 forward-scoring substrate).
     if theme.proposal_id is not None:

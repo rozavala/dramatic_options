@@ -19,6 +19,7 @@ from datetime import date, datetime
 
 import sentinel_scoring
 import state
+import verticals
 from broker import make_client_order_id
 from clock import Clock
 from convexity_data import QuoteProvider
@@ -152,16 +153,15 @@ def monitor_positions(
 
     for pos in state.open_convexity_positions(conn):
         pid = int(pos["id"])
-        kind = pos["structure_kind"]
         contracts = int(pos["contracts"])
         entry_pc = float(pos["entry_premium_per_contract"])
         expiry = _parse_date(pos["expiry"])
         dte = (expiry - today).days if expiry else None
 
-        # 1. Expiry → close at intrinsic.
+        # 1. Expiry → close at intrinsic (a vertical: long intrinsic − short intrinsic).
         if expiry is not None and today >= expiry:
             up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
-            intrinsic = intrinsic_value(kind, float(pos["strike"]), up)
+            intrinsic = _intrinsic_of(pos, up)
             pnl = _realized(intrinsic, entry_pc, contracts)
             _close_and_resolve(conn, pos, exit_price=intrinsic, realized_pnl=pnl, reason="expiry",
                                as_of=as_of_iso, conv_map=conv_map, intrinsic=intrinsic, exit_spot=up)
@@ -171,9 +171,10 @@ def monitor_positions(
             log.info("EXPIRED #%d %s @ intrinsic %.2f → P&L $%.0f", pid, pos["contract_symbol"], intrinsic, pnl)
             continue
 
-        # 2. Mark to current mid.
+        # 2. Mark to current mid (a vertical: long mid − short mid).
         try:
-            mid = quote_provider.option_mid(pos["contract_symbol"])
+            mid = (verticals.position_mid(pos, quote_provider) if verticals.is_vertical(pos)
+                   else quote_provider.option_mid(pos["contract_symbol"]))
         except Exception as e:  # noqa: BLE001 — per-POSITION fail-soft (the 2026-07-06 CDE2
             # lesson, applied to the REAL book too): one unquotable row must not abort the
             # monitor pass over every other real position.
@@ -225,8 +226,21 @@ def _exit_position(
         bid = quote_provider.option_bid(contract)
         if bid is not None and bid >= min_close_bid:
             coid = make_client_order_id("close", contract, str(today))
-            fill = broker.submit_paper(contract_symbol=contract, qty=contracts, side="sell",
-                                       limit_price=round(float(bid), 2), client_order_id=coid)
+            if verticals.is_vertical(pos):
+                # ONE atomic multi-leg close at the spread's mid credit (PREREG §5 amendment 2026-11-03b)
+                credit = round(float(mid), 2)
+                if credit <= 0 or not callable(getattr(broker, "submit_spread", None)):
+                    log.warning("vertical close not placeable #%d %s (credit %.2f) — booked at mark", pid, contract,
+                                credit)
+                    bid = None
+                else:
+                    fill = broker.submit_spread(long_symbol=contract, short_symbol=pos["short_contract_symbol"],
+                                                qty=contracts, action="close", limit_price=credit,
+                                                client_order_id=coid)
+            else:
+                fill = broker.submit_paper(contract_symbol=contract, qty=contracts, side="sell",
+                                           limit_price=round(float(bid), 2), client_order_id=coid)
+        if bid is not None and bid >= min_close_bid:
             if not fill.filled:
                 log.warning("SELL_TO_CLOSE submit failed #%d %s — left open to retry: %s", pid, contract, fill.note)
                 return  # stays 'open' → re-evaluated next cycle
@@ -275,7 +289,7 @@ def _reconcile_closing(
             if oid and hasattr(broker, "cancel_order"):
                 broker.cancel_order(oid)
             up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
-            intrinsic = intrinsic_value(pos["structure_kind"], float(pos["strike"]), up)
+            intrinsic = _intrinsic_of(pos, up)
             pnl = _realized(intrinsic, entry_pc, contracts)
             _close_and_resolve(conn, pos, exit_price=intrinsic, realized_pnl=pnl, reason="expiry",
                                as_of=as_of_iso, conv_map=conv_map, intrinsic=intrinsic, exit_spot=up)
@@ -291,7 +305,7 @@ def _reconcile_closing(
             continue
         st = str(info.get("state", "")).lower()
         if st == "filled":
-            price = float(info.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER))
+            price = abs(float(info.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER)))  # mleg: net, maybe signed
             up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
             pnl = _realized(price, entry_pc, contracts)
             _close_and_resolve(conn, pos, exit_price=price, realized_pnl=pnl, reason=reason,
@@ -365,6 +379,13 @@ def reconcile_pending(*, conn, broker, clock: Clock, config: dict) -> int:
                 n += 1
                 _page_unfilled(pos, f"cancelled unfilled (was {st})")
     return n
+
+
+def _intrinsic_of(pos, underlying_price) -> float:
+    """Per-share expiry value: a vertical's spread intrinsic, else the single leg's."""
+    if verticals.is_vertical(pos):
+        return verticals.position_intrinsic(pos, underlying_price)
+    return intrinsic_value(pos["structure_kind"], float(pos["strike"]), underlying_price)
 
 
 def _page_unfilled(pos, what: str) -> None:
