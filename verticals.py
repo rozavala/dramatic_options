@@ -62,11 +62,13 @@ def select_vertical(
             cands.append(c)
     if not cands:
         return None, ("no_eligible_short_leg",)
+    floor_k = underlying_price * (1.0 + min_short_moneyness)
+    wide = [c for c in cands if c.strike >= floor_k - 1e-9]   # filter to ≥ the minimum width, THEN nearest target
+    if not wide:
+        return None, (f"short_leg_too_near:{max(c.strike for c in cands) / underlying_price - 1.0:.0%}",)
     target = underlying_price * (1.0 + short_moneyness)
-    short = min(cands, key=lambda c: abs(c.strike - target))
+    short = min(wide, key=lambda c: abs(c.strike - target))
     sm = (short.strike - underlying_price) / underlying_price
-    if sm < min_short_moneyness:
-        return None, (f"short_leg_too_near:{sm:.0%}",)
     smid = mid_price(short)
     if smid is None:
         return None, ("short_leg_no_mid",)

@@ -279,6 +279,15 @@ cost of the tail (p99 ≈10.7× → ≈7×).
 - **Recorded:** the row carries the short leg's symbol and strike (`short_contract_symbol`, `short_strike`;
   migration 0021). `structure_kind` stays `C`, so a vertical is the row with a short leg.
 
+> **Dated note 2026-11-03c (independent review of the order-path diff, before any merge; the bullet above is left
+> as written):** a close priced at the **mid** credit can rest unfilled day after day on wide far-OTM quotes and
+> reach expiry, where an in-the-money long is exercised or the short assigned (outside the defined-risk frame). The
+> close is therefore priced at the **natural credit** (long bid − short ask), the two-leg equivalent of a single
+> leg selling at the bid; the mid is used only when the natural credit is not positive, and a spread with no
+> positive credit is booked at mark like an unsellable single leg. A refused multi-leg open or close pages (a
+> close at most once per position per day), and a broker without a multi-leg path leaves the spread open, never
+> booked closed. The short leg is chosen as stated: among eligible calls ≥ +50% OTM, the one nearest +75%.
+
 ## 6. Kill rule (frozen)
 
 Halt **new entries** for human review if **either**:

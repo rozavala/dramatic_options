@@ -237,6 +237,41 @@ def test_time_stop_closes_with_one_multi_leg_order(convexity_db, monkeypatch):
     late = FixedClock(datetime.combine(EXP - timedelta(days=10), datetime.min.time(), UTC))
     monitor.monitor_positions(conn=convexity_db, clock=late, quote_provider=p, config=_on(), broker=b, dry_run=False)
     assert len(b.spreads) == 1 and b.spreads[0]["action"] == "close"
-    assert b.spreads[0]["limit_price"] == 8.2 and b.spreads[0]["short_symbol"].endswith("C00175000")
+    assert b.spreads[0]["limit_price"] == 7.8   # the NATURAL credit: long bid 13.8 − short ask 6.0
+    assert b.spreads[0]["short_symbol"].endswith("C00175000")
     r = convexity_db.execute("SELECT status, exit_reason FROM convexity_positions").fetchone()
     assert r["status"] == "closed" and r["exit_reason"].startswith("time_stop")
+
+
+def test_refusals_page_and_never_book_a_live_spread_closed(convexity_db, monkeypatch):
+    _no_kill(monkeypatch)
+    import notify
+    pages = []
+    monkeypatch.setattr(notify, "send", lambda title, msg, **kw: pages.append(title))
+    p = OverCapProvider()
+
+    class Refuses(PaperBroker):
+        def submit_spread(self, **kw):
+            return broker_mod.Fill(False, 0.0, 0, "403 options level")
+    # a refused OPEN is a veto-fill and a page
+    assert _cycle(convexity_db, _on(), provider=p, broker=Refuses(100_000.0)).opened == 0
+    assert pages == ["VERTICAL ORDER REFUSED"]
+    # a refused CLOSE leaves the spread OPEN and pages once per day, however many L2 ticks retry it
+    _cycle(convexity_db, _on(), provider=p)
+    late = datetime.combine(EXP - timedelta(days=10), datetime.min.time(), UTC)
+    for minutes in (0, 30, 60):
+        monitor.monitor_positions(conn=convexity_db, clock=FixedClock(late + timedelta(minutes=minutes)),
+                                  quote_provider=p, config=_on(), broker=Refuses(100_000.0), dry_run=False)
+    assert convexity_db.execute("SELECT status FROM convexity_positions WHERE status != 'cancelled'"
+                                ).fetchone()["status"] == "open"
+    assert pages.count("VERTICAL CLOSE REFUSED") == 1
+
+
+def test_short_leg_filters_to_the_minimum_width_first():
+    from structure import Structure
+    from verticals import select_vertical
+    lg = _k(125, "C", 13.8, 14.2, 0.52)
+    chain = [lg, _k(145, "C", 9.4, 9.8, 0.55), _k(210, "C", 3.0, 3.4, 0.6)]
+    v, why = select_vertical(chain, Structure("bullish", "C", lg, 270, 0.25, 14.0, 14.0), underlying_price=100.0,
+                             eligibility=_elig, underlying_symbol="BIG")
+    assert why == () and v.short.strike == 210      # +45% is under the +50% floor; +110% qualifies

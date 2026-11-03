@@ -557,6 +557,15 @@ def _process_theme(
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-fill", proposal_id=theme.proposal_id, reasons=[fill.note],
         )
+        if vert is not None:   # a refused multi-leg open (e.g. the account's options level) must not be silent
+            try:
+                import notify
+
+                notify.send("VERTICAL ORDER REFUSED",
+                            f"{theme.symbol} +{structure.contract.symbol}/-{vert.short.symbol} {sizing.contracts}x "
+                            f"@ {entry_px:.2f} debit: {fill.note}", priority=1)
+            except Exception:  # noqa: BLE001 — paging never breaks the cycle
+                log.warning("vertical refusal page failed to send")
         return
 
     # 5. Log the paper position + the survivorship-log row.
@@ -622,8 +631,10 @@ def _process_theme(
         try:
             import notify
 
+            legs = (f"+{structure.contract.symbol}/-{vert.short.symbol} (vertical, net debit)" if vert is not None
+                    else structure.contract.symbol)
             notify.send("REAL-BOOK ORDER SUBMITTED",
-                        f"#{pos_id} {theme.symbol} {sizing.contracts}x {structure.contract.symbol} LIMIT "
+                        f"#{pos_id} {theme.symbol} {sizing.contracts}x {legs} LIMIT "
                         f"{fill.price:.2f} (${fill_premium_per_contract * sizing.contracts:,.0f}); quote "
                         f"{q['bid']}/{q['ask']} spread {q['spread_pct']}%. Reconciles at the next L2.")
         except Exception:  # noqa: BLE001 — paging never breaks the cycle
