@@ -94,6 +94,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "iv_history": dd.safe(dd.iv_history_panel, conn, cache_dir),
             "falsifiers": dd.safe(dd.falsifier_panel, config),
             "capex_cycle": dd.safe(dd.capex_cycle_panel, cache_dir),
+            "attention": dd.safe(dd.attention_panel, cache_dir),
         }
     finally:
         conn.close()

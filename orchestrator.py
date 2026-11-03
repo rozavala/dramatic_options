@@ -1049,6 +1049,19 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                     append_run_note(conn, run_id, " · " + st_line)
                                 except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
                                     log.warning("fundamentals-staleness check failed (non-fatal): %s", e)
+                            # D6 step 1: keep the analyst counts the council already fetched for tonight's judged names
+                            # (no extra requests: the meter cached them this cycle). TELEMETRY ONLY. Fail-soft.
+                            if analyst_dep is not None and not demo and chain_cache is not None:
+                                try:
+                                    import attention
+
+                                    now_dt = clock.now()
+                                    judged = [r[0] for r in conn.execute(
+                                        "SELECT DISTINCT symbol FROM council_proposals WHERE run_id = ?", (run_id,))]
+                                    attention.record_daily(chain_cache, judged,
+                                                           lambda s: analyst_dep.count_asof(s, now_dt), now_dt)
+                                except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                                    log.warning("attention history failed (non-fatal): %s", e)
                             # D5 step 1: the per-cluster capex cycle (TTM capex from XBRL), one record per day. TELEMETRY
                             # ONLY (nothing gated or rendered). Fail-soft.
                             if fund_dep is not None and not demo and chain_cache is not None:

@@ -2219,3 +2219,11 @@ def capex_cycle_panel(cache_dir: str | Path) -> dict:
     from data.cache import PointInTimeCache
 
     return capex_cycle.panel(PointInTimeCache(cache_dir, offline=True))
+
+
+def attention_panel(cache_dir: str | Path) -> dict:
+    """D6 step 1: analyst-coverage history of judged names, the ~90-day change and a descriptive label."""
+    import attention
+    from data.cache import PointInTimeCache
+
+    return attention.panel(PointInTimeCache(cache_dir, offline=True))

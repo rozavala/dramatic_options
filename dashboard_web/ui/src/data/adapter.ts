@@ -105,6 +105,7 @@ export function buildTelemetry(P: Snapshot): TelemetryVM {
   const iv = ok(P.iv_history) ? P.iv_history! : null;
   const fa = ok(P.falsifiers) ? P.falsifiers! : null;
   const cx = ok(P.capex_cycle) ? P.capex_cycle! : null;
+  const at = ok(P.attention) ? P.attention! : null;
   return {
     exec: ex && {
       read: ex.summary.read, approvals: ex.summary.all.approvals, reached: ex.summary.all.reached_order,
@@ -131,6 +132,12 @@ export function buildTelemetry(P: Snapshot): TelemetryVM {
         ttm: r.ttm_now_musd == null ? DASH : `$${Math.round(r.ttm_now_musd).toLocaleString()}M`,
         yoy: pct(r.yoy), accel: r.accel == null ? DASH : `${r.accel > 0 ? "+" : ""}${Math.round(r.accel * 100)} pp`,
         phase: r.phase })),
+    },
+    attention: at && {
+      status: at.status, note: at.note,
+      rows: (at.rows ?? []).map((r) => ({ symbol: r.symbol, count: String(r.count),
+        change: r.change == null ? DASH : `${r.change > 0 ? "+" : ""}${r.change} since ${r.then}`,
+        label: r.label, asOf: r.as_of })),
     },
   };
 }
@@ -253,7 +260,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence], ["staleness", P.staleness],
       ["why_no_entry", P.why_no_entry],
       ["execution", P.execution], ["iv_history", P.iv_history], ["falsifiers", P.falsifiers],
-      ["capex_cycle", P.capex_cycle],
+      ["capex_cycle", P.capex_cycle], ["attention", P.attention],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
