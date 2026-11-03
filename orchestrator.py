@@ -17,6 +17,7 @@ import argparse
 import importlib.util
 import json
 import logging
+import os
 import sys
 import tempfile
 from datetime import UTC, datetime
@@ -65,21 +66,35 @@ from state import append_run_note, get_db, record_run
 from themes import active_themes, load_themes
 
 log = logging.getLogger("orchestrator")
-if not log.handlers:
-    _h = logging.StreamHandler()
-    _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
-    log.addHandler(_h)
-    log.setLevel(logging.INFO)
-    log.propagate = False
-    # council.* INFO was journald-INVISIBLE until 2026-08-13: with no root handler, only
-    # WARNING+ escaped via logging.lastResort (which is why repair WARNINGs always showed while
-    # the cheap-reserve/fairness composition line never did — found on the fairness-activation
-    # night). Give the council tree the same handler so composition/displacement lines land in
-    # the journal, per the reserve preregs' "observable, never silent" promise.
-    _council_log = logging.getLogger("council")
-    _council_log.addHandler(_h)
-    _council_log.setLevel(logging.INFO)
-    _council_log.propagate = False
+# Both spellings of the repo dir: record.pathname is the code's co_filename, which keeps a symlinked path unresolved
+# (a script run through a symlinked checkout), while the modules' own paths may be resolved.
+_REPO_DIRS = tuple({str(Path(__file__).resolve().parent) + os.sep, os.path.dirname(os.path.abspath(__file__)) + os.sep})
+
+
+def _own_info(record: logging.LogRecord) -> bool:
+    """INFO from this project's code, WARNING+ from everyone. A library's INFO stays out: httpx and the LLM SDKs log
+    every request (URL included) at INFO."""
+    return record.levelno >= logging.WARNING or (
+        record.pathname.startswith(_REPO_DIRS) and "site-packages" not in record.pathname)
+
+
+def _configure_logging() -> None:
+    """One formatted ROOT handler for every logger in the process (#407). Before, only the ``orchestrator`` and (since
+    #228) ``council`` trees had a handler: every other module's INFO was dropped (monitor's exit and fill lines,
+    carry, broker, paper_loop) and its WARNINGs escaped bare through ``logging.lastResort``, with no time, level or
+    name. Idempotent, so a re-import or a probe script never stacks a second handler."""
+    root = logging.getLogger()
+    if any(h.get_name() == "dramatic" for h in root.handlers):
+        return
+    h = logging.StreamHandler()
+    h.set_name("dramatic")
+    h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    h.addFilter(_own_info)
+    root.addHandler(h)
+    root.setLevel(logging.INFO)
+
+
+_configure_logging()
 
 
 def _banner(mode: str) -> None:
