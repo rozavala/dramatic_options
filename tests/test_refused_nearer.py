@@ -57,6 +57,17 @@ def test_at_most_three_refused_strikes_nearest_first():
     assert [sym for sym, _ in s.refused_nearer] == ["XC124", "XC126", "XC123"]
 
 
+def test_an_exact_tie_refused_contract_is_listed():
+    # target 125 at spot 100: C130 (refused, OI) and C120 (eligible) are equally near; C120 is chosen
+    s, _ = _select([_c(130, oi=10), _c(120)])
+    assert s.contract.symbol == "XC120" and s.refused_nearer == (("XC130", ("oi 10<50",)),)
+
+
+def test_under_the_side_guard_a_refused_wrong_side_contract_is_not_listed():
+    s, _ = _select([_c(95, bid=1.0, ask=2.0), _c(160)])                     # C95 is ITM: never selectable
+    assert s.contract.symbol == "XC160" and s.refused_nearer == ()
+
+
 def test_the_eval_writer_nests_selection_and_stays_byte_identical_without_it(convexity_db):
     common = dict(run_id=None, as_of="2026-01-02", theme="t", symbol="X", direction="bullish", decision="open")
     state.record_convexity_eval(convexity_db, **common, reasons=["cheap"])

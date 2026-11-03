@@ -170,6 +170,12 @@ def select_structure(
         return None, ("chosen_contract_no_mid",)
     moneyness = (c.strike - underlying_price) / underlying_price
     chosen = rank(c, dte)
-    nearer = sorted((t for t in refused if rank(t[0], t[1]) < chosen), key=lambda t: rank(t[0], t[1]))[:3]
+    # "<=": an exact tie that lost only to chain order still counts (refused and cands are disjoint, so the chosen
+    # contract never lists itself). Under the side guard a wrong-side refusal could never have been chosen: leave it out.
+    def otm_side(con: Contract) -> bool:
+        return con.strike > underlying_price if kind == "C" else con.strike < underlying_price
+
+    nearer = sorted((t for t in refused if rank(t[0], t[1]) <= chosen and (not require_otm_side or otm_side(t[0]))),
+                    key=lambda t: rank(t[0], t[1]))[:3]
     return Structure(direction, kind, c, dte, moneyness, m, m,
                      refused_nearer=tuple((r[0].symbol, r[2]) for r in nearer)), ()
