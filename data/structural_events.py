@@ -4,9 +4,9 @@ Implements ``discovery.EventProvider`` over the per-company SUBMISSIONS path
 (``data/filings.FilingsData`` — PIT-cached, ticker→CIK, SEC-throttled, fresh by construction:
 coverage re-extends with ``fetch_end`` each scan). This supersedes the frozen
 `PREREG_UNIVERSE_CURATION §7(a)` reuse wording ("data/edgar_index / data/prospectus") by dated
-amendment (PREREG_EVENT_LEG §2): ``edgar_index._quarter_text`` never re-fetches a cached
-in-progress quarter — disqualifying for a weekly LIVE leg; the quarterly-index path stays the
-historical tool.
+amendment (PREREG_EVENT_LEG §2): ``edgar_index._quarter_text`` then never re-fetched a cached
+in-progress quarter (it does since #408, but a quarterly index still lags the submissions path) —
+disqualifying for a weekly LIVE leg; the quarterly-index path stays the historical tool.
 
 The event is a REACHABILITY trigger only — no drift/alpha claim (the FSSD 424B5 grave:
 event ≈ random-date null). Matching is EXACT MEMBERSHIP — ``form ∈ {base, base + "/A"}`` per
