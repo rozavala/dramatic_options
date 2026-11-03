@@ -1,6 +1,27 @@
-# 2026-11-03 — Profit program: DRAFT amendments (NOT FROZEN; each needs the operator's word)
+# 2026-11-03 — Profit program: DRAFT amendments → operator word given 2026-11-03
 
-**Status: DRAFTS.** Nothing here is in force. Each draft names its boundary, its stamp and what the operator
+## Status after the operator's word (2026-11-03, in session: "Sure, let's do that. Let's follow your suggested steps
+and get this implemented ASAP" — the order D0 → D4 → D3b → D1 → D3)
+All on branch `claude/youthful-goodall-q5hban`, **not merged**. Merging changes no live behavior: the telemetry
+items are read-only, and D1 is inert until its config block is added.
+
+| Item | State | What switches it on |
+|---|---|---|
+| D0 execution ledger | **built** (`execution_ledger.py`, dashboard Edge → Telemetry) | merge; read after 5 decided orders under carry-over |
+| D4 IV history | **built** (`iv_history.py`; the sweep now writes `iv_term_snapshot` nightly) | merge; percentiles at 120 sessions (~early Dec), term/ΔIV after 21 sessions |
+| D3b falsifier ledger | **built** (`falsifier_ledger.py`, `falsifier_specs.json`, L1 hook) | merge; **operator to confirm the five CC-encoded specs** |
+| D1 ranked backfill | **built, inert** (`backfill.py`; PREREG_THEMATIC_CONVEXITY §5 amendment 2026-11-03) | a dated edit adding `convexity_book.backfill = {"enabled": true}` (the one `frame_version` boundary) |
+| D3 verticals | **step 1 built**: selector `verticals.py` + read-only `scripts/probe_vertical_feasibility.py` | step 2 (the order path) is its own phase — see below |
+| D5 / D6 / D7 | drafts, not started | — |
+
+**D3 step 2 (not built, its own phase):** multi-leg broker orders with per-leg shared-account checks and foreign-
+quantity reads; a second-leg column (migration); spread marking, expiry intrinsic, close and reconcile in the
+monitor; carry walking on the net debit; the same structure in the shadow and 3A books so the null contrasts
+stay paired; then a `convexity_gate.vertical_for_over_cap` switch and its own frame boundary.
+
+---
+
+**Original status: DRAFTS.** Nothing here was in force when written. Each draft names its boundary, its stamp and what the operator
 decides. They follow the house pattern: telemetry before rendering, rendering before gating, one dated
 record segment per change. Background: `records/2026-11-03_literature_review.md`; harness evidence:
 `records/2026-11-03_calibration_v2_finding.md` (the v2 run under the blind 2026-11-03 amendment).

@@ -136,6 +136,13 @@ The header's absence is itself a signal.
   fundamental-acceleration feed (closed 2026-07-01).
 
 ## Staged / pending (the operator's)
+- **Profit program (operator word 2026-11-03; `records/2026-11-03_profit_program_DRAFTS.md`; branch
+  `claude/youthful-goodall-q5hban`, unmerged):** D0 execution ledger, D4 IV history (+ nightly `iv_term_snapshot`),
+  D3b falsifier ledger (five CC-encoded specs for the operator to confirm) are telemetry; **D1 ranked backfill is
+  built and inert** until a dated edit adds `convexity_book.backfill.enabled = true` (PREREG_THEMATIC_CONVEXITY §5
+  amendment 2026-11-03; that edit is the `frame_version` boundary); D3 verticals step 1 (selector + read-only probe)
+  built, step 2 (order path) is its own phase. Calibration v2 (blind, 2026-11-03): J confirmed, S/R/T not candidates,
+  V candidate (`records/2026-11-03_calibration_v2_finding.md`).
 - **Review crontab vs DST — resolved without a crontab change (#341, 2026-10-25):** `scheduled_review.sh` now waits for
   the run it reviews (today's `dramatic-options-l1` / `-reach` exit, up to 120 min, then a "NOT RUN" page). From 11-01
   the Sunday review (14:23) waits for the 14:40 reach run, and from 11-02 the grade (20:37) waits for the 20:45 L1.
