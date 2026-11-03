@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -211,11 +211,14 @@ def test_hub_systemd_unreadable_is_null_not_enabled(hub_db, monkeypatch) -> None
 
 
 def test_hub_reach_last_ok_comes_from_the_newest_cards_doc(hub_db, tmp_path) -> None:
+    # generated relative to the real clock (the hub ages it against datetime.now): a fixed date became "missed"
+    # once it passed _REACH_STALE, about a week after this test was written.
+    gen = (datetime.now(UTC) - timedelta(days=1)).replace(microsecond=0)
     cards = tmp_path / "records" / "cards"
     cards.mkdir(parents=True)
-    (cards / "2026-W30.md").write_text("# Survivor cards — 2026-W30\n\n- generated: 2026-10-25T13:40:00+00:00\n")
+    (cards / "2026-W30.md").write_text(f"# Survivor cards — 2026-W30\n\n- generated: {gen.isoformat()}\n")
     j = _job(_get().json(), "dramatic-options-reach")
-    assert j["last_ok"] == "2026-10-25T13:40:00Z" and j["last_status"] == "ran"
+    assert j["last_ok"] == gen.strftime("%Y-%m-%dT%H:%M:%SZ") and j["last_status"] == "ran"
 
 
 def test_hub_kill_switch_is_off_state_and_beats_the_cache(hub_db, monkeypatch) -> None:
