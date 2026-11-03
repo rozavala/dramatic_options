@@ -10,6 +10,13 @@ Maintained by CC; updated on every ruling, clock change, staged-PR change, or pe
 The header's absence is itself a signal.
 
 ## Rulings in force
+- **Ranked backfill ENABLED (2026-11-03, operator word; `records/2026-11-03_backfill_enabling.md`; in force from the
+  first L1 after the enabling PR deploys):** `convexity_book.backfill.enabled = true` with the PREREG §5 amendment
+  2026-11-03 values. When the book has held ≤ 5 committed slots for 28 days (true now), the L1 sends the top 3
+  ranked non-floor structural proposals (conviction ≥ LOW) to the unchanged gates after every above-floor name;
+  at most 1 backfill entry per trailing 7 days; positions carry `origin = backfill`; stop rule pre-stated.
+  **Frame boundary `frame-3a810daad056` → `frame-f86f37a0bd4f`.** Reads: the first week nightly, then a dated look
+  after 4 entries or 6 weeks.
 - **Operator decisions 2026-11-01 (operator word; `records/2026-11-01_operator_decisions.md`):**
   - **KMT forward-catalyst pin RETIRED at expiry:** pin #19 runs to 2026-11-08 and is **not re-pinned**; the Sunday
     review reports the lapse. It rendered into no council prompt (KMT is neither a universe name nor a sentinel).
