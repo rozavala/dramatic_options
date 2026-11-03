@@ -113,3 +113,37 @@ def test_enumerate_caches_to_point_in_time(tmp_path):
         "0001104659-22-028897",
         "0001000000-22-000010",
     ]
+
+
+# ── #408: a quarter index cached before its quarter closed is refetched, not reused forever ──────
+
+def _cached_at(tmp_path, year, quarter, text, when):
+    import os
+    raw = tmp_path / "full_index_raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    f = raw / f"{year}q{quarter}_form.idx"
+    f.write_text(text, encoding="latin-1")
+    t = datetime.fromisoformat(when).replace(tzinfo=UTC).timestamp()
+    os.utime(f, (t, t))
+    return f
+
+
+def test_a_quarter_cached_before_it_closed_is_refetched(tmp_path):
+    # the live shape: 2026q2 cached 2026-06-30 06:46, missing that day's filings
+    f = _cached_at(tmp_path, 2022, 1, _HEADER, "2022-03-31T06:46:00")          # partial: no rows yet
+    fake = _FakeEdgar({(2022, 1): _Q1})
+    idx = EdgarIndex(PointInTimeCache(tmp_path), edgar=fake, cache_dir=tmp_path)
+    assert idx._quarter_text(2022, 1) == _Q1 and f.read_text(encoding="latin-1") == _Q1
+
+
+def test_a_quarter_cached_after_it_closed_is_reused_without_a_fetch(tmp_path):
+    _cached_at(tmp_path, 2022, 1, _Q1, "2022-04-05T00:00:00")
+    fake = _FakeEdgar({})                                                      # any fetch would KeyError
+    idx = EdgarIndex(PointInTimeCache(tmp_path), edgar=fake, cache_dir=tmp_path)
+    assert idx._quarter_text(2022, 1) == _Q1
+
+
+def test_a_partial_quarter_is_still_read_offline(tmp_path):
+    _cached_at(tmp_path, 2022, 1, _Q1, "2022-03-31T06:46:00")
+    idx = EdgarIndex(PointInTimeCache(tmp_path), edgar=None, cache_dir=tmp_path)
+    assert idx._quarter_text(2022, 1) == _Q1                                   # better than nothing, as before
