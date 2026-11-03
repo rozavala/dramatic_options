@@ -243,7 +243,8 @@ def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_c
         sentinel_id = sid[0] if sid else None
         theme = Theme(name=intent["theme"], symbol=intent["symbol"], direction=intent["direction"],
                       thesis=str(rat.get("thesis") or ""), proposal_id=intent["proposal_id"],
-                      source="sentinel" if sentinel_id is not None else "hand-seed", sentinel_id=sentinel_id)
+                      source="sentinel" if sentinel_id is not None else "hand-seed", sentinel_id=sentinel_id,
+                      entry_origin=rat.get("origin"))   # a backfill stays labelled through its carry
         res = run_paper_cycle(config=config, conn=conn, clock=clock, provider=provider, broker=broker,
                               themes=[theme], run_id=run_id, chain_cache=chain_cache, shadow_provider=shadow_provider,
                               walk={theme.symbol: {"intent_id": int(intent["id"]), "step": k,

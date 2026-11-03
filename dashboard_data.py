@@ -658,13 +658,15 @@ def regime_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
 def _real_multiples_by_origin(conn) -> dict[str, list[float]]:
     """Real-book closed realized multiples split by ORIGIN via a LEFT join (a hand-seed predates sentinels
     and may have NO proposal row / a null sentinel_id ⇒ 'hand_seed'; only a non-null sentinel_id ⇒ 'sentinel')."""
-    out: dict[str, list[float]] = {"hand_seed": [], "sentinel": []}
+    out: dict[str, list[float]] = {"hand_seed": [], "sentinel": [], "backfill": []}
     for r in conn.execute(
-        "SELECT p.total_premium AS tp, p.realized_pnl AS pnl, cp.sentinel_id AS sid "
+        "SELECT p.total_premium AS tp, p.realized_pnl AS pnl, cp.sentinel_id AS sid, p.rationale AS rat "
         "FROM convexity_positions p LEFT JOIN council_proposals cp ON p.proposal_id = cp.id "
         "WHERE p.status='closed' AND p.realized_pnl IS NOT NULL AND p.total_premium > 0"
     ):
-        origin = "sentinel" if r["sid"] is not None else "hand_seed"
+        # PREREG §5 amendment 2026-11-03: a ranked-backfill entry is its own origin, whatever its provenance.
+        origin = "backfill" if '"origin": "backfill"' in str(r["rat"] or "") else (
+            "sentinel" if r["sid"] is not None else "hand_seed")
         out[origin].append((float(r["tp"]) + float(r["pnl"])) / float(r["tp"]))
     return out
 
@@ -2186,3 +2188,26 @@ def fundamentals_staleness_panel(conn, *, n: int = STALENESS_RUNS_N) -> dict:
             runs.append({"run_id": r["id"], "started_at": r["started_at"], **parsed})
     return {"runs": runs, "latest_lagging": runs[0]["lagging"] if runs else []}
 
+
+
+# ── 2026-11-03 profit-program telemetry (records/2026-11-03_profit_program_DRAFTS.md) ────────────────────────
+def execution_panel(conn) -> dict:
+    """D0: every council approval followed to the broker (fill rate, overall and under carry-over)."""
+    import execution_ledger
+
+    return execution_ledger.panel(conn)
+
+
+def iv_history_panel(conn, cache_dir: str | Path) -> dict:
+    """D4: own-history IV/RV + skew percentiles, term slope, 21-session ATM call/put dIV. Read-only, no fetch."""
+    import iv_history
+    from data.cache import PointInTimeCache
+
+    return iv_history.panel(conn, PointInTimeCache(cache_dir, offline=True))
+
+
+def falsifier_panel(config: dict) -> dict:
+    """D3b: the forward falsifier-accuracy ledger (sealed reads + specs still waiting for their quarter)."""
+    import falsifier_ledger
+
+    return falsifier_ledger.panel(symbols_of=falsifier_ledger.basket_symbols_of(config))

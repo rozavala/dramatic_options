@@ -2,6 +2,7 @@ import type { ViewModel } from "../data/types";
 import { color, signal } from "../theme/tokens";
 import { Card, Chip } from "./primitives";
 import { OutsideFrameChip, WithLegacy } from "./Tails";
+import { Telemetry } from "./Telemetry";
 
 const LIFECYCLE_DAYS = 250; // the option lifecycle (~250d) — the first resolutions land this long after the first entry
 const Muted = ({ children }: { children: React.ReactNode }) => <span style={{ color: "#6a7280", fontWeight: 400 }}>{children}</span>;
@@ -123,6 +124,8 @@ export function Edge({ vm }: { vm: ViewModel }) {
           ))}
         </Card>
       </div>
+
+      <Telemetry t={vm.telemetry} />
     </div>
   );
 }

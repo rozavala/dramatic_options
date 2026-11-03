@@ -74,3 +74,27 @@ def simulate_gbm_path(
     incr = drift + shock * rng.standard_normal(n)
     logpath = np.concatenate([[0.0], np.cumsum(incr)])
     return spot * np.exp(logpath)
+
+
+def simulate_merton_path(
+    *, spot: float, mu: float, sigma: float, days: int, rng: np.random.Generator,
+    jump_lambda: float, jump_sigma: float, steps_per_year: int = 252,
+) -> np.ndarray:
+    """One daily Merton jump-diffusion path (calibration v2, PREREG_CONVEXITY_CALIBRATION §4 2026-11-03).
+
+    Log-jumps ~ N(0, ``jump_sigma``) arrive as Poisson(``jump_lambda`` per year). ``sigma`` is the TOTAL
+    annualized vol: the diffusion part is shrunk so diffusion variance + jump variance = σ² (a like-for-like
+    comparison with GBM at the same σ_real). The drift is compensated so E[S_T] = S₀·e^{μT}.
+    """
+    n = max(1, int(round(days * steps_per_year / 365.0)))
+    dt = 1.0 / steps_per_year
+    jump_var = jump_lambda * jump_sigma * jump_sigma
+    sigma_d = math.sqrt(max(sigma * sigma - jump_var, 1e-8))
+    kappa = math.exp(0.5 * jump_sigma * jump_sigma) - 1.0   # E[e^J] − 1
+    drift = (mu - 0.5 * sigma_d * sigma_d - jump_lambda * kappa) * dt
+    diffusion = sigma_d * math.sqrt(dt) * rng.standard_normal(n)
+    n_jumps = rng.poisson(jump_lambda * dt, n)
+    # The sum of k iid N(0, s²) jumps is N(0, k·s²).
+    jumps = np.sqrt(n_jumps) * jump_sigma * rng.standard_normal(n)
+    logpath = np.concatenate([[0.0], np.cumsum(drift + diffusion + jumps)])
+    return spot * np.exp(logpath)

@@ -168,10 +168,31 @@ def run_paper_cycle(
     dualread_veto_active = _dualread.disagree_veto_active(config, as_of)
     entitlement_paged = False
 
+    # PREREG §5 amendment 2026-11-03 (ranked backfill): the weekly quota, computed once per cycle and spent as backfill
+    # entries open. A carry attempt (walk) is the same approved entry, so it never draws on the quota again.
+    backfill_left: int | None = None
+
     for theme in themes:
         if not theme.active:
             continue
         result.evaluated += 1
+        is_backfill = theme.entry_origin == "backfill" and walk is None
+        if is_backfill:
+            if backfill_left is None:
+                import backfill as _backfill
+
+                cfg_bf = _backfill.settings(config)
+                backfill_left = (0 if cfg_bf is None
+                                 else cfg_bf.per_week - _backfill.used_this_week(conn, now=as_of_dt))
+            if backfill_left <= 0:
+                result.skipped += 1
+                state.record_convexity_eval(
+                    conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+                    direction=theme.direction, decision="skip-backfill-quota", proposal_id=theme.proposal_id,
+                    reasons=["the week's backfill entry is already taken (or backfill is off)"],
+                )
+                continue
+        opened_before = result.opened
         if theme.symbol in open_syms:
             result.skipped += 1
             state.record_convexity_eval(
@@ -190,6 +211,8 @@ def run_paper_cycle(
                 shadow_provider=shadow_provider, dualread_veto_active=dualread_veto_active,
                 walk=(walk or {}).get(theme.symbol),
             )
+            if is_backfill and result.opened > opened_before:
+                backfill_left -= 1
         except Exception as e:  # noqa: BLE001 — fail-closed: log, never open on error
             result.errors += 1
             # PREREG_DATA_FEED_OPRA_SEQUENCING §7: an ENTITLEMENT lapse on the premium gate feed is
@@ -510,6 +533,8 @@ def _process_theme(
         "rv": verdict.rv, "atm_iv": verdict.atm_iv, "wing_iv": verdict.wing_iv,
         "quote": q,
     }
+    if theme.entry_origin:
+        rationale["origin"] = theme.entry_origin   # PREREG §5 amendment 2026-11-03: scored apart (real_by_origin)
     if walk is not None:
         rationale["carry"] = {"of": walk.get("intent_id"), "step": int(walk.get("step", 0)), "limit": entry_px}
     pos_id = state.record_convexity_position(

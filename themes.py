@@ -42,6 +42,10 @@ class Theme:
     # council uses to find the operator's register thesis (PREREG_EVIDENCE_GROUNDING amendment A2) — never
     # inferred from the framer's free-text theme label.
     basket: str | None = None
+    # PREREG §5 amendment 2026-11-03 (ranked backfill): "backfill" when this theme entered the gates as an idle-book
+    # backfill rather than an above-floor survivor. Stamped on the position's rationale as ``origin``; the entry
+    # path enforces the weekly quota on it. None = the ordinary path.
+    entry_origin: str | None = None
 
 
 class ThemeError(ValueError):

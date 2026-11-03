@@ -90,6 +90,9 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "dircoherence": dd.safe(dd.direction_coherence_panel, conn),
             "staleness": dd.safe(dd.fundamentals_staleness_panel, conn),
             "why_no_entry": dd.safe(dd.why_no_entry_panel, conn, config),
+            "execution": dd.safe(dd.execution_panel, conn),
+            "iv_history": dd.safe(dd.iv_history_panel, conn, cache_dir),
+            "falsifiers": dd.safe(dd.falsifier_panel, config),
         }
     finally:
         conn.close()

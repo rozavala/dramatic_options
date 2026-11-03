@@ -1,0 +1,22 @@
+{
+  "_comment": "D3b forward falsifier-accuracy ledger (records/2026-11-03_profit_program_DRAFTS.md; calibration v2 Rule S). OPERATOR-EDITABLE. Each spec is a MACHINE-CHECKABLE encoding of a register falsifier (universe_register.json themes.<key>.falsifier), so the ledger can record, once per name, whether the falsifier fired on the first quarterly report it names, and later whether the name made its big move anyway. Telemetry only: a fired falsifier never sells, gates or vetoes anything. ENCODED BY CC 2026-11-03 FROM THE REGISTER TEXT; the operator confirms or edits. Only the revenue leg is encoded: FIG's 'or net dollar retention < 120%' and KKR's Aug-2027 standing review are not machine-checkable and are left out (recorded in 'not_encoded'). The qualitative falsifiers (nuclear_fuel, grid_equipment, copper_supply, space_smallcap, silver_deficit, seaborne_freight, refrigerant_transition, fiber_buildout, mrna_oncology, ag_cycle_trough) have no dated numeric test and are not encoded. metric 'quarterly_revenue_yoy' = single-quarter revenue vs the same quarter a year earlier, from SEC XBRL companyfacts (data/fundamentals.py REV_CONCEPTS), on the FIRST quarter filed strictly after first_filed_after. fired = value < threshold.",
+  "specs": [
+    {"id": "design_software_ai.q3_2026_rev", "theme": "design_software_ai", "direction": "bullish",
+     "metric": "quarterly_revenue_yoy", "threshold": 0.30, "first_filed_after": "2026-10-01",
+     "not_encoded": "or net dollar retention < 120%",
+     "source": "Q3-2026 (reported ~Nov-2026) revenue growth < 30% y/y, or net dollar retention < 120%"},
+    {"id": "bnpl_payments.first_q_after_0913", "theme": "bnpl_payments", "direction": "bullish",
+     "metric": "quarterly_revenue_yoy", "threshold": 0.10, "first_filed_after": "2026-09-13",
+     "source": "The first quarterly report dated after 2026-09-13 shows quarterly revenue growth below +10% y/y."},
+    {"id": "live_events_marketplace.first_q_after_0930", "theme": "live_events_marketplace", "direction": "bullish",
+     "metric": "quarterly_revenue_yoy", "threshold": 0.10, "first_filed_after": "2026-09-30",
+     "source": "The quarter reported after 2026-09-30 shows revenue growth below +10% y/y."},
+    {"id": "cyber_sase.q_ending_1031", "theme": "cyber_sase", "direction": "bullish",
+     "metric": "quarterly_revenue_yoy", "threshold": 0.20, "first_filed_after": "2026-10-31",
+     "source": "Quarterly revenue growth in the next 10-Q (quarter ending 2026-10-31, filed ~early December) falls below +20% y/y."},
+    {"id": "alt_capital_deployment.q3_2026_rev", "theme": "alt_capital_deployment", "direction": "bullish",
+     "metric": "quarterly_revenue_yoy", "threshold": 0.05, "first_filed_after": "2026-10-01",
+     "not_encoded": "standing review ~Aug-2027 (fee-related earnings conversion)",
+     "source": "quarterly revenue YoY below 5.0% in the 2026-Q3 10-Q = thesis dead"}
+  ]
+}
