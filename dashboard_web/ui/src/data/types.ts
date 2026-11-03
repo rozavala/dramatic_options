@@ -144,6 +144,7 @@ export interface Snapshot {
   execution?: ExecutionPanel;       // D0 (2026-11-03): approvals followed to the broker
   iv_history?: IvHistoryPanel;      // D4 (2026-11-03): own-history IV/RV + skew percentiles, term slope, dIV
   falsifiers?: FalsifierPanel;      // D3b (2026-11-03): the forward falsifier-accuracy ledger
+  capex_cycle?: CapexCyclePanel;    // D5 step 1 (2026-11-03): per-cluster TTM capex YoY + acceleration
   _fatal?: string;
 }
 
@@ -469,6 +470,11 @@ export interface FalsifierPanel {
   rows: FalsifierRow[]; waiting: { spec_id: string; symbol: string; threshold: number | null; first_filed_after: string | null }[];
   summary: { reads: number; fired: number; not_fired: number }; note: string;
 }
+export interface CapexCycleRow {
+  cluster: string; n_with_data: number; members: string[]; missing: string[]; ttm_now_musd: number | null;
+  yoy: number | null; yoy_prev: number | null; accel: number | null; phase: string; latest_period: string | null;
+}
+export interface CapexCyclePanel { as_of: string | null; rows: CapexCycleRow[]; note: string }
 export interface TelemetryVM {
   exec: { read: string; approvals: number; reached: number; decided: number; filled: number; fillRate: string;
     carryDecided: number; carryFilled: number;
@@ -478,4 +484,6 @@ export interface TelemetryVM {
   fals: { reads: number; fired: number; note: string;
     rows: { key: string; readAt: string; symbol: string; value: string; threshold: string; fired: boolean }[];
     waiting: { key: string; symbol: string; threshold: string; after: string }[] } | null;
+  capex: { asOf: string; note: string;
+    rows: { cluster: string; n: string; ttm: string; yoy: string; accel: string; phase: string }[] } | null;
 }

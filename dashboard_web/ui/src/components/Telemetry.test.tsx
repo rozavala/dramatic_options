@@ -19,6 +19,9 @@ const P = {
     term_sessions: 0, term_slope: null, d_iv_call: null, d_iv_put: null }],
     status: "percentiles accruing: 101 of 120 sessions", note: "", max_term_sessions: 0 },
   falsifiers: { error: "boom" },
+  capex_cycle: { as_of: "2026-11-03T21:00:00+00:00", note: "Telemetry only.", rows: [{ cluster: "ai_capex_power",
+    n_with_data: 6, members: ["VRT", "PWR", "GEV", "ETN", "CCJ", "CEG", "NEE"], missing: ["NEE"], ttm_now_musd: 41234.5,
+    yoy: 0.31, yoy_prev: 0.22, accel: 0.09, phase: "capex boom, accelerating", latest_period: "2026-09-30" }] },
 } as unknown as Snapshot;
 
 describe("profit telemetry", () => {
@@ -28,6 +31,7 @@ describe("profit telemetry", () => {
     expect(t.exec?.rows[0].attempts).toBe(1);
     expect(t.iv?.rows[0].ivrvPct).toBe("—");
     expect(t.fals).toBeNull();
+    expect(t.capex?.rows[0]).toMatchObject({ n: "6/7", yoy: "31%", accel: "+9 pp", phase: "capex boom, accelerating" });
   });
 
   it("renders all three cards", () => {
@@ -35,5 +39,6 @@ describe("profit telemetry", () => {
     expect(screen.getByTestId("tel-exec").textContent).toContain("filled_carry");
     expect(screen.getByTestId("tel-iv").textContent).toContain("101 of 120");
     expect(screen.getByTestId("tel-fals").textContent).toContain("panel unavailable");
+    expect(screen.getByTestId("tel-capex").textContent).toContain("ai_capex_power");
   });
 });

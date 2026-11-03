@@ -2,7 +2,7 @@ import type { TelemetryVM } from "../data/types";
 import { Card, Chip } from "./primitives";
 
 // 2026-11-03 profit-program telemetry (records/2026-11-03_profit_program_DRAFTS.md): D0 execution ledger,
-// D4 IV history, D3b falsifier ledger. Display only — nothing here gates an entry or reaches a council prompt.
+// D4 IV history, D3b falsifier ledger, D5 capex cycle. Display only — nothing here gates an entry or reaches a council prompt.
 
 const th: React.CSSProperties = { textAlign: "left", fontSize: 11, color: "#6a7280", fontWeight: 500, padding: "5px 8px", borderBottom: "1px solid #edf0f4", whiteSpace: "nowrap" };
 const td: React.CSSProperties = { padding: "6px 8px", borderBottom: "1px solid #f3f5f8", fontSize: 12, color: "#141b28", whiteSpace: "nowrap" };
@@ -108,12 +108,40 @@ export function FalsifierCard({ t }: { t: TelemetryVM }) {
   );
 }
 
+export function CapexCycleCard({ t }: { t: TelemetryVM }) {
+  const x = t.capex;
+  return (
+    <Card style={{ padding: "18px 20px" }}>
+      <div data-testid="tel-capex">
+        <Head title="Capex cycle by cluster" sub={x ? `${x.note} Latest record ${x.asOf}.` : "panel unavailable"}
+          chip={<Chip level="mute">telemetry</Chip>} />
+        {x && x.rows.length > 0 ? (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead><tr><th style={th}>Cluster</th><th style={{ ...th, textAlign: "right" }}>names</th>
+                <th style={{ ...th, textAlign: "right" }}>TTM capex</th><th style={{ ...th, textAlign: "right" }}>YoY</th>
+                <th style={{ ...th, textAlign: "right" }}>accel</th><th style={th}>Phase</th></tr></thead>
+              <tbody>
+                {x.rows.map((r) => (
+                  <tr key={r.cluster}><td style={td}>{r.cluster}</td><td style={num}>{r.n}</td><td style={num}>{r.ttm}</td>
+                    <td style={num}>{r.yoy}</td><td style={num}>{r.accel}</td><td style={td}>{r.phase}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : x && <Empty>No capex-cycle record yet (written at the next L1).</Empty>}
+      </div>
+    </Card>
+  );
+}
+
 export function Telemetry({ t }: { t: TelemetryVM }) {
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
       <ExecutionCard t={t} />
       <IvHistoryCard t={t} />
       <FalsifierCard t={t} />
+      <CapexCycleCard t={t} />
     </div>
   );
 }

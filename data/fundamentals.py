@@ -183,6 +183,12 @@ class FundamentalsData:
         path.write_text(resp.text)
         return resp.json()
 
+    def companyfacts(self, symbol: str) -> dict | None:
+        """The name's companyfacts JSON under this instance's freshness policy (no forced refetch), or None. The
+        capex-cycle telemetry (D5) reads capex from it with the same extraction the corpus uses."""
+        cik = self._cik(symbol)
+        return self._raw_fresh(cik, symbol=symbol) if cik else None
+
     def quarterly_revenue_points(self, symbol: str) -> list[dict[str, Any]]:
         """The name's quarterly revenue points ({start, end, val, filed}); the falsifier ledger (D3b) reads these
         and filters by ``filed`` itself."""

@@ -1049,6 +1049,20 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                     append_run_note(conn, run_id, " · " + st_line)
                                 except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
                                     log.warning("fundamentals-staleness check failed (non-fatal): %s", e)
+                            # D5 step 1: the per-cluster capex cycle (TTM capex from XBRL), one record per day. TELEMETRY
+                            # ONLY (nothing gated or rendered). Fail-soft.
+                            if fund_dep is not None and not demo and chain_cache is not None:
+                                try:
+                                    import capex_cycle
+                                    import clusters as _clusters
+
+                                    rec = capex_cycle.record_daily(chain_cache, _clusters.load_cluster_map(config),
+                                                                   fund_dep.companyfacts, clock.now())
+                                    if rec is not None:
+                                        log.info("Capex cycle: %s", {k: (v["yoy"], v["accel"], v["phase"])
+                                                                     for k, v in rec["clusters"].items()})
+                                except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                                    log.warning("capex cycle failed (non-fatal): %s", e)
                             # D3b: the forward falsifier-accuracy ledger. Appends a read once per spec × name when the
                             # named quarter becomes visible; TELEMETRY ONLY (never sells, gates or vetoes). Fail-soft.
                             if fund_dep is not None and not demo:
