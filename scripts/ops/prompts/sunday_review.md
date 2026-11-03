@@ -17,7 +17,8 @@ Expectations and the docket come from `records/STANDING_STATE.md` and the newest
 3. `PYTHONPATH=. venv/bin/python scripts/catalyst_pin_suggestions.py --out records/<date>_catalyst_pin_suggestions.md`
    — suggestions only.
 4. Every pin in `forward_catalysts.json` expiring today: re-verify its source; a dates-only re-pin (as_of today,
-   expires +7d) ONLY if its fact is unchanged — else report and leave it to expire.
+   expires +7d) ONLY if its fact is unchanged — else report and leave it to expire. A pin that STANDING_STATE marks
+   retired is never re-pinned: report the lapse.
 5. The class-(a) pins (effective dates, litigation, later documents) and the week's council verdicts on them.
 6. `PYTHONPATH=. venv/bin/python scripts/probe_miss_baserate.py sweep`.
 7. Tenor: which universe names have no eligible contract on live OPRA; any new expiry listed; the expressible count.
@@ -25,7 +26,8 @@ Expectations and the docket come from `records/STANDING_STATE.md` and the newest
 8. The week's reads from the nightly banners: slate composition, marker refresh, register-thesis tally by role,
    `at_inflection=false` share, watched names.
 9. Hosts: DEV + PROD uptime, reboot-required, failed units, ExecStart `-m orchestrator`, any `status=9/KILL` this
-   week, PROD's lag behind main.
+   week, PROD's lag behind main. If a journal can't be read (an error, or a permission hint), report that check as
+   UNREADABLE — never as 0.
 10. Write `records/<date>_sunday_w<NN>.md`; refresh `records/STANDING_STATE.md` (as_of, docket, board) if anything
     changed, and run `PYTHONPATH=. venv/bin/python scripts/ops/standing_state_issues.py` (#371) until it prints OK;
     commit, push, open ONE records PR (do not merge). Prepend one dated memory banner.
