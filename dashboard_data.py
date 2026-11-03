@@ -658,13 +658,15 @@ def regime_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
 def _real_multiples_by_origin(conn) -> dict[str, list[float]]:
     """Real-book closed realized multiples split by ORIGIN via a LEFT join (a hand-seed predates sentinels
     and may have NO proposal row / a null sentinel_id ⇒ 'hand_seed'; only a non-null sentinel_id ⇒ 'sentinel')."""
-    out: dict[str, list[float]] = {"hand_seed": [], "sentinel": []}
+    out: dict[str, list[float]] = {"hand_seed": [], "sentinel": [], "backfill": []}
     for r in conn.execute(
-        "SELECT p.total_premium AS tp, p.realized_pnl AS pnl, cp.sentinel_id AS sid "
+        "SELECT p.total_premium AS tp, p.realized_pnl AS pnl, cp.sentinel_id AS sid, p.rationale AS rat "
         "FROM convexity_positions p LEFT JOIN council_proposals cp ON p.proposal_id = cp.id "
         "WHERE p.status='closed' AND p.realized_pnl IS NOT NULL AND p.total_premium > 0"
     ):
-        origin = "sentinel" if r["sid"] is not None else "hand_seed"
+        # PREREG §5 amendment 2026-11-03: a ranked-backfill entry is its own origin, whatever its provenance.
+        origin = "backfill" if '"origin": "backfill"' in str(r["rat"] or "") else (
+            "sentinel" if r["sid"] is not None else "hand_seed")
         out[origin].append((float(r["tp"]) + float(r["pnl"])) / float(r["tp"]))
     return out
 
