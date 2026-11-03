@@ -99,6 +99,52 @@ non-overlapping holds per name — still far too thin to characterize a payoff *
 - **Mode-A path params:** `μ ∈ {0%, 10%, 25%}` annual drift, `σ_real ∈ {30%, 50%, 80%}`
   (spanning the high-beta thematic names), N paths per cell (config, default 5000, seeded).
 
+**Amendment 2026-11-03 — calibration v2: jumps, thesis state, salvage, rolls, verticals, 540 d
+(written BLIND, committed before any v2 code or number exists).** Motivation:
+`records/2026-11-03_literature_review.md` and the operator's "small losses, big wins" question. Every
+cell below answers a *structure* question; none is an edge claim, and none changes a live parameter. A
+cell that meets its rule earns only the right to **draft** a live amendment
+(`records/2026-11-03_profit_program_DRAFTS.md`), which still needs the operator's word.
+
+*Common settings (frozen here):* call, 25% OTM, 270 d, σ_entry = 1.0 × σ_real, σ_real = 50%, the live exit
+(10× profit-take backstop OR time-stop at 21 DTE, else expiry), round-trip cost 5% of premium, seed 7,
+5,000 paths per cell. Paths are run **paired** (same seed ⇒ the same price paths and the same falsifier
+draws across the cells being compared).
+
+1. **Path model axis: GBM vs Merton jumps.** Jumps: Poisson intensity λ = 2/yr, log-jump size N(0, 0.20),
+   the diffusion σ reduced so total variance still equals σ_real², drift compensated so E[S_T] = S₀e^{μT}.
+   The June finding was GBM-only and flagged that GBM flatters early exits. **Rule J:** re-run hold vs
+   live-10× vs delta@0.5 at μ = 10% under jumps. If delta@0.5 beats hold on mean M under jumps, the June
+   ranking is reopened (reported, no draft). Otherwise the ranking is confirmed. Note: BS-at-σ_real
+   under-prices a fat-tailed wing, so jump cells show a higher mean M mechanically. Compare cells *within*
+   a path model, never across.
+2. **Thesis-state paths + falsifier salvage.** Each path draws `right ~ Bernoulli(p)`; drift is
+   μ_right if right, μ_wrong = −10%/yr if wrong. A falsifier is read on day d_f and fires with
+   probability `a` when wrong and `1 − a` when right (false alarm). **Salvage** = the live exit plus
+   "sell at the mark on d_f if the falsifier fires". Grid: μ_right ∈ {40%, 80%}, d_f ∈ {90, 150} days,
+   a ∈ {0.7, 0.9}, both path models. Reported per state: E[M | right], E[M | wrong], p99 | right, and the
+   exact break-even `p* = (1 − E_w)/(E_r − E_w)` (the mean is linear in p). **Rule S:** salvage is a
+   drafting candidate iff, at the conservative corner (a = 0.7, d_f = 90), for **both** μ_right and
+   **both** path models: p*(salvage) < p*(hold) **and** E[M | right](salvage) ≥ 0.85 × hold's (false
+   alarms may not cost winners more than 15%).
+3. **House-money roll.** When the mark first reaches R × entry (R ∈ {3, 5}), close; bank 1.0 × entry
+   premium as cash; spend the rest (net of cost) on a new call 25% OTM from the current spot, same expiry;
+   that leg then runs the live exit (10× is measured on the *total*, banked + leg, against the original
+   entry). One roll per position. **Rule R:** a drafting candidate iff, under **both** path models at
+   μ = 10%: mean M ≥ 0.95 × live's **and** P(M ≥ 1) ≥ live's + 3 pp.
+4. **Wide call vertical** (for names over the per-name cap only). Long 25% OTM, short K₂ ∈ {+75%, +100%}
+   OTM; the short leg priced at σ_entry + s, s ∈ {0, +5 vol pts}. The live exit runs on the spread's value.
+   Reported: premium ratio (spread / naked), mean M, p99, P(M ≥ 1). **Rule V:** a drafting candidate iff,
+   under jumps at μ = 10% and s = 0, some K₂ gives premium ≤ 0.75 × naked **and** mean M ≥ 0.85 × naked's.
+5. **540-day tenor.** The live cell at 365 d and 540 d, both path models, μ ∈ {0%, 10%, 25%}. Reported:
+   mean M, p*, premium ratio (540 / 365) and premium per day. **Rule T:** a drafting candidate iff,
+   for **every** μ and both path models: mean M(540) ≥ mean M(365) **and** p*(540) ≤ p*(365).
+
+Outputs go to `data/calibration/<ts>/` and the finding is appended below this amendment with the date,
+the commit and the rule verdicts. Same caveats as §3: constant σ_entry through the life (no vol path), so
+an IV re-rating is not modelled. In particular a falsified thesis is sold at its *diffusion* mark; a real
+mark after bad news is probably lower, so salvage cells are an **upper bound** on salvage value.
+
 ## 5. Reported metrics (calibration, not a gate)
 
 Per grid cell, over its sample of option-return multiples (multiple = exit value / entry
