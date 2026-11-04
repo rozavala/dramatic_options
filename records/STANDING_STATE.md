@@ -8,6 +8,11 @@ Maintained by CC; updated on every ruling, clock change, staged-PR change, or pe
 The header's absence is itself a signal.
 
 ## Rulings in force
+- **Quote filter restatements, restate_v1 (adopted 2026-11-04, operator word "Adopt both the 15% floor and A+B+C at
+  the 11-12 boundary"; #421; PREREG_FORWARD_CATALYST_GROUNDING §13; IN FORCE FROM THE ~11-12 BOUNDARY, deployed with the
+  model refresh so the record breaks once):** council roles only. A: rendered signed 3-decimal figures pool their
+  percent form (−0.628 → 62.8). B: $B to 3 decimals. C: the bare year of a rendered date. D (rounding, bps) is not
+  adopted. Stamp `quote_filter = musd_billions_v1+iso_dates_v1+restate_v1` from the first L1 after deploy.
 - **Next-read persistence watch (2026-11-04, the two-week look; measurement only, adopted with its merge):** the
   nightly grade reports each real entry's strategist verdict at the same name's next read (persisted = still ≥ the
   floor, or for a backfill `include = true` at ≥ LOW). 0 of 2 measurable so far (HL #1816, FLNC #1918; TITN's backfill

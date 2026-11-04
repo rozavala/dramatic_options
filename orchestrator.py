@@ -217,7 +217,7 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
         # 2026-10-23 musd_billions_v1: $B restatements of a rendered $M figure no longer dampen. 2026-10-31 iso_dates_v1 (#403):
         # a council role citing a date it was shown (e.g. the filing date) no longer dampens; an unshown date flags once.
         # Both are verdict-mapping changes, record-segmenting.
-        mix["quote_filter"] = "musd_billions_v1+iso_dates_v1"
+        mix["quote_filter"] = "musd_billions_v1+iso_dates_v1+restate_v1"   # restate_v1: #421 (decimal→%, 3-dp $B, bare years), from the 11-12 boundary
         if int(config.get("council", {}).get("cheap_reserve_slots", 0) or 0) > 0:
             # PREREG gate_cheap_reserve §6: judged-set composition change — record-segmenting from deploy.
             mix["union_rank"] = "cheap_reserve_v1"
