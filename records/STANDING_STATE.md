@@ -1,8 +1,6 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-11-01T23:20Z · supersedes: 2026-10-30T04:30Z · **Sunday W44 review** (`records/2026-11-01_sunday_w44.md`): L0 #1887 at 13:00 UTC (DST) dormed the 8 09-20 lineages as docketed (AG/HL/PAAS leave the union), re-activated 6 (CCJ/ERO/FLNC/NEE/NNE/TGB), 2 new (FIG bear, CF bull) → active 35; KMT pin #19 re-pinned dates-only (August Comtrade still 0 rows); EPA + NRC FR docs unchanged; expressible 39 of 50; #341's Sunday wait passed on its first live check · the #403 ISO-date ruling (10-31) starts Mon 11-02 · **operator decisions 11-01**
-(`records/2026-11-01_operator_decisions.md`): model refresh moved to ~11-12, KMT pin retired at its 11-08 expiry, NRC
-2026-21801 reviewed and not pinned, PROD journal access DONE 2026-11-03 (`console` ∈ `systemd-journal`; 0 `status=9` since 10-25) · 2 open issues (#407, #408, filed 11-03). On top of the 10-30 header (PROD promoted to `a7548e8`, #392).**
+**as_of: 2026-11-04T22:40Z · supersedes: 2026-11-01T23:20Z · **the 11-04 two-week look** (`records/2026-11-04_council_two_week_look.md`): 9 sessions since §10.10, 3 above floor (HL, AG, FLNC); `at_inflection` 26/48 (§10.10) and 13/46 (§10.11) vs 4/176 before; both tripwires clear; **every entry so far reversed at its next read** → a measurement-only next-read persistence watch (pinned trigger: < half of the first 5 entries persist ⇒ operator look) · **the ranked backfill is LIVE** (#415, 11-03): first entry TITN · **the carry-over filled for the first time** (11-04: FLNC #6, TITN #7) · logging fix (#409), refusal reasons on fallbacks (#419), council-line fix (#420), scheduled reviews can read issues (#422) · 2 open issues (#416, #421, both needs-operator). On top of the 11-01 header (Sunday W44 + the operator's 11-01 decisions).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -10,6 +8,11 @@ Maintained by CC; updated on every ruling, clock change, staged-PR change, or pe
 The header's absence is itself a signal.
 
 ## Rulings in force
+- **Next-read persistence watch (2026-11-04, the two-week look; measurement only, adopted with its merge):** the
+  nightly grade reports each real entry's strategist verdict at the same name's next read (persisted = still ≥ the
+  floor, or for a backfill `include = true` at ≥ LOW). 0 of 2 measurable so far (HL #1816, FLNC #1918; TITN's backfill
+  also reversed). **Pinned trigger:** fewer than half of the first 5 real entries persist ⇒ a dated operator look at a
+  confirmation-read rule (which must settle whether a carry waits for the next L1). No rule changes.
 - **Ranked backfill ENABLED (2026-11-03, operator word; `records/2026-11-03_backfill_enabling.md`; in force from the
   first L1 after the enabling PR deploys):** `convexity_book.backfill.enabled = true` with the PREREG §5 amendment
   2026-11-03 values. When the book has held ≤ 5 committed slots for 28 days (true now), the L1 sends the top 3
@@ -146,8 +149,8 @@ The header's absence is itself a signal.
 - **Profit program (operator word 2026-11-03; `records/2026-11-03_profit_program_DRAFTS.md`; merged as
   rozavala/dramatic_options#411, DEV deploy green 11-03; D3 step 2 follows on the same branch):** D0 execution ledger, D4 IV history (+ nightly `iv_term_snapshot`),
   D3b falsifier ledger (five CC-encoded specs for the operator to confirm) are telemetry; **D1 ranked backfill is
-  built and inert** until a dated edit adds `convexity_book.backfill.enabled = true` (PREREG_THEMATIC_CONVEXITY §5
-  amendment 2026-11-03; that edit is the `frame_version` boundary); **D3 over-cap verticals built and inert**
+  LIVE since 2026-11-03** (#415, operator word; frame `f86f37a0bd4f`; first entry TITN #7, filled 11-04 via carry;
+  weekly quota frees ~11-10); **D3 over-cap verticals built and inert**
   (PREREG §5 amendment 2026-11-03b; migration 0021) until the switch-on checklist in the drafts record (paper
   multi-leg smoke round-trip first) and a dated `convexity_gate.vertical_for_over_cap.enabled = true` edit. Calibration v2 (blind, 2026-11-03): J confirmed, S/R/T not candidates,
   V candidate (`records/2026-11-03_calibration_v2_finding.md`).
@@ -186,8 +189,8 @@ The header's absence is itself a signal.
 - **~2026-11-12 (moved from 11-05 by the operator, 11-01):** the planned model refresh, all roles at once, one dated
   segment, after §10.11 has ~10 sessions; plumbing in
   #331 (`council.anthropic` knobs, refusal routing, unpriced-model guard). Gemini/xAI prices to verify at the switch.
-- **2026-11-04:** formerly the F4 date (session 30) — the review was held early on 10-23; a dated look at the
-  §10.10 segment's first two weeks instead.
+- **2026-11-04: DONE**, the two-week look (`records/2026-11-04_council_two_week_look.md`); next read of its
+  persistence watch at the 5th real entry.
 - **Sun 2026-11-08:** the 09-27 five (ATKR, CDE, FLY, FRO, STUB) go dormant unless re-surfaced; **KMT pin #19 expires and is
   NOT re-pinned** (retired, 11-01 decision).
 - **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
@@ -199,8 +202,8 @@ The header's absence is itself a signal.
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
 
 ## Board & book
-- Box: DEV = main `1062d07` (up since 2026-10-17); **PROD = `a7548e8` (#392, promoted 2026-10-30 04:21 UTC; 6 PRs behind
-  main on 11-01: #395/#399/#400/#401/#404/#405)**, inert: timers disabled, `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`
+- Box: DEV = main (11-04: `482cdd8` + this batch; up since 2026-10-17); **PROD = `a7548e8` (#392, promoted 2026-10-30
+  04:21 UTC; 16+ merges behind main on 11-04, incl. the profit program #411–#415)**, inert: timers disabled, `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`
   (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
   (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD. PROD's journal is readable by the review user from 2026-11-03 (`systemd-journal`). PROD's first #392 deploy failed at `git fetch` (a stale `origin/claude` tracking ref blocked `claude/*` branches); pruned with the operator's go, deploy re-run green.
 - Apps:
@@ -211,12 +214,12 @@ The header's absence is itself a signal.
     cached read (verdict, heartbeats, KILL, drawdown vs halt, book, last council, T4 — under 5 KB, no positions).
 - Universe 50 names · 16 clusters (book fills at most 5). Expressible 39 of 50 (11-01; no structure AMSC/ATKR/CC/
   HBM/IRDM/NNE/PL/STUB/TGB/UROY/UUUU — FRO structured at 5.4% OTM). Active sentinel lineages 35 (11-01).
-- Book: real 1 (PL, $690, unrealized ≈ −$686 on 10-30). Null books accruing (shadow · 3A · 3B · shares). **Last
-  above-floor conviction: run #1867, 2026-10-29 (AG MODERATE)** — real order #3, 6× `AG270617C00020000` LIMIT 1.48
-  ($888), cancelled unfilled at the 16:00 L2; before it #1816 (2026-10-26, HL, order #2 cancelled unfilled) and #508
-  (2026-07-10).
-- Open issues: 2 (2026-11-03): #407 (logging: only the orchestrator/council loggers have a handler — monitor/carry/
-  broker/paper_loop INFO dropped; lane:profit) and #408 (edgar_index caches a quarter's full-index fetched before the
-  quarter closed; lane:sweep), both filed 11-03. The 10-27 dashboard batch #351–#355/#357 shipped (#359–#365, #364); #370 closed by
-  #393. Open PRs: none besides the W44 records PR (#382 superseded by #401, merged).
+- Book: real 3 open, $2,470 (11-04): PL ($690, mark 0.035), FLNC #6 10× `FLNC270521P00005000` @ 1.00 ($1,000, filled
+  11-04 via carry from #1918), TITN #7 3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry);
+  unrealized ≈ −$750, drawdown 8%. Null books accruing (shadow · 3A · 3B · shares; CF booked 11-04). **Last above-floor
+  conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816 (HL), both cancelled unfilled.
+- Open issues: 2 (2026-11-04): #416 (structure selector's nearest-eligible fallback admitted TITN at 7% OTM; re-opens
+  #276 option 2 as a moneyness floor; lane:protocol, needs-operator) and #421 (the authenticity filter still dampens
+  faithful restatements of rendered figures; lane:protocol, needs-operator). Fixed and closed 11-03/04: #407/#408
+  (#409/#410), #417/#418 (#419/#420), #422 (scheduled reviews can read issues).
 - NVDA opra canary at or above 1.0 for 13 prints (10-30 1.0824) after eight below (low 0.9818).
