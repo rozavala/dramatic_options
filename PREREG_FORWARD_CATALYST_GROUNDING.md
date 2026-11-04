@@ -381,15 +381,23 @@ faithful restatement of a figure the agent was shown, not an invented one. FRO's
 on L1 #1935 over the bare year of its rendered `period 2025-12-31`.
 
 **The change (council roles only; the discovery framer's scan is unchanged):**
-- **A:** each rendered signed 3-decimal figure (the marker lines, the unitless fundamentals values) also pools its
-  percent restatement at one decimal (`−0.628` → `62.8`).
+- **A:** each rendered marker value (lines shaped `{label} {v:+.3f}`) and each unitless fundamentals value also pools
+  its percent restatement at one decimal (`−0.628` → `62.8`). News headlines contribute nothing, even a signed
+  3-decimal figure.
 - **B:** a rendered `$M` figure ≥ $1,000M also pools its `$B` form to 3 decimals (extending #336).
-- **C:** the bare 4-digit year of a date rendered in the agent's prompt block is accepted.
+- **C:** the bare 4-digit year of a date rendered in the agent's prompt block is accepted, including the prose form
+  "In 2025, …" (a trailing comma is ignored; "2,025" stays a count).
 
-**What does not change.** The §3 rule holds: the figure pool still carries **no date digits**. Month and day digits never
-become citable, and a year not rendered still flags. Option D (rounding tolerance, bps/ratio rescaling) is not adopted.
+**What does not change.** The §3 rule holds for the fundamentals and catalyst pools: they carry **no date digits**, and
+month and day digits never become citable. A year not rendered still flags. Option D (rounding tolerance, bps/ratio
+rescaling) is not adopted. (Pre-existing, not this amendment's doing: with `marker_refresh = both` the marker lines
+`markers_computed <date>` / `… at_surfacing <date>` sit in the headline evidence, so their year was already
+substring-citable on live sentinel packs; C's marginal effect is other rendered years, such as 2025 periods.)
 
-**Trade-off, stated.** Under C, a fabricated count that happens to equal a rendered year (e.g. "2026 units") passes.
+**Trade-offs, stated.** Under C, a fabricated count that happens to equal a rendered year (e.g. "2026 units") passes.
+Under A, because the scan matches digits as substrings, a pooled `62.8` also admits its tail `2.8`. Measured on a
+live-shaped sentinel pack (the #426 review): A adds ~13 tokens; 1-decimal figures 0.1–9.9 that pass by coincidence rise
+from 13% to 20%, and 10.0–99.9 from 0.4% to 1.4%. Single digits and a third of two-digit integers already passed before.
 
 **Record segmentation.** `runs.model_mix.quote_filter = "musd_billions_v1+iso_dates_v1+restate_v1"` from the first L1 after
 deploy, planned on the ~11-12 model-refresh boundary, so the record breaks once.

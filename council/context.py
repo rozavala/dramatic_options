@@ -240,15 +240,18 @@ _FIGURE = re.compile(r"\d[\d,]*(?:\.\d+)?")
 
 
 _SIGNED_3DP = re.compile(r"[+-]\d+\.\d{3}(?!\d)")
+_MARKER_LINE = re.compile(r"^[a-z][a-z0-9_]* ([+-]\d+\.\d{3})(?!\d)")   # ``{label} {v:+.3f}`` (``_marker_evidence``)
 
 
 def restated_percent_tokens(pack) -> list[str]:
-    """restate_v1 (#421, operator word 2026-11-04): the percent restatement of every rendered signed 3-decimal figure
-    (the marker lines, ``{label} {v:+.3f}``, and the unitless fundamentals values) — an agent writing ``62.8%`` for a
-    rendered ``-0.628`` is quoting the evidence. Keyed on that rendered shape, so a news headline's numbers add nothing."""
-    texts = [*(getattr(pack, "headlines", None) or []), *(v for ln in (getattr(pack, "fundamentals", None) or [])
-                                                          if (v := _fmt_value(ln)) is not None)]
-    return [f"{abs(float(m)) * 100:.1f}" for t in texts for m in _SIGNED_3DP.findall(t)]
+    """restate_v1 (#421, operator word 2026-11-04): the percent restatement of every rendered marker value (lines shaped
+    ``{label} {v:+.3f}``) and every unitless fundamentals value (``_fmt_value``'s ``{v:+.3f}``) — an agent writing
+    ``62.8%`` for a rendered ``-0.628`` is quoting the evidence. Only those two rendered shapes count: a news headline's
+    numbers add nothing, even a signed 3-decimal one."""
+    vals = [m.group(1) for h in (getattr(pack, "headlines", None) or []) if (m := _MARKER_LINE.match(h))]
+    vals += [m for ln in (getattr(pack, "fundamentals", None) or []) if (v := _fmt_value(ln)) is not None
+             for m in _SIGNED_3DP.findall(v)]
+    return [f"{abs(float(x)) * 100:.1f}" for x in vals]
 
 
 def catalyst_cite_tokens(items: list[dict]) -> list[str]:

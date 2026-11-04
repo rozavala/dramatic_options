@@ -42,6 +42,10 @@ def test_only_signed_three_decimal_figures_are_restated():
     assert conf == "LOW"
 
 
+def test_a_news_headline_with_a_signed_three_decimal_figure_adds_nothing():
+    assert restated_percent_tokens(_pack(["EPS came in at -0.125 vs est -0.110"])) == []      # not the marker shape
+
+
 def test_an_unrendered_percent_still_flags():
     conf, res = _council(["momentum of -55.0%"], _pack(MARKERS))
     assert conf == "LOW" and res.details == ["unsupported figure: 55.0"]
@@ -66,6 +70,8 @@ def test_the_bare_year_of_a_rendered_date_passes_and_another_year_flags():
           "base_musd": 2162.5, "period_end": "2025-12-31", "filed": "2026-03-27"}
     pack = _pack(MARKERS, [ln])
     assert _council(["the 2025 annual period shows revenue -8.8%"], pack)[1].flagged == 0
+    assert _council(["In 2025, revenue fell -8.8%"], pack)[1].flagged == 0              # the comma form (review)
+    assert _council(["2,025 vessels"], pack)[0] == "LOW"                                # a count is not a year
     conf, res = _council(["the 2023 annual period"], pack)
     assert conf == "LOW" and res.details == ["unsupported figure: 2023"]
 

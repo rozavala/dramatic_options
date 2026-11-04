@@ -64,7 +64,7 @@ def authenticity_scan(texts: list[str], evidence: str, *, dates: Collection[str]
             body = _ISO_DATE.sub(" ", t)
         years = {d[:4] for d in dates} if dates is not None else set()
         for n in _NUM.findall(body):
-            if n in years:
+            if n.rstrip(",") in years:   # "In 2025, …": _NUM keeps the trailing comma; "2,025" stays a count
                 continue   # restate_v1 (#421): the bare year of a date the agent was shown ("the 2025 annual period")
             if _digits(n) not in ev_compact:
                 flagged += 1
