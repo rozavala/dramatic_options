@@ -27,8 +27,8 @@ def test_both_jobs_deny_merges_and_issue_writes():
                 "systemctl restart", "-m orchestrator"):
         assert pat in base, pat
     # #422: every issue WRITE verb is denied, and the read verbs are not (a bare "gh issue:*" blocked view/list)
-    for verb in ("create", "comment", "close", "edit", "reopen", "delete", "transfer", "lock", "unlock", "pin",
-                 "unpin", "develop"):
+    for verb in ("create", "new", "comment", "close", "edit", "reopen", "delete", "transfer", "lock", "unlock", "pin",
+                 "unpin", "develop", "-R", "--repo"):       # new = create's alias; -R/--repo can precede the verb
         assert f'"Bash(gh issue {verb}:*)"' in base, verb
     assert '"Bash(gh issue:*)"' not in base
     for verb in ("view", "list", "status"):

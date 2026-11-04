@@ -83,9 +83,11 @@ PROMPT_FILE="$RUNNER_DIR/scripts/ops/prompts/$([ "$JOB" = grade ] && echo nightl
 PROMPT=$(cat "$PROMPT_FILE")
 
 # Issue WRITES are denied verb by verb (#422): a bare "gh issue:*" also blocked `gh issue view` / `list`, so the grader
-# could not read the issues its own STANDING_STATE drift check reports.
+# could not read the issues its own STANDING_STATE drift check reports. `new` is create's alias; `-R`/`--repo` may sit
+# before the verb, so those prefixes stay denied (a read passes -R after the verb).
 DENY=("Bash(gh pr merge:*)" "Bash(gh pr close:*)" "Bash(gh pr review:*)" "Bash(gh pr edit:*)"
-      "Bash(gh issue create:*)" "Bash(gh issue comment:*)" "Bash(gh issue close:*)" "Bash(gh issue edit:*)"
+      "Bash(gh issue create:*)" "Bash(gh issue new:*)" "Bash(gh issue -R:*)" "Bash(gh issue --repo:*)"
+      "Bash(gh issue comment:*)" "Bash(gh issue close:*)" "Bash(gh issue edit:*)"
       "Bash(gh issue reopen:*)" "Bash(gh issue delete:*)" "Bash(gh issue transfer:*)" "Bash(gh issue lock:*)"
       "Bash(gh issue unlock:*)" "Bash(gh issue pin:*)" "Bash(gh issue unpin:*)" "Bash(gh issue develop:*)"
       "Bash(gh api -X:*)" "Bash(gh api --method:*)" "Bash(gh api graphql:*)"
