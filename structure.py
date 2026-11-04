@@ -192,7 +192,8 @@ def select_structure(
         return con.strike > underlying_price if kind == "C" else con.strike < underlying_price
 
     nearer = sorted((t for t in refused if rank(t[0], t[1]) <= chosen and (not require_otm_side or otm_side(t[0]))
-                     and _otm_by(t[0], kind, underlying_price) >= min_otm_moneyness - SPREAD_LIMIT_EPS),
+                     and (min_otm_moneyness <= 0
+                          or _otm_by(t[0], kind, underlying_price) >= min_otm_moneyness - SPREAD_LIMIT_EPS)),
                     key=lambda t: rank(t[0], t[1]))[:3]
     return Structure(direction, kind, c, dte, moneyness, m, m,
                      refused_nearer=tuple((r[0].symbol, r[2]) for r in nearer)), ()

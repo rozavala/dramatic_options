@@ -132,7 +132,8 @@ for sym in _symbols():
                                   tenor_max_days=int(gate["tenor_max_days"]),
                                   target_moneyness=float(gate["target_moneyness"]), eligibility=_elig,
                                   # #343: select as the gate of record does (convexity_gate.otm_side_guard, #276)
-                                  require_otm_side=bool(gate.get("otm_side_guard", False)))
+                                  require_otm_side=bool(gate.get("otm_side_guard", False)),
+                                  min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0))
         floors = []
         if spot < PRICE_FLOOR:
             floors.append("price")

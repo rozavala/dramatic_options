@@ -134,8 +134,13 @@ among admitted contracts stays nearest-to-target.
   scope: the survivor cards (their admission band already requires an achieved 15–35%) and the weekly sweeps
   (PREREG_MISS_BASERATE and the basket gate base-rate; their frozen definitions change only by their own dated note).
 - **Boundary:** `frame-f86f37a0bd4f` → `frame-880e893e1660` from the first L1 after deploy. Positions already open
-  are retained in their own frame segment (none on the real book is below 15%; the null books' pre-09-30 near-money
+  are retained in their own frame segment (none on the real book is below 15%; the null books' 8 near-money
   positions are untouched, and the six #276 wrong-side positions keep their outside-frame tag).
+- **Consequence for the slate, stated:** the gate-of-record reads apply the floor too. On L1 #1935 (11-04), 5–7 of
+  38 structured names' gate-of-record wings were below 15% OTM, all of them cheap (FIG, KLAR, LHX, NOC, NTSK; LUNR
+  and VRT on the day's closes). Each either re-selects a farther eligible strike or becomes unexpressible, which
+  demotes it in the council slate and removes it from the cheap reserve. The two weekly sweeps keep their frozen
+  definitions until their own dated notes (#427).
 - **Unchanged:** `target_moneyness`, the tenor window, eligibility thresholds, the IV gate, sizing, the caps, the
   carry-over and the backfill rules.
 

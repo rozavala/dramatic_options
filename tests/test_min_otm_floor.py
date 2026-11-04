@@ -86,3 +86,18 @@ def test_the_floor_is_on_in_config_and_moves_the_frame():
     assert cfg["convexity_gate"]["min_otm_moneyness"] == 0.15                        # operator word 2026-11-04
     off = {**cfg, "convexity_gate": {k: v for k, v in cfg["convexity_gate"].items() if k != "min_otm_moneyness"}}
     assert frame_version(cfg) != frame_version(off)
+
+
+@pytest.mark.parametrize("script", ["scripts/probe_basket_feasibility.py", "scripts/probe_vertical_feasibility.py"])
+def test_the_admission_probes_select_as_the_gate_of_record_does(script):
+    # #343 class: a probe that reports a structure the live path refuses would overstate "expressible"
+    src = (ROOT / script).read_text()
+    assert src.count("min_otm_moneyness=") == len(re.findall(r"select_structure\(", src))
+
+
+def test_a_zero_floor_leaves_refused_nearer_as_before_even_unguarded():
+    chain = [_c("C", 99.0, bid=1.0, ask=2.0), _c("C", 160.0)]   # ITM C99 (26 from target 125) beats C160 (35), guard off
+    kw = dict(direction="bullish", as_of=AS_OF, underlying_price=100.0, tenor_min_days=180, tenor_max_days=365,
+              target_moneyness=0.25, eligibility=_elig, require_otm_side=False)
+    s, _ = select_structure(chain, **kw)
+    assert s.contract.symbol == "XC160.0" and [sym for sym, _ in s.refused_nearer] == ["XC99.0"]   # as before #416
