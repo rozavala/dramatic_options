@@ -23,9 +23,16 @@ def test_script_parses_and_is_executable():
 def test_both_jobs_deny_merges_and_issue_writes():
     text = SCRIPT.read_text()
     base = text[text.index("DENY=("):text.index("if [ \"$JOB\" = grade ]")]
-    for pat in ("gh pr merge", "gh pr close", "gh issue", "gh api -X", "git push --force", "sudo",
+    for pat in ("gh pr merge", "gh pr close", "gh api -X", "git push --force", "sudo",
                 "systemctl restart", "-m orchestrator"):
         assert pat in base, pat
+    # #422: every issue WRITE verb is denied, and the read verbs are not (a bare "gh issue:*" blocked view/list)
+    for verb in ("create", "comment", "close", "edit", "reopen", "delete", "transfer", "lock", "unlock", "pin",
+                 "unpin", "develop"):
+        assert f'"Bash(gh issue {verb}:*)"' in base, verb
+    assert '"Bash(gh issue:*)"' not in base
+    for verb in ("view", "list", "status"):
+        assert f"gh issue {verb}" not in base, verb
 
 
 def test_grade_is_read_only():

@@ -82,8 +82,13 @@ RAW="$STATE_DIR/${DATE}-${JOB}.json"
 PROMPT_FILE="$RUNNER_DIR/scripts/ops/prompts/$([ "$JOB" = grade ] && echo nightly_grade || echo sunday_review).md"
 PROMPT=$(cat "$PROMPT_FILE")
 
+# Issue WRITES are denied verb by verb (#422): a bare "gh issue:*" also blocked `gh issue view` / `list`, so the grader
+# could not read the issues its own STANDING_STATE drift check reports.
 DENY=("Bash(gh pr merge:*)" "Bash(gh pr close:*)" "Bash(gh pr review:*)" "Bash(gh pr edit:*)"
-      "Bash(gh issue:*)" "Bash(gh api -X:*)" "Bash(gh api --method:*)" "Bash(gh api graphql:*)"
+      "Bash(gh issue create:*)" "Bash(gh issue comment:*)" "Bash(gh issue close:*)" "Bash(gh issue edit:*)"
+      "Bash(gh issue reopen:*)" "Bash(gh issue delete:*)" "Bash(gh issue transfer:*)" "Bash(gh issue lock:*)"
+      "Bash(gh issue unlock:*)" "Bash(gh issue pin:*)" "Bash(gh issue unpin:*)" "Bash(gh issue develop:*)"
+      "Bash(gh api -X:*)" "Bash(gh api --method:*)" "Bash(gh api graphql:*)"
       "Bash(gh release:*)" "Bash(gh secret:*)" "Bash(gh workflow:*)" "Bash(git push --force:*)"
       "Bash(git push -f:*)" "Bash(systemctl start:*)" "Bash(systemctl restart:*)" "Bash(systemctl stop:*)"
       "Bash(sudo:*)" "Bash(python orchestrator.py:*)" "Bash(venv/bin/python -m orchestrator:*)")
