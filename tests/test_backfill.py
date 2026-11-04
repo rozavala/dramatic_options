@@ -180,3 +180,26 @@ def test_stop_rule_waits_for_enough_aged_entries(convexity_db):
         _pos(convexity_db, f"BF{i}", NOW - timedelta(days=120), origin="backfill", mark=0.0)
     suspended, why = backfill.stop_status(convexity_db, cfg, now=NOW)
     assert suspended is False and "7 of 8" in why
+
+
+# ── #418: the council summary line counts a backfill pick once, not as both dropped and to-gates ──────────────
+
+def _council_line(caplog):
+    return next(r.getMessage() for r in caplog.records if r.getMessage().startswith("Council: "))
+
+
+def test_the_council_line_adds_up_on_a_backfill_night(convexity_db, monkeypatch, caplog):
+    import re
+    _no_kill(monkeypatch)
+    with caplog.at_level("INFO", logger="council.wiring"):
+        _l1(convexity_db, _cfg(), ["FCX", "SYM01", "SYM02", "SYM03"])
+    line = _council_line(caplog)
+    n, gates, dropped = map(int, re.match(r"Council: (\d+) proposal\(s\) → (\d+) to gates, (\d+) dropped", line).groups())
+    assert (n, gates, dropped) == (4, 3, 1) and gates + dropped == n and "backfilled=2" in line
+
+
+def test_the_council_line_is_unchanged_without_a_backfill(convexity_db, monkeypatch, caplog):
+    _no_kill(monkeypatch)
+    with caplog.at_level("INFO", logger="council.wiring"):
+        _l1(convexity_db, _cfg(on=False), ["FCX", "SYM01"])
+    assert "backfilled" not in _council_line(caplog) and ", 2 dropped (" in _council_line(caplog)
