@@ -44,9 +44,11 @@ def test_an_unrendered_date_flags_once_not_three_fragments():
 
 
 def test_a_fabricated_bare_number_still_flags_the_pool_gains_no_date_digits():
-    # "2026", "06", "30" exist in the pack only inside the rendered date — they must not become citable figures.
+    # "06" and "30" exist in the pack only inside the rendered date: they never become citable figures. Since
+    # restate_v1 (#421, option C) the bare YEAR of a rendered date is accepted, so "2026" passes here even as a count:
+    # the trade-off the operator adopted (2026-11-04); a year not rendered still flags (test_filter_restate.py).
     conf, res = _council(["management guided 2026 units and 30 reactors"])
-    assert conf == "LOW" and res.details == ["unsupported figure: 2026", "unsupported figure: 30"]
+    assert conf == "LOW" and res.details == ["unsupported figure: 30"]
 
 
 def test_rendered_dates_are_what_the_prompt_block_shows():
@@ -94,7 +96,7 @@ def test_all_three_council_roles_accept_the_dates_they_were_shown():
 
 
 def test_the_run_stamp_names_the_filter_version():
-    assert 'mix["quote_filter"] = "musd_billions_v1+iso_dates_v1"' in inspect.getsource(orchestrator)
+    assert 'mix["quote_filter"] = "musd_billions_v1+iso_dates_v1+restate_v1"' in inspect.getsource(orchestrator)
 
 
 def test_a_date_embedded_in_a_longer_digit_run_is_a_figure_not_a_date():

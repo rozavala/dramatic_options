@@ -373,3 +373,23 @@ become citable figures and a fabricated bare number still flags. This channel's 
 **Record segmentation.** `runs.model_mix.quote_filter = "musd_billions_v1+iso_dates_v1"` from the first L1 after deploy
 (final convictions can change; raw ones cannot). The §10.11 read uses raw and final convictions so the two
 changes stay separable.
+
+## §13 Amendment (2026-11-04, operator word "Adopt both the 15% floor and A+B+C at the 11-12 boundary", #421; in force from the 11-12 boundary) — restatements of rendered figures
+
+**Why.** After §12, every flag the council's authenticity filter stored (11 outputs on L1 #1901, #1918 and #1935) was a
+faithful restatement of a figure the agent was shown, not an invented one. FRO's proposer was dropped from deliberation
+on L1 #1935 over the bare year of its rendered `period 2025-12-31`.
+
+**The change (council roles only; the discovery framer's scan is unchanged):**
+- **A:** each rendered signed 3-decimal figure (the marker lines, the unitless fundamentals values) also pools its
+  percent restatement at one decimal (`−0.628` → `62.8`).
+- **B:** a rendered `$M` figure ≥ $1,000M also pools its `$B` form to 3 decimals (extending #336).
+- **C:** the bare 4-digit year of a date rendered in the agent's prompt block is accepted.
+
+**What does not change.** The §3 rule holds: the figure pool still carries **no date digits**. Month and day digits never
+become citable, and a year not rendered still flags. Option D (rounding tolerance, bps/ratio rescaling) is not adopted.
+
+**Trade-off, stated.** Under C, a fabricated count that happens to equal a rendered year (e.g. "2026 units") passes.
+
+**Record segmentation.** `runs.model_mix.quote_filter = "musd_billions_v1+iso_dates_v1+restate_v1"` from the first L1 after
+deploy, planned on the ~11-12 model-refresh boundary, so the record breaks once.

@@ -62,7 +62,10 @@ def authenticity_scan(texts: list[str], evidence: str, *, dates: Collection[str]
                     flagged += 1
                     details.append(f"unsupported date: {d}")
             body = _ISO_DATE.sub(" ", t)
+        years = {d[:4] for d in dates} if dates is not None else set()
         for n in _NUM.findall(body):
+            if n in years:
+                continue   # restate_v1 (#421): the bare year of a date the agent was shown ("the 2025 annual period")
             if _digits(n) not in ev_compact:
                 flagged += 1
                 details.append(f"unsupported figure: {n}")
@@ -98,10 +101,15 @@ def rendered_dates(pack) -> frozenset[str]:
 def apply_filter(texts: list[str], pack, *, confidence: str,
                  accept_rendered_dates: bool = False) -> tuple[str, FilterResult]:
     """Returns (possibly-dampened confidence, FilterResult). Ungrounded pack → NEUTRAL backstop.
-    ``accept_rendered_dates`` (#403): the council's three roles pass True — see ``authenticity_scan``."""
+    ``accept_rendered_dates`` (#403): the council's three roles pass True — see ``authenticity_scan``. The council path
+    also pools ``restate_v1``'s percent restatements (#421); the discovery framer's scan stays as before (its runs
+    carry no quote-filter stamp)."""
     if not pack.grounded:
         return "NEUTRAL", FilterResult(0, ["ungrounded — early exit"])
-    res = authenticity_scan(texts, evidence_text(pack),
-                            dates=rendered_dates(pack) if accept_rendered_dates else None)
+    evidence = evidence_text(pack)
+    if accept_rendered_dates:
+        from council.context import restated_percent_tokens
+        evidence = " ".join([evidence, *restated_percent_tokens(pack)])
+    res = authenticity_scan(texts, evidence, dates=rendered_dates(pack) if accept_rendered_dates else None)
     conf = dampen(confidence) if res.flagged > 0 else str(confidence or "").strip().upper()
     return conf, res

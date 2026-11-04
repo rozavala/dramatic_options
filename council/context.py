@@ -228,7 +228,7 @@ def fundamental_evidence_tokens(pack) -> list[str]:
             if x is not None:
                 toks.append(str(x))
                 if ln.get("concept") != "gross_margin" and abs(x) >= 1000:
-                    toks += [f"{x / 1000:.1f}", f"{x / 1000:.2f}"]
+                    toks += [f"{x / 1000:.1f}", f"{x / 1000:.2f}", f"{x / 1000:.3f}"]   # .3f: restate_v1 (#421)
     ac = getattr(pack, "analyst_count", None)
     if ac is not None:
         toks.append(str(ac))
@@ -237,6 +237,18 @@ def fundamental_evidence_tokens(pack) -> list[str]:
 
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _FIGURE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+_SIGNED_3DP = re.compile(r"[+-]\d+\.\d{3}(?!\d)")
+
+
+def restated_percent_tokens(pack) -> list[str]:
+    """restate_v1 (#421, operator word 2026-11-04): the percent restatement of every rendered signed 3-decimal figure
+    (the marker lines, ``{label} {v:+.3f}``, and the unitless fundamentals values) — an agent writing ``62.8%`` for a
+    rendered ``-0.628`` is quoting the evidence. Keyed on that rendered shape, so a news headline's numbers add nothing."""
+    texts = [*(getattr(pack, "headlines", None) or []), *(v for ln in (getattr(pack, "fundamentals", None) or [])
+                                                          if (v := _fmt_value(ln)) is not None)]
+    return [f"{abs(float(m)) * 100:.1f}" for t in texts for m in _SIGNED_3DP.findall(t)]
 
 
 def catalyst_cite_tokens(items: list[dict]) -> list[str]:
