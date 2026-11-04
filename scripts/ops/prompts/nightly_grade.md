@@ -30,6 +30,9 @@ that differs from the newest banner is a FINDING unless STANDING_STATE records a
    `under_narrated` / `at_inflection` flags; classify rejections (timing / narration / contradicting fundamentals);
    count `at_inflection=false` of deliberated. Report any name the newest banner or STANDING_STATE asks to watch
    (new admissions' first council reads, repeated reads).
+   Next-read persistence (STANDING_STATE watch, 2026-11-04): for every real-book entry whose name was read again
+   tonight for the first time since entry, report persisted / reversed (persisted = still at or above the floor; a
+   backfill entry: still `include = true` at ≥ LOW) and the running count against the pinned trigger.
    Running tallies (continue the newest banner's counts, by ROLE): register-thesis consensus-leak, falsifier misuse,
    misattributed claims (check `flagged_unsupported`), productive uses; marker-refresh reads (fresh-as-current /
    at_surfacing misread / since-surfacing contrast; quote any verdict flip). Driver scope (criterion 3, STANDING_STATE):
