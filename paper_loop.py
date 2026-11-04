@@ -361,6 +361,12 @@ def _process_theme(
             proposal_id=theme.proposal_id, reasons=list(sreasons),
         )
         return
+    # #417: when a contract nearer the target strike was refused, say why on every row this evaluation writes.
+    selection = ({"refused_nearer": [{"contract": sym, "reasons": list(why)} for sym, why in structure.refused_nearer]}
+                 if structure.refused_nearer else None)
+    if selection:
+        log.info("Strike fallback %s: chose %s; nearer refused %s", theme.symbol, structure.contract.symbol,
+                 "; ".join(f"{sym} ({', '.join(why)})" for sym, why in structure.refused_nearer))
 
     # 2. The IV / cheap-convexity gate (the hard veto).
     verdict = is_cheap_convexity(
@@ -405,7 +411,7 @@ def _process_theme(
             conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
             direction=theme.direction, eligible=True, gate_cheap=False,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
-            decision="veto-iv-gate", proposal_id=theme.proposal_id, reasons=list(verdict.reasons),
+            decision="veto-iv-gate", proposal_id=theme.proposal_id, reasons=list(verdict.reasons), selection=selection,
         )
         return
 
@@ -421,7 +427,7 @@ def _process_theme(
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-dualread-disagree", proposal_id=theme.proposal_id,
-            reasons=[f"OPRA cheap but INDICATIVE shadow disagrees: {shadow_row}"],
+            reasons=[f"OPRA cheap but INDICATIVE shadow disagrees: {shadow_row}"], selection=selection,
         )
         return
 
@@ -441,7 +447,7 @@ def _process_theme(
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-vertical", proposal_id=theme.proposal_id,
-            reasons=[f"naked contract over the per-name cap and no vertical: {vwhy}"],
+            reasons=[f"naked contract over the per-name cap and no vertical: {vwhy}"], selection=selection,
         )
         return
 
@@ -470,7 +476,7 @@ def _process_theme(
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-cluster-cap", proposal_id=theme.proposal_id,
             reasons=[f"cluster {cluster!r} budget ${cluster_remaining:.0f} < one contract ${premium_per_contract:.0f}"],
-            cluster_state=cluster_state,
+            cluster_state=cluster_state, selection=selection,
         )
         return
 
@@ -493,7 +499,7 @@ def _process_theme(
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-sizing", proposal_id=theme.proposal_id, reasons=list(sizing.reasons),
-            cluster_state=cluster_state,
+            cluster_state=cluster_state, selection=selection,
         )
         return
 
@@ -520,7 +526,7 @@ def _process_theme(
                 direction=theme.direction, eligible=True, gate_cheap=True,
                 iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
                 decision="veto-foreign-quantity", proposal_id=theme.proposal_id,
-                reasons=[f"{structure.contract.symbol}: {why} (shared account, fail-closed)"],
+                reasons=[f"{structure.contract.symbol}: {why} (shared account, fail-closed)"], selection=selection,
             )
             log.error("foreign-quantity veto %s: %s", structure.contract.symbol, why)
             try:
@@ -555,7 +561,7 @@ def _process_theme(
             conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
-            decision="veto-fill", proposal_id=theme.proposal_id, reasons=[fill.note],
+            decision="veto-fill", proposal_id=theme.proposal_id, reasons=[fill.note], selection=selection,
         )
         if vert is not None:   # a refused multi-leg open (e.g. the account's options level) must not be silent
             try:
@@ -615,7 +621,7 @@ def _process_theme(
         direction=theme.direction, eligible=True, gate_cheap=True,
         iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
         decision=(("carry-" if walk is not None else "") + ("submit-pending" if pending else "open")), position_id=pos_id,
-        proposal_id=theme.proposal_id, reasons=list(verdict.reasons), cluster_state=cluster_state,
+        proposal_id=theme.proposal_id, reasons=list(verdict.reasons), cluster_state=cluster_state, selection=selection,
     )
     result.opened += 1
     result.opened_ids.append(pos_id)

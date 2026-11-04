@@ -128,6 +128,7 @@ def record_convexity_eval(
     proposal_id: int | None = None,
     reasons: Any = None,
     cluster_state: dict | None = None,
+    selection: dict | None = None,
 ) -> int:
     """Append a survivorship-log row for EVERY evaluated bet (open or veto). Atomic.
 
@@ -142,7 +143,16 @@ def record_convexity_eval(
     # committed premium, cap, equity — so a future breach audit can RECOMPUTE within-cap-ness at the
     # admission instead of trusting the enforcement code. Nested under the existing reasons column only
     # when present, so every non-cluster call site stays byte-identical.
-    payload = reasons if cluster_state is None else {"reasons": reasons, "cluster_state": cluster_state}
+    # selection (#417): why contracts nearer the target strike were refused, when the chosen one is not the
+    # target-nearest; nested the same way, and only when present.
+    if cluster_state is None and selection is None:
+        payload = reasons
+    else:
+        payload = {"reasons": reasons}
+        if cluster_state is not None:
+            payload["cluster_state"] = cluster_state
+        if selection is not None:
+            payload["selection"] = selection
     if not isinstance(payload, str):
         payload = json.dumps(payload, default=str)
     with conn:
