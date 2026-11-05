@@ -1,6 +1,6 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-11-04T22:40Z · supersedes: 2026-11-01T23:20Z · **the 11-04 two-week look** (`records/2026-11-04_council_two_week_look.md`): 9 sessions since §10.10, 3 above floor (HL, AG, FLNC); `at_inflection` 26/48 (§10.10) and 13/46 (§10.11) vs 4/176 before; both tripwires clear; **every entry so far reversed at its next read** → a measurement-only next-read persistence watch (pinned trigger: < half of the first 5 entries persist ⇒ operator look) · **the ranked backfill is LIVE** (#415, 11-03): first entry TITN · **the carry-over filled for the first time** (11-04: FLNC #6, TITN #7) · logging fix (#409), refusal reasons on fallbacks (#419), council-line fix (#420), scheduled reviews can read issues (#422) · 2 open issues (#416, #421, both needs-operator). On top of the 11-01 header (Sunday W44 + the operator's 11-01 decisions).**
+**as_of: 2026-11-05T00:30Z · supersedes: 2026-11-04T22:40Z · **the 15% moneyness floor adopted** (#416 → #425, frame `880e893e1660`) and **restate_v1 adopted for the ~11-12 boundary** (#421 → #426, draft) · **the 11-04 two-week look** (`records/2026-11-04_council_two_week_look.md`): 9 sessions since §10.10, 3 above floor (HL, AG, FLNC); `at_inflection` 26/48 (§10.10) and 13/46 (§10.11) vs 4/176 before; both tripwires clear; **every entry so far reversed at its next read** → a measurement-only next-read persistence watch (pinned trigger: < half of the first 5 entries persist ⇒ operator look) · **the ranked backfill is LIVE** (#415, 11-03): first entry TITN · **the carry-over filled for the first time** (11-04: FLNC #6, TITN #7) · logging fix (#409), refusal reasons on fallbacks (#419), council-line fix (#420), scheduled reviews can read issues (#422) · 2 open issues (#416, #421, both needs-operator). On top of the 11-01 header (Sunday W44 + the operator's 11-01 decisions).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -8,6 +8,13 @@ Maintained by CC; updated on every ruling, clock change, staged-PR change, or pe
 The header's absence is itself a signal.
 
 ## Rulings in force
+- **Minimum moneyness 15% (2026-11-04, operator word "Adopt both the 15% floor and A+B+C at the 11-12 boundary";
+  #416; PREREG_THEMATIC_CONVEXITY minimum-moneyness amendment + PREREG_FIXED_BASKET_NULL note; from the first L1 after
+  deploy):** `convexity_gate.min_otm_moneyness = 0.15`. Every book and gate path admits only contracts ≥ 15% OTM
+  (achieved, thesis side) and fails closed otherwise. Found at L1 #1918 (TITN's backfill fallback to C25, 7% OTM).
+  **Frame boundary `frame-f86f37a0bd4f` → `frame-880e893e1660`.** Survivor cards (own 15–35% band) are consistent;
+  the weekly sweeps keep their frozen definitions until their own dated notes (#427). Slate effect: 5–7 of 38
+  gate-of-record wings were below 15% on 11-04 (all cheap); each re-selects farther or becomes unexpressible.
 - **Next-read persistence watch (2026-11-04, the two-week look; measurement only, adopted with its merge):** the
   nightly grade reports each real entry's strategist verdict at the same name's next read (persisted = still ≥ the
   floor, or for a backfill `include = true` at ≥ LOW). 0 of 2 measurable so far (HL #1816, FLNC #1918; TITN's backfill
@@ -218,8 +225,6 @@ The header's absence is itself a signal.
   11-04 via carry from #1918), TITN #7 3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry);
   unrealized ≈ −$750, drawdown 8%. Null books accruing (shadow · 3A · 3B · shares; CF booked 11-04). **Last above-floor
   conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816 (HL), both cancelled unfilled.
-- Open issues: 2 (2026-11-04): #416 (structure selector's nearest-eligible fallback admitted TITN at 7% OTM; re-opens
-  #276 option 2 as a moneyness floor; lane:protocol, needs-operator) and #421 (the authenticity filter still dampens
-  faithful restatements of rendered figures; lane:protocol, needs-operator). Fixed and closed 11-03/04: #407/#408
-  (#409/#410), #417/#418 (#419/#420), #422 (scheduled reviews can read issues).
+- Open issues: 2 (2026-11-05): #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary) and
+  #427 (the two weekly sweeps vs the 15% floor; needs dated notes; lane:protocol, needs-operator). Closed: #416 by #425.
 - NVDA opra canary at or above 1.0 for 13 prints (10-30 1.0824) after eight below (low 0.9818).

@@ -239,7 +239,7 @@ def _eval_and_book(
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
-        underlying_symbol=theme.symbol, require_otm_side=bool(gate.get("otm_side_guard", False)),
+        underlying_symbol=theme.symbol, require_otm_side=bool(gate.get("otm_side_guard", False)), min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0),
     )
     if structure is None:
         return "no_structure", None

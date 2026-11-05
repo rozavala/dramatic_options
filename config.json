@@ -107,6 +107,8 @@
     "tenor_max_days": 365,
     "target_moneyness": 0.25,
     "otm_side_guard": true,
+    "_comment_min_otm_moneyness": "#416 (operator word 2026-11-04, \"Adopt both the 15% floor and A+B+C at the 11-12 boundary\"; PREREG_THEMATIC_CONVEXITY amendment 2026-11-04): the selector admits only contracts at least 15% out of the money (achieved, thesis side) and fails closed otherwise, on every book and gate path. Found at L1 #1918: the nearest-eligible fallback put TITN at 7% OTM. Moves frame_version.",
+    "min_otm_moneyness": 0.15,
     "skew_abs_max_volpts": 100,
     "iv_rv_sanity_max": 5.0,
     "iv_floor_annualized": 0.03,

@@ -38,6 +38,12 @@ segment. Existing wrong-side positions remain untouched and are tagged outside-f
 without them.
 Confirmed directly by the operator in session on 2026-09-30 ("Go ahead"). Follow-up PR: tests for the tagging, and the dashboard performance panel lists the tagged positions (`outside_frame`).
 
+<!-- #416 minimum-moneyness conformance note -->
+**Conformance note (2026-11-04, operator word; #416).** The 3A and 3B paths read the same
+`convexity_gate.min_otm_moneyness = 0.15` floor as the real book (PREREG_THEMATIC_CONVEXITY minimum-moneyness
+amendment): a contract less than 15% out of the money is never selected, and no structure is booked instead. The
+switch moves `frame_version` (`frame-880e893e1660`) and marks a new null-book segment; existing positions are untouched.
+
 ## 2. The null hierarchy (forward, simulated-only, never-broker, tail-scored)
 
 | Book | Gate | Selection | Universe | Caps | Isolates |
