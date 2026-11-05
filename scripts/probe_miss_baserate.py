@@ -142,7 +142,9 @@ def cmd_sweep() -> None:
                                            target_moneyness=float(gate["target_moneyness"]),
                                            eligibility=_elig,
                                            # PREREG_MISS_BASERATE §7 (2026-10-25): the gate of record's side guard
-                                           require_otm_side=bool(gate.get("otm_side_guard", False)))
+                                           require_otm_side=bool(gate.get("otm_side_guard", False)),
+                                           # PREREG_MISS_BASERATE §8 (2026-11-05): the floor — the gate of record's 15% minimum moneyness (#425)
+                                           min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0))
                 if s is None:
                     rows.append(mb.SweepRow(stamp, key, cohort, direction, 0, None, float(spot), gate_feed))
                     continue
