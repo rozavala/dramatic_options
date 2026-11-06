@@ -14,7 +14,7 @@
     {"id": "alt_capital_deployment.q3_2026_rev", "theme": "alt_capital_deployment", "direction": "bullish",
      "metric": "quarterly_revenue_yoy", "threshold": 0.05, "first_filed_after": "2026-10-01",
      "not_encoded": "standing review ~Aug-2027 (fee-related earnings conversion)",
-     "reads": "OPERATOR 2026-11-06: kept as written. KKR's 10-Qs tag only us-gaap Revenues, the GAAP total INCLUDING capital-allocation (investment) income, so the read swings with marks (Q1-24 $9.66B vs Q1-25 $3.11B = -68%; Q1-20 negative); no fee-revenue concept is tagged in its 10-Qs. The ledger measures the register's falsifier as written; a false alarm here is a finding about the falsifier, not the ledger (#429 review).",
+     "reads": "OPERATOR 2026-11-06: kept as written. KKR's 10-Qs tag only us-gaap Revenues, the GAAP total INCLUDING capital-allocation (investment) income, so the read swings with marks (Q1-24 $9.66B vs Q1-25 $3.11B = -68%; Q1-20 negative); no fee-revenue concept is tagged in its 10-Qs since 2018 (InvestmentAdvisoryFees, deprecated, last 10-Q fact 2018-03-31). The ledger measures the register's falsifier as written; a false alarm here is a finding about the falsifier, not the ledger (#429 review).",
      "source": "quarterly revenue YoY below 5.0% in the 2026-Q3 10-Q = thesis dead"}
   ],
   "dropped": [
