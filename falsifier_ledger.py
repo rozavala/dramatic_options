@@ -8,7 +8,7 @@ This ledger measures it forward:
 1. **Read** (once per spec × name, at the first L1 where the named quarter is visible in XBRL): the falsifier's
    value, threshold and ``fired``, plus the close that day. Appended to ``records/falsifier_ledger.csv`` and never
    rewritten (the seal is the append-only file). The L1 writes it in the live checkout, so it is gitignored:
-   a deploy's ``git clean -fd`` / ``reset --hard`` never touches it and no commit can overwrite it (#429).
+   a deploy's ``git clean -fd`` / ``reset --hard`` never touches it and no accidental commit can track it (#429).
 2. **Outcome** (report time, 250 trading bars later): the directional return from that close; "big move" uses the
    miss ledger's +50% bar (PREREG_MISS_BASERATE §3). Accuracy = P(fired | no big move); false-alarm rate =
    P(fired | big move).
@@ -128,9 +128,9 @@ def record_due(*, symbols_of: Callable[[str], list[str]], points_of: Callable[[s
                         "value": res["value"], "fired": res["fired"],
                         "entry_close": None if close is None else round(float(close), 4)})
     if unreadable:
-        # Fail-soft, not fail-silent (#429): a name with no us-gaap quarterly revenue (KLAR files as a foreign
-        # issuer) can never read, so its spec measures nothing until the operator re-encodes or drops it.
-        log.warning("falsifier ledger: no quarterly revenue points, so these can never read: %s", unreadable)
+        # Fail-soft, not fail-silent (#429): no points this cycle is either transient (unresolved CIK, offline, an
+        # SEC error) or permanent (KLAR files IFRS 20-Fs only, so its spec can never read until the operator drops it).
+        log.warning("falsifier ledger: no quarterly revenue points this cycle, no read possible: %s", unreadable)
     if new:
         path.parent.mkdir(parents=True, exist_ok=True)
         fresh = not path.exists()

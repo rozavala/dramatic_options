@@ -104,7 +104,7 @@ def test_a_name_with_no_quarterly_points_warns_that_it_can_never_read(tmp_path, 
                             as_of=datetime(2026, 11, 5, tzinfo=UTC), specs=[spec], ledger_path=tmp_path / "l.csv")
     assert out == []
     assert [r.getMessage() for r in caplog.records] == [
-        "falsifier ledger: no quarterly revenue points, so these can never read: "
+        "falsifier ledger: no quarterly revenue points this cycle, no read possible: "
         "['bnpl_payments.first_q_after_0913/KLAR']"]
 
 

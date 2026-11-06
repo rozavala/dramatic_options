@@ -42,7 +42,7 @@ KILL
 OPRA_REVERTED
 
 # D3b falsifier ledger (#429): append-only, written by the live L1 in the live checkout. Ignored so a deploy's
-# `git clean -fd` keeps it and no commit can overwrite the seal; it exists only on the box that runs L1.
+# `git clean -fd` keeps it and no accidental commit can track it; it exists only on the box that runs L1.
 records/falsifier_ledger.csv
 
 # Force-track themes.json: it is the hand-seeded strategy input the paper loop LOADS
