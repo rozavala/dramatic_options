@@ -67,3 +67,50 @@ def test_shipped_specs_parse_and_name_real_baskets():
     themes = cfg["universe"]["themes"]
     for s in specs:
         assert s["theme"] in themes and s["metric"] == "quarterly_revenue_yoy" and 0 < s["threshold"] < 1
+
+
+# FIG's real shape (SEC companyfacts CIK0001579878, extract_quarterly_revenue, fetched 2026-11-05): the 11-04
+# 10-Q carries Q3-26 and its year-ago comparative, and the extractor keeps the latest filing per period, so
+# both quarters read filed 2026-11-04.
+FIG_SPEC = {"id": "design_software_ai.q3_2026_rev", "theme": "design_software_ai", "direction": "bullish",
+            "metric": "quarterly_revenue_yoy", "threshold": 0.30, "first_filed_after": "2026-10-01"}
+FIG_PTS = [
+    {"start": "2024-07-01", "end": "2024-09-30", "val": 198639000.0, "filed": "2025-11-05"},
+    {"start": "2025-04-01", "end": "2025-06-30", "val": 249640000.0, "filed": "2026-08-05"},
+    {"start": "2025-07-01", "end": "2025-09-30", "val": 274173000.0, "filed": "2026-11-04"},
+    {"start": "2026-04-01", "end": "2026-06-30", "val": 370083000.0, "filed": "2026-08-05"},
+    {"start": "2026-07-01", "end": "2026-09-30", "val": 391415000.0, "filed": "2026-11-04"},
+]
+
+
+def test_the_reported_quarter_wins_over_its_year_ago_comparative():
+    # #429: the first sealed read took Q3-25 (+38.03%, the comparative) instead of Q3-26 (+42.76%)
+    r = fl.evaluate(FIG_SPEC, FIG_PTS, datetime(2026, 11, 5, 21, tzinfo=UTC))
+    assert (r["period_end"], r["filed"], r["value"], r["fired"]) == ("2026-09-30", "2026-11-04", 0.4276, 0)
+
+
+def test_the_earliest_filing_after_the_cutoff_still_decides():
+    # a later filing's newer quarter does not jump the queue: the first filing after the cutoff is the read
+    pts = FIG_PTS + [{"start": "2026-10-01", "end": "2026-12-31", "val": 400000000.0, "filed": "2027-02-20"}]
+    assert fl.first_quarter_after(pts, "2026-10-01")["end"] == "2026-09-30"
+
+
+def test_a_name_with_no_quarterly_points_warns_that_it_can_never_read(tmp_path, caplog):
+    # #429: KLAR has no us-gaap quarterly revenue, so the bnpl spec was silently unreadable
+    spec = {"id": "bnpl_payments.first_q_after_0913", "theme": "bnpl_payments", "metric": "quarterly_revenue_yoy",
+            "threshold": 0.10, "first_filed_after": "2026-09-13"}
+    with caplog.at_level("WARNING", logger="falsifier_ledger"):
+        out = fl.record_due(symbols_of=lambda k: ["klar"], points_of=lambda s: [], close_of=lambda s: 1.0,
+                            as_of=datetime(2026, 11, 5, tzinfo=UTC), specs=[spec], ledger_path=tmp_path / "l.csv")
+    assert out == []
+    assert [r.getMessage() for r in caplog.records] == [
+        "falsifier ledger: no quarterly revenue points this cycle, no read possible: "
+        "['bnpl_payments.first_q_after_0913/KLAR']"]
+
+
+def test_the_ledger_is_gitignored():
+    # #429: the live L1 writes it in the live checkout; a deploy's `git clean -fd` must keep it
+    import subprocess
+    root = Path(fl.__file__).resolve().parent
+    r = subprocess.run(["git", "check-ignore", "-q", "--no-index", "records/falsifier_ledger.csv"], cwd=root)
+    assert r.returncode == 0
