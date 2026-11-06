@@ -41,6 +41,10 @@ KILL
 # §5 dual-read revert override sentinel (#72, operational, never committed)
 OPRA_REVERTED
 
+# D3b falsifier ledger (#429): append-only, written by the live L1 in the live checkout. Ignored so a deploy's
+# `git clean -fd` keeps it and no commit can overwrite the seal; it exists only on the box that runs L1.
+records/falsifier_ledger.csv
+
 # Force-track themes.json: it is the hand-seeded strategy input the paper loop LOADS
 # (config themes_path), so a fresh clone needs it. A personal GLOBAL excludes file
 # (~/.config/git/ignore) lists "themes.json"; an in-tree negation outranks the global,

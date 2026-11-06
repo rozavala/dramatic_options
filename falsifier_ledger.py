@@ -7,7 +7,8 @@ This ledger measures it forward:
 
 1. **Read** (once per spec × name, at the first L1 where the named quarter is visible in XBRL): the falsifier's
    value, threshold and ``fired``, plus the close that day. Appended to ``records/falsifier_ledger.csv`` and never
-   rewritten (the seal is the append-only file).
+   rewritten (the seal is the append-only file). The L1 writes it in the live checkout, so it is gitignored:
+   a deploy's ``git clean -fd`` / ``reset --hard`` never touches it and no commit can overwrite it (#429).
 2. **Outcome** (report time, 250 trading bars later): the directional return from that close; "big move" uses the
    miss ledger's +50% bar (PREREG_MISS_BASERATE §3). Accuracy = P(fired | no big move); false-alarm rate =
    P(fired | big move).
@@ -50,9 +51,15 @@ def _d(s: str) -> datetime:
 
 
 def first_quarter_after(points: list[dict], filed_after: str) -> dict | None:
-    """The first quarterly revenue point FILED strictly after ``filed_after`` (by filing date, then period end)."""
+    """The quarter REPORTED by the first filing strictly after ``filed_after``: the newest period end on the
+    earliest such filing date. A 10-Q also carries its year-ago comparative, and the extractor keeps the
+    latest-filed value per period, so that comparative shares the filing date; the earliest end would be last
+    year's quarter (#429: FIG's 11-04 10-Q sealed Q3-25 at +38.0% instead of Q3-26 at +42.8%)."""
     later = [p for p in points if str(p["filed"])[:10] > filed_after]
-    return min(later, key=lambda p: (str(p["filed"])[:10], p["end"])) if later else None
+    if not later:
+        return None
+    first = min(str(p["filed"])[:10] for p in later)
+    return max((p for p in later if str(p["filed"])[:10] == first), key=lambda p: p["end"])
 
 
 def quarter_yoy(points: list[dict], q: dict) -> float | None:
@@ -97,13 +104,18 @@ def record_due(*, symbols_of: Callable[[str], list[str]], points_of: Callable[[s
     specs = load_specs() if specs is None else specs
     done = {(r["spec_id"], r["symbol"]) for r in _read_ledger(path)}
     new: list[dict] = []
+    unreadable: list[str] = []
     for spec in specs:
         for sym in symbols_of(str(spec.get("theme", ""))):
             sym = sym.upper()
             if (spec["id"], sym) in done:
                 continue
             try:
-                res = evaluate(spec, points_of(sym), as_of)
+                points = points_of(sym)
+                if not points:
+                    unreadable.append(f"{spec['id']}/{sym}")
+                    continue
+                res = evaluate(spec, points, as_of)
                 if res is None:
                     continue
                 close = close_of(sym)
@@ -115,6 +127,10 @@ def record_due(*, symbols_of: Callable[[str], list[str]], points_of: Callable[[s
                         "threshold": res["threshold"], "period_end": res["period_end"], "filed": res["filed"],
                         "value": res["value"], "fired": res["fired"],
                         "entry_close": None if close is None else round(float(close), 4)})
+    if unreadable:
+        # Fail-soft, not fail-silent (#429): a name with no us-gaap quarterly revenue (KLAR files as a foreign
+        # issuer) can never read, so its spec measures nothing until the operator re-encodes or drops it.
+        log.warning("falsifier ledger: no quarterly revenue points, so these can never read: %s", unreadable)
     if new:
         path.parent.mkdir(parents=True, exist_ok=True)
         fresh = not path.exists()
