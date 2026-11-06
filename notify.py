@@ -74,6 +74,8 @@ def send(title: str, message: str, *, priority: int = 0) -> bool:
             timeout=10,
         )
         if resp.status_code // 100 == 2:
+            # The journal's only proof a page went out (#430): the title, never the body or a key.
+            log.info("notify: sent %r", title)
             return True
         log.warning("notify: Pushover returned %s — %s", resp.status_code, resp.text[:200])
         return False
@@ -96,6 +98,9 @@ def _journal_tail(unit: str, lines: int = 20) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     _load_env()
+    # The OnFailure unit runs this file alone, without the orchestrator's root handler: without one, INFO (the
+    # "sent" line, #430) would be dropped by logging.lastResort. A no-op when the process already has a handler.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description="Pushover notifier (best-effort).")
     parser.add_argument("--systemd-failure", metavar="UNIT",
                         help="Page that the given systemd unit failed (OnFailure target).")
