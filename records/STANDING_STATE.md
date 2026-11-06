@@ -156,7 +156,7 @@ The header's absence is itself a signal.
 ## Staged / pending (the operator's)
 - **Profit program (operator word 2026-11-03; `records/2026-11-03_profit_program_DRAFTS.md`; merged as
   rozavala/dramatic_options#411, DEV deploy green 11-03; D3 step 2 follows on the same branch):** D0 execution ledger, D4 IV history (+ nightly `iv_term_snapshot`),
-  D3b falsifier ledger (five CC-encoded specs for the operator to confirm) are telemetry; **D1 ranked backfill is
+  D3b falsifier ledger (CC-encoded specs; **operator 2026-11-06:** bnpl_payments dropped as unreadable — KLAR has no XBRL quarterlies — and KKR's alt_capital kept as written, noted that GAAP `Revenues` includes investment income; FIG, STUB, NTSK still to confirm; the first read, FIG, has a correction note, #429) are telemetry; **D1 ranked backfill is
   LIVE since 2026-11-03** (#415, operator word; frame `f86f37a0bd4f`; first entry TITN #7, filled 11-04 via carry;
   weekly quota frees ~11-10); **D3 over-cap verticals built and inert**
   (PREREG §5 amendment 2026-11-03b; migration 0021) until the switch-on checklist in the drafts record (paper
