@@ -74,6 +74,8 @@ def send(title: str, message: str, *, priority: int = 0) -> bool:
             timeout=10,
         )
         if resp.status_code // 100 == 2:
+            # The journal's only proof a page went out (#430): the title, never the body or a key.
+            log.info("notify: sent %r", title)
             return True
         log.warning("notify: Pushover returned %s — %s", resp.status_code, resp.text[:200])
         return False

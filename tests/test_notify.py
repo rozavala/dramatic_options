@@ -77,3 +77,23 @@ def test_cli_requires_a_title(monkeypatch):
     monkeypatch.setattr(notify, "_load_env", lambda: None)
     with pytest.raises(SystemExit):
         notify.main([])
+
+
+def test_a_sent_page_logs_its_title_and_never_the_body_or_keys(monkeypatch, caplog):
+    # #430: a successful push left no journal line, so a debounced page (LHX coverage-feasibility, 11-05)
+    # could not be confirmed from journald.
+    monkeypatch.setenv("PUSHOVER_API_TOKEN", "tok-secret")
+    monkeypatch.setenv("PUSHOVER_USER_KEY", "usr-secret")
+
+    class _Resp:
+        status_code = 200
+        text = "ok"
+
+    import requests
+
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp())
+    with caplog.at_level("INFO", logger="notify"):
+        assert notify.send("OPRA dual-read: coverage-feasibility", "LHX: body text", priority=0) is True
+    lines = [r.getMessage() for r in caplog.records if r.name == "notify"]
+    assert lines == ["notify: sent 'OPRA dual-read: coverage-feasibility'"]
+    assert not any(s in m for m in lines for s in ("LHX: body text", "tok-secret", "usr-secret"))
