@@ -13,7 +13,8 @@ The header's absence is itself a signal.
   deploy):** `convexity_gate.min_otm_moneyness = 0.15`. Every book and gate path admits only contracts ≥ 15% OTM
   (achieved, thesis side) and fails closed otherwise. Found at L1 #1918 (TITN's backfill fallback to C25, 7% OTM).
   **Frame boundary `frame-f86f37a0bd4f` → `frame-880e893e1660`.** Survivor cards (own 15–35% band) are consistent;
-  the weekly sweeps keep their frozen definitions until their own dated notes (#427). Slate effect: 5–7 of 38
+  the weekly sweeps apply it from the **2026-11-08 sweep** (#427, operator word 2026-11-05; PREREG_MISS_BASERATE §8,
+  PREREG_UNIVERSE_CURATION §6). Slate effect: 5–7 of 38
   gate-of-record wings were below 15% on 11-04 (all cheap); each re-selects farther or becomes unexpressible.
 - **Next-read persistence watch (2026-11-04, the two-week look; measurement only, adopted with its merge):** the
   nightly grade reports each real entry's strategist verdict at the same name's next read (persisted = still ≥ the
@@ -225,6 +226,6 @@ The header's absence is itself a signal.
   11-04 via carry from #1918), TITN #7 3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry);
   unrealized ≈ −$750, drawdown 8%. Null books accruing (shadow · 3A · 3B · shares; CF booked 11-04). **Last above-floor
   conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816 (HL), both cancelled unfilled.
-- Open issues: 2 (2026-11-05): #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary) and
-  #427 (the two weekly sweeps vs the 15% floor; needs dated notes; lane:protocol, needs-operator). Closed: #416 by #425.
+- Open issues: 1 (2026-11-05): #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary).
+  Closed: #416 by #425 (merged 11-05, frame `880e893e1660`), #427 by its sweeps PR.
 - NVDA opra canary at or above 1.0 for 13 prints (10-30 1.0824) after eight below (low 0.9818).

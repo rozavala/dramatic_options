@@ -318,3 +318,10 @@ selection passes `convexity_gate.otm_side_guard`; `scripts/probe_basket_gate_bas
 From the **2026-11-01 sweep** it passes the guard. Earlier aggregates stay as recorded. The disclosure tiers, the
 sealing and every floor are unchanged. `scripts/probe_basket_feasibility.py` (§2) and the survivor cards' band axis
 (§11) were aligned in the same change.
+
+## §6 dated amendment (2026-11-05, operator word "let's go ahead with … 427") — the gate base-rate sweep uses the 15% floor
+The production selection reads `convexity_gate.min_otm_moneyness = 0.15` since 2026-11-04 (#416 / #425): a contract
+less than 15% out of the money is never selected. `scripts/probe_basket_gate_baserate.py` did not pass it (#427). From
+the **2026-11-08 sweep** it does; earlier aggregates stay as recorded. `scripts/probe_basket_feasibility.py` (§2) was
+aligned in #425 itself; the survivor cards' band axis (§11) already requires an achieved 15–35%. The disclosure
+tiers, the sealing and every floor are unchanged.
