@@ -1,6 +1,6 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-11-05T00:30Z · supersedes: 2026-11-04T22:40Z · **the 15% moneyness floor adopted** (#416 → #425, frame `880e893e1660`) and **restate_v1 adopted for the ~11-12 boundary** (#421 → #426, draft) · **the 11-04 two-week look** (`records/2026-11-04_council_two_week_look.md`): 9 sessions since §10.10, 3 above floor (HL, AG, FLNC); `at_inflection` 26/48 (§10.10) and 13/46 (§10.11) vs 4/176 before; both tripwires clear; **every entry so far reversed at its next read** → a measurement-only next-read persistence watch (pinned trigger: < half of the first 5 entries persist ⇒ operator look) · **the ranked backfill is LIVE** (#415, 11-03): first entry TITN · **the carry-over filled for the first time** (11-04: FLNC #6, TITN #7) · logging fix (#409), refusal reasons on fallbacks (#419), council-line fix (#420), scheduled reviews can read issues (#422) · 1 open issue (#421, needs-operator; #416 closed by #425 at 00:11Z, before this as_of). On top of the 11-01 header (Sunday W44 + the operator's 11-01 decisions).**
+**as_of: 2026-11-08T15:30Z · supersedes: 2026-11-05T00:30Z · **Sunday W45** (`records/2026-11-08_sunday_w45.md`): **ATKR is delisted** (Atkore taken private: 25-NSE 10-19, 15-12G 10-29) and still sits in the 50-name universe, held on every slate → operator decision owed (removal) · the 09-27 five dormant as docketed; all 8 surfaced bearish (AG/HL back as BEARS; new UROY bear); active 38 · KMT pin #19 lapsed (retired; August Comtrade now $32.54/kg, so its fact changed anyway) · expressible 34 of 50 on the Sunday probe (35 nightly), the 15% floor took BWXT/KLAR/NOC; **the 11-23 cliff now costs 7 names (→ ~27)** · miss sweep #8 = the floor boundary · #434 → #435 (dual-read page judges the current session) and #431/#432/#433 since 11-05 · DEV + PROD rebooted 11-07 (operator apt upgrade) · 1 open issue (#421). On top of the 11-05 header (15% floor adopted, restate_v1 staged for ~11-12, the two-week look, backfill live, first carry fills).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -29,8 +29,8 @@ The header's absence is itself a signal.
   **Frame boundary `frame-3a810daad056` → `frame-f86f37a0bd4f`.** Reads: the first week nightly, then a dated look
   after 4 entries or 6 weeks.
 - **Operator decisions 2026-11-01 (operator word; `records/2026-11-01_operator_decisions.md`):**
-  - **KMT forward-catalyst pin RETIRED at expiry:** pin #19 runs to 2026-11-08 and is **not re-pinned**; the Sunday
-    review reports the lapse. It rendered into no council prompt (KMT is neither a universe name nor a sentinel).
+  - **KMT forward-catalyst pin RETIRED at expiry:** pin #19 **lapsed 2026-11-08, not re-pinned** (W45 reported it;
+    Comtrade's August print, $32.54/kg vs July's $37.98, had changed the fact anyway). It rendered into no council prompt (KMT is neither a universe name nor a sentinel).
   - **NRC 2026-21801 reviewed, NOT pinned:** procedural, no expressible name (NNE unstructured, BWXT a bearish
     lineage), short pin life.
   - **Model refresh moved from 11-05 to ~11-12**, so it doesn't land inside §10.11's first sessions (see docket).
@@ -165,7 +165,7 @@ The header's absence is itself a signal.
 - **Review crontab vs DST — resolved without a crontab change (#341, 2026-10-25):** `scheduled_review.sh` now waits for
   the run it reviews (today's `dramatic-options-l1` / `-reach` exit, up to 120 min, then a "NOT RUN" page). From 11-01
   the Sunday review (14:23) waits for the 14:40 reach run, and from 11-02 the grade (20:37) waits for the 20:45 L1.
-  **Sun 11-01: PASSED** (the review started after the 14:40 reach run's cards, 14:45). Mon 11-02 (the grade waiting for the 20:45 L1) is the second check.
+  **Sun 11-01: PASSED; Mon 11-02: PASSED** (the grade waited for the 20:45 L1); Sun 11-08 read the 14:41 cards.
 - **BNTX (bench Tier A):** $930 / 19.2% / 235 d on the 10-25 Sunday quote, but **`no_otm_eligible_contract_in_tenor_window`
   on the 11-01 Sunday read** — the in-band read did not hold. Returns only on a fresh operator word and a mid-session read.
 - **HL / AG / PAAS (silver_deficit; HL above floor 10-26 #1816, AG above floor 10-29 #1867, both cancelled unfilled
@@ -199,19 +199,25 @@ The header's absence is itself a signal.
   #331 (`council.anthropic` knobs, refusal routing, unpriced-model guard). Gemini/xAI prices to verify at the switch.
 - **2026-11-04: DONE**, the two-week look (`records/2026-11-04_council_two_week_look.md`); next read of its
   persistence watch at the 5th real entry.
-- **Sun 2026-11-08:** the 09-27 five (ATKR, CDE, FLY, FRO, STUB) go dormant unless re-surfaced; **KMT pin #19 expires and is
-  NOT re-pinned** (retired, 11-01 decision).
+- **Sun 2026-11-08: DONE** (W45): the 09-27 five went dormant (none re-surfaced); KMT pin #19 lapsed, not re-pinned.
+- **Owed (operator, from W45):** ATKR's removal from the universe (delisted 10-19; dated curation record + config
+  edit); the persistence-watch reading after #1969's tri-true re-reads; the thesis-as-direction class (MOS, KKR).
+- **~2026-11-10:** the backfill's weekly quota frees.
 - **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
 - **Mon 2026-11-23:** May-2027 drops under the gate's 180-day floor, on the first session after the November monthly
-  expires (Fri 11-20). SMCI/KLAR/NXE/FRO have later wings. **LHX/UEC/SMR/BWXT/FLNC/RDW/FLY have only Jan-2028 after
-  May; KTOS has Dec-2027.** If no Aug-2027 quarterly lists, those 8 lose structure (KTOS to ~12-17, the 7 to
-  ~2027-01-21) and expressible falls 39 → ~31. Read which of the 8 list Aug-2027, plus the nightly `record_ok`.
+  expires (Fri 11-20). Re-read on W45 (11-08): nine names select May-27 today; SMCI and LMT have Jun/Sep-27 wings;
+  **FLNC/FLY/LHX/RDW/TGB/UEC have only Jan-2028 after May, KTOS Dec-2027** → if no Aug-2027 quarterly lists, those
+  7 lose structure (KTOS to ~12-17, the rest to ~2027-01-21) and **expressible falls ~34 → ~27** (the old 39 → ~31
+  predates the 15% floor). Read which list Aug-2027, plus the nightly `record_ok`.
 - **2026-11-25:** the NRC DOE/DoW-design rule's effective date (reviewed, not pinned — 11-01 decision).
+- **~2026-12-19:** TITN's only in-window expiry (Jun-2027) drops under 180 days unless Sep-2027 lists (held #7 is
+  Jun-27; exits unaffected).
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
 
 ## Board & book
-- Box: DEV = main (11-04: `482cdd8` + this batch; up since 2026-10-17); **PROD = `a7548e8` (#392, promoted 2026-10-30
-  04:21 UTC; 16+ merges behind main on 11-04, incl. the profit program #411–#415)**, inert: timers disabled, `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`
+- Box: DEV = main `2d3a85a` (#435, deployed 11-08 01:02 UTC; **rebooted 2026-11-07 19:24 UTC** after the operator's
+  apt upgrade); **PROD = `a7548e8` (#392, promoted 2026-10-30 04:21 UTC; 31 merges / 24 PRs behind main on 11-08, incl.
+  the profit program #411–#415 and the 15% floor #425; rebooted 2026-11-07 19:39 UTC)**, inert: timers disabled, `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`
   (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
   (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD. PROD's journal is readable by the review user from 2026-11-03 (`systemd-journal`). PROD's first #392 deploy failed at `git fetch` (a stale `origin/claude` tracking ref blocked `claude/*` branches); pruned with the operator's go, deploy re-run green.
 - Apps:
@@ -220,12 +226,14 @@ The header's absence is itself a signal.
   - Both are tailnet-only `tailscale serve` → 127.0.0.1:8602 (the React/FastAPI dashboard; the Streamlit :8601
     dashboard is retired, 2026-10-06). `/api/version` reports the running commit; `/api/status` is the light
     cached read (verdict, heartbeats, KILL, drawdown vs halt, book, last council, T4 — under 5 KB, no positions).
-- Universe 50 names · 16 clusters (book fills at most 5). Expressible 39 of 50 (11-01; no structure AMSC/ATKR/CC/
-  HBM/IRDM/NNE/PL/STUB/TGB/UROY/UUUU — FRO structured at 5.4% OTM). Active sentinel lineages 35 (11-01).
-- Book: real 3 open, $2,470 (11-04): PL ($690, mark 0.035), FLNC #6 10× `FLNC270521P00005000` @ 1.00 ($1,000, filled
+- Universe 50 names · 16 clusters (book fills at most 5) — **49 live: ATKR delisted 2026-10-19 (Atkore taken
+  private), removal owed**. Expressible 34 of 50 on the 11-08 Sunday probe (35 on #1969's `record_ok` and sweep #8; no
+  structure AMSC/ATKR/BWXT/CC/FRO/HBM/IRDM/KLAR/NNE/NOC/NXE/PL/SMR/STUB/UROY/UUUU — BWXT/KLAR/NOC on the 15% floor).
+  Active sentinel lineages 38 (11-08).
+- Book: real 3 open, $2,470 (marks at the 11-06 L2: PL 0.015, FLNC 1.35, TITN 2.105; unrealized ≈ −$474, DD ~5%): PL ($690), FLNC #6 10× `FLNC270521P00005000` @ 1.00 ($1,000, filled
   11-04 via carry from #1918), TITN #7 3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry);
   unrealized ≈ −$750, drawdown 8%. Null books accruing (shadow · 3A · 3B · shares; CF booked 11-04). **Last above-floor
   conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816 (HL), both cancelled unfilled.
-- Open issues: 1 (2026-11-05): #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary).
-  Closed: #416 by #425 (merged 11-05, frame `880e893e1660`), #427 by its sweeps PR.
-- NVDA opra canary at or above 1.0 for 13 prints (10-30 1.0824) after eight below (low 0.9818).
+- Open issues: 1 (2026-11-08): #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary).
+  Closed: #416 by #425 (merged 11-05, frame `880e893e1660`), #427 by #428, #429 by #431, #430 by #432, #434 by #435.
+- NVDA opra canary at or above 1.0 for 18 prints (11-06 1.1324) after eight below (low 0.9818).
