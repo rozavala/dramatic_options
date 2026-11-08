@@ -146,8 +146,12 @@ def evaluate(report: dict, config: dict | None = None) -> dict:
     flip_tripped = bool(tw.get("flip_tripped"))
 
     # Coverage-gap · structural absence — feasibility page, debounced, NEVER revert.
+    # Page only a name absent THIS session (#434): ``_structural_history`` skips sessions where a name has no wing on
+    # either feed, so without this the last OBSERVED trip (e.g. LHX #1952) re-paged every later unwinged session.
     struct_hist = _structural_history(sessions)
-    structural_pages = sorted(name for name, seq in struct_hist.items() if seq and rising_edge_page(seq))
+    current_gap = set((sessions[-1].get("gap_structural") or []) if sessions else [])
+    structural_pages = sorted(name for name, seq in struct_hist.items()
+                              if seq and name in current_gap and rising_edge_page(seq))
     structural_tripped = bool(gp.get("structural_tripped"))
 
     # Coverage-gap · transient — per-name page only once a name's own transient sessions reach ≥2/5
