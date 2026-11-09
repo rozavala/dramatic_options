@@ -205,7 +205,7 @@ The header's absence is itself a signal.
   persistence watch at the 5th real entry.
 - **Sun 2026-11-08: DONE** (W45): the 09-27 five went dormant (none re-surfaced); KMT pin #19 lapsed, not re-pinned.
 - **Owed (operator, from W45):** ATKR's removal from the universe (delisted 10-19; dated curation record + config
-  edit); the thesis-as-direction class (MOS, KKR).
+  edit); the persistence-watch reading after #1969's tri-true re-reads; the thesis-as-direction class (MOS, KKR).
 - **~2026-11-10:** the backfill's weekly quota frees.
 - **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
 - **Mon 2026-11-23:** May-2027 drops under the gate's 180-day floor, on the first session after the November monthly
