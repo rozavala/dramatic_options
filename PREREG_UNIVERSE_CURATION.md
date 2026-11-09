@@ -84,6 +84,18 @@ through the sanctioned seam (and the 3B/shares null books inherit the timing). T
   entry time. Pruning it would be an outcome-correlated removal, which the fixed-basket
   maturity-gate rule forbids (3B/shares null integrity). The window screen **records** fit drift; it
   never acts on it.
+- **Removal, 2026-11-09 (operator word 2026-11-09; `records/2026-11-09_atkr_removal.md`): ATKR, delisted.**
+  Atkore was taken private (25-NSE 2026-10-19, 15-12G 2026-10-29), so the name no longer trades.
+  - **This is §11 Rule 2's own exception path.** Rule 2 keeps acquired names in the basket so that removal is
+    never mechanical or outcome-correlated, and it says "removals stay manual, dated, frozen-frame-grade". This is
+    that manual, dated removal.
+  - **This is not cap-fit drift.** The membership ≠ enterability rule above covers a name that still trades and
+    has merely moved out of fit. A delisted name has no chain, no bars and no future entry, so removing it
+    selects nothing on outcome.
+  - **What changes:** it leaves `config.universe.themes` only.
+  - **What stays:** its open null-book positions stay on the record, and it stays in the frozen cluster map
+    (those positions still use its budget). The window-#1 admission in `universe_register.json` is history and
+    is left as written.
 
 ## 4. Sourcing hierarchy (the fourth anti-quietness instance, named)
 

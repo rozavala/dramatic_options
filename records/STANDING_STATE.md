@@ -1,6 +1,6 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-11-08T15:30Z · supersedes: 2026-11-05T00:30Z · **Sunday W45** (`records/2026-11-08_sunday_w45.md`): **ATKR is delisted** (Atkore taken private: 25-NSE 10-19, 15-12G 10-29) and still sits in the 50-name universe, held on every slate → operator decision owed (removal) · the 09-27 five dormant as docketed; all 8 surfaced bearish (AG/HL back as BEARS; new UROY bear); active 38 · KMT pin #19 lapsed (retired; August Comtrade now $32.54/kg, so its fact changed anyway) · expressible 34 of 50 on the Sunday probe (35 nightly), the 15% floor took BWXT/KLAR/NOC; **the 11-23 cliff now costs 7 names (→ ~27)** · miss sweep #8 = the floor boundary · #434 → #435 (dual-read page judges the current session) and #431/#432/#433 since 11-05 · DEV + PROD rebooted 11-07 (operator apt upgrade) · 1 open issue (#421). On top of the 11-05 header (15% floor adopted, restate_v1 staged for ~11-12, the two-week look, backfill live, first carry fills).**
+**as_of: 2026-11-08T15:30Z · supersedes: 2026-11-05T00:30Z · **Sunday W45** (`records/2026-11-08_sunday_w45.md`): **ATKR is delisted** (Atkore taken private: 25-NSE 10-19, 15-12G 10-29) and sat in the 50-name universe, held on every slate → **removed 2026-11-09** (operator word; `records/2026-11-09_atkr_removal.md`; universe 49) · the 09-27 five dormant as docketed; all 8 surfaced bearish (AG/HL back as BEARS; new UROY bear); active 38 · KMT pin #19 lapsed (retired; August Comtrade now $32.54/kg, so its fact changed anyway) · expressible 34 of 50 on the Sunday probe (35 nightly), the 15% floor took BWXT/KLAR/NOC; **the 11-23 cliff now costs 7 names (→ ~27)** · miss sweep #8 = the floor boundary · #434 → #435 (dual-read page judges the current session) and #431/#432/#433 since 11-05 · DEV + PROD rebooted 11-07 (operator apt upgrade) · 1 open issue (#421). On top of the 11-05 header (15% floor adopted, restate_v1 staged for ~11-12, the two-week look, backfill live, first carry fills).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -200,8 +200,8 @@ The header's absence is itself a signal.
 - **2026-11-04: DONE**, the two-week look (`records/2026-11-04_council_two_week_look.md`); next read of its
   persistence watch at the 5th real entry.
 - **Sun 2026-11-08: DONE** (W45): the 09-27 five went dormant (none re-surfaced); KMT pin #19 lapsed, not re-pinned.
-- **Owed (operator, from W45):** ATKR's removal from the universe (delisted 10-19; dated curation record + config
-  edit); the persistence-watch reading after #1969's tri-true re-reads; the thesis-as-direction class (MOS, KKR).
+- **Owed (operator, from W45):** the thesis-as-direction class (MOS, KKR). ATKR's removal: **decided 2026-11-09**
+  (`records/2026-11-09_atkr_removal.md`, scan basket only; #437 files the empty-chain mislabel).
 - **~2026-11-10:** the backfill's weekly quota frees.
 - **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
 - **Mon 2026-11-23:** May-2027 drops under the gate's 180-day floor, on the first session after the November monthly
@@ -226,14 +226,17 @@ The header's absence is itself a signal.
   - Both are tailnet-only `tailscale serve` → 127.0.0.1:8602 (the React/FastAPI dashboard; the Streamlit :8601
     dashboard is retired, 2026-10-06). `/api/version` reports the running commit; `/api/status` is the light
     cached read (verdict, heartbeats, KILL, drawdown vs halt, book, last council, T4 — under 5 KB, no positions).
-- Universe 50 names · 16 clusters (book fills at most 5) — **49 live: ATKR delisted 2026-10-19 (Atkore taken
-  private), removal owed**. Expressible 34 of 50 on the 11-08 Sunday probe (35 on #1969's `record_ok` and sweep #8; no
+- Universe **49 names** from the first run after the 2026-11-09 removal (ATKR delisted 2026-10-19, Atkore taken
+  private; `records/2026-11-09_atkr_removal.md`; it stays in the frozen `ai_capex_power` cluster for its open
+  null positions) · 16 clusters (book fills at most 5). Expressible 34 of 50 on the 11-08 Sunday probe (35 on #1969's `record_ok` and sweep #8; no
   structure AMSC/ATKR/BWXT/CC/FRO/HBM/IRDM/KLAR/NNE/NOC/NXE/PL/SMR/STUB/UROY/UUUU — BWXT/KLAR/NOC on the 15% floor).
   Active sentinel lineages 38 (11-08).
 - Book: real 3 open, $2,470 (marks at the 11-06 L2: PL 0.015, FLNC 1.35, TITN 2.105; unrealized ≈ −$474, DD ~5%): PL ($690), FLNC #6 10× `FLNC270521P00005000` @ 1.00 ($1,000, filled
   11-04 via carry from #1918), TITN #7 3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry);
   unrealized ≈ −$750, drawdown 8%. Null books accruing (shadow · 3A · 3B · shares; CF booked 11-04). **Last above-floor
   conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816 (HL), both cancelled unfilled.
-- Open issues: 1 (2026-11-08): #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary).
+- Open issues: 3 (2026-11-09): #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary);
+  #437 (an empty chain reads as a tenor gap — the ATKR mislabel; lane:sweep); #440 (null-book expiry price call
+  outside the per-position guard — latent, ATKR's nulls expire 2027-01-15; lane:sweep).
   Closed: #416 by #425 (merged 11-05, frame `880e893e1660`), #427 by #428, #429 by #431, #430 by #432, #434 by #435.
 - NVDA opra canary at or above 1.0 for 18 prints (11-06 1.1324) after eight below (low 0.9818).
