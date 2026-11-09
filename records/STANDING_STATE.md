@@ -235,7 +235,8 @@ The header's absence is itself a signal.
   11-04 via carry from #1918), TITN #7 3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry);
   unrealized ≈ −$750, drawdown 8%. Null books accruing (shadow · 3A · 3B · shares; CF booked 11-04). **Last above-floor
   conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816 (HL), both cancelled unfilled.
-- Open issues: 2 (2026-11-09): #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary);
-  #437 (an empty chain reads as a tenor gap — the ATKR mislabel; lane:sweep).
+- Open issues: 3 (2026-11-09): #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary);
+  #437 (an empty chain reads as a tenor gap — the ATKR mislabel; lane:sweep); #440 (null-book expiry price call
+  outside the per-position guard — latent, ATKR's nulls expire 2027-01-15; lane:sweep).
   Closed: #416 by #425 (merged 11-05, frame `880e893e1660`), #427 by #428, #429 by #431, #430 by #432, #434 by #435.
 - NVDA opra canary at or above 1.0 for 18 prints (11-06 1.1324) after eight below (low 0.9818).
