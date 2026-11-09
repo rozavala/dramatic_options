@@ -32,8 +32,12 @@ that differs from the newest banner is a FINDING unless STANDING_STATE records a
    (new admissions' first council reads, repeated reads).
    Persistence (STANDING_STATE watch, 2026-11-04, amended 2026-11-09 to the next 3 reads): for every real-book entry
    whose name was read tonight within its first 3 reads since entry, report that read (at/above the floor, or for a
-   backfill entry `include = true` at ≥ LOW) and the entry's tally so far. The entry is decided at 2 agreeing reads:
-   persisted = ≥ 2 of 3 at/above. Give the running count of decided entries against the pinned trigger.
+   backfill entry `include = true` at ≥ LOW) and the entry's tally so far. Reads start strictly after the entry's own
+   run; an abstained or NEUTRAL read counts as below. Decided at 2 agreeing reads: 2 at/above ⇒ persisted, 2 below ⇒
+   reversed (a 3rd read after a decision is reported but never changes it). A name that goes dormant before a
+   decision is "not measurable" and stays out of the count unless it is read again. Continue the running count from
+   STANDING_STATE's watch line: decided real entries (the first 5 are the trigger's denominator) against the pinned
+   trigger, with backfill entries reported beside it, not in it.
    Running tallies (continue the newest banner's counts, by ROLE): register-thesis consensus-leak, falsifier misuse,
    misattributed claims (check `flagged_unsupported`), productive uses; marker-refresh reads (fresh-as-current /
    at_surfacing misread / since-surfacing contrast; quote any verdict flip). Driver scope (criterion 3, STANDING_STATE):

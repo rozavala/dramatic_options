@@ -22,7 +22,7 @@ The header's absence is itself a signal.
   3) are still ≥ the floor, or for a backfill `include = true` at ≥ LOW. It is decided as soon as 2 reads agree.
   (Before 11-09 this was a single next read, which proved too noisy: FLNC and TITN flipped criteria back on unchanged
   filings at #1969.) Recount under the amended rule: 0 of 2 measurable persisted (HL #1816 and FLNC #1918, each LOW on
-  all 3 next reads), and TITN's backfill reversed (1 of 3 at most). **Pinned trigger (unchanged):** fewer than half
+  all 3 next reads), and TITN's backfill reversed (decided at #1952). **Pinned trigger (unchanged):** fewer than half
   of the first 5 real entries persist ⇒ a dated operator look at a confirmation-read rule (which must settle whether
   a carry waits for the next L1). No rule changes.
 - **Ranked backfill ENABLED (2026-11-03, operator word; `records/2026-11-03_backfill_enabling.md`; in force from the
@@ -201,8 +201,8 @@ The header's absence is itself a signal.
 - **~2026-11-12 (moved from 11-05 by the operator, 11-01):** the planned model refresh, all roles at once, one dated
   segment, after §10.11 has ~10 sessions; plumbing in
   #331 (`council.anthropic` knobs, refusal routing, unpriced-model guard). Gemini/xAI prices to verify at the switch.
-- **2026-11-04: DONE**, the two-week look (`records/2026-11-04_council_two_week_look.md`); next read of its
-  persistence watch at the 5th real entry.
+- **2026-11-04: DONE**, the two-week look (`records/2026-11-04_council_two_week_look.md`); its persistence watch
+  (amended 11-09: majority of the next 3 reads) is read when the 5th real entry is decided.
 - **Sun 2026-11-08: DONE** (W45): the 09-27 five went dormant (none re-surfaced); KMT pin #19 lapsed, not re-pinned.
 - **Owed (operator, from W45):** ATKR's removal from the universe (delisted 10-19; dated curation record + config
   edit); the persistence-watch reading after #1969's tri-true re-reads; the thesis-as-direction class (MOS, KKR).

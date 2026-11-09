@@ -32,7 +32,7 @@ For each real entry, the grade reads the strategist's verdicts at the same name'
 - **Unchanged:** the pinned trigger. If fewer than half of the first 5 real entries persist, a dated operator look at
   a confirmation-read rule is owed, and that rule must settle whether a carry waits for the next L1.
 
-## Recount under the amended rule (from `council_proposals`, read-only)
+## Recount under the amended rule (`council_proposals` conviction; TITN's `include` from `council_agent_outputs.raw`; read-only)
 
 | Entry | Next reads | Result |
 |---|---|---|
