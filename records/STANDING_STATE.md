@@ -16,11 +16,15 @@ The header's absence is itself a signal.
   the weekly sweeps apply it from the **2026-11-08 sweep** (#427, operator word 2026-11-05; PREREG_MISS_BASERATE §8,
   PREREG_UNIVERSE_CURATION §6). Slate effect: 5–7 of 38
   gate-of-record wings were below 15% on 11-04 (all cheap); each re-selects farther or becomes unexpressible.
-- **Next-read persistence watch (2026-11-04, the two-week look; measurement only, adopted with its merge):** the
-  nightly grade reports each real entry's strategist verdict at the same name's next read (persisted = still ≥ the
-  floor, or for a backfill `include = true` at ≥ LOW). 0 of 2 measurable so far (HL #1816, FLNC #1918; TITN's backfill
-  also reversed). **Pinned trigger:** fewer than half of the first 5 real entries persist ⇒ a dated operator look at a
-  confirmation-read rule (which must settle whether a carry waits for the next L1). No rule changes.
+- **Persistence watch (2026-11-04, the two-week look; measurement only, adopted with its merge; AMENDED 2026-11-09,
+  operator word, `records/2026-11-09_persistence_watch_amendment.md`):** the nightly grade reports, for each real
+  entry, the strategist's verdicts at the same name's **next 3 reads**. The entry **persisted** if the majority (≥ 2 of
+  3) are still ≥ the floor, or for a backfill `include = true` at ≥ LOW. It is decided as soon as 2 reads agree.
+  (Before 11-09 this was a single next read, which proved too noisy: FLNC and TITN flipped criteria back on unchanged
+  filings at #1969.) Recount under the amended rule: 0 of 2 measurable persisted (HL #1816 and FLNC #1918, each LOW on
+  all 3 next reads), and TITN's backfill reversed (1 of 3 at most). **Pinned trigger (unchanged):** fewer than half
+  of the first 5 real entries persist ⇒ a dated operator look at a confirmation-read rule (which must settle whether
+  a carry waits for the next L1). No rule changes.
 - **Ranked backfill ENABLED (2026-11-03, operator word; `records/2026-11-03_backfill_enabling.md`; in force from the
   first L1 after the enabling PR deploys):** `convexity_book.backfill.enabled = true` with the PREREG §5 amendment
   2026-11-03 values. When the book has held ≤ 5 committed slots for 28 days (true now), the L1 sends the top 3
@@ -201,7 +205,7 @@ The header's absence is itself a signal.
   persistence watch at the 5th real entry.
 - **Sun 2026-11-08: DONE** (W45): the 09-27 five went dormant (none re-surfaced); KMT pin #19 lapsed, not re-pinned.
 - **Owed (operator, from W45):** ATKR's removal from the universe (delisted 10-19; dated curation record + config
-  edit); the persistence-watch reading after #1969's tri-true re-reads; the thesis-as-direction class (MOS, KKR).
+  edit); the thesis-as-direction class (MOS, KKR).
 - **~2026-11-10:** the backfill's weekly quota frees.
 - **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
 - **Mon 2026-11-23:** May-2027 drops under the gate's 180-day floor, on the first session after the November monthly
