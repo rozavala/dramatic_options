@@ -86,6 +86,9 @@ through the sanctioned seam (and the 3B/shares null books inherit the timing). T
   never acts on it.
 - **Removal, 2026-11-09 (operator word 2026-11-09; `records/2026-11-09_atkr_removal.md`): ATKR, delisted.**
   Atkore was taken private (25-NSE 2026-10-19, 15-12G 2026-10-29), so the name no longer trades.
+  - **This is §11 Rule 2's own exception path.** Rule 2 keeps acquired names in the basket so that removal is
+    never mechanical or outcome-correlated, and it says "removals stay manual, dated, frozen-frame-grade". This is
+    that manual, dated removal.
   - **This is not cap-fit drift.** The membership ≠ enterability rule above covers a name that still trades and
     has merely moved out of fit. A delisted name has no chain, no bars and no future entry, so removing it
     selects nothing on outcome.
