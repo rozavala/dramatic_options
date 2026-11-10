@@ -305,12 +305,21 @@ def test_a_partial_fill_before_the_cancel_blends_fill_and_intrinsic(convexity_db
     assert abs(row["realized_pnl"] - ((22.00 * 100 - 500.0) + (20.00 * 100 - 500.0))) < 1e-6
 
 
-def test_an_unknown_cancel_outcome_leaves_the_row_closing(convexity_db):
+def test_an_unknown_cancel_outcome_leaves_the_row_closing_pages_then_books_once_read(convexity_db, monkeypatch):
+    import notify
+    pages = []
+    monkeypatch.setattr(notify, "send", lambda t, m, priority=0: pages.append(t) or True)
     pid, past = _closing_at_expiry(convexity_db)
     broker = _FakeBroker()                                            # order_status → None (pending_cancel / unread)
     res = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
                             broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
-    assert res.closed == 0 and _row(convexity_db, pid, "status")["status"] == "closing"
+    assert res.closed == 0 and res.unmarked == 1 and broker.cancelled == ["cl-1"]
+    assert _row(convexity_db, pid, "status")["status"] == "closing" and pages == ["EXPIRY CANCEL OUTCOME UNKNOWN"]
+    broker._statuses["cl-1"] = {"state": "filled", "filled_avg_price": "21.40", "filled_qty": "2"}   # read next cycle
+    res2 = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
+                             broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
+    row = _row(convexity_db, pid, "status, realized_pnl")
+    assert res2.closed == 1 and row["status"] == "closed" and row["realized_pnl"] == (21.40 * 100 - 500.0) * 2
 
 
 def test_a_fill_with_no_reported_price_falls_back_to_the_entry_price_not_zero(convexity_db):
