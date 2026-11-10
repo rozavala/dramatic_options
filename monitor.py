@@ -119,6 +119,7 @@ class MonitorResult:
     expired: int = 0
     profit_taken: int = 0
     time_stopped: int = 0
+    deferred: int = 0         # mark-only (#451): a triggered exit left open for the next open-market tick
     unmarked: int = 0
     realized_pnl: float = 0.0
     notes: list[str] = field(default_factory=list)
@@ -159,6 +160,7 @@ def monitor_positions(
     underlying_price_of=None,
     broker=None,
     dry_run: bool = True,
+    mark_only: bool = False,
 ) -> MonitorResult:
     """Mark + apply exits to every open position. Returns a MonitorResult.
 
@@ -168,6 +170,11 @@ def monitor_positions(
     (bid below ``min_close_bid``) books in-DB at mark, avoiding an open↔closing churn deadlock;
     expiry books intrinsic. In DRY_RUN / sim (no broker) every exit books in-DB at mark, as before.
     ``underlying_price_of(symbol)`` is used at expiry (intrinsic) + to resolve time-stops.
+
+    ``mark_only`` (#451; the orchestrator sets it on a closed-market tick outside DRY_RUN): mark every position and
+    settle expiries at intrinsic, but transmit nothing and book no triggered profit-take or time-stop. Nothing was
+    sold, so booking one would close the journal row while the contract stays at the broker. Each is logged as
+    deferred and stays open; the next open-market tick re-evaluates it and submits the real sell.
     """
     exits = config.get("convexity_exits", {})
     profit_mult = float(exits.get("profit_take_multiple", 4.0))
@@ -178,7 +185,7 @@ def monitor_positions(
     today = now.date()
     as_of_iso = now.isoformat()
     res = MonitorResult()
-    real_submit = broker is not None and not dry_run
+    real_submit = broker is not None and not dry_run and not mark_only
 
     # 0. Reconcile in-flight SELL_TO_CLOSE orders first (fill → closed at the real fill, terminal →
     #    reopen, expiry-while-closing → cancel + intrinsic). Closing positions are NOT re-evaluated
@@ -235,6 +242,9 @@ def monitor_positions(
 
         # 3. Profit-take: mark ≥ profit_mult × entry (per-contract basis).
         if entry_pc > 0 and mid * CONTRACT_MULTIPLIER >= profit_mult * entry_pc:
+            if mark_only:
+                _defer(res, pos, f"profit_take_{profit_mult:g}x")
+                continue
             _exit_position(conn, pos, mid=mid, entry_pc=entry_pc, contracts=contracts,
                            reason=f"profit_take_{profit_mult:g}x", real_submit=real_submit,
                            broker=broker, quote_provider=quote_provider, min_close_bid=min_close_bid,
@@ -244,6 +254,9 @@ def monitor_positions(
 
         # 4. Time-stop: close when ≤ time_stop_dte days to expiry (avoid the theta/gamma endgame).
         if dte is not None and dte <= time_stop_dte:
+            if mark_only:
+                _defer(res, pos, f"time_stop_{time_stop_dte}dte")
+                continue
             _exit_position(conn, pos, mid=mid, entry_pc=entry_pc, contracts=contracts,
                            reason=f"time_stop_{time_stop_dte}dte", real_submit=real_submit,
                            broker=broker, quote_provider=quote_provider, min_close_bid=min_close_bid,
@@ -251,6 +264,13 @@ def monitor_positions(
                            conv_map=conv_map, res=res, counter="time_stopped")
 
     return res
+
+
+def _defer(res, pos, reason: str) -> None:
+    """Mark-only (#451): a triggered exit on a closed-market tick is left open, never booked without a sale."""
+    res.deferred += 1
+    log.info("EXIT DEFERRED #%d %s (%s): market closed (mark-only) — left open; the next open-market tick submits "
+             "the sell", int(pos["id"]), pos["contract_symbol"], reason)
 
 
 def _exit_position(
