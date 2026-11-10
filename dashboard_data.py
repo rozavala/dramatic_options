@@ -1463,8 +1463,12 @@ def _time_stop_on(expiry: Any, time_stop_dte: int) -> str | None:
 def positions_panel(conn, *, stale_pending_cycles: int = 6, time_stop_dte: int = 21) -> dict:
     """All 5 books — open + recent closed. Surfaces pending/closing distinctly + STALE-PENDING (a resting limit
     unfilled across many cycles = the v2 analog of a missed order; a dedicated queue is unbuilt in v2)."""
+    import verticals
+
     real_open = _book_table(conn, "SELECT p.id, p.symbol, p.direction, p.contract_symbol, p.status, p.dte, "
                                   "p.expiry, p.contracts, p.total_premium, p.mark, p.marked_at, p.opened_at, p.theme, "
+                                  "p.strike, p.short_contract_symbol, p.short_strike, "
+                                  "p.entry_premium_per_contract AS entry_per_contract, "
                                   "cp.run_id AS origin_run, cp.conviction AS origin_conviction "
                                   "FROM convexity_positions p LEFT JOIN council_proposals cp "
                                   "ON p.proposal_id = cp.id WHERE p.status IN ('open','closing','pending') "
@@ -1479,6 +1483,12 @@ def positions_panel(conn, *, stale_pending_cycles: int = 6, time_stop_dte: int =
         if live is not None:  # live days-left from expiry; fall back to the entry value only if no expiry
             p["dte"] = live
         p["time_stop_on"] = _time_stop_on(p.get("expiry"), time_stop_dte)
+        # #463: a debit call vertical (migration 0021) is two legs; contract_symbol/strike are the LONG leg. Its
+        # entry premium is the NET debit, and its mark is the spread mark monitor stores (verticals.position_mid:
+        # long mid − short mid). A single-leg row keeps short_* None and net_debit None.
+        p["vertical"] = verticals.is_vertical(p)
+        epc = p.pop("entry_per_contract", None)
+        p["net_debit"] = round(float(epc) / 100.0, 4) if p["vertical"] and epc is not None else None
     return {
         "real_open": real_open,
         "real_closed": real_closed,
