@@ -92,6 +92,11 @@ E[Π] = p·E_r[Π] + (1 − p)·E_w[Π], and p* = −E_w[Π]/(E_r[Π] − E_w[Π
    (ii) for **both** μ_right, p*(540) ≤ p*(270 live) + 2 pp `[PIN]`. The fallback may not demand
    materially more judgment than the bet the book already accepts.
    μ = 0 is reported but not ruled on: at zero drift every long option loses to cash by construction.
+   *Blindness disclosure (added by the main session's review, 2026-11-10):* part (i) is **not blind**. v2's
+   published Rule T table already reports the 540-d unconditional mean M at μ = 10% (1.27 GBM, 1.23 jumps) and
+   at μ = 25% (2.10, 2.04), all above 1.0, so (i) is known to pass. The deciding part is (ii), which v2 did
+   not compute (v2's p* was the M > 1 proxy, not the thesis-state p*, and its reference was 365 d, not 270 d).
+   The operator may keep (i) as a stated sanity floor or strike it; it must not be counted as evidence.
    *Why Rule T's NOT A CANDIDATE does not settle this:* Rule T compared 540 d against 365 d as a
    *replacement*, with both available. Here 365 d does not exist by premise, so the comparator is cash.
    A contract can lose to 365 d and still beat cash. Rule T also failed only at μ = 0, which T2
