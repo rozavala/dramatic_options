@@ -142,6 +142,7 @@ export interface Snapshot {
   staleness?: StalenessPanel;       // #269: names judged on an older quarter than their latest filing (fundamentals_staleness_panel)
   why_no_entry?: WhyNoEntryPanel;   // #351: per-name "why no entry" of the latest session + expressible / last above-floor / last order tiles
   execution?: ExecutionPanel;       // D0 (2026-11-03): approvals followed to the broker
+  slippage?: SlippagePanel;         // #467 step 3: each booked entry as filled and at a conservative fill (estimate)
   iv_history?: IvHistoryPanel;      // D4 (2026-11-03): own-history IV/RV + skew percentiles, term slope, dIV
   falsifiers?: FalsifierPanel;      // D3b (2026-11-03): the forward falsifier-accuracy ledger
   capex_cycle?: CapexCyclePanel;    // D5 step 1 (2026-11-03): per-cluster TTM capex YoY + acceleration
@@ -461,6 +462,20 @@ export interface ExecutionRow {
 }
 export interface ExecutionBlock { approvals: number; reached_order: number; decided: number; filled: number; fill_rate: number | null }
 export interface ExecutionPanel { summary: { all: ExecutionBlock; under_carry: ExecutionBlock; read: string }; rows: ExecutionRow[] }
+// #467 step 3 (execution_ledger.haircut): the net-of-slippage twin. conservative_px is null when it can't be derived.
+export interface SlippageRow {
+  position_id: number; symbol: string; contract: string; short_contract: string | null; status: string;
+  opened_at: string | null; contracts: number; fill_px: number; conservative_px: number | null;
+  basis: "ask_at_entry" | "carry_worst_rung" | null; premium_filled_usd: number; premium_conservative_usd: number | null;
+  haircut_usd: number | null; haircut_pct: number | null; pnl_kind: "realized" | "marked" | "unmarked";
+  pnl_filled_usd: number | null; pnl_conservative_usd: number | null;
+}
+export interface SlippagePanel {
+  rows: SlippageRow[]; note: string;
+  totals: { entries: number; known: number; unknown: number; premium_filled_usd: number; premium_filled_known_usd: number;
+    premium_conservative_usd: number; haircut_usd: number; haircut_pct: number | null; pnl_n: number;
+    pnl_filled_usd: number; pnl_conservative_usd: number };
+}
 export interface IvHistoryRow {
   symbol: string; sessions: number; iv_rv: number | null; iv_rv_pct: number | null; skew: number | null; skew_pct: number | null;
   term_sessions: number; term_slope: number | null; d_iv_call: number | null; d_iv_put: number | null;
@@ -485,6 +500,10 @@ export interface TelemetryVM {
   exec: { read: string; approvals: number; reached: number; decided: number; filled: number; fillRate: string;
     carryDecided: number; carryFilled: number;
     rows: { key: number; date: string; symbol: string; outcome: string; limit: string; ask: string; fill: string; attempts: number }[] } | null;
+  slip: { note: string; entries: number; known: number; unknown: number; haircut: string; haircutPct: string;
+    pnlFilled: string; pnlCons: string; pnlN: number;
+    rows: { key: number; symbol: string; contract: string; status: string; fill: string; cons: string; basis: string;
+      premium: string; premiumCons: string; pnlKind: string; pnl: string; pnlCons: string }[] } | null;
   iv: { status: string; termSessions: number;
     rows: { symbol: string; n: number; ivrv: string; ivrvPct: string; skew: string; slope: string; dIvC: string; dIvP: string }[] } | null;
   fals: { reads: number; fired: number; note: string;

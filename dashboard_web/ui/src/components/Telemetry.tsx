@@ -56,6 +56,45 @@ export function ExecutionCard({ t }: { t: TelemetryVM }) {
   );
 }
 
+// #467 step 3: every paper result's "net of slippage" twin. An estimate; display only, nothing is re-booked.
+export function SlippageCard({ t }: { t: TelemetryVM }) {
+  const s = t.slip;
+  return (
+    <Card style={{ padding: "18px 20px" }}>
+      <div data-testid="tel-slip">
+        <Head title="Net of slippage (estimate, #467)" sub={s ? s.note : "panel unavailable"}
+          chip={<Chip level="mute">estimate</Chip>} />
+        {s && s.entries > 0 && (
+          <div style={{ fontSize: 12, color: "#2c3645", marginBottom: 8 }}>
+            {s.known} of {s.entries} entries priced ({s.unknown} unknown) · haircut {s.haircut} ({s.haircutPct} of premium) ·
+            P&L over {s.pnlN} priced and marked or closed: as filled {s.pnlFilled}, net of slippage {s.pnlCons}
+          </div>
+        )}
+        {s && s.rows.length > 0 ? (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead><tr><th style={th}>#</th><th style={th}>Name</th><th style={th}>Contract</th><th style={th}>Status</th>
+                <th style={{ ...th, textAlign: "right" }}>Fill</th><th style={{ ...th, textAlign: "right" }}>Conservative</th>
+                <th style={th}>Basis</th><th style={{ ...th, textAlign: "right" }}>Premium filled</th>
+                <th style={{ ...th, textAlign: "right" }}>Premium conservative</th><th style={th}>P&L</th>
+                <th style={{ ...th, textAlign: "right" }}>As filled</th><th style={{ ...th, textAlign: "right" }}>Net of slippage</th></tr></thead>
+              <tbody>
+                {s.rows.map((r) => (
+                  <tr key={r.key} data-testid={`slip-row-${r.key}`}><td style={num}>{r.key}</td><td style={td}>{r.symbol}</td>
+                    <td style={td}>{r.contract}</td><td style={td}>{r.status}</td><td style={num}>{r.fill}</td>
+                    <td style={num}>{r.cons}</td><td style={td}>{r.basis}</td><td style={num}>{r.premium}</td>
+                    <td style={num}>{r.premiumCons}</td><td style={td}>{r.pnlKind}</td><td style={num}>{r.pnl}</td>
+                    <td style={num}>{r.pnlCons}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : s && <Empty>No real-book entry has filled yet.</Empty>}
+      </div>
+    </Card>
+  );
+}
+
 export function IvHistoryCard({ t }: { t: TelemetryVM }) {
   const v = t.iv;
   return (
@@ -165,6 +204,7 @@ export function Telemetry({ t }: { t: TelemetryVM }) {
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
       <ExecutionCard t={t} />
+      <SlippageCard t={t} />
       <IvHistoryCard t={t} />
       <FalsifierCard t={t} />
       <CapexCycleCard t={t} />
