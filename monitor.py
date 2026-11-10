@@ -374,7 +374,10 @@ def _reconcile_closing(
 ) -> None:
     """Reconcile in-flight SELL_TO_CLOSE orders. Closes are left resting until they fill (NOT
     cancel_unfilled'd — that would re-use the single-use per-day id); a terminal order reopens the
-    position to retry next cycle; expiry-while-closing cancels the sell and books intrinsic."""
+    position to retry next cycle; expiry-while-closing cancels the sell, reads the order (``carry.cancel_and_settle``,
+    #445), and books its fill, intrinsic, or a blend of the two for a partial fill."""
+    import carry
+
     for pos in state.closing_positions(conn):
         pid = int(pos["id"])
         contracts = int(pos["contracts"])
@@ -383,9 +386,33 @@ def _reconcile_closing(
         reason = pos["exit_reason"] or "close"
         expiry = _parse_date(pos["expiry"])
 
-        if expiry is not None and today >= expiry:  # expiry while closing → cancel + intrinsic
-            if oid and hasattr(broker, "cancel_order"):
-                broker.cancel_order(oid)
+        if expiry is not None and today >= expiry:  # expiry while closing → cancel, READ the order, then book
+            sold, sold_price = 0, 0.0
+            if oid:
+                # #445: cancel_and_settle, as reconcile_pending does. A sell that filled before or during the cancel
+                # books its fill (a partial one blends with intrinsic); an unknown outcome waits for the next cycle.
+                settled = carry.cancel_and_settle(broker, oid)
+                if settled is None:
+                    log.warning("expiry while closing #%d %s: cancel outcome not known yet — retried next cycle",
+                                pid, pos["contract_symbol"])
+                    _page_once(conn, pos, today, "EXPIRY CANCEL OUTCOME UNKNOWN",
+                               f"#{pid} {pos['contract_symbol']} expired while closing; its sell {oid} was cancelled but "
+                               "the order can't be read back yet. Left 'closing' and retried every cycle.")
+                    res.unmarked += 1
+                    continue
+                if str(settled.get("state", "")).lower() == "filled":
+                    sold = min(carry.filled_qty(settled) or contracts, contracts)
+                    # no reported price: the reconciled-fill branch's fallback (the entry price), never 0
+                    sold_price = abs(float(settled.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER)))
+            if sold == contracts:
+                up = _exit_spot(underlying_price_of, pos["symbol"])
+                pnl = _realized(sold_price, entry_pc, contracts)
+                _close_and_resolve(conn, pos, exit_price=sold_price, realized_pnl=pnl, reason=reason,
+                                   as_of=as_of_iso, conv_map=conv_map, exit_spot=up)
+                res.closed += 1
+                res.realized_pnl += pnl
+                log.info("CLOSE FILLED at expiry #%d %s @ %.2f → P&L $%.0f", pid, pos["contract_symbol"], sold_price, pnl)
+                continue
             try:
                 up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
             except Exception as e:  # noqa: BLE001 — #440: per-POSITION; stays 'closing', retried next cycle
@@ -397,8 +424,9 @@ def _reconcile_closing(
                 res.unmarked += 1
                 continue
             intrinsic = _intrinsic_of(pos, up)
-            pnl = _realized(intrinsic, entry_pc, contracts)
-            _close_and_resolve(conn, pos, exit_price=intrinsic, realized_pnl=pnl, reason="expiry",
+            exit_price = intrinsic if sold == 0 else (sold * sold_price + (contracts - sold) * intrinsic) / contracts
+            pnl = _realized(exit_price, entry_pc, contracts)
+            _close_and_resolve(conn, pos, exit_price=exit_price, realized_pnl=pnl, reason="expiry",
                                as_of=as_of_iso, conv_map=conv_map, intrinsic=intrinsic, exit_spot=up)
             res.expired += 1
             res.closed += 1
