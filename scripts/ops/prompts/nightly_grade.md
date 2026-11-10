@@ -53,8 +53,9 @@ that differs from the newest banner is a FINDING unless STANDING_STATE records a
 3. Box: live checkout HEAD = origin/main; no failed units; the app answers 200 at
    https://all-options-dev.tail57521e.ts.net:8602/; installed `/etc/systemd/system/dramatic-options-l{0,1,2}.service`
    ExecStart is `-m orchestrator`; `PYTHONPATH=. venv/bin/python scripts/ops/standing_state_issues.py` (read-only,
-   #371): a DRIFT line (an open issue STANDING_STATE doesn't list) is a finding only for an issue filed before
-   STANDING_STATE's `as_of`; one filed since is information (the Sunday review lists it). Quote the line.
+   #371): a DRIFT line (an open issue STANDING_STATE doesn't list) is a finding only for an issue filed before the
+   `as_of` in STANDING_STATE's header (compare `gh issue view N --json createdAt`); one filed since is information
+   (the Sunday review lists it). Quote the line.
 4. Prepend ONE dated banner to the memory file (same format and density as the newest one; insert it directly above
    the newest banner, never edit older ones).
 5. Final message: a concise plain-prose report for the operator. End with exactly one line:
