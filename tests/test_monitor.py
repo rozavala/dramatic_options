@@ -129,7 +129,8 @@ class _FakeBroker:
         return 100000.0
 
     def submit_paper(self, *, contract_symbol, qty, side, limit_price, client_order_id=None):
-        self.sells.append({"contract": contract_symbol, "side": side, "limit": limit_price, "coid": client_order_id})
+        self.sells.append({"contract": contract_symbol, "side": side, "limit": limit_price, "coid": client_order_id,
+                           "qty": qty})
         return self._sell
 
     def order_status(self, oid):
@@ -329,3 +330,62 @@ def test_a_fill_with_no_reported_price_falls_back_to_the_entry_price_not_zero(co
     monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
                       broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
     assert _row(convexity_db, pid, "realized_pnl")["realized_pnl"] == 0.0        # (5.00·100 − 500)·2, as reconciled
+
+
+# ── #449: a close that partly filled, then ended, books what sold and reopens only the rest ────────
+
+def test_a_partly_filled_then_expired_close_reopens_only_the_rest(convexity_db):
+    pid = _open(convexity_db, contract="FCX261218C00080000", entry_pc=500.0, contracts=3)   # $1,500 at risk
+    state.begin_close_convexity_position(convexity_db, pid, close_order_id="cl-1", reason="time_stop_21dte", as_of="t")
+    broker = _FakeBroker()
+    broker._statuses["cl-1"] = {"state": "expired", "filled_avg_price": "7.00", "filled_qty": "2"}   # DAY order: 2 of 3
+    res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({}), config=CONFIG,
+                            broker=broker, dry_run=False)
+    row = _row(convexity_db, pid, "status, contracts, total_premium, close_order_id, realized_pnl")
+    assert row["status"] == "open" and row["contracts"] == 1 and row["close_order_id"] is None
+    assert abs(row["total_premium"] - 500.0) < 1e-9 and row["realized_pnl"] is None           # still open
+    assert res.realized_pnl == (7.00 * 100 - 500.0) * 2                                        # the sold part, $400
+
+
+def test_the_final_close_books_the_whole_bet_once(convexity_db):
+    pid = _open(convexity_db, contract="FCX261218C00080000", entry_pc=500.0, contracts=3)
+    state.begin_close_convexity_position(convexity_db, pid, close_order_id="cl-1", reason="time_stop_21dte", as_of="t")
+    broker = _FakeBroker()
+    broker._statuses["cl-1"] = {"state": "canceled", "filled_avg_price": "7.00", "filled_qty": "2"}
+    monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({}), config=CONFIG,
+                      broker=broker, dry_run=False)
+    # the retry sells the remaining 1 contract
+    state.begin_close_convexity_position(convexity_db, pid, close_order_id="cl-2", reason="time_stop_21dte", as_of="t2")
+    broker._statuses["cl-2"] = {"state": "filled", "filled_avg_price": "4.00", "filled_qty": "1"}
+    monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({}), config=CONFIG,
+                      broker=broker, dry_run=False)
+    row = _row(convexity_db, pid, "status, contracts, total_premium, realized_pnl, mark")
+    assert row["status"] == "closed" and row["contracts"] == 3 and abs(row["total_premium"] - 1500.0) < 1e-9
+    assert row["realized_pnl"] == (7.00 * 100 - 500.0) * 2 + (4.00 * 100 - 500.0) * 1          # $400 − $100 = $300
+    assert abs(row["mark"] - (2 * 7.00 + 1 * 4.00) / 3) < 1e-9                                  # blended exit
+
+
+def test_the_retry_sells_only_the_remainder_and_the_sentinel_scores_the_whole_bet(convexity_db):
+    # #449 review: the retry's size at the broker surface, and the traded sentinel's multiple on the whole premium
+    from broker import Fill
+    sid = state.record_sentinel_candidate(convexity_db, run_id=None, as_of="2026-01-01T00:00:00+00:00", symbol="FCX",
+                                          direction="bullish", basket="ai_compute", inflection_score=0.5, markers={})
+    prop = state.record_council_proposal(convexity_db, run_id=None, as_of="2026-01-01T00:00:00+00:00",
+                                         theme="ai_compute", symbol="FCX", direction="bullish", conviction="HIGH",
+                                         sentinel_id=sid)
+    state.link_sentinel_proposal(convexity_db, sid, prop)
+    exp = (NOW.date() + timedelta(days=10)).isoformat()                       # ≤ 21 DTE → the time-stop re-fires
+    pid = state.record_convexity_position(
+        convexity_db, run_id=None, opened_at="2026-01-01T00:00:00+00:00", theme="ai_compute", symbol="FCX",
+        direction="bullish", structure_kind="C", contract_symbol="FCX260611C00080000", expiry=exp, strike=80.0,
+        dte=270, moneyness=0.25, contracts=3, entry_premium_per_contract=500.0, total_premium=1500.0,
+        proposal_id=prop, entry_spot=60.0)
+    state.begin_close_convexity_position(convexity_db, pid, close_order_id="cl-1", reason="time_stop_21dte", as_of="t")
+    broker = _FakeBroker(sell=Fill(True, 4.00, 1, "filled", order_id="cl-2", pending=False))
+    broker._statuses["cl-1"] = {"state": "expired", "filled_avg_price": "7.00", "filled_qty": "2"}
+    monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({"FCX260611C00080000": 4.0}),
+                      config=CONFIG, broker=broker, dry_run=False, underlying_price_of=lambda s: 60.0)
+    assert [s["qty"] for s in broker.sells] == [1]                            # the retry sells what the venue holds
+    row = _row(convexity_db, pid, "status, contracts, total_premium, realized_pnl")
+    assert row["status"] == "closed" and row["contracts"] == 3 and row["realized_pnl"] == 300.0
+    assert abs(state.sentinel_by_id(convexity_db, sid)["realized_multiple"] - (1500.0 + 300.0) / 1500.0) < 1e-9
