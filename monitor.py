@@ -302,6 +302,11 @@ def _exit_position(
                                        limit_price=round(float(bid), 2), client_order_id=coid)
             if not fill.filled:
                 log.warning("SELL_TO_CLOSE submit failed #%d %s — left open to retry: %s", pid, contract, fill.note)
+                # #473: a refused close (our pre-check or the venue) is retried every L2 with the same result, so it
+                # pages once per position per ET day, as the vertical close does (#412). It moves no order.
+                _page_once(conn, pos, today, "CLOSE REFUSED",
+                           f"#{pid} {contract} {reason} ×{contracts} @ {float(bid):.2f}: {fill.note}. Left open; "
+                           "retried each cycle.")
                 return  # stays 'open' → re-evaluated next cycle
             if getattr(fill, "pending", False):
                 state.begin_close_convexity_position(conn, pid, close_order_id=(fill.order_id or coid),
