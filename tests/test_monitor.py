@@ -200,6 +200,7 @@ def test_expiry_while_closing_cancels_and_books_intrinsic(convexity_db):
                                          reason="time_stop_21dte", as_of="t")
     past = FixedClock(NOW + timedelta(days=10))  # now past expiry
     broker = _FakeBroker()
+    broker._statuses["cl-1"] = {"state": "canceled"}   # read back after the cancel (#445): nothing filled
     res = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}),
                             config=CONFIG, broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
     assert res.expired == 1 and res.closed == 1 and broker.cancelled == ["cl-1"]
@@ -261,6 +262,7 @@ def test_expiry_while_closing_with_a_raising_price_stays_closing_then_closes(con
     state.begin_close_convexity_position(convexity_db, pid, close_order_id="cl-1", reason="time_stop_21dte", as_of="t")
     past = FixedClock(NOW + timedelta(days=10))
     broker = _FakeBroker()
+    broker._statuses["cl-1"] = {"state": "canceled"}
     res = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
                             broker=broker, dry_run=False, underlying_price_of=_dead_or(100.0))
     assert res.unmarked == 1 and res.closed == 0 and broker.cancelled == ["cl-1"]
@@ -269,3 +271,43 @@ def test_expiry_while_closing_with_a_raising_price_stays_closing_then_closes(con
     res2 = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
                              broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
     assert res2.expired == 1 and _row(convexity_db, pid, "status")["status"] == "closed"
+
+
+# ── #445: expiry while closing settles the cancel before booking ───────────────────────────────
+
+def _closing_at_expiry(conn, *, contracts=2, entry_pc=500.0):
+    exp = (NOW.date() + timedelta(days=5)).isoformat()
+    pid = _open(conn, contract="FCX260606C00080000", entry_pc=entry_pc, expiry=exp, strike=80.0, contracts=contracts)
+    state.begin_close_convexity_position(conn, pid, close_order_id="cl-1", reason="time_stop_21dte", as_of="t")
+    return pid, FixedClock(NOW + timedelta(days=10))
+
+
+def test_a_sell_that_filled_before_the_cancel_books_its_fill_not_intrinsic(convexity_db):
+    pid, past = _closing_at_expiry(convexity_db)
+    broker = _FakeBroker()
+    broker._statuses["cl-1"] = {"state": "filled", "filled_avg_price": "21.40", "filled_qty": "2"}
+    res = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
+                            broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
+    row = _row(convexity_db, pid, "status, realized_pnl, exit_reason")
+    assert res.closed == 1 and res.expired == 0 and broker.cancelled == ["cl-1"]
+    assert row["status"] == "closed" and row["exit_reason"] == "time_stop_21dte"
+    assert row["realized_pnl"] == (21.40 * 100 - 500.0) * 2          # the fill, not intrinsic 20.00
+
+
+def test_a_partial_fill_before_the_cancel_blends_fill_and_intrinsic(convexity_db):
+    pid, past = _closing_at_expiry(convexity_db)
+    broker = _FakeBroker()
+    broker._statuses["cl-1"] = {"state": "canceled", "filled_avg_price": "22.00", "filled_qty": "1"}   # 1 of 2
+    monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
+                      broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
+    row = _row(convexity_db, pid, "status, realized_pnl, exit_reason")
+    assert row["status"] == "closed" and row["exit_reason"] == "expiry"
+    assert abs(row["realized_pnl"] - ((22.00 * 100 - 500.0) + (20.00 * 100 - 500.0))) < 1e-6
+
+
+def test_an_unknown_cancel_outcome_leaves_the_row_closing(convexity_db):
+    pid, past = _closing_at_expiry(convexity_db)
+    broker = _FakeBroker()                                            # order_status → None (pending_cancel / unread)
+    res = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
+                            broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
+    assert res.closed == 0 and _row(convexity_db, pid, "status")["status"] == "closing"
