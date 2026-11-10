@@ -239,7 +239,11 @@ The header's absence is itself a signal.
   11-04 via carry from #1918), TITN #7 3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry);
   unrealized ≈ −$750, drawdown 8%. Null books accruing (shadow · 3A · 3B · shares; CF booked 11-04). **Last above-floor
   conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816 (HL), both cancelled unfilled.
-- Open issues: 1 (2026-11-10): #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary).
+- Open issues: #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary); #444 (pre-T4
+  audit: a real option left at the broker through expiry, auto-exercise not modelled; lane:profit, needs-operator);
+  #449 (a partly filled then expired close is reopened at full size; lane:profit). #445
+  (expiry-while-closing settles the cancel) and #446 (this simplification) close with their PRs. As of 2026-11-10;
+  no count is kept (#446): `gh issue list` is the source.
   Closed 11-10: #437 by #441 (an empty chain reports `empty_chain`), #440 by #442 (a raising price lookup is
   per-position in the real monitor and both null books; a stuck real-book expiry pages once a day).
   Closed: #416 by #425 (merged 11-05, frame `880e893e1660`), #427 by #428, #429 by #431, #430 by #432, #434 by #435.

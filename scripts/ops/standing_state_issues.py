@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """READ-ONLY drift check: does records/STANDING_STATE.md's "Open issues" bullet match GitHub's open issues? (#371)
 
-Run by the scheduled reviews (the weekday grade reports a mismatch as a finding; the Sunday review fixes it in its
-records PR). Never edits anything. Two drifts are errors: an open issue the bullet never mentions, and a stated count
-("Open issues: N") that differs from the real number. Issues the bullet mentions that are now closed are listed for
-information only (the bullet may legitimately cite fixed ones, e.g. "W43's #340–#343 are fixed").
+Run by the scheduled reviews (the Sunday review fixes drift in its records PR). Never edits anything. One drift is an
+error: an open issue the bullet never mentions. Issues the bullet mentions that are now closed are listed for
+information only (the bullet may legitimately cite fixed ones, e.g. "W43's #340–#343 are fixed"). There is no stated
+count to keep in step (#446): it forced a records PR for every issue opened or closed and duplicated `gh`.
 
     scripts/ops/standing_state_issues.py [path/to/STANDING_STATE.md]   # exit 0 = in sync, 1 = drift, 2 = can't read
 """
@@ -38,15 +38,12 @@ def diff(text: str, open_now: set[int]) -> dict:
     bullet = open_issues_bullet(text)
     if bullet is None:
         return {"ok": False, "error": "no '- Open issues:' bullet in STANDING_STATE"}
-    m = re.match(r"- Open issues:\s*(\d+)", bullet)
-    stated = int(m.group(1)) if m else None
     mentioned = {int(n) for n in re.findall(r"#(\d+)", bullet)}
     for a, b in re.findall(r"#(\d+)\s*[–-]\s*#?(\d+)", bullet):   # "#340–#343" mentions the whole range
         mentioned |= set(range(int(a), int(b) + 1))
     unlisted = sorted(open_now - mentioned)
-    count_ok = stated is None or stated == len(open_now)
-    return {"ok": not unlisted and count_ok, "stated": stated, "actual": len(open_now),
-            "unlisted_open": unlisted, "mentioned_not_open": sorted(mentioned - open_now)}
+    return {"ok": not unlisted, "actual": len(open_now), "unlisted_open": unlisted,
+            "mentioned_not_open": sorted(mentioned - open_now)}
 
 
 def _open_issue_numbers() -> set[int]:
@@ -66,7 +63,7 @@ def main(argv: list[str]) -> int:
     if d.get("error"):
         print(f"standing-state-issues: DRIFT — {d['error']}")
         return 1
-    parts = [f"stated {d['stated']} vs actual {d['actual']}" if d["stated"] != d["actual"] else f"count {d['actual']}"]
+    parts = [f"open {d['actual']}"]
     if d["unlisted_open"]:
         parts.append("open but not listed: " + ", ".join(f"#{n}" for n in d["unlisted_open"]))
     if d["mentioned_not_open"]:
