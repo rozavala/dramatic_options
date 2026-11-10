@@ -2208,6 +2208,14 @@ def execution_panel(conn) -> dict:
     return execution_ledger.panel(conn)
 
 
+def slippage_panel(conn) -> dict:
+    """#467 step 3: each booked real-book entry as filled and at a conservative fill, with the P&L twin. An
+    estimate, display only (nothing is re-booked); an entry with no stored quote or walk above the fill is unknown."""
+    import execution_ledger
+
+    return execution_ledger.haircut(conn)
+
+
 def iv_history_panel(conn, cache_dir: str | Path) -> dict:
     """D4: own-history IV/RV + skew percentiles, term slope, 21-session ATM call/put dIV. Read-only, no fetch."""
     import iv_history
