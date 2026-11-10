@@ -1,6 +1,6 @@
-import { directionLabel, markLevel } from "../data/status";
 import { Fragment } from "react";
 
+import { directionLabel, markLevel } from "../data/status";
 import type { VerticalLegsVM, ViewModel } from "../data/types";
 import { signal } from "../theme/tokens";
 import { Card, Chip } from "./primitives";

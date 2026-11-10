@@ -97,7 +97,7 @@ function verticalLegs(p: PositionRow): VerticalLegsVM | null {
     netDebit: p.net_debit == null ? DASH : "$" + Number(p.net_debit).toFixed(2),
   };
 }
-const orderDetail = (o:{ contract: string | null; contracts: number | null; premium: number | null }): string | null => {
+const orderDetail = (o: { contract: string | null; contracts: number | null; premium: number | null }): string | null => {
   const parts = [o.contract ? `${o.contracts != null ? `${o.contracts}× ` : ""}${o.contract}` : null, o.premium != null ? fmt(o.premium) : null];
   const out = parts.filter(Boolean).join(" · ");
   return out || null;
