@@ -434,7 +434,8 @@ def _safe_market_open(clock: Clock) -> bool:
 
     The market-state call hits the broker/network; any error (outage, partial failure) must
     NOT be read as "open". Returning False means: no new entries, and the monitor runs
-    mark-only (no real SELL_TO_CLOSE, and no exit booked without one) — we never act on an unconfirmed market state.
+    mark-only (no real SELL_TO_CLOSE, and no exit booked without one) — we never act on an
+    unconfirmed market state.
     """
     try:
         return bool(clock.is_market_open())
@@ -449,7 +450,7 @@ def monitor_mode(*, dry_run: bool, market_open: bool, demo: bool) -> tuple[bool,
     A closed market (or an unconfirmed one: ``_safe_market_open`` reads an error as closed) never transmits: dry_run is
     forced (PR2 R1). Outside DRY_RUN it is also MARK-ONLY (#451): marks are written and expiry settles at intrinsic,
     but a triggered profit-take or time-stop is not booked, because no sale happened; the next open-market tick
-    submits the real sell. DRY_RUN (pure simulation) and demo (an offline run whose FixedClock always reads closed)
+    re-evaluates it (a real sell if it still triggers and is sellable). DRY_RUN (pure simulation) and demo (an offline run whose FixedClock always reads closed)
     still book exits in-DB at the mark.
     """
     if market_open:

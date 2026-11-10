@@ -177,3 +177,38 @@ def test_closed_tick_defers_a_vertical_then_the_open_tick_closes_it_in_one_order
             assert b.spreads == [] and res.deferred == 1
     assert len(b.spreads) == 1 and b.spreads[0]["action"] == "close"
     assert r["status"] == "closed" and r["exit_reason"].startswith("time_stop")
+
+
+def test_run_once_wires_monitor_mode_into_the_monitor_pass():
+    # #451 review: the tests above drive monitor_mode themselves; this pins that run_once really uses it
+    import inspect
+    src = inspect.getsource(orchestrator.run_once)
+    assert "dry_run=dry_run or not market_open" not in src, "run_once still forces dry_run without mark_only"
+    assert "monitor_dry_run, mark_only = monitor_mode(dry_run=dry_run, market_open=market_open, demo=demo)" in src
+    call = src[src.index("mres = monitor_positions("):]
+    call = call[:call.index(")\n")]
+    assert "dry_run=monitor_dry_run" in call and "mark_only=mark_only" in call
+    assert src.index("market_open = _safe_market_open(clock)") < src.index("monitor_mode(") < src.index(
+        "mres = monitor_positions(")
+
+
+def test_mark_only_alone_transmits_nothing_and_skips_the_closing_reconcile(convexity_db, monkeypatch):
+    # #451 review: mark_only blocks real submits even if a caller passes dry_run=False — no sell, and no
+    # _reconcile_closing (no order-status read, no cancel) — on a real-shaped (non-dry) Alpaca paper broker
+    from tests.test_broker import _broker
+
+    b, fake = _broker(monkeypatch, dry_run=False)
+    calls = []
+    for name in ("submit_paper", "submit_spread", "order_status", "cancel_order"):
+        real = getattr(b, name)
+        monkeypatch.setattr(b, name, lambda *a, _n=name, _r=real, **k: calls.append(_n) or _r(*a, **k))
+    ts = _open(convexity_db, contract=TS_CONTRACT, entry_pc=200.0, expiry=TS_EXP)
+    closing = _open(convexity_db, contract="FCX261218C00080000", entry_pc=200.0)
+    state.begin_close_convexity_position(convexity_db, closing, close_order_id="cl-1", reason="profit_take_4x",
+                                         as_of="t")
+    res = monitor_positions(conn=convexity_db, clock=CLOSED, quote_provider=_ts_qp(), config=CONFIG, broker=b,
+                            dry_run=False, mark_only=True, underlying_price_of=lambda s: 100.0)
+    assert calls == [] and fake.submitted == [] and fake.cancelled == [], \
+        "mark_only with dry_run=False still reached the broker"
+    assert _row(convexity_db, ts, "status")["status"] == "open" and res.deferred == 1
+    assert _row(convexity_db, closing, "status")["status"] == "closing"

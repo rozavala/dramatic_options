@@ -174,7 +174,8 @@ def monitor_positions(
     ``mark_only`` (#451; the orchestrator sets it on a closed-market tick outside DRY_RUN): mark every position and
     settle expiries at intrinsic, but transmit nothing and book no triggered profit-take or time-stop. Nothing was
     sold, so booking one would close the journal row while the contract stays at the broker. Each is logged as
-    deferred and stays open; the next open-market tick re-evaluates it and submits the real sell.
+    deferred and stays open; the next open-market tick re-evaluates it through the normal path (a real sell if it
+    still triggers and is sellable; the in-DB ``_unsellable`` close if its bid is below ``min_close_bid``).
     """
     exits = config.get("convexity_exits", {})
     profit_mult = float(exits.get("profit_take_multiple", 4.0))
@@ -269,8 +270,8 @@ def monitor_positions(
 def _defer(res, pos, reason: str) -> None:
     """Mark-only (#451): a triggered exit on a closed-market tick is left open, never booked without a sale."""
     res.deferred += 1
-    log.info("EXIT DEFERRED #%d %s (%s): market closed (mark-only) — left open; the next open-market tick submits "
-             "the sell", int(pos["id"]), pos["contract_symbol"], reason)
+    log.info("EXIT DEFERRED #%d %s (%s): market closed (mark-only) — left open; the next open-market tick "
+             "re-evaluates it", int(pos["id"]), pos["contract_symbol"], reason)
 
 
 def _exit_position(
