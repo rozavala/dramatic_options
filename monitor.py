@@ -61,12 +61,13 @@ def _close_and_resolve(conn, pos, *, exit_price, realized_pnl, reason, as_of, co
     _maybe_resolve_proposal(conn, pos, reason=reason, as_of=as_of, conviction_to_prob=conv_map,
                             intrinsic=intrinsic, exit_spot=exit_spot)
     _maybe_resolve_sentinel(conn, pos, reason=reason, as_of=as_of, conviction_to_prob=conv_map,
-                            intrinsic=intrinsic, exit_spot=exit_spot, realized_pnl=realized_pnl)
+                            intrinsic=intrinsic, exit_spot=exit_spot, realized_pnl=realized_pnl,
+                            entry_premium=total_premium)
 
 
 def _maybe_resolve_sentinel(
     conn, pos, *, reason: str, as_of: str, conviction_to_prob, intrinsic=None, exit_spot=None,
-    realized_pnl=None,
+    realized_pnl=None, entry_premium=None,
 ) -> None:
     """Resolve a TRADED sentinel's forward outcome at close (T3): outcome + Brier + the realized
     **multiple** (the tail-aware magnitude binary Brier discards). No-op unless the position's
@@ -80,7 +81,8 @@ def _maybe_resolve_sentinel(
     outcome, b, mult = sentinel_scoring.resolve_traded_sentinel(
         reason=reason, direction=pos["direction"], conviction=prop["conviction"],
         intrinsic=intrinsic, exit_spot=exit_spot, entry_spot=pos["entry_spot"],
-        entry_premium=pos["total_premium"], realized_pnl=realized_pnl,
+        # the whole bet's premium when an earlier partial close reduced the row (#449 review)
+        entry_premium=pos["total_premium"] if entry_premium is None else entry_premium, realized_pnl=realized_pnl,
         conviction_to_prob=conviction_to_prob,
     )
     state.resolve_sentinel(conn, int(prop["sentinel_id"]), resolved_at=as_of, outcome=outcome,
@@ -467,7 +469,7 @@ def _reconcile_closing(
         if st == "filled" and sold < contracts:
             price = abs(float(info.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER)))
             part = state.record_partial_close(conn, pid, sold_qty=sold, exit_price=price,
-                                              reason=f"{reason}_partial", as_of=as_of_iso)
+                                              reason=f"{reason}_partial", as_of=as_of_iso, order_id=oid)
             res.realized_pnl += part
             log.warning("CLOSE PARTIAL (reconciled) #%d %s: %d of %d sold @ %.2f (P&L $%.0f); the rest reopened to retry",
                         pid, pos["contract_symbol"], sold, contracts, price, part)

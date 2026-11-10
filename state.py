@@ -344,7 +344,7 @@ def close_convexity_position(
 
 
 def record_partial_close(conn: sqlite3.Connection, position_id: int, *, sold_qty: int, exit_price: float,
-                         reason: str, as_of: str) -> float:
+                         reason: str, as_of: str, order_id: str | None = None) -> float:
     """A SELL_TO_CLOSE that filled ``sold_qty`` of the row's contracts and then ended (#449). The row keeps only the
     unsold contracts (premium pro rata) and goes back to 'open' with a fresh close id, so the retry sells only what
     the venue still holds. The sold part (qty, price, premium, realized P&L) is kept in ``rationale.partial_closes``;
@@ -366,7 +366,7 @@ def record_partial_close(conn: sqlite3.Connection, position_id: int, *, sold_qty
         rat = rat if isinstance(rat, dict) else {"rationale": rat}
         rat.setdefault("partial_closes", []).append(
             {"qty": q, "price": float(exit_price), "premium": sold_premium, "realized": realized,
-             "reason": reason, "at": as_of})
+             "reason": reason, "at": as_of, "order_id": order_id})
         conn.execute(
             "UPDATE convexity_positions SET status = 'open', close_order_id = NULL, exit_reason = ?, contracts = ?, "
             "total_premium = ?, rationale = ? WHERE id = ?",
@@ -410,8 +410,9 @@ def begin_close_convexity_position(
 def revert_closing_to_open(conn: sqlite3.Connection, position_id: int, *, reason: str) -> None:
     """A close order failed terminally → reopen so the monitor re-evaluates next cycle. Atomic.
 
-    Clears ``close_order_id`` so a re-fire mints a fresh (per-day) id rather than re-using the
-    single-use one Alpaca already saw.
+    Clears ``close_order_id``. The re-fire's id is per contract per ET day (``make_client_order_id``), so a same-day
+    re-fire reuses it and Alpaca rejects the duplicate until the next day's id; an expired DAY order is reconciled on
+    the next trading day, so its retry gets a fresh id.
     """
     with conn:
         conn.execute(
