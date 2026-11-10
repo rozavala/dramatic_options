@@ -4,7 +4,7 @@ fail-soft-not-fail-silent, and the lookahead probe. The EDGAR source is the REAL
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import listing_guard as lg
 import state
@@ -12,7 +12,7 @@ from data.cache import PointInTimeCache
 from data.filings import _EARLY, SOURCE, FilingsData
 
 ATKR_CIK = "0001666138"
-COVERED_THROUGH = datetime(2027, 1, 1, tzinfo=UTC)
+COVERED_THROUGH = datetime(2028, 1, 1, tzinfo=UTC)
 
 
 def _rec(form, ts, acc, items=()):
@@ -59,27 +59,41 @@ def test_atkr_with_full_history_the_merger_proxy_warns_before_the_delisting(tmp_
     assert _classes(lg.check_names(["ATKR"], f, _at(2026, 10, 18))) == {"deal"}
     res = lg.check_names(["ATKR"], f, _at(2026, 10, 20))
     assert {h.form for h in res.hits} == {"DEFM14A", "25-NSE"}   # the 8-K is not a signal (module docstring)
-    late = lg.check_names(["ATKR"], f, _at(2026, 10, 30))      # the proxy (51 days old) has left the window
-    assert {h.form for h in late.hits} == {"25-NSE", "15-12G"}
+    late = lg.check_names(["ATKR"], f, _at(2026, 10, 30))      # the proxy (51 days old) is still a pending deal
+    assert {h.form for h in late.hits} == {"DEFM14A", "25-NSE", "15-12G"}
 
 
-def test_window_is_closed_45_days(tmp_path):
-    f = _filings(tmp_path, {"ATKR": [ATKR_25NSE]})
-    ts = datetime.fromisoformat(ATKR_25NSE["ts"])
-    from datetime import timedelta
+def test_per_class_windows_are_closed_deal_365_delisting_90(tmp_path):
+    f = _filings(tmp_path, {"ATKR": [ATKR_DEFM14A, ATKR_25NSE]})
+    deal_ts, delist_ts = (datetime.fromisoformat(r["ts"]) for r in (ATKR_DEFM14A, ATKR_25NSE))
+    edge = timedelta(seconds=1)
 
-    assert lg.check_names(["ATKR"], f, ts + timedelta(days=lg.WINDOW_DAYS)).hits
-    assert not lg.check_names(["ATKR"], f, ts + timedelta(days=lg.WINDOW_DAYS, seconds=1)).hits
+    def forms(as_of):
+        return {h.form for h in lg.check_names(["ATKR"], f, as_of).hits}
+
+    assert "25-NSE" in forms(delist_ts + timedelta(days=lg.DELISTING_WINDOW_DAYS))
+    assert "25-NSE" not in forms(delist_ts + timedelta(days=lg.DELISTING_WINDOW_DAYS) + edge)
+    assert "DEFM14A" in forms(deal_ts + timedelta(days=lg.DEAL_WINDOW_DAYS))
+    assert "DEFM14A" not in forms(deal_ts + timedelta(days=lg.DEAL_WINDOW_DAYS) + edge)
+
+
+def test_a_position_opened_months_into_a_regulatory_review_still_pages(tmp_path, convexity_db):
+    _open_real(convexity_db)                                  # opened ~200 days after the merger proxy
+    pager = Pager()
+    _run(convexity_db, _filings(tmp_path, {"ATKR": [ATKR_DEFM14A]}), _at(2027, 3, 28), pager)
+    assert len(pager.calls) == 1 and "DEFM14A" in pager.calls[0][1]
 
 
 # ── exact membership ─────────────────────────────────────────────────────────────────────────────────────────────
 def test_form_matching_is_exact_membership_never_prefix():
-    for form in ("25", "25/A", "25-NSE", "25-NSE/A", "15-12G", "15-12B/A", "15-15D"):
+    for form in ("25", "25/A", "25-NSE", "25-NSE/A", "15-12G", "15-12B/A", "15-15D", "15F-12G", "15F-12B/A",
+                 "15F-15D"):
         assert lg.classify_form(form) == "delisting", form
-    for form in ("DEFM14A", "PREM14A/A", "SC TO-T", "SC TO-T/A", "SC TO-I", "SC 13E3", "SC 14D9/A"):
+    for form in ("DEFM14A", "PREM14A/A", "DEFM14C", "PREM14C/A", "SC TO-T", "SC TO-T/A", "SC TO-I", "SC 13E3",
+                 "SC 14D9/A"):
         assert lg.classify_form(form) == "deal", form
-    for form in ("25-X", "250", "2", "25-NSE/B", "15-12", "15-12G/AA", "15F-12G", "SC TO-C", "SC 14D9C",
-                 "SC 13E4", "DEFA14A", "PREM14C", "DEFM14C", "8-K", "SC TO-T ", "sc to-t", ""):
+    for form in ("25-X", "250", "2", "25-NSE/B", "15-12", "15-12G/AA", "15F-12", "15F-12GX", "SC TO-C",
+                 "SC 14D9C", "SC 13E4", "DEFA14A", "DEFA14C", "DEFR14C", "8-K", "SC TO-T ", "sc to-t", ""):
         assert lg.classify_form(form) is None, form
 
 
@@ -180,7 +194,7 @@ def test_no_edgar_source_counts_every_name_as_an_error(convexity_db):
 def test_no_cik_is_distinguished_from_an_error(tmp_path):
     f = _filings(tmp_path, {"ATKR": [ATKR_25NSE]}, ciks={})
     res = lg.check_names(["ATKR"], f, _at(2026, 10, 20))
-    assert res.no_cik == 1 and res.errors == 0 and res.unknown == ["ATKR"] and not res.mostly_failed()
+    assert res.no_cik == 1 and res.errors == 0 and res.unknown == ["ATKR"] and res.mostly_failed()
 
 
 def test_venue_leg_flags_inactive_and_counts_its_own_failures(tmp_path):
@@ -223,14 +237,201 @@ def test_names_cover_universe_sentinels_real_and_null_books(convexity_db):
     assert roles == {"FCX": {"universe"}, "NVDA": {"universe", "real"}, "ATKR": {"null"}}
 
 
-def test_orchestrator_wiring_is_one_fail_soft_block_after_entries_and_skipped_in_demo():
+def _parents(tree):
+    import ast
+
+    out = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            out[child] = node
+    return out
+
+
+def _is_not_name(test, name):
+    import ast
+
+    return isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not) and \
+        isinstance(test.operand, ast.Name) and test.operand.id == name
+
+
+def test_orchestrator_wiring_is_structurally_inside_l1_after_entries_in_a_non_raising_try():
+    import ast
     from pathlib import Path
 
-    src = Path(__file__).resolve().parents[1].joinpath("orchestrator.py").read_text()
-    call = "listing_guard.run_nightly(conn, config, run_id=run_id, cache=chain_cache, client=client,"
-    assert src.count(call) == 1
-    i = src.index(call)
-    assert src.index("result = run_paper_cycle(") < src.index("cheapness_watch.record_cheapness(") < i
-    assert i < src.index("_print_book_summary(conn, config)\n        return 0")
-    block = src[src.rindex("if not demo:", 0, i): src.index("\n\n", i)]
-    assert "try:" in block and 'log.warning("listing guard failed (non-fatal): %s", e)' in block
+    tree = ast.parse(Path(__file__).resolve().parents[1].joinpath("orchestrator.py").read_text())
+    run_once = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "run_once")
+    calls = [n for n in ast.walk(run_once) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+             and n.func.attr == "run_nightly" and getattr(n.func.value, "id", None) == "listing_guard"]
+    assert len(calls) == 1
+    call, parents = calls[0], _parents(run_once)
+    chain, node = [], call
+    while node in parents:
+        node, child = parents[node], node
+        chain.append((node, child))
+    ifs = [(n, c) for n, c in chain if isinstance(n, ast.If)]
+    assert any(_is_not_name(n.test, "monitor_only") and c in n.body for n, c in ifs)
+    assert any(_is_not_name(n.test, "demo") and c in n.body for n, c in ifs)
+    tries = [(n, c) for n, c in chain if isinstance(n, ast.Try) and c in n.body]
+    assert tries, "the call must sit in a try body"
+    for handler in tries[0][0].handlers:
+        assert handler.type is not None and getattr(handler.type, "id", "") == "Exception"
+        assert not any(isinstance(x, ast.Raise) for x in ast.walk(handler))
+    paper = [n for n in ast.walk(run_once) if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "run_paper_cycle"]
+    assert paper and all(p.lineno < call.lineno for p in paper)
+    notes = [n for h in tries[0][0].handlers for n in ast.walk(h)
+             if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "append_run_note"]
+    assert notes, "a whole-guard failure must leave a run note"
+
+
+# ── review fixes: budget, ordering, honest unknowns, copy, note bounds, shares, run_nightly, smoke ──────────────────
+class StepClock:
+    """Each read 'takes' ``step`` seconds on an injected monotonic clock."""
+
+    def __init__(self, step):
+        self.t, self.step = 0.0, step
+
+    def __call__(self):
+        return self.t
+
+
+class SlowFilings:
+    def __init__(self, clock):
+        self.clock, self.read = clock, []
+
+    def _cik(self, symbol):
+        return "1"
+
+    def filings_asof(self, symbol, as_of):
+        self.clock.t += self.clock.step
+        self.read.append(symbol)
+        return []
+
+
+def test_budget_stops_reading_and_counts_the_rest_as_unknown(caplog, convexity_db):
+    clock = StepClock(100.0)
+    src = SlowFilings(clock)
+    names = [f"N{i}" for i in range(10)]
+    res = lg.check_names(names, src, _at(2026, 10, 20), budget_s=250, monotonic=clock)
+    assert src.read == ["N0", "N1", "N2"]              # 0, 100, 200 elapsed start ≤ 250; at 300 it stops
+    assert res.budget_skipped == 7 and res.errors == 0 and res.checked == 10
+    assert res.unknown == names[3:] and res.mostly_failed()
+    with caplog.at_level(logging.INFO, logger="listing_guard"):
+        line = lg.dispose(convexity_db, res, {}, as_of=_at(2026, 10, 20), run_id=None, notify_send=Pager())
+    assert "budget_skipped=7" in line
+    assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+
+def test_one_budget_skip_alone_still_warns(convexity_db, caplog):
+    res = lg.GuardResult(checked=10, budget_skipped=1, unknown=["Z"])
+    with caplog.at_level(logging.INFO, logger="listing_guard"):
+        lg.dispose(convexity_db, res, {}, as_of=_at(2026, 10, 20), run_id=None, notify_send=Pager())
+    assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+
+def test_order_names_real_first_then_sentinel_and_universe_then_null_only():
+    roles = {"A": {"null"}, "B": {"universe"}, "C": {"real", "null"}, "D": {"sentinel"}, "E": {"universe", "real"}}
+    assert lg.order_names(roles) == ["C", "E", "B", "D", "A"]
+
+
+def test_run_nightly_reads_held_names_first_under_the_budget(tmp_path, convexity_db, monkeypatch):
+    _open_real(convexity_db, "ZZZ")
+    clock = StepClock(400.0)
+    src = SlowFilings(clock)
+    monkeypatch.setattr(lg, "_filings_source", lambda config, cache, as_of: src)
+    config = {"universe": {"themes": {"a": ["AAA", "BBB"]}}}
+    line = lg.run_nightly(convexity_db, config, run_id=None, cache=None, client=None, as_of=_at(2026, 10, 20),
+                          notify_send=Pager(), monotonic=clock)
+    assert src.read == ["ZZZ"] and "budget_skipped=2" in line
+
+
+def test_mostly_failed_counts_no_cik_and_venue_failures(tmp_path):
+    f = _filings(tmp_path, {"A": [], "B": [], "C": []}, ciks={"C": "1"})
+    res = lg.check_names(["A", "B", "C"], f, _at(2026, 10, 20))
+    assert res.no_cik == 2 and res.errors == 0 and res.mostly_failed()
+
+    def boom(sym):
+        raise RuntimeError("venue down")
+
+    f2 = _filings(tmp_path / "2", {"C": []}, ciks={"C": "1"})
+    res2 = lg.check_names(["C"], f2, _at(2026, 10, 20), asset_of=boom)
+    assert res2.venue_errors == 1 and res2.errors == 0 and res2.unknown == ["C"]
+
+
+def test_page_copy_is_neutral_and_class_specific():
+    hits = [lg.Hit("X", "deal", "SC TO-I", "acc-1", "2026-10-01T00:00:00+00:00"),
+            lg.Hit("X", "delisting", "25", "acc-2", "2026-10-02T00:00:00+00:00"),
+            lg.Hit("X", "venue", "status=inactive tradable=False", "venue:inactive:False", "2026-10-03T00:00:00+00:00")]
+    body = lg.page_body("X", "#1", hits)
+    assert "cash" not in body.lower()
+    for label in ("pending deal or tender offer: SC TO-I", "delisting / deregistration: 25", "venue status: status="):
+        assert label in body
+    assert body.endswith("Nothing was closed; the call is the operator's.")
+
+
+def test_run_note_shows_latest_hit_per_class_and_caps_symbols(convexity_db):
+    hits = [lg.Hit("S00", "deal", "PREM14A", "a1", "2026-03-01T00:00:00+00:00"),
+            lg.Hit("S00", "deal", "DEFM14A", "a2", "2026-05-01T00:00:00+00:00")]
+    hits += [lg.Hit(f"S{i:02d}", "delisting", "25", f"d{i}", "2026-10-01T00:00:00+00:00") for i in range(1, 13)]
+    roles = {h.symbol: {"universe"} for h in hits}
+    res = lg.GuardResult(checked=13, hits=hits)
+    line = lg.dispose(convexity_db, res, roles, as_of=_at(2026, 10, 20), run_id=None, notify_send=Pager())
+    assert "S00(universe) deal:DEFM14A@2026-05-01" in line and "PREM14A" not in line
+    assert line.count("(universe)") == 10 and line.endswith("; +3")
+
+
+def test_shares_horizon_trading_bars_are_converted_to_calendar_days(convexity_db):
+    as_of = _at(2026, 10, 20)
+    for sym, days in (("IN", 500), ("OUT", 540)):          # 365 bars ≈ 530 calendar days
+        state.record_shares_position(convexity_db, run_id=None, basket="b", symbol=sym, direction="bullish",
+                                     entry_spot=10.0, entry_at=(as_of - timedelta(days=days)).isoformat())
+    roles = lg.names_to_check({}, convexity_db, as_of=as_of)
+    assert roles == {"IN": {"null"}}
+
+
+def test_filings_source_without_ua_makes_every_name_unknown_never_no_events(convexity_db, caplog):
+    assert lg._filings_source({}, None, _at(2026, 10, 20)) is None
+    run_id = state.record_run(convexity_db, mode="PAPER", equity=None, note="paper cycle")
+    config = {"universe": {"themes": {"a": ["AAA", "BBB"]}}}
+    with caplog.at_level(logging.INFO, logger="listing_guard"):
+        line = lg.run_nightly(convexity_db, config, run_id=run_id, cache=None, client=None,
+                              as_of=_at(2026, 10, 20), notify_send=Pager())
+    assert "err=2" in line and "unknown=AAA,BBB" in line and "venue=off" in line
+    assert any(r.levelno == logging.WARNING and "fail-soft is not fail-silent" in r.getMessage()
+               for r in caplog.records)
+    assert "listing_guard: checked=2" in convexity_db.execute(
+        "SELECT note FROM runs WHERE id=?", (run_id,)).fetchone()["note"]
+
+
+def test_filings_source_with_ua_builds_the_submissions_path(tmp_path):
+    f = lg._filings_source({"edgar": {"user_agent": "dramatic-options test"}, "cache": {"dir": str(tmp_path)}},
+                           PointInTimeCache(tmp_path), _at(2026, 10, 20))
+    assert isinstance(f, FilingsData) and f.fetch_end == _at(2026, 10, 20) and f.edgar.ua == "dramatic-options test"
+
+
+def test_run_nightly_uses_the_clients_get_asset_and_pages_a_held_inactive_name(tmp_path, convexity_db, monkeypatch):
+    _open_real(convexity_db, "ATKR")
+    monkeypatch.setattr(lg, "_filings_source",
+                        lambda config, cache, as_of: _filings(tmp_path, {"ATKR": []}))
+
+    class Client:
+        def __init__(self):
+            self.asked = []
+
+        def get_asset(self, sym):
+            self.asked.append(sym)
+            return {"status": "inactive", "tradable": False}
+
+    client, pager = Client(), Pager()
+    for _ in range(2):
+        line = lg.run_nightly(convexity_db, {}, run_id=None, cache=None, client=client,
+                              as_of=_at(2026, 10, 20), notify_send=pager)
+    assert client.asked == ["ATKR", "ATKR"] and "venue=1" in line and "venue_err=0" in line
+    assert len(pager.calls) == 1 and "venue status: status=inactive" in pager.calls[0][1]
+
+
+def test_smoke_report_lists_hits_and_every_form_seen(tmp_path):
+    f = _filings(tmp_path, {"ATKR": [ATKR_DEFM14A, ATKR_8K, ATKR_25NSE, ATKR_15_12G]})
+    out = lg.smoke_report("ATKR", f, _at(2026, 10, 20))
+    assert "hits: 2" in out and "15-12G" not in out             # 10-29 is after as_of
+    for form in ("DEFM14A", "8-K", "25-NSE"):
+        assert f"  {form}" in out

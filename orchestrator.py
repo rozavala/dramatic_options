@@ -1265,6 +1265,10 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                               as_of=clock.now())
                 except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
                     log.warning("listing guard failed (non-fatal): %s", e)
+                    try:   # the nightly grade must see that it failed, not silence
+                        append_run_note(conn, run_id, f"listing_guard: FAILED {type(e).__name__}")
+                    except Exception:  # noqa: BLE001 — the note is best-effort
+                        pass
 
         _print_book_summary(conn, config)
         return 0
