@@ -19,7 +19,7 @@ DOC = """## Board & book
 
 def test_in_sync_is_ok_and_ranges_count_as_mentioned():
     d = ssi.diff(DOC, {351, 353, 357})
-    assert d["ok"] and d["stated"] == 3 and d["unlisted_open"] == []
+    assert d["ok"] and d["actual"] == 3 and d["unlisted_open"] == []
     assert 342 in d["mentioned_not_open"] and 361 in d["mentioned_not_open"]   # info only, never an error
 
 
@@ -28,9 +28,10 @@ def test_an_open_issue_the_bullet_never_mentions_is_drift():
     assert not d["ok"] and d["unlisted_open"] == [371]
 
 
-def test_a_wrong_count_is_drift_even_when_every_number_is_mentioned():
+def test_a_stale_count_in_the_text_is_not_drift():
+    # #446: the stated count is gone from the check; a number left in the prose ("3") never fails it
     d = ssi.diff(DOC, {351, 353})
-    assert not d["ok"] and (d["stated"], d["actual"]) == (3, 2)
+    assert d["ok"] and d["actual"] == 2 and "stated" not in d
 
 
 def test_the_bullet_stops_at_the_next_bullet_and_is_found_in_the_real_file():
