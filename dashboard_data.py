@@ -1767,8 +1767,8 @@ def _gap_note_class(note: str | None) -> str:
 
       - ``entitlement`` — a subscription/permission lapse (``feeds.classify_feed_error``) ⇒ feed-wide.
       - ``transient``   — a per-name fetch blip ⇒ log/escalate.
-      - ``structural``  — OPRA legitimately has no tradeable wing (``no_eligible_contract_in_tenor_window``
-                          and the other selection reasons), OR an unrecognized/empty note (fail-safe:
+      - ``structural``  — OPRA legitimately has no tradeable wing (``no_eligible_contract_in_tenor_window``,
+                          ``empty_chain`` (#437) and the other selection reasons), OR an unrecognized/empty note (fail-safe:
                           an unknown absence is treated as OPRA-correct, never as a feed outage)."""
     msg = (note or "").strip().lower()
     if msg.startswith("entitlement:"):

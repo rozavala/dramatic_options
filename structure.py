@@ -134,6 +134,10 @@ def select_structure(
     kind = DIRECTION_KIND.get(direction)
     if kind is None:
         return None, (f"bad_direction:{direction}",)
+    # #437: a chain with no contract at ANY expiry is a dead or halted underlying (ATKR after its take-private:
+    # expiries=[] beside a frozen spot), not a name between expiries; say so instead of "not in the tenor window".
+    if not chain:
+        return None, ("empty_chain",)
     if not underlying_price or underlying_price <= 0:
         return None, ("no_underlying_price",)
 
