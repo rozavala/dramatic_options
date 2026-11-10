@@ -80,3 +80,18 @@ def test_bad_direction():
                                   tenor_min_days=180, tenor_max_days=365, target_moneyness=0.25,
                                   eligibility=_elig)
     assert s is None and reasons[0].startswith("bad_direction")
+
+
+def test_an_empty_chain_reads_as_empty_not_as_a_tenor_gap():
+    # #437: ATKR after its take-private (25-NSE 2026-10-19): the snapshot showed spot 94.96 (its last bar) beside
+    # expiries=[], and every L1 labelled it no_eligible_contract_in_tenor_window, the same as a live name between
+    # expiries. Fail-closed is unchanged; only the reason is honest.
+    s, why = select_structure([], direction="bullish", as_of=AS_OF, underlying_price=94.96,
+                              tenor_min_days=180, tenor_max_days=365, target_moneyness=0.25,
+                              eligibility=_elig, underlying_symbol="ATKR")
+    assert s is None and why == ("empty_chain",)
+    # a live chain with nothing inside the window keeps the tenor reason
+    s, why = select_structure([_c("C", 125, 30), _c("C", 125, 400)], direction="bullish", as_of=AS_OF,
+                              underlying_price=100.0, tenor_min_days=180, tenor_max_days=365,
+                              target_moneyness=0.25, eligibility=_elig)
+    assert s is None and why == ("no_eligible_contract_in_tenor_window",)
