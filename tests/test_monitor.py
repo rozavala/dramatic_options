@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 import state
 from clock import FixedClock
 from convexity_data import StaticQuoteProvider
@@ -457,6 +459,39 @@ def test_a_filled_or_resting_close_does_not_page(convexity_db, monkeypatch):
     res2 = _tick(convexity_db, CLOCK, qp2, _FakeBroker())                # resting → closing
     assert res2.closing == 1 and _row(convexity_db, resting, "status")["status"] == "closing"
     assert pages == []
+
+
+def _raises(*a, **kw):
+    raise RuntimeError("pushover down")
+
+
+@pytest.mark.parametrize("send", [_raises, lambda t, m, priority=0: False], ids=["raises", "returns_false"])
+def test_a_failing_pager_never_breaks_the_pass(convexity_db, monkeypatch, send):
+    # draft §6.11: the refused row is paged first; a pager that raises or reports failure must not stop the pass
+    import notify
+    from broker import Fill
+    monkeypatch.setattr(notify, "send", send)
+    refused = _open(convexity_db, contract="FCX261218C00080000", entry_pc=200.0)
+    sells = _open(convexity_db, contract="FCX261218C00090000", entry_pc=200.0, strike=90.0)
+    qp = StaticQuoteProvider({"FCX261218C00080000": 9.0, "FCX261218C00090000": 9.0},
+                             bids={"FCX261218C00080000": 8.9, "FCX261218C00090000": 8.9})
+
+    class _RefusesOne(_FakeBroker):
+        def submit_paper(self, *, contract_symbol, **kw):
+            super().submit_paper(contract_symbol=contract_symbol, **kw)
+            if contract_symbol == "FCX261218C00080000":
+                return Fill(False, 0.0, 0, "LIVE rejected: over the per-order ceiling (fail-closed)")
+            return Fill(True, 8.9, 1, "filled", order_id="cl-9")
+
+    broker = _RefusesOne()
+    res = _tick(convexity_db, CLOCK, qp, broker)
+    assert [s["contract"] for s in broker.sells] == ["FCX261218C00080000", "FCX261218C00090000"]   # both processed
+    assert res.marked == 2 and res.closed == 1
+    assert _row(convexity_db, refused, "status")["status"] == "open"
+    assert _row(convexity_db, sells, "status")["status"] == "closed"
+    _tick(convexity_db, FixedClock(NOW + timedelta(minutes=30)), qp, broker)                     # the next L2
+    assert [s["contract"] for s in broker.sells][2:] == ["FCX261218C00080000"]                    # re-fired
+    assert _row(convexity_db, refused, "status")["status"] == "open"
 
 
 def test_a_mark_only_tick_sends_nothing_and_pages_nothing(convexity_db, monkeypatch):
