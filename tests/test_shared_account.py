@@ -111,7 +111,11 @@ def test_cancels_only_take_ids_from_this_projects_journal():
     # — never an id listed from the account.
     # (since #445 the monitor cancels only through carry.cancel_and_settle, so it is a settle caller below)
     callers = [rel for rel, src in _py_sources() if re.search(r"\.cancel_order\(", src)]
-    assert sorted(callers) == ["carry.py", "scripts/smoke_order_roundtrip.py"]
+    # #466: the exit fire-drill's DrillBroker overrides cancel_order to refuse every id but the do-drill- orders its
+    # own scratch DB recorded (and everything without --send); it forwards through exactly ONE super() call.
+    assert sorted(callers) == ["carry.py", "scripts/drill_exit_paths.py", "scripts/smoke_order_roundtrip.py"]
+    drill_src = (REPO / "scripts" / "drill_exit_paths.py").read_text()
+    assert re.findall(r"\S*\.cancel_order\(", drill_src) == ["super().cancel_order("]
     for rel in ("monitor.py", "carry.py"):
         src = (REPO / rel).read_text()
         assert "get_orders" not in src and "list_orders" not in src, rel
