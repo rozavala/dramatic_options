@@ -109,8 +109,9 @@ def test_cancels_only_take_ids_from_this_projects_journal():
     # The only live cancel callers are the monitor's reconcilers and the carry-over (#386), which pass ids read
     # from this project's own journal rows (pos['close_order_id'] / a pending entry's or carry attempt's order id)
     # — never an id listed from the account.
+    # (since #445 the monitor cancels only through carry.cancel_and_settle, so it is a settle caller below)
     callers = [rel for rel, src in _py_sources() if re.search(r"\.cancel_order\(", src)]
-    assert sorted(callers) == ["carry.py", "monitor.py", "scripts/smoke_order_roundtrip.py"]
+    assert sorted(callers) == ["carry.py", "scripts/smoke_order_roundtrip.py"]
     for rel in ("monitor.py", "carry.py"):
         src = (REPO / rel).read_text()
         assert "get_orders" not in src and "list_orders" not in src, rel
