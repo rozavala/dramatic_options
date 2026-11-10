@@ -31,11 +31,33 @@ log = logging.getLogger("monitor")
 CONTRACT_MULTIPLIER = 100.0
 
 
+def _partial_closes(conn, pid: int) -> list[dict]:
+    """The sold parts of earlier partial closes (#449), from the row's rationale; [] if none or unreadable."""
+    import json
+
+    row = conn.execute("SELECT rationale FROM convexity_positions WHERE id = ?", (pid,)).fetchone()
+    try:
+        rat = json.loads(row["rationale"]) if row and row["rationale"] else {}
+    except (TypeError, ValueError):
+        return []
+    return list(rat.get("partial_closes") or []) if isinstance(rat, dict) else []
+
+
 def _close_and_resolve(conn, pos, *, exit_price, realized_pnl, reason, as_of, conv_map,
                        intrinsic=None, exit_spot=None) -> None:
-    """Book a position closed (in-DB) and resolve its council proposal at the actual exit."""
-    state.close_convexity_position(conn, int(pos["id"]), exit_price=exit_price,
-                                   realized_pnl=realized_pnl, reason=reason, as_of=as_of)
+    """Book a position closed (in-DB) and resolve its council proposal at the actual exit. A row an earlier partial
+    close reduced (#449) is closed as the whole bet: contracts and premium restored, the P&L of every sold part added,
+    and the exit price blended over all contracts."""
+    contracts = total_premium = None
+    parts = _partial_closes(conn, int(pos["id"]))
+    if parts:
+        n_rest, q_sold = int(pos["contracts"]), sum(int(p["qty"]) for p in parts)
+        contracts = n_rest + q_sold
+        total_premium = float(pos["total_premium"]) + sum(float(p["premium"]) for p in parts)
+        exit_price = (exit_price * n_rest + sum(int(p["qty"]) * float(p["price"]) for p in parts)) / contracts
+        realized_pnl = realized_pnl + sum(float(p["realized"]) for p in parts)
+    state.close_convexity_position(conn, int(pos["id"]), exit_price=exit_price, realized_pnl=realized_pnl,
+                                   reason=reason, as_of=as_of, contracts=contracts, total_premium=total_premium)
     _maybe_resolve_proposal(conn, pos, reason=reason, as_of=as_of, conviction_to_prob=conv_map,
                             intrinsic=intrinsic, exit_spot=exit_spot)
     _maybe_resolve_sentinel(conn, pos, reason=reason, as_of=as_of, conviction_to_prob=conv_map,
@@ -439,6 +461,17 @@ def _reconcile_closing(
         if info is None:
             continue
         st = str(info.get("state", "")).lower()
+        if st in ("canceled", "cancelled", "expired", "rejected") and carry.filled_qty(info) > 0:
+            st, info = "filled", carry.settle_terminal(info)   # #449: it sold some before it ended — never reopen at full
+        sold = min(carry.filled_qty(info) or contracts, contracts) if st == "filled" else 0
+        if st == "filled" and sold < contracts:
+            price = abs(float(info.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER)))
+            part = state.record_partial_close(conn, pid, sold_qty=sold, exit_price=price,
+                                              reason=f"{reason}_partial", as_of=as_of_iso)
+            res.realized_pnl += part
+            log.warning("CLOSE PARTIAL (reconciled) #%d %s: %d of %d sold @ %.2f (P&L $%.0f); the rest reopened to retry",
+                        pid, pos["contract_symbol"], sold, contracts, price, part)
+            continue
         if st == "filled":
             price = abs(float(info.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER)))  # mleg: net, maybe signed
             up = _exit_spot(underlying_price_of, pos["symbol"])

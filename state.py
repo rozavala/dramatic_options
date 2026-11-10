@@ -327,14 +327,52 @@ def close_convexity_position(
     realized_pnl: float,
     reason: str,
     as_of: str,
+    contracts: int | None = None,
+    total_premium: float | None = None,
 ) -> None:
-    """Close a position: status='closed', store exit mark, realized P&L, reason. Atomic."""
+    """Close a position: status='closed', store exit mark, realized P&L, reason. Atomic. ``contracts`` /
+    ``total_premium`` restore the whole bet on a row an earlier partial close had reduced (#449)."""
     with conn:
         conn.execute(
             "UPDATE convexity_positions SET status = 'closed', mark = ?, realized_pnl = ?, "
-            "exit_reason = ?, closed_at = ?, marked_at = ? WHERE id = ?",
-            (float(exit_price), float(realized_pnl), reason, as_of, as_of, position_id),
+            "exit_reason = ?, closed_at = ?, marked_at = ?, contracts = COALESCE(?, contracts), "
+            "total_premium = COALESCE(?, total_premium) WHERE id = ?",
+            (float(exit_price), float(realized_pnl), reason, as_of, as_of,
+             None if contracts is None else int(contracts),
+             None if total_premium is None else float(total_premium), position_id),
         )
+
+
+def record_partial_close(conn: sqlite3.Connection, position_id: int, *, sold_qty: int, exit_price: float,
+                         reason: str, as_of: str) -> float:
+    """A SELL_TO_CLOSE that filled ``sold_qty`` of the row's contracts and then ended (#449). The row keeps only the
+    unsold contracts (premium pro rata) and goes back to 'open' with a fresh close id, so the retry sells only what
+    the venue still holds. The sold part (qty, price, premium, realized P&L) is kept in ``rationale.partial_closes``;
+    the final close merges it back. Returns the sold part's realized P&L. Atomic."""
+    import json
+
+    with conn:
+        row = conn.execute("SELECT contracts, total_premium, entry_premium_per_contract, rationale "
+                           "FROM convexity_positions WHERE id = ?", (position_id,)).fetchone()
+        n, q = int(row["contracts"]), int(sold_qty)
+        if not 0 < q < n:
+            raise ValueError(f"partial close of {q} needs 0 < q < {n}")
+        sold_premium = float(row["total_premium"]) * q / n
+        realized = (float(exit_price) * 100.0 - float(row["entry_premium_per_contract"])) * q
+        try:
+            rat = json.loads(row["rationale"]) if row["rationale"] else {}
+        except (TypeError, ValueError):
+            rat = {}
+        rat = rat if isinstance(rat, dict) else {"rationale": rat}
+        rat.setdefault("partial_closes", []).append(
+            {"qty": q, "price": float(exit_price), "premium": sold_premium, "realized": realized,
+             "reason": reason, "at": as_of})
+        conn.execute(
+            "UPDATE convexity_positions SET status = 'open', close_order_id = NULL, exit_reason = ?, contracts = ?, "
+            "total_premium = ?, rationale = ? WHERE id = ?",
+            (reason, n - q, float(row["total_premium"]) - sold_premium, json.dumps(rat, default=str), position_id),
+        )
+    return realized
 
 
 def drop_convexity_position(conn: sqlite3.Connection, position_id: int, *, reason: str) -> None:
