@@ -311,3 +311,12 @@ def test_an_unknown_cancel_outcome_leaves_the_row_closing(convexity_db):
     res = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
                             broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
     assert res.closed == 0 and _row(convexity_db, pid, "status")["status"] == "closing"
+
+
+def test_a_fill_with_no_reported_price_falls_back_to_the_entry_price_not_zero(convexity_db):
+    pid, past = _closing_at_expiry(convexity_db)
+    broker = _FakeBroker()
+    broker._statuses["cl-1"] = {"state": "filled", "filled_qty": "2"}           # no filled_avg_price
+    monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
+                      broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
+    assert _row(convexity_db, pid, "realized_pnl")["realized_pnl"] == 0.0        # (5.00·100 − 500)·2, as reconciled

@@ -398,7 +398,8 @@ def _reconcile_closing(
                     continue
                 if str(settled.get("state", "")).lower() == "filled":
                     sold = min(carry.filled_qty(settled) or contracts, contracts)
-                    sold_price = abs(float(settled.get("filled_avg_price") or 0.0))
+                    # no reported price: the reconciled-fill branch's fallback (the entry price), never 0
+                    sold_price = abs(float(settled.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER)))
             if sold == contracts:
                 up = _exit_spot(underlying_price_of, pos["symbol"])
                 pnl = _realized(sold_price, entry_pc, contracts)
