@@ -289,3 +289,18 @@ def test_3b_equal_weight_ignores_the_cluster_cap(convexity_db, monkeypatch):
     cfg = _basket_cfg({"t": ["AAA", "BBB", "CCC"]}, cluster_fraction=0.02, clusters={"power": ["AAA", "BBB", "CCC"]})
     res = _run_3b(convexity_db, cfg, _market(["AAA", "BBB", "CCC", "SPY"]), monkeypatch)
     assert res.booked == 3   # all three despite the 0.02 (2-name) cluster cap — 3B doesn't truncate
+
+
+def test_a_raising_expiry_price_leaves_that_row_open_and_closes_the_rest(convexity_db):
+    # #440: same guard as the shadow book (ATKR's 3B rows #17 / #47 expire 2027-01-15 on a delisted symbol)
+    def price(sym):
+        if sym == "DEAD":
+            raise RuntimeError("no bars for DEAD")
+        return 100.0
+    dead = _insert_fb(convexity_db, symbol="DEAD", total_premium=200.0, expiry="2025-12-31")
+    live = _insert_fb(convexity_db, symbol="FCX", total_premium=200.0, expiry="2025-12-31")
+    res = fixed_basket.mark_fixed_basket_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({}),
+                                                   config=CONFIG, underlying_price_of=price)
+    assert res.expired == 1 and res.unmarked == 1
+    st = {r["id"]: r["status"] for r in convexity_db.execute("SELECT id, status FROM fixed_basket_positions")}
+    assert st[dead] == "open" and st[live] == "closed"

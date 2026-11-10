@@ -117,6 +117,33 @@ changes `frame_version` and therefore starts a new recorded segment. The six pre
 positions are retained and tagged outside-frame; tail reports show both with and without those positions.
 Confirmed directly by the operator in session on 2026-09-30 ("Go ahead"). Follow-up PR: tests for the tagging, and the dashboard performance panel lists the tagged positions (`outside_frame`).
 
+<!-- #416 minimum-moneyness amendment -->
+**Minimum-moneyness amendment (2026-11-04, operator word: "Adopt both the 15% floor and A+B+C at the 11-12
+boundary"; #416).** The selector also reads `config.json:convexity_gate.min_otm_moneyness = 0.15`: it admits only
+contracts at least **15% out of the money** (achieved, on the thesis side: `(strike − spot)/spot` for a call,
+`(spot − strike)/spot` for a put) and fails closed with no structure (`no_eligible_contract_beyond_min_moneyness`)
+when none is eligible. It runs after the side guard; the target stays `target_moneyness = 0.25` and the choice
+among admitted contracts stays nearest-to-target.
+- **Why:** on L1 #1918 (2026-11-03) the first ranked-backfill entry, TITN, had its ~28%-OTM wing refused by
+  eligibility, and the nearest-eligible fallback bought C25 at **7% OTM** (17.8% of spot), a different payoff shape
+  from the far-OTM frame. Its cheapness verdict passed only because the strike moved (C30 iv/rv 1.086 on 11-02, C25
+  0.96). It was the only entry below 15% on any book since the side guard (2026-09-30). This is option 2 of #276
+  in its floor-only form; no 35% ceiling (nothing has entered above 35%).
+- **Scope:** every book and gate path that already reads the side guard: real (`paper_loop`), shadow, 3A and 3B
+  (`fixed_basket`), shares, the gate dual-read record and the cheapness watch, so the nulls stay comparable. Out of
+  scope: the survivor cards (their admission band already requires an achieved 15–35%) and the weekly sweeps
+  (PREREG_MISS_BASERATE and the basket gate base-rate; their frozen definitions change only by their own dated note).
+- **Boundary:** `frame-f86f37a0bd4f` → `frame-880e893e1660` from the first L1 after deploy. Positions already open
+  are retained in their own frame segment (none on the real book is below 15%; the null books' 8 near-money
+  positions are untouched, and the six #276 wrong-side positions keep their outside-frame tag).
+- **Consequence for the slate, stated:** the gate-of-record reads apply the floor too. On L1 #1935 (11-04), 5–7 of
+  38 structured names' gate-of-record wings were below 15% OTM, all of them cheap (FIG, KLAR, LHX, NOC, NTSK; LUNR
+  and VRT on the day's closes). Each either re-selects a farther eligible strike or becomes unexpressible, which
+  demotes it in the council slate and removes it from the cheap reserve. The two weekly sweeps keep their frozen
+  definitions until their own dated notes (#427).
+- **Unchanged:** `target_moneyness`, the tenor window, eligibility thresholds, the IV gate, sizing, the caps, the
+  carry-over and the backfill rules.
+
 
 **Data-provenance amendment (2026-06-08) — `equity_bars` IEX→SIP (the data-feed upgrade, PR1).** The
 gate's `RV_h` is computed from daily closes; PR1 moves those closes from the free **IEX** feed (~2–3% of

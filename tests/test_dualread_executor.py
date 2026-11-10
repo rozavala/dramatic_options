@@ -208,6 +208,21 @@ def test_structural_debounce_via_report(convexity_db):
     assert v["gap_structural"]["pages"] == []  # parked — the sub-4 wing did not re-arm
 
 
+def test_structural_page_needs_the_name_absent_this_session(convexity_db):
+    """#434 (LHX, #1952 → #1969): winged, then a structural gap (pages), then NEITHER feed has a wing under the 15%
+    floor. The unwinged session is skipped by the history, so it still ends on the gap; it must not re-page."""
+    floor = "no_eligible_contract_beyond_min_moneyness"
+    for _ in range(3):
+        _session(convexity_db, arms=[_opra("LHX", structured=True, iv_rv=1.0, cheap=True),
+                                     _ind("LHX", structured=True, iv_rv=1.0, cheap=True)])
+    _session(convexity_db, arms=_gap("LHX", note=floor))
+    assert dx.evaluate(gate_dualread_report(convexity_db), {})["gap_structural"]["pages"] == ["LHX"]
+    _session(convexity_db, arms=[_opra("LHX", structured=False, note=floor), _ind("LHX", structured=False, note=floor)])
+    rep = gate_dualread_report(convexity_db)
+    assert "LHX" not in rep["sessions"][-1]["gap_structural"]
+    assert dx.evaluate(rep, {})["gap_structural"]["pages"] == []
+
+
 def test_material_flip_debounce_via_report(convexity_db):
     """A material flip pages on the rising edge, then is suppressed while parked."""
     def flip_session():

@@ -54,7 +54,8 @@ for sym in syms:
                                   underlying_symbol=sym, tenor_min_days=int(gate["tenor_min_days"]),
                                   tenor_max_days=int(gate["tenor_max_days"]),
                                   target_moneyness=float(gate["target_moneyness"]), eligibility=_elig,
-                                  require_otm_side=bool(gate.get("otm_side_guard", False)))
+                                  require_otm_side=bool(gate.get("otm_side_guard", False)),
+                                  min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0))
         if s is None:
             print(f"{sym:6} {'-':>7} {'-':>7} {'-':>6} {'-':22} {'-':>6} {'-':>5} {'-':6} no naked structure: {why[0]}")
             continue

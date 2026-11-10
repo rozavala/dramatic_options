@@ -65,7 +65,7 @@ def shadow_gate_eval(provider, *, symbol: str, direction: str, rv, underlying_pr
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)),
-        require_otm_side=bool(gate.get("otm_side_guard", False)),
+        require_otm_side=bool(gate.get("otm_side_guard", False)), min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0),
         eligibility=eligibility,
     )
     if s is None:

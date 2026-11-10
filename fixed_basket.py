@@ -225,7 +225,7 @@ def _eval_and_book_nogate(
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
-        underlying_symbol=theme.symbol, require_otm_side=bool(gate.get("otm_side_guard", False)),
+        underlying_symbol=theme.symbol, require_otm_side=bool(gate.get("otm_side_guard", False)), min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0),
     )
     if structure is None:
         return "no_structure", None
@@ -361,7 +361,7 @@ def _eval_and_book_3b(
         chain, direction=direction, as_of=as_of, underlying_price=underlying_price,
         tenor_min_days=int(gate.get("tenor_min_days", 180)), tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
-        underlying_symbol=sym, require_otm_side=bool(gate.get("otm_side_guard", False)),
+        underlying_symbol=sym, require_otm_side=bool(gate.get("otm_side_guard", False)), min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0),
     )
     if structure is None:
         return "no_structure"
@@ -420,7 +420,13 @@ def mark_fixed_basket_positions(
         dte = (expiry - today).days if expiry else None
 
         if expiry is not None and today >= expiry:
-            up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            try:
+                up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            except Exception as e:  # noqa: BLE001 — #440: per-POSITION, like the mark below; never an invented close
+                log.warning("3A/3B expiry price lookup failed for %s (%s) — left open, retried next cycle: %s",
+                            pos["symbol"], pos["contract_symbol"], e)
+                res.unmarked += 1
+                continue
             intrinsic = (verticals.position_intrinsic(pos, up) if verticals.is_vertical(pos)
                          else _intrinsic_value(kind, float(pos["strike"]), up))
             _close(conn, pid, exit_price=intrinsic, entry_pc=entry_pc, contracts=contracts,

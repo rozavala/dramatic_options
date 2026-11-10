@@ -1154,7 +1154,7 @@ def gate_cheap_reads(conn: sqlite3.Connection, *, now, max_age_td: int = 5) -> d
 
 def unexpressible_symbols(conn: sqlite3.Connection, *, now, max_age_td: int = 5) -> frozenset[str]:
     """Symbols whose most recent GATE-OF-RECORD (opra) dual-read row, aged ≤ ``max_age_td`` weekdays, found NO
-    eligible structure (``structured = 0``: no OTM contract in the tenor window). Demotion needs positive,
+    eligible structure (``structured = 0``: no OTM contract in the tenor window, or an empty chain — #437). Demotion needs positive,
     fresh evidence — no row, a stale row or a structured row ⇒ not in the set (council.demote_unexpressible).
     Written after the council each cycle, so the read is prior-cycle, like ``gate_cheap_reads``."""
     today = now.date() if hasattr(now, "date") else now

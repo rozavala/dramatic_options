@@ -135,7 +135,7 @@ def _eval_and_book_shares(
         provider.chain(sym), direction=direction, as_of=as_of, underlying_price=underlying_price,
         tenor_min_days=int(gate.get("tenor_min_days", 180)), tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
-        underlying_symbol=sym, require_otm_side=bool(gate.get("otm_side_guard", False)))
+        underlying_symbol=sym, require_otm_side=bool(gate.get("otm_side_guard", False)), min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0))
     if structure is None:
         return False
     state.record_shares_position(
