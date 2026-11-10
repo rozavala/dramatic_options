@@ -40,10 +40,16 @@ drill = importlib.util.module_from_spec(_spec)
 sys.modules["drill_exit_paths"] = drill          # dataclasses resolve their module through sys.modules
 _spec.loader.exec_module(drill)
 
-OTM = "F261113C00012000"        # expires Fri 2026-11-13; spot 11.40 → ~5.3% OTM
-ITM = "F261113C00010000"        # ~12% ITM
-NEXT_DAY = "F261111C00012000"   # expires Wed 2026-11-11: 1 DTE on DAY1
-TEN_DAY = "F261120C00012000"    # 10 DTE on DAY1
+# The underlying is a high-volatility name (~100% IV, MARA-like) on purpose: at 3 DTE a call 5.3% OTM is worth
+# about $0.18 at that vol (S·σ√t·[φ(d) − d·(1 − Φ(d))], σ√t ≈ 0.09, d ≈ 0.58), so 0.20/0.24 is a realistic quote.
+# A low-vol name (F, ~30% IV) would quote that strike near $0.01, under the $0.05 bid floor.
+OTM = "MARA261113C00012000"        # expires Fri 2026-11-13; spot 11.40 → ~5.3% OTM
+ITM = "MARA261113C00010000"        # ~12% ITM
+NEXT_DAY = "MARA261111C00012000"   # expires Wed 2026-11-11: 1 DTE on DAY1
+TEN_DAY = "MARA261120C00012000"    # 10 DTE on DAY1
+MONDAY = "MARA261116C00012000"     # expires Mon 2026-11-16: the session after a Friday open
+TUESDAY = "MARA261117C00012000"    # expires Tue 2026-11-17
+FRI = datetime(2026, 11, 13, 15, 0, tzinfo=UTC)             # Fri 10:00 ET
 DAY1 = datetime(2026, 11, 10, 15, 0, tzinfo=UTC)            # Tue 10:00 ET
 DAY2_PRE = datetime(2026, 11, 11, 13, 45, tzinfo=UTC)       # Wed 08:45 ET (pre-market)
 DAY2 = datetime(2026, 11, 11, 15, 0, tzinfo=UTC)            # Wed 10:00 ET
@@ -69,7 +75,9 @@ class FakeVenue:
         self.submitted, self.cancelled = [], []
         self.orders: dict[str, dict] = {}
         self.positions: dict[str, int] = {}
-        self.quotes = {OTM: (0.20, 0.24), ITM: (1.45, 1.55), NEXT_DAY: (0.20, 0.24), TEN_DAY: (0.30, 0.34)}
+        self.quotes = {OTM: (0.20, 0.24), ITM: (1.45, 1.55), NEXT_DAY: (0.20, 0.24), TEN_DAY: (0.30, 0.34),
+                       MONDAY: (0.20, 0.24), TUESDAY: (0.22, 0.26)}
+        self.unreadable: set[str] = set()      # symbols whose position read fails (a 500, not a 404)
         self.hold_sells = False
         self._n = 0
 
@@ -103,6 +111,8 @@ class FakeVenue:
         return SimpleNamespace(status=o["status"], filled_avg_price=o["price"], filled_qty=str(o["qty"]))
 
     def get_open_position(self, symbol):
+        if symbol in self.unreadable:
+            raise _APIErr(500, "internal error")
         q = self.positions.get(symbol, 0)
         if not q:
             raise _APIErr(404, '{"code":40410000,"message":"position does not exist"}')
@@ -625,7 +635,7 @@ def test_expiry_itm_books_intrinsic_and_reports_exercised_shares(env, capsys):
     row = _rows(db)[0]
     assert row["status"] == "closed" and row["exit_reason"] == "expiry" and row["mark"] == pytest.approx(1.4)
     env.venue.positions[ITM] = 0
-    env.venue.positions["F"] = 100                                          # auto-exercised into shares
+    env.venue.positions["MARA"] = 100                                          # auto-exercised into shares
     capsys.readouterr()
     assert env.run("--path", "expiry-itm", "--db", str(db), "--step", "observe") == 0
     out = capsys.readouterr().out
@@ -635,7 +645,7 @@ def test_expiry_itm_books_intrinsic_and_reports_exercised_shares(env, capsys):
 def test_a_share_change_is_a_mismatch_on_every_path(env, capsys):
     db = _open(env, "time-stop")
     assert env.run("--path", "time-stop", "--db", str(db), "--step", "tick", "--send") == 0
-    env.venue.positions["F"] = 100                                          # shares appeared after the open
+    env.venue.positions["MARA"] = 100                                          # shares appeared after the open
     capsys.readouterr()
     assert env.run("--path", "time-stop", "--db", str(db), "--step", "observe") == 0
     out = capsys.readouterr().out
@@ -666,29 +676,30 @@ def test_every_order_id_carries_the_drill_prefix(env):
 
 
 def test_drill_order_id_rewrites_the_monitors_ids():
-    assert drill.drill_order_id("do-close-F261113C00012000-2026-11-10", tag="ts", fallback="x") == \
-        "do-drill-ts-close-F261113C00012000-2026-11-10"
+    assert drill.drill_order_id("do-close-MARA261113C00012000-2026-11-10", tag="ts", fallback="x") == \
+        "do-drill-ts-close-MARA261113C00012000-2026-11-10"
     assert drill.drill_order_id("do-drill-ts-open-x", tag="ts", fallback="x") == "do-drill-ts-open-x"
 
 
 def test_pick_chooses_a_short_dated_liquid_call_at_least_5pct_otm():
     today = date(2026, 11, 10)
-    chain = [Contract("F261113C00011800", date(2026, 11, 13), "C", 11.8, 0.30, 0.31),      # 3.5% OTM: too near
-             Contract("F261113C00012000", date(2026, 11, 13), "C", 12.0, 0.20, 0.24),      # 5.3% OTM
-             Contract("F261113C00012500", date(2026, 11, 13), "C", 12.5, 0.01, 0.05),      # no real bid
+    chain = [Contract("MARA261113C00011800", date(2026, 11, 13), "C", 11.8, 0.30, 0.31),      # 3.5% OTM: too near
+             Contract("MARA261113C00012000", date(2026, 11, 13), "C", 12.0, 0.20, 0.24),      # 5.3% OTM
+             Contract("MARA261113C00012500", date(2026, 11, 13), "C", 12.5, 0.01, 0.05),      # no real bid
              Contract("F261218C00012000", date(2026, 12, 18), "C", 12.0, 0.40, 0.44),      # too far out
-             Contract("F261113C00010000", date(2026, 11, 13), "C", 10.0, 1.45, 1.55),      # 12% ITM
-             Contract("F261111C00012000", date(2026, 11, 11), "C", 12.0, 0.20, 0.24)]      # 1 DTE
+             Contract("MARA261113C00010000", date(2026, 11, 13), "C", 10.0, 1.45, 1.55),      # 12% ITM
+             Contract("MARA261111C00012000", date(2026, 11, 11), "C", 12.0, 0.20, 0.24)]      # 1 DTE
     kw = {"underlying_price": 11.4, "today": today, "max_dte": 7, "budget": 250.0}
-    assert drill.pick_short_dated(chain, **kw).symbol == "F261111C00012000"              # nearest expiry
-    assert drill.pick_short_dated(chain, **kw, min_dte=2).symbol == "F261113C00012000"   # a two-day path
-    assert drill.pick_short_dated(chain, **kw, moneyness="itm").symbol == "F261113C00010000"
+    assert drill.pick_short_dated(chain, **kw).symbol == "MARA261111C00012000"              # nearest expiry
+    two_day = drill.earliest_expiry("pre-market", today)
+    assert drill.pick_short_dated(chain, **kw, earliest=two_day).symbol == "MARA261113C00012000"
+    assert drill.pick_short_dated(chain, **kw, moneyness="itm").symbol == "MARA261113C00010000"
     assert drill.pick_short_dated(chain[2:4], **kw) is None
 
 
 def test_pick_through_the_cli_honours_the_two_day_minimum(env, capsys):
     db = env.tmp / "pm.db"
-    assert env.run("--path", "pre-market", "--db", str(db), "--step", "open", "--pick", "--symbol", "F",
+    assert env.run("--path", "pre-market", "--db", str(db), "--step", "open", "--pick", "--symbol", "MARA",
                    "--send") == 0
     assert _rows(db)[0]["contract_symbol"] == OTM                       # not the 1-DTE NEXT_DAY contract
     assert "picked " + OTM in capsys.readouterr().out
@@ -700,3 +711,140 @@ def test_out_file_holds_every_block(env):
     text = env.record.read_text()
     assert text.count("### #466 drill · time-stop") == 2
     assert "| | venue (paper; read per symbol / per order id) | journal (scratch DB) |" in text
+
+
+# ── review 2 ─────────────────────────────────────────────────────────────────────────────────────
+
+def test_the_two_day_paths_count_nyse_sessions_not_calendar_days():
+    fri, wed_before_thanksgiving = date(2026, 11, 13), date(2026, 11, 25)
+    assert drill.next_trading_day(fri) == date(2026, 11, 16)
+    assert drill.earliest_expiry("pre-market", fri) == date(2026, 11, 17)       # Monday is the next session
+    assert drill.earliest_expiry("resting-close", wed_before_thanksgiving) == date(2026, 11, 28)  # Thu is a holiday
+    assert drill.earliest_expiry("time-stop", fri) == date(2026, 11, 14)
+    chain = [Contract(MONDAY, date(2026, 11, 16), "C", 12.0, 0.20, 0.24),
+             Contract(TUESDAY, date(2026, 11, 17), "C", 12.0, 0.22, 0.26)]
+    kw = {"underlying_price": 11.4, "today": fri, "max_dte": 7, "budget": 250.0}
+    assert drill.pick_short_dated(chain, **kw, earliest=drill.earliest_expiry("pre-market", fri)).symbol == TUESDAY
+    assert drill.pick_short_dated(chain, **kw).symbol == MONDAY
+
+
+@pytest.mark.parametrize("path", ["pre-market", "resting-close"])
+def test_a_friday_open_refuses_a_monday_expiry_on_the_two_day_paths(env, path):
+    _at(env, FRI, True)                                   # calendar DTE 3 ≥ 2, but Monday is the next session
+    assert env.run("--path", path, "--db", str(env.tmp / f"{path}.db"), "--step", "open", "--contract", MONDAY,
+                   "--send") == 2
+    assert env.venue.submitted == []
+    assert env.run("--path", path, "--db", str(env.tmp / f"{path}-tue.db"), "--step", "open", "--contract", TUESDAY,
+                   "--send") == 0
+
+
+def test_an_unopenable_out_refuses_before_any_step(env, capsys):
+    db = env.tmp / "ts.db"
+    rc = drill.main(["--path", "time-stop", "--db", str(db), "--step", "open", "--contract", OTM, "--send",
+                     "--out", str(env.tmp / "no-such-dir" / "record.md"), "--poll-s", "0.2"],
+                    config=copy.deepcopy(BASE_CONFIG), market=env.market, credentials=("k", "s"), sleep=lambda s: None)
+    assert env.venue.submitted == [], "the step traded before --out was known to be writable"
+    assert rc == 2 and "cannot be opened for append" in capsys.readouterr().out
+    assert not db.exists()
+
+
+def _out_run(env, out, db):
+    return drill.main(["--path", "time-stop", "--db", str(db), "--step", "open", "--contract", OTM, "--send",
+                       "--out", str(out), "--poll-s", "0.2"],
+                      config=copy.deepcopy(BASE_CONFIG), market=env.market, credentials=("k", "s"),
+                      sleep=lambda s: None)
+
+
+def test_out_may_not_be_the_scratch_db(env):
+    db = env.tmp / "ts.db"
+    assert _out_run(env, db, db) == 2
+    assert env.venue.submitted == [] and not db.exists()
+
+
+def test_out_may_not_be_a_production_journal_candidate(env, capsys):
+    prod = env.repo / "data" / "dramatic_options.db"
+    assert _out_run(env, prod, env.tmp / "ts.db") == 2
+    assert "is the production journal" in capsys.readouterr().out
+    assert env.venue.submitted == [] and not prod.exists()
+
+
+def test_out_may_not_be_an_existing_sqlite_file(env):
+    other = env.tmp / "some.sqlite"
+    conn = sqlite3.connect(str(other))
+    conn.execute("CREATE TABLE t (x)")
+    conn.commit()
+    conn.close()
+    before = other.read_bytes()
+    assert _out_run(env, other, env.tmp / "ts.db") == 2
+    assert other.read_bytes() == before and env.venue.submitted == []
+
+
+def test_an_unreadable_share_baseline_refuses_the_open(env):
+    env.venue.unreadable.add("MARA")
+    assert env.run("--path", "time-stop", "--db", str(env.tmp / "ts.db"), "--step", "open", "--contract", OTM,
+                   "--send") == 2
+    assert env.venue.submitted == []
+
+
+def test_unreadable_shares_are_a_mismatch(env, capsys):
+    db = _open(env, "time-stop")
+    env.venue.unreadable.add("MARA")
+    capsys.readouterr()
+    assert env.run("--path", "time-stop", "--db", str(db), "--step", "observe") == 0
+    out = capsys.readouterr().out
+    assert "verdict: MISMATCH" in out and "share quantity is unreadable" in out
+
+
+def test_db_refusal_opens_a_foreign_file_read_only(env, monkeypatch):
+    db = env.tmp / "foreign.sqlite"
+    conn = sqlite3.connect(str(db))
+    conn.execute("CREATE TABLE notes (t TEXT)")
+    conn.execute("INSERT INTO notes VALUES ('keep')")
+    conn.commit()
+    conn.close()
+    os.utime(db, (1_700_000_000, 1_700_000_000))
+    before, mtime = db.read_bytes(), db.stat().st_mtime
+    opened = []
+    real_connect = drill.sqlite3.connect
+
+    def spy(target, *a, **k):
+        opened.append((str(target), k.get("uri", False)))
+        return real_connect(target, *a, **k)
+    monkeypatch.setattr(drill.sqlite3, "connect", spy)
+    assert drill.db_refusal(db, BASE_CONFIG) is not None
+    assert db.read_bytes() == before and db.stat().st_mtime == mtime
+    assert not (env.tmp / "foreign.sqlite-journal").exists()
+    on_db = [(t, uri) for t, uri in opened if "foreign.sqlite" in t]
+    assert on_db and all(uri and t.endswith("?mode=ro") for t, uri in on_db), on_db
+
+
+def test_flatten_refuses_with_the_market_closed(env):
+    db = _open(env, "unsellable")
+    assert env.run("--path", "unsellable", "--db", str(db), "--step", "tick", "--send") == 0
+    assert env.venue.positions[OTM] == 1
+    n = len(env.venue.submitted)
+    _at(env, DAY2_PRE, False)
+    assert env.run("--path", "unsellable", "--db", str(db), "--step", "flatten", "--send") == 2
+    assert len(env.venue.submitted) == n and env.venue.positions[OTM] == 1
+
+
+def test_pre_market_on_an_unknown_clock_read_fails_its_check(env, monkeypatch, capsys):
+    db = _open(env, "pre-market")
+    _at(env, DAY2, True)                                   # in session, but the clock read fails
+
+    def boom():
+        raise RuntimeError("clock down")
+    monkeypatch.setattr(env.clock, "is_market_open", boom)
+    capsys.readouterr()
+    assert env.run("--path", "pre-market", "--db", str(db), "--step", "tick", "--send") == 3
+    out = capsys.readouterr().out
+    assert "closed state: UNKNOWN" in out and "CHECK FAIL: the closed market was confirmed by the clock" in out
+    assert env.venue.submitted[1:] == []                   # still nothing sent (treated as closed)
+
+
+def test_a_confirmed_closed_tick_says_so(env, capsys):
+    db = _open(env, "pre-market")
+    _at(env, DAY2_PRE, False)
+    capsys.readouterr()
+    assert env.run("--path", "pre-market", "--db", str(db), "--step", "tick", "--send") == 0
+    assert "closed state: CONFIRMED closed by the clock" in capsys.readouterr().out

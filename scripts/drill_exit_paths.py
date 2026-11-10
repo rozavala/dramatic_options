@@ -43,15 +43,24 @@ Paths (``--path``) and steps (``--step open|tick|observe|flatten``):
                  open-market tick sells it.
   expiry-otm     hold through expiry (no profit-take, no time-stop); tick + observe daily; record what the venue
   expiry-itm     shows (contract gone? exercised into shares?) and when, beside the journal's intrinsic close.
-The two-day paths (pre-market, resting-close) need ≥2 DTE at the open, so the next day's tick is not expiry day.
+The two-day paths (pre-market, resting-close) need an expiry AFTER the next NYSE trading day (``nyse_calendar``), so
+their second tick never runs on expiry day (a Friday open needs at least a Tuesday expiry; a holiday counts).
 Every path records the underlying's share quantity at the open and reports any change as a MISMATCH (an exercise).
 
 The record: ``--out FILE`` is the ONE record channel, and ``--send`` requires it. Every block, refusals included,
-is appended there (a refusal can come before any scratch DB is safe to open, so the DB cannot be the record).
+is appended there (a refusal can come before any scratch DB is safe to open, so the DB cannot be the record). It is
+validated before any step: it must open for append, and must not be the scratch DB, a production-journal candidate
+or any SQLite file.
 
 DEV run order (operator's word first; ~2 weeks; from the LIVE checkout). Run each command once without ``--send``
 to read the plan, then again with ``--send``. Paths that are open at the same time need different contracts (the
 pre-open venue check refuses a contract the venue already holds), hence the different symbols.
+
+Contract floors are deliberate: a call 5-15% OTM with a bid ≥ $0.05, a spread ≤ 30% and ask×100 ≤ --budget, expiring
+in ≤ --max-dte (7) days. At ≤7 DTE only a higher-volatility liquid name clears the OTM and bid floors together, so
+the examples use such names (SOFI, RIVN, MARA, PLTR, HOOD: check the chain on the day). A low-volatility name (F,
+BAC) will usually return "NO qualifying ..."; then pick another name, or widen with --max-dte 14 (still inside the
+21-day time-stop). Every --pick prints its choice; --contract/--limit names one explicitly.
 
   cd ~/dramatic_options && mkdir -p ~/drill466 && D=~/drill466 && R="--out $D/record.md"
   # A live variable in the shell or .env makes the drill refuse (by design). Then run it in a scrubbed env, with
@@ -59,20 +68,20 @@ pre-open venue check refuses a contract the venue already holds), hence the diff
   drill() { env -i PATH="$PATH" HOME="$HOME" DRAMATIC_SKIP_DOTENV=1 bash -c \
       'set -a; . ~/drill466/paper.env; set +a; exec venv/bin/python scripts/drill_exit_paths.py "$@"' drill "$@"; }
   # (with a clean shell and .env:  drill() { venv/bin/python scripts/drill_exit_paths.py "$@"; })
-  # Week 1, Mon, in session (after 10:00 ET). Pick: a liquid call 5-15% OTM expiring in ≤7 days.
-  drill --path profit-take --db $D/profit-take.db --step open --pick --symbol F $R
-  drill --path profit-take --db $D/profit-take.db --step open --pick --symbol F --send $R
+  # Week 1, Mon, in session (after 10:00 ET).
+  drill --path profit-take --db $D/profit-take.db --step open --pick --symbol SOFI $R
+  drill --path profit-take --db $D/profit-take.db --step open --pick --symbol SOFI --send $R
   drill --path profit-take --db $D/profit-take.db --step tick --send $R
   drill --path profit-take --db $D/profit-take.db --step observe $R
-  drill --path time-stop   --db $D/time-stop.db   --step open --pick --symbol F --send $R
+  drill --path time-stop   --db $D/time-stop.db   --step open --pick --symbol SOFI --send $R
   drill --path time-stop   --db $D/time-stop.db   --step tick --send $R
   drill --path time-stop   --db $D/time-stop.db   --step observe $R
-  drill --path unsellable  --db $D/unsellable.db  --step open --pick --symbol F --send $R
+  drill --path unsellable  --db $D/unsellable.db  --step open --pick --symbol SOFI --send $R
   drill --path unsellable  --db $D/unsellable.db  --step tick --send $R
   drill --path unsellable  --db $D/unsellable.db  --step observe $R          # the venue still holds 1
   drill --path unsellable  --db $D/unsellable.db  --step flatten --send $R
-  drill --path pre-market    --db $D/pre-market.db --step open --pick --symbol SOFI --send $R   # ≥2 DTE
-  drill --path resting-close --db $D/resting.db    --step open --pick --symbol BAC --send $R    # ≥2 DTE
+  drill --path pre-market    --db $D/pre-market.db --step open --pick --symbol RIVN --send $R   # after next session
+  drill --path resting-close --db $D/resting.db    --step open --pick --symbol MARA --send $R   # after next session
   drill --path resting-close --db $D/resting.db    --step tick --send $R                        # the close rests
   # Week 1, Tue
   drill --path pre-market    --db $D/pre-market.db --step tick --send $R     # 08:45-09:25 ET: deferred
@@ -82,8 +91,8 @@ pre-open venue check refuses a contract the venue already holds), hence the diff
   drill --path resting-close --db $D/resting.db    --step tick --send $R     # reconcile → reopen → re-sell
   drill --path resting-close --db $D/resting.db    --step observe $R
   # Week 2, Mon-Wed: contracts expiring that Friday (a call 5-15% OTM; a call 5-15% ITM on a cheap name).
-  drill --path expiry-otm --db $D/expiry-otm.db --step open --pick --symbol F --send $R
-  drill --path expiry-itm --db $D/expiry-itm.db --step open --pick --symbol SOFI --moneyness itm --send $R
+  drill --path expiry-otm --db $D/expiry-otm.db --step open --pick --symbol SOFI --send $R
+  drill --path expiry-itm --db $D/expiry-itm.db --step open --pick --symbol RIVN --moneyness itm --send $R
   # Every day until the venue settles (Fri after 16:00 ET, Sat, Mon, Tue), for each of the two DBs:
   drill --path expiry-otm --db $D/expiry-otm.db --step tick --send $R
   drill --path expiry-otm --db $D/expiry-otm.db --step observe $R
@@ -108,7 +117,7 @@ import sqlite3
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -163,8 +172,22 @@ PATHS: dict[str, PathSpec] = {
 TRADING_STEPS = ("open", "tick", "flatten")
 
 
-def min_dte(path: str) -> int:
-    return 2 if path in TWO_DAY_PATHS else 1
+def next_trading_day(d: date) -> date:
+    import nyse_calendar
+
+    n = d + timedelta(days=1)
+    while not nyse_calendar.is_trading_day(n):
+        n += timedelta(days=1)
+    return n
+
+
+def earliest_expiry(path: str, today: date) -> date:
+    """The earliest expiry a path accepts. A two-day path's second tick runs the NEXT NYSE session, which must not be
+    expiry day (the monitor would book ``expiry`` first and neither #451's deferral nor #449's reopen would run), so
+    its expiry must fall after the next trading day. Every other path needs only an expiry after today."""
+    if path in TWO_DAY_PATHS:
+        return next_trading_day(today) + timedelta(days=1)
+    return today + timedelta(days=1)
 
 
 class Refused(Exception):
@@ -417,10 +440,12 @@ def _ask(quotes, contract: str) -> float | None:
 
 
 def pick_short_dated(chain, *, underlying_price: float, today: date, max_dte: int, budget: float,
-                     moneyness: str = "otm", min_dte: int = 1, min_bid: float = 0.05, max_spread_pct: float = 0.30):
-    """The drill contract: a CALL expiring in ``min_dte..max_dte`` days, a real bid, a sane spread, ask×100 ≤ budget,
-    5-15% OTM (``otm``) or 5-15% ITM (``itm``). Nearest expiry, then tightest spread, then cheapest. None =
-    fail-closed."""
+                     moneyness: str = "otm", earliest: date | None = None, min_bid: float = 0.05,
+                     max_spread_pct: float = 0.30):
+    """The drill contract: a CALL expiring on/after ``earliest`` (default: tomorrow; ``earliest_expiry`` for a path) and
+    within ``max_dte`` days, a real bid, a sane spread, ask×100 ≤ budget, 5-15% OTM (``otm``) or 5-15% ITM (``itm``).
+    Nearest expiry, then tightest spread, then cheapest. None = fail-closed."""
+    earliest = earliest or today + timedelta(days=1)
     lo, hi = OTM_BAND if moneyness == "otm" else ITM_BAND
     best, best_key = None, None
     for c in chain:
@@ -430,7 +455,7 @@ def pick_short_dated(chain, *, underlying_price: float, today: date, max_dte: in
         if not isinstance(exp, date):
             continue
         dte = (exp - today).days
-        if not min_dte <= dte <= max_dte:
+        if exp < earliest or dte > max_dte:
             continue
         bid, ask = float(getattr(c, "bid", 0) or 0), float(getattr(c, "ask", 0) or 0)
         if bid < min_bid or ask <= 0 or ask < bid:
@@ -547,9 +572,18 @@ def _now(ctx) -> datetime:
     return ctx.market.clock.now()
 
 
+def _market_state(ctx) -> tuple[bool, bool]:
+    """``(open, confirmed)``: orchestrator._safe_market_open's fail-closed reading (an error reads as closed), plus
+    whether the clock actually answered, so a closed-market rehearsal can tell "confirmed closed" from "unknown"."""
+    try:
+        return bool(ctx.market.clock.is_market_open()), True
+    except Exception as e:  # noqa: BLE001 — unknown ⇒ closed, as orchestrator._safe_market_open
+        ctx.logs.append(f"market-state check failed ({e}); treated as CLOSED (fail-closed)")
+        return False, False
+
+
 def _market_open(ctx) -> bool:
-    import orchestrator
-    return orchestrator._safe_market_open(ctx.market.clock)   # unknown ⇒ closed (fail-closed)
+    return _market_state(ctx)[0]
 
 
 def _monitor(ctx, quotes, *, dry_run: bool, mark_only: bool):
@@ -607,10 +641,12 @@ def step_open(ctx) -> int:
     now = _now(ctx)
     today = now.astimezone(ET).date()
     dte = (info["expiry"] - today).days
-    lo, hi = min_dte(ctx.path), int(ctx.config.get("_drill_max_dte", 7))
-    if not lo <= dte <= hi:
-        raise Refused(f"{c} expires in {dte} days; the {ctx.path} drill needs {lo}..{hi} (short-dated"
-                      + (", and not expiring on the second day's tick" if lo > 1 else "") + ")")
+    lo, hi = earliest_expiry(ctx.path, today), int(ctx.config.get("_drill_max_dte", 7))
+    if info["expiry"] < lo or dte > hi:
+        raise Refused(f"{c} expires {info['expiry']} ({dte} days); the {ctx.path} drill needs an expiry from {lo} "
+                      f"to {hi} days out (short-dated"
+                      + (", and after the next NYSE session, when its second tick runs" if ctx.path in TWO_DAY_PATHS
+                         else "") + ")")
     if ctx.path in TIME_STOP_PATHS and dte > int(ctx.config["convexity_exits"]["time_stop_dte"]):
         raise Refused(f"{c} at {dte} DTE would not trigger the time-stop ({ctx.config['convexity_exits']})")
     if ctx.send and not _market_open(ctx):
@@ -674,7 +710,7 @@ def step_tick(ctx) -> int:
     if not live:
         raise Refused("no open drill position in this scratch DB (run --step open first, or --step observe)")
     before = {r["id"]: r["status"] for r in live}
-    market_open = _market_open(ctx)
+    market_open, confirmed = _market_state(ctx)
     if ctx.path == "pre-market" and meta_get(ctx.conn, "closed_tick_at") is None and market_open:
         raise Refused("the pre-market path's first tick must run with the market CLOSED (e.g. 08:45-09:25 ET)")
     dry, mark_only = orchestrator.monitor_mode(dry_run=False, market_open=market_open, demo=False)
@@ -710,6 +746,10 @@ def step_tick(ctx) -> int:
     if p == "pre-market" and not market_open:
         if ctx.send:
             meta_set(ctx.conn, "closed_tick_at", _now(ctx).isoformat())   # the open tick may follow, whatever happened
+        ctx.lines.append("closed state: " + ("CONFIRMED closed by the clock" if confirmed else
+                                             "UNKNOWN (the clock read failed; treated as closed, fail-closed)"))
+        ctx.check(confirmed, "the closed market was confirmed by the clock, not an unknown read (an unknown read in "
+                             "session would rehearse nothing real)")
         ctx.check((dry, mark_only) == (True, True), "monitor_mode on a closed market = (dry_run=True, mark_only=True)")
         ctx.check(res.unmarked == 0, f"a usable quote marked the position on the closed-market tick "
                                      f"(unmarked={res.unmarked}); without one nothing can be deferred and #451's "
@@ -964,6 +1004,54 @@ def run_step(ctx) -> int:
 
 # ── CLI ──────────────────────────────────────────────────────────────────────────────────────────
 
+SQLITE_MAGIC = b"SQLite format 3\x00"
+
+
+def out_refusal(out: str | None, db: str | None, config: dict, environ=None) -> str | None:
+    """None iff ``--out`` is a safe, appendable markdown record: not a directory, not the scratch DB, not a
+    production-journal candidate, not an existing SQLite file. The append-open is tried last (it creates the file)."""
+    if not out:
+        return None
+    p = Path(out).expanduser()
+    rp = p.resolve()
+
+    def same(a: Path, b: Path) -> bool:
+        if a == b.resolve():
+            return True
+        with contextlib.suppress(OSError):
+            return a.exists() and b.exists() and os.path.samefile(a, b)
+        return False
+    if p.is_dir():
+        return f"REFUSED: --out {rp} is a directory (fail-closed)."
+    if db and same(rp, Path(db).expanduser()):
+        return f"REFUSED: --out {rp} is the scratch --db (fail-closed)."
+    for c in production_db_paths(config, environ):
+        if same(rp, c):
+            return f"REFUSED: --out {rp} is the production journal (fail-closed)."
+    if p.exists():
+        try:
+            with open(p, "rb") as f:
+                if f.read(16) == SQLITE_MAGIC:
+                    return f"REFUSED: --out {rp} is an SQLite database, not a markdown record (fail-closed)."
+        except OSError as e:
+            return f"REFUSED: --out {rp} cannot be read ({e}) (fail-closed)."
+    try:
+        with open(p, "a", encoding="utf-8"):
+            pass
+    except OSError as e:
+        return f"REFUSED: --out {rp} cannot be opened for append ({e}) (fail-closed)."
+    return None
+
+
+def _raw_config() -> dict:
+    """config.json as committed (no .env), enough to name the production journal before load_config runs."""
+    try:
+        from config_loader import CONFIG_PATH
+        return json.loads(Path(CONFIG_PATH).read_text())
+    except Exception:  # noqa: BLE001 — the default journal path still applies
+        return {}
+
+
 def _emit(text: str, out: str | None) -> None:
     print(text)
     if out:
@@ -991,11 +1079,16 @@ def main(argv=None, *, config: dict | None = None, market=None, credentials: tup
     ap.add_argument("--out", default=None, help="the record: every block is appended here (required with --send)")
     ap.add_argument("--send", action="store_true", help="actually place paper orders (else PLAN only)")
     args = ap.parse_args(argv)
+    out: str | None = None          # the record, once validated; a refusal before that is printed only
 
     def refuse(msg: str) -> int:
-        _emit(f"### #466 drill · {args.path} · {args.step} · {datetime.now(UTC):%Y-%m-%dT%H:%M:%SZ} · {msg}\n",
-              args.out)
+        _emit(f"### #466 drill · {args.path} · {args.step} · {datetime.now(UTC):%Y-%m-%dT%H:%M:%SZ} · {msg}\n", out)
         return 2
+
+    why = out_refusal(args.out, args.db, config if config is not None else _raw_config())
+    if why:
+        return refuse(why)
+    out = args.out
 
     why = live_env_refusal()
     if why:
@@ -1014,6 +1107,10 @@ def main(argv=None, *, config: dict | None = None, market=None, credentials: tup
             return refuse(f"REFUSED: {e}")
     why = live_env_refusal() or config_refusal(config)      # again: load_config has read .env into the environ
     if why:
+        return refuse(why)
+    why = out_refusal(args.out, args.db, config)             # again, against the loaded config's journal path
+    if why:
+        out = None
         return refuse(why)
     db_path = Path(args.db).expanduser() if args.db else None
     if db_path is not None:
@@ -1050,10 +1147,11 @@ def main(argv=None, *, config: dict | None = None, market=None, credentials: tup
             mny = args.moneyness or ("itm" if args.path == "expiry-itm" else "otm")
             pick = pick_short_dated(market.chain(args.symbol), underlying_price=float(spot),
                                     today=market.clock.now().astimezone(ET).date(), max_dte=args.max_dte,
-                                    budget=args.budget, moneyness=mny, min_dte=min_dte(args.path))
+                                    budget=args.budget, moneyness=mny,
+                                    earliest=earliest_expiry(args.path, market.clock.now().astimezone(ET).date()))
             if pick is None:
-                return refuse(f"NO qualifying {min_dte(args.path)}..{args.max_dte}-DTE {mny} call on {args.symbol} "
-                              f"under ${args.budget:.0f} (fail-closed)")
+                return refuse(f"NO qualifying ≤{args.max_dte}-DTE {mny} call on {args.symbol} under "
+                              f"${args.budget:.0f} (fail-closed; try a higher-volatility name or --max-dte 14)")
             contract = pick.symbol
             if args.limit is None:
                 args.limit = round(float(pick.ask), 2)
@@ -1068,7 +1166,7 @@ def main(argv=None, *, config: dict | None = None, market=None, credentials: tup
                   send=args.send, db_label=db_label, contract=contract, limit=args.limit,
                   budget=args.budget, rest_markup=args.rest_markup, poll_s=args.poll_s, sleep=sleep)
         rc = run_step(ctx)
-        _emit(render(ctx, rc), args.out)
+        _emit(render(ctx, rc), out)
         if args.send and bound is None and rc != 2:
             meta_set(conn, "path", args.path)
         if work is not conn:

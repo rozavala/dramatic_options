@@ -116,6 +116,9 @@ def test_cancels_only_take_ids_from_this_projects_journal():
     assert sorted(callers) == ["carry.py", "scripts/drill_exit_paths.py", "scripts/smoke_order_roundtrip.py"]
     drill_src = (REPO / "scripts" / "drill_exit_paths.py").read_text()
     assert re.findall(r"\S*\.cancel_order\(", drill_src) == ["super().cancel_order("]
+    # ... and never reaches past the broker: no raw client cancel, no order listing
+    assert "cancel_order_by_id(" not in drill_src, "the drill cancels through the raw client"
+    assert "get_orders(" not in drill_src, "the drill lists the account's orders"
     for rel in ("monitor.py", "carry.py"):
         src = (REPO / rel).read_text()
         assert "get_orders" not in src and "list_orders" not in src, rel
