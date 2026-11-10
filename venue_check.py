@@ -25,10 +25,10 @@ vertical's short leg) whose row held exposure (``open``, ``closing`` or ``closed
 Paging: ONE digest page per tick, listing every finding that is due this tick; its priority is the highest among
 them (1 within ``PRIORITY_TRADING_DAYS`` NYSE trading days of expiry, and after it). Each finding is debounced per
 (kind, contract or symbol, ET day), stamped in its rows' rationale ``paged`` dict (``monitor._page_once``'s dict;
-no state file) only AFTER the digest was delivered, so an undelivered page is retried next tick. An orphan BY DESIGN
-(the venue holds no more than the unsellable in-DB closes booked, same sign) is paged when first seen, then only
-inside the priority window and after expiry; every other kind is due daily. Each line names the days to expiry
-and the underlying's distance to the strike.
+no state file) only AFTER a delivered digest SHOWED it: a finding cut by the body cap (most severe kinds first) stays
+due and goes out next tick. An orphan BY DESIGN (the venue holds no more than the unsellable in-DB closes booked,
+same sign) is paged when first seen, then weekly, and daily inside the priority window; every other kind is due
+daily. Each line names the days to expiry and the underlying's distance to the strike.
 
 **Read-only. Telemetry and paging only.** Nothing here submits, cancels or edits an order, closes a position or
 changes a row's status, quantity or price; the only write is the debounce stamp in a row's rationale.
@@ -71,11 +71,14 @@ POST_EXPIRY_TRADING_DAYS = 2
 BUDGET_SECONDS = 30.0
 NOTE_MAX = 10
 PAGE_BODY_MAX = 1000   # Pushover caps the body at 1024 (notify.send truncates); the tail names what was cut
+ORPHAN_REMINDER_DAYS = 7   # an expected orphan outside the priority window: a weekly reminder, never silent for months
+# Digest order: the most severe kind first, so the body cap never cuts an exercise behind an expected orphan.
+SEVERITY = ("shares_after_expiry", "held_after_expiry", "closed_but_held", "quantity", "unknown", "orphan")
 
 PAGE_KEY_PREFIX = "venue_check:"   # key in a real row's rationale ``paged`` dict (monitor._page_once's dict)
 SCOPE_STATES = ("open", "closing", "closed")
 KIND_LABEL = {
-    "orphan": "expected orphan (the venue holds what the unsellable close booked closed)",
+    "orphan": "expected orphan",
     "closed_but_held": "the venue holds a contract the journal shows closed",
     "quantity": "the venue quantity differs from the journal's",
     "held_after_expiry": "the venue still holds the contract after its expiry",
@@ -202,7 +205,7 @@ def journal_legs(conn, today: date) -> Journal:
         status, pid = r["status"], int(r["id"])
         expiry = _parse_expiry(r["expiry"], r["contract_symbol"])
         if expiry is None:
-            if status in SCOPE_STATES:
+            if status in SCOPE_STATES:   # N.B. never ages out: it pages daily until the row is repaired
                 log.warning("venue check: #%d %s has an unparsable expiry %r — UNKNOWN, not checked", pid,
                             r["contract_symbol"], r["expiry"])
                 bad.append(Finding(str(r["contract_symbol"]), "unknown",
@@ -302,7 +305,9 @@ def _joint_vertical_findings(res: CheckResult, venues: dict[str, int], matched: 
                              prio_of: dict[str, int]) -> None:
     """A vertical opens and closes as ONE multi-leg order, so in flight both legs move together: long + short on the
     venue equals long + short in the journal. Checked where each leg passed alone and the pair is used only by
-    verticals (a single-leg row in either contract could move one leg by itself)."""
+    verticals (a single-leg row in either contract could move one leg by itself). The two legs are read one after the
+    other, so a fill landing between the reads can show a one-tick disagreement; the next tick reads it again.
+    TODO(#463): an orphaned (unsellable-closed) vertical is still judged leg by leg; latent while verticals are off."""
     for leg in res.legs.values():
         for long_c, short_c in sorted(leg.pairs):
             if leg.contract != long_c or long_c not in matched or short_c not in matched:
@@ -369,8 +374,7 @@ def venue_journal_check(conn, read_qty: Callable[[str], Any], today: date, *, re
             continue
         elif not any(leg.statuses[pid] in ("open", "closing") for pid in leg.row_ids):
             if orphan_by_design(leg, venue):
-                kind, detail = "orphan", (f"venue holds {venue}, the unsellable in-DB close booked {leg.unsellable} "
-                                          f"closed and sent no order (#444 path 1; rows {_rows_text(leg)}); {when}")
+                kind, detail = "orphan", f"venue {venue}, unsellable close booked {leg.unsellable} (path 1); {when}"
             else:
                 kind, detail = "closed_but_held", (f"venue holds {venue}, the journal holds 0 "
                                                    f"(rows {_rows_text(leg)}); {when}. {_why_closed(leg, today)}")
@@ -435,8 +439,8 @@ def _rationales(conn, ids: set[int]) -> dict[int, dict]:
 
 
 def is_due(f: Finding, rats: dict[int, dict], today: date) -> bool:
-    """Daily per (kind, key, ET day); an orphan by design only when first seen, then in the priority window (and
-    after expiry, where it is a ``held_after_expiry`` finding of its own)."""
+    """Daily per (kind, key, ET day); an orphan by design when first seen, then every ``ORPHAN_REMINDER_DAYS`` and
+    daily in the priority window (after expiry it is a ``held_after_expiry`` finding of its own)."""
     key = _stamp_key(f)
     stamps = []
     for pid in f.row_ids:
@@ -446,25 +450,29 @@ def is_due(f: Finding, rats: dict[int, dict], today: date) -> bool:
     if today.isoformat() in stamps:
         return False
     if f.kind == "orphan" and stamps:
-        return f.priority >= 1
+        last = date.fromisoformat(max(stamps)[:10])
+        return f.priority >= 1 or (today - last).days >= ORPHAN_REMINDER_DAYS
     return True
 
 
-def _stamp(conn, due: list[Finding], rats: dict[int, dict], today: date) -> None:
-    """Record the delivered findings in their rows' rationale ``paged`` dict (the only write this module makes)."""
-    touched: set[int] = set()
-    for f in due:
+def _stamp(conn, shown: list[Finding], today: date) -> None:
+    """Record the findings a delivered digest showed in their rows' rationale ``paged`` dict, the only write this
+    module makes. Each rationale is re-read inside the transaction and only ``paged`` is set, so a write made during
+    the page round-trip (``partial_closes``, a monitor page stamp) is never lost."""
+    keys: dict[int, list[str]] = {}
+    for f in shown:
         for pid in f.row_ids:
-            if pid in rats:
-                rat = rats[pid]
-                paged = rat.get("paged") if isinstance(rat.get("paged"), dict) else {}
-                paged[_stamp_key(f)] = today.isoformat()
-                rat["paged"] = paged
-                touched.add(pid)
+            keys.setdefault(pid, []).append(_stamp_key(f))
     with conn:
-        for pid in sorted(touched):
-            conn.execute("UPDATE convexity_positions SET rationale = ? WHERE id = ?",
-                         (json.dumps(rats[pid], default=str), pid))
+        for pid, ks in sorted(keys.items()):
+            row = conn.execute("SELECT rationale FROM convexity_positions WHERE id = ?", (pid,)).fetchone()
+            if row is None:
+                continue
+            rat = _rationale(row["rationale"])
+            paged = rat.get("paged") if isinstance(rat.get("paged"), dict) else {}
+            paged.update({k: today.isoformat() for k in ks})
+            rat["paged"] = paged
+            conn.execute("UPDATE convexity_positions SET rationale = ? WHERE id = ?", (json.dumps(rat, default=str), pid))
 
 
 def _spot(underlying_price_of: Callable[[str], Any] | None, symbol: str) -> float | None:
@@ -478,8 +486,10 @@ def _spot(underlying_price_of: Callable[[str], Any] | None, symbol: str) -> floa
         return None
 
 
-def digest(res: CheckResult, due: list[Finding], underlying_price_of: Callable[[str], Any] | None) -> tuple[str, str, int]:
-    """``(title, body, priority)`` of the one page for this tick's due findings, highest priority first."""
+def digest(res: CheckResult, due: list[Finding],
+           underlying_price_of: Callable[[str], Any] | None) -> tuple[str, str, int, list[Finding]]:
+    """``(title, body, priority, shown)`` of the one page for this tick's due findings, in ``SEVERITY`` order. Only
+    ``shown`` fit under the body cap; the title and priority are theirs, and the rest stay due for the next tick."""
     spots: dict[str, float | None] = {}
     lines = []
     for f in due:
@@ -491,17 +501,18 @@ def digest(res: CheckResult, due: list[Finding], underlying_price_of: Callable[[
             dist = "; " + distance_to_strike(leg, spots[f.symbol])
         lines.append(f"- {f.key} [{KIND_LABEL[f.kind]}]: {f.detail}{dist}")
     head = f"Read-only check (#444): nothing was sent, cancelled, closed or changed. {len(due)} finding(s):"
-    body, shown = head, 0
+    body, n = head, 0
     for line in lines:
-        if len(body) + 1 + len(line) > PAGE_BODY_MAX - 40:
+        if n and len(body) + 1 + len(line) > PAGE_BODY_MAX - 40:   # the first line always goes (notify truncates)
             break
-        body, shown = body + "\n" + line, shown + 1
-    if shown < len(lines):
-        body += f"\n+{len(lines) - shown} more (see the run note)"
-    syms = list(dict.fromkeys(f.symbol for f in due))
-    label = "VENUE READ UNKNOWN" if all(f.kind == "unknown" for f in due) else "VENUE ≠ JOURNAL"
+        body, n = body + "\n" + line, n + 1
+    if n < len(lines):
+        body += f"\n+{len(lines) - n} more next tick (all in the run note)"
+    shown = due[:n]
+    syms = list(dict.fromkeys(f.symbol for f in shown))
+    label = "VENUE READ UNKNOWN" if all(f.kind == "unknown" for f in shown) else "VENUE ≠ JOURNAL"
     title = f"{label}: " + ", ".join(syms[:5]) + (f" +{len(syms) - 5}" if len(syms) > 5 else "")
-    return title, body, max(f.priority for f in due)
+    return title, body, max(f.priority for f in shown), shown
 
 
 def dispose(conn, res: CheckResult, today: date, *, run_id: int | None,
@@ -510,17 +521,21 @@ def dispose(conn, res: CheckResult, today: date, *, run_id: int | None,
     it to the run note. Returns the line. Paging never raises."""
     try:
         rats = _rationales(conn, {pid for f in res.findings for pid in f.row_ids})
-        due = sorted((f for f in res.findings if is_due(f, rats, today)), key=lambda f: -f.priority)
+        due = sorted((f for f in res.findings if is_due(f, rats, today)),
+                     key=lambda f: (SEVERITY.index(f.kind), -f.priority))
         if due:
-            title, body, prio = digest(res, due, underlying_price_of)
+            title, body, prio, shown = digest(res, due, underlying_price_of)
             try:
                 delivered = bool(notify_send(title, body, priority=prio))
             except Exception as e:  # noqa: BLE001 — an undelivered page; retried next tick
                 log.warning("venue check: digest page raised: %s", e)
                 delivered = False
             if delivered:
-                _stamp(conn, due, rats, today)
-                res.digest, res.paged = "sent", len(due)
+                res.digest, res.paged = "sent", len(shown)
+                try:
+                    _stamp(conn, shown, today)
+                except Exception as e:  # noqa: BLE001 — delivered but unstamped: it may page again next tick
+                    log.warning("venue check: digest delivered but the debounce stamp failed: %s", e)
             else:   # notify.send returns False when undelivered: no stamp, so the next tick retries
                 res.digest = "undelivered"
                 log.warning("venue check: digest of %d finding(s) NOT delivered — retried next tick", len(due))
