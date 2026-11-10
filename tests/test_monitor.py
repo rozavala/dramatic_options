@@ -389,3 +389,78 @@ def test_the_retry_sells_only_the_remainder_and_the_sentinel_scores_the_whole_be
     row = _row(convexity_db, pid, "status, contracts, total_premium, realized_pnl")
     assert row["status"] == "closed" and row["contracts"] == 3 and row["realized_pnl"] == 300.0
     assert abs(state.sentinel_by_id(convexity_db, sid)["realized_multiple"] - (1500.0 + 300.0) / 1500.0) < 1e-9
+
+
+# ── #473: a refused single-leg close pages once per position per ET day ─────────────────────────────
+
+def _refused_close_setup(conn, monkeypatch):
+    import notify
+    from broker import Fill
+    pages = []
+    monkeypatch.setattr(notify, "send", lambda t, m, priority=0: pages.append((t, m)) or True)
+    pid = _open(conn, contract="FCX261218C00080000", entry_pc=200.0, contracts=2)   # $900 ≥ 4×$200 → profit-take
+    qp = StaticQuoteProvider({"FCX261218C00080000": 9.0}, bids={"FCX261218C00080000": 8.9})   # marketable
+    note = "LIVE rejected FCX261218C00080000: order notional $1,780 exceeds the $1,000 per-order ceiling (fail-closed)"
+    broker = _FakeBroker(sell=Fill(False, 0.0, 0, note))
+    return pid, qp, broker, pages, note
+
+
+def _tick(conn, clock, qp, broker, **kw):
+    return monitor_positions(conn=conn, clock=clock, quote_provider=qp, config=CONFIG, broker=broker,
+                             dry_run=False, **kw)
+
+
+def test_a_refused_single_leg_close_pages_once_naming_the_contract_and_the_reason(convexity_db, monkeypatch):
+    import json
+    pid, qp, broker, pages, note = _refused_close_setup(convexity_db, monkeypatch)
+    before = dict(_row(convexity_db, pid, "*"))
+    res = _tick(convexity_db, CLOCK, qp, broker)
+    assert len(broker.sells) == 1 and res.closed == 0 and res.closing == 0
+    assert [t for t, _ in pages] == ["CLOSE REFUSED"]
+    msg = pages[0][1]
+    assert "FCX261218C00080000" in msg and note in msg and "retried" in msg and f"#{pid}" in msg
+    # the row stays open; nothing but the mark and the page stamp moved
+    after = dict(_row(convexity_db, pid, "*"))
+    assert after["status"] == "open" and after["close_order_id"] is None and after["exit_reason"] is None
+    assert after["mark"] == 9.0
+    for col in set(before) - {"mark", "marked_at", "rationale"}:
+        assert after[col] == before[col], col
+    rat_before = json.loads(before["rationale"]) if before["rationale"] else {}
+    rat_after = json.loads(after["rationale"])
+    assert rat_after.pop("paged") == {"CLOSE REFUSED": str(CLOCK.now().date())}
+    assert rat_after == (rat_before if isinstance(rat_before, dict) else {})
+
+
+def test_a_second_refusal_the_same_day_does_not_page_and_the_next_day_pages_again(convexity_db, monkeypatch):
+    pid, qp, broker, pages, _ = _refused_close_setup(convexity_db, monkeypatch)
+    for minutes in (0, 30, 60):                                          # three L2 ticks, same day
+        _tick(convexity_db, FixedClock(NOW + timedelta(minutes=minutes)), qp, broker)
+    assert len(broker.sells) == 3                                        # still retried every tick
+    assert [t for t, _ in pages] == ["CLOSE REFUSED"]
+    _tick(convexity_db, FixedClock(NOW + timedelta(days=1)), qp, broker)  # the next day
+    assert len(broker.sells) == 4
+    assert [t for t, _ in pages] == ["CLOSE REFUSED", "CLOSE REFUSED"]
+    assert _row(convexity_db, pid, "status")["status"] == "open"
+
+
+def test_a_filled_or_resting_close_does_not_page(convexity_db, monkeypatch):
+    import notify
+    from broker import Fill
+    pages = []
+    monkeypatch.setattr(notify, "send", lambda t, m, priority=0: pages.append(t) or True)
+    filled = _open(convexity_db, contract="FCX261218C00080000", entry_pc=200.0)
+    qp = StaticQuoteProvider({"FCX261218C00080000": 9.0}, bids={"FCX261218C00080000": 8.9})
+    res = _tick(convexity_db, CLOCK, qp, _FakeBroker(sell=Fill(True, 8.9, 1, "filled", order_id="cl-9")))
+    assert res.closed == 1 and _row(convexity_db, filled, "status")["status"] == "closed"
+    resting = _open(convexity_db, contract="FCX261218C00090000", entry_pc=200.0, strike=90.0)
+    qp2 = StaticQuoteProvider({"FCX261218C00090000": 9.0}, bids={"FCX261218C00090000": 8.9})
+    res2 = _tick(convexity_db, CLOCK, qp2, _FakeBroker())                # resting → closing
+    assert res2.closing == 1 and _row(convexity_db, resting, "status")["status"] == "closing"
+    assert pages == []
+
+
+def test_a_mark_only_tick_sends_nothing_and_pages_nothing(convexity_db, monkeypatch):
+    pid, qp, broker, pages, _ = _refused_close_setup(convexity_db, monkeypatch)
+    res = _tick(convexity_db, CLOCK, qp, broker, mark_only=True)
+    assert res.deferred == 1 and broker.sells == [] and pages == []
+    assert _row(convexity_db, pid, "status")["status"] == "open"
