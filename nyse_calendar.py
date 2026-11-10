@@ -1,7 +1,8 @@
 """Pure, read-only NYSE session calendar (full-day holidays + 13:00 ET early closes).
 
 Display logic only: the dashboard's STALE heartbeats use it to know when a session was never going to run
-(holiday) or ends early (half day). It touches NO order path, orchestrator gate or kill rule, and makes no
+(holiday) or ends early (half day); the read-only venue check (``venue_check``, #444) counts sessions to an
+expiry with it, for a page's priority. It touches NO order path, orchestrator gate or kill rule, and makes no
 network calls — the table below is hard-coded from the NYSE's published holiday schedule.
 
 Coverage is 2026–2027. Outside the table the calendar is *unknown*, so ``is_trading_day`` degrades to the old
