@@ -81,7 +81,7 @@ export function SlippageCard({ t }: { t: TelemetryVM }) {
               <tbody>
                 {s.rows.map((r) => (
                   <tr key={r.key} data-testid={`slip-row-${r.key}`}><td style={num}>{r.key}</td><td style={td}>{r.symbol}</td>
-                    <td style={td}>{r.contract}</td><td style={td}>{r.status}</td><td style={num}>{r.fill}</td>
+                    <td style={td}>{r.contract}</td><td style={td}>{r.status}{r.partial && <> · {r.partial}</>}</td><td style={num}>{r.fill}</td>
                     <td style={num}>{r.cons}</td><td style={td}>{r.basis}</td><td style={num}>{r.premium}</td>
                     <td style={num}>{r.premiumCons}</td><td style={td}>{r.pnlKind}</td><td style={num}>{r.pnl}</td>
                     <td style={num}>{r.pnlCons}</td></tr>

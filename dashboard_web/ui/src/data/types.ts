@@ -466,8 +466,10 @@ export interface ExecutionPanel { summary: { all: ExecutionBlock; under_carry: E
 export interface SlippageRow {
   position_id: number; symbol: string; contract: string; short_contract: string | null; status: string;
   opened_at: string | null; contracts: number; fill_px: number; conservative_px: number | null;
-  basis: "ask_at_entry" | "carry_worst_rung" | null; premium_filled_usd: number; premium_conservative_usd: number | null;
-  haircut_usd: number | null; haircut_pct: number | null; pnl_kind: "realized" | "marked" | "unmarked";
+  // #449 partial closes: contracts is the ORIGINAL quantity; sold_qty already sold, contracts_remaining still open
+  partial?: boolean; sold_qty?: number; contracts_remaining?: number;
+  basis: "ask_at_entry" | "carry_worst_rung" | "ask_below_fill" | null; premium_filled_usd: number; premium_conservative_usd: number | null;
+  haircut_usd: number | null; haircut_pct: number | null; pnl_kind: "realized" | "marked" | "realized+marked" | "unmarked";
   pnl_filled_usd: number | null; pnl_conservative_usd: number | null;
 }
 export interface SlippagePanel {
@@ -502,7 +504,7 @@ export interface TelemetryVM {
     rows: { key: number; date: string; symbol: string; outcome: string; limit: string; ask: string; fill: string; attempts: number }[] } | null;
   slip: { note: string; entries: number; known: number; unknown: number; haircut: string; haircutPct: string;
     pnlFilled: string; pnlCons: string; pnlN: number;
-    rows: { key: number; symbol: string; contract: string; status: string; fill: string; cons: string; basis: string;
+    rows: { key: number; symbol: string; contract: string; status: string; partial: string | null; fill: string; cons: string; basis: string;
       premium: string; premiumCons: string; pnlKind: string; pnl: string; pnlCons: string }[] } | null;
   iv: { status: string; termSessions: number;
     rows: { symbol: string; n: number; ivrv: string; ivrvPct: string; skew: string; slope: string; dIvC: string; dIvP: string }[] } | null;

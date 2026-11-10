@@ -53,7 +53,7 @@ describe("profit telemetry", () => {
 // #467 step 3: the net-of-slippage twin. One priced entry, one with no quote at entry (must read "unknown").
 const SLIP = {
   slippage: {
-    note: "Estimate (#467): each entry re-priced at a conservative fill, the ask recorded at entry, else the carry walk's worst rung, else unknown. Entry side only. Display only: nothing is re-booked.",
+    note: "Estimate (#467): each entry re-priced at a conservative fill, the ask quoted at decision time (the order may have filled after it moved), else the carry walk's worst rung, else unknown. Entry side only. Display only: nothing is re-booked.",
     totals: { entries: 2, known: 1, unknown: 1, premium_filled_usd: 1780, premium_filled_known_usd: 1000,
       premium_conservative_usd: 1100, haircut_usd: 100, haircut_pct: 0.1, pnl_n: 1, pnl_filled_usd: 200, pnl_conservative_usd: 100 },
     rows: [
@@ -79,7 +79,8 @@ describe("net-of-slippage twin (#467)", () => {
     const flnc = screen.getByTestId("slip-row-11").textContent ?? "";
     expect(flnc).toContain("1.00");
     expect(flnc).toContain("1.10");
-    expect(flnc).toContain("ask at entry");
+    expect(flnc).toContain("ask at decision");
+    expect(card).toContain("the ask quoted at decision time (the order may have filled after it moved)");
     expect(flnc).toContain("$1,100.00");
     expect(flnc).toContain("+$200.00");
     expect(flnc).toContain("+$100.00");
@@ -93,6 +94,28 @@ describe("net-of-slippage twin (#467)", () => {
     const titn = screen.getByTestId("slip-row-12").textContent ?? "";
     expect(titn).toContain("unknown");
     expect(titn.match(/2\.60/g)?.length).toBe(1);   // the fill appears once: no stand-in equal to it
+  });
+
+  it("flags a partially closed entry and an ask that moved below the fill (#467 review)", () => {
+    const snap = { slippage: { ...SLIP.slippage, rows: [
+      { position_id: 21, symbol: "PL", contract: "PL270115C00020000", short_contract: null, status: "open", opened_at: "2026-11-04",
+        contracts: 10, partial: true, sold_qty: 6, contracts_remaining: 4, fill_px: 1.5, conservative_px: 1.6, basis: "ask_at_entry",
+        premium_filled_usd: 1500, premium_conservative_usd: 1600, haircut_usd: 100, haircut_pct: 0.0667,
+        pnl_kind: "realized+marked", pnl_filled_usd: 420, pnl_conservative_usd: 320 },
+      { position_id: 22, symbol: "CCJ", contract: "CCJ270115C00090000", short_contract: null, status: "open", opened_at: "2026-11-04",
+        contracts: 5, partial: false, sold_qty: 0, contracts_remaining: 5, fill_px: 1.7, conservative_px: null, basis: "ask_below_fill",
+        premium_filled_usd: 850, premium_conservative_usd: null, haircut_usd: null, haircut_pct: null,
+        pnl_kind: "marked", pnl_filled_usd: 50, pnl_conservative_usd: null },
+    ] } } as unknown as Snapshot;
+    render(<Telemetry t={buildTelemetry(snap)} />);
+    const pl = screen.getByTestId("slip-row-21").textContent ?? "";
+    expect(pl).toContain("partial: 6 of 10 sold");
+    expect(pl).toContain("$1,600.00");
+    expect(pl).toContain("realized+marked");
+    const ccj = screen.getByTestId("slip-row-22").textContent ?? "";
+    expect(ccj).toContain("ask at decision below the fill");
+    expect(ccj).toContain("unknown");
+    expect(ccj).not.toContain("partial");
   });
 
   it("degrades an errored panel to unavailable", () => {

@@ -167,15 +167,19 @@ def panel(conn: sqlite3.Connection, n_recent: int = 12) -> dict:
 # Alpaca's paper engine fills thin, wide, long-dated options at or near the mid, which a real book would not get.
 # Each booked real-book entry is shown twice: as filled (the journal's entry_premium_per_contract) and at a
 # conservative fill, from what the journal already holds:
-#   1. ``ask_at_entry``: the ask of the quote recorded at decision time (``rationale.quote``, recorded since
-#      2026-10-27); for a vertical, the natural debit = long ask − short bid (``rationale.vertical.short_quote``);
+#   1. ``ask_at_entry``: the ask of the quote taken at decision time (``rationale.quote``, recorded since
+#      2026-10-27; the order may have filled after it moved); for a vertical, the natural debit = long ask − short
+#      bid (``rationale.vertical.short_quote``). Used only when it is at or above the fill;
 #   2. ``carry_worst_rung``: else the highest limit this approval's carry walk placed (``rationale.carry.limit``
 #      over the chain), when it is above the fill;
-#   3. else unknown (None), never a stand-in equal to the fill.
-# A stored ask below the fill (the market moved between the decision and the fill) gives a zero haircut, not a
-# negative one. Entry side only: exits already sell at the bid (monitor), and no quote at exit is stored.
-HAIRCUT_NOTE = ("Estimate (#467): each entry re-priced at a conservative fill, the ask recorded at entry, else the "
-                "carry walk's worst rung, else unknown. Entry side only. Display only: nothing is re-booked.")
+#   3. else unknown (None), never a stand-in equal to the fill. A stored ask BELOW the fill means the ask moved
+#      before the fill, so the ask at fill time is unknown: basis ``ask_below_fill``, counted unknown (#467 review).
+# A partial close (#449) shrinks the open row and keeps the sold part in ``rationale.partial_closes``; the entry
+# haircut counts the ORIGINAL quantity (remaining + sold). A final close restores the whole bet on the row itself.
+# Entry side only: exits already sell at the bid (monitor), and no quote at exit is stored.
+HAIRCUT_NOTE = ("Estimate (#467): each entry re-priced at a conservative fill, the ask quoted at decision time (the "
+                "order may have filled after it moved), else the carry walk's worst rung, else unknown. Entry side "
+                "only. Display only: nothing is re-booked.")
 HAIRCUT_ROWS_N = 50
 
 
@@ -187,7 +191,8 @@ def _num(v) -> float | None:
 
 
 def conservative_px(row, rat: dict, chain_limits: list[float]) -> tuple[float | None, str | None]:
-    """The conservative per-share entry price of a booked row and its basis; (None, None) when it can't be derived."""
+    """The conservative per-share entry price of a booked row and its basis; the price is None when it can't be
+    derived (basis None, or ``ask_below_fill`` when the only quote is an ask the fill already exceeded)."""
     fill = float(row["entry_premium_per_contract"]) / 100.0
     q = rat.get("quote")
     ask = _num(q.get("ask")) if isinstance(q, dict) else None
@@ -196,18 +201,19 @@ def conservative_px(row, rat: dict, chain_limits: list[float]) -> tuple[float | 
         sq = (rat.get("vertical") or {}).get("short_quote")
         sbid = _num(sq.get("bid")) if isinstance(sq, dict) else None
         ask = (ask - sbid) if (ask is not None and sbid is not None) else None
-    if ask is not None and ask > 0:
-        return round(max(ask, fill), 4), "ask_at_entry"
+    if ask is not None and ask > 0 and ask >= fill - 1e-9:
+        return round(ask, 4), "ask_at_entry"
     top = max(chain_limits, default=None)
     if top is not None and top > fill + 1e-9:
         return round(top, 4), "carry_worst_rung"
-    return None, None
+    return None, ("ask_below_fill" if ask is not None and ask > 0 else None)
 
 
 def haircut(conn: sqlite3.Connection, n_rows: int = HAIRCUT_ROWS_N) -> dict:
     """Every booked real-book entry (open / closing / closed) as filled and at a conservative fill, with the
-    realized (closed) or marked (open) P&L twin. Read-only, newest first. Totals cover the rows whose conservative
-    price is known; ``unknown`` counts the rest."""
+    realized (closed) or marked (open) P&L twin; an open row an earlier partial close reduced counts its original
+    quantity and premium, and its P&L is the sold parts' realized P&L plus the marked remainder. Read-only, newest
+    first. Totals cover the rows whose conservative price is known; ``unknown`` counts the rest."""
     conn.row_factory = sqlite3.Row
     rows = conn.execute("SELECT * FROM convexity_positions WHERE status IN ('open', 'closing', 'closed') "
                         "ORDER BY id").fetchall()
@@ -225,7 +231,14 @@ def haircut(conn: sqlite3.Connection, n_rows: int = HAIRCUT_ROWS_N) -> dict:
         rat = _json(r["rationale"])
         c = rat.get("carry")
         of = c.get("of") if isinstance(c, dict) else None
-        epc, n, prem = float(r["entry_premium_per_contract"]), int(r["contracts"]), float(r["total_premium"])
+        epc, n_rest, prem = float(r["entry_premium_per_contract"]), int(r["contracts"]), float(r["total_premium"])
+        parts = [p for p in (rat.get("partial_closes") or []) if isinstance(p, dict)]
+        sold = sum(int(p.get("qty") or 0) for p in parts)
+        n, realized_part = n_rest, 0.0
+        if parts and r["status"] != "closed":   # a final close already restored the whole bet on the row
+            n = n_rest + sold
+            prem += sum(float(p.get("premium") or 0.0) for p in parts)
+            realized_part = sum(float(p.get("realized") or 0.0) for p in parts)
         fill = round(epc / 100.0, 4)
         cons, basis = conservative_px(r, rat, rungs.get(int(of), []) if of is not None else [])
         hc = round((cons - fill) * 100.0 * n, 2) if cons is not None else None
@@ -233,12 +246,15 @@ def haircut(conn: sqlite3.Connection, n_rows: int = HAIRCUT_ROWS_N) -> dict:
             kind, pnl = "realized", _num(r["realized_pnl"])
         else:
             mark = _num(r["mark"])
-            kind = "marked" if mark is not None else "unmarked"
-            pnl = (mark * 100.0 - epc) * n if mark is not None else None
+            kind = ("realized+marked" if parts else "marked") if mark is not None else "unmarked"
+            # the whole bet: the sold parts' realized P&L plus the marked remainder
+            pnl = realized_part + (mark * 100.0 - epc) * n_rest if mark is not None else None
         out.append({
             "position_id": r["id"], "symbol": r["symbol"], "contract": r["contract_symbol"],
             "short_contract": r["short_contract_symbol"] if "short_contract_symbol" in r.keys() else None,
             "status": r["status"], "opened_at": r["opened_at"], "contracts": n,
+            "partial": bool(parts), "sold_qty": sold,
+            "contracts_remaining": n_rest if r["status"] != "closed" else 0,
             "fill_px": fill, "conservative_px": cons, "basis": basis,
             "premium_filled_usd": round(prem, 2),
             "premium_conservative_usd": round(prem + hc, 2) if hc is not None else None,

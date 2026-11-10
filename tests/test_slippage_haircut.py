@@ -85,11 +85,48 @@ def test_vertical_without_a_short_quote_is_unknown(convexity_db):
     assert _rows(c)["GEV"]["conservative_px"] is None   # the long ask alone is not the net debit's ask
 
 
-def test_ask_below_fill_is_a_zero_haircut(convexity_db):
+def test_ask_below_fill_is_unknown_not_a_zero_haircut(convexity_db):
+    # #467 review: the ask moved between the quote and the fill, so the ask at fill time is unknown.
     c = convexity_db
     _pos(c, "CCJ", px=1.70, rationale={"quote": Q})
     r = _rows(c)["CCJ"]
-    assert r["conservative_px"] == 1.70 and r["haircut_usd"] == 0.0
+    assert r["conservative_px"] is None and r["basis"] == "ask_below_fill" and r["haircut_usd"] is None
+    assert haircut(c)["totals"]["unknown"] == 1 and haircut(c)["totals"]["known"] == 0
+
+
+def test_ask_below_fill_falls_through_to_the_carry_rung(convexity_db):
+    c = convexity_db
+    l1 = _pos(c, "BWXT", px=1.50, status="pending", exit_reason="carry_filled")
+    _pos(c, "BWXT", px=1.70, rationale={"quote": Q, "carry": {"of": l1, "step": 3, "limit": 1.75}})
+    r = _rows(c)["BWXT"]
+    assert r["conservative_px"] == 1.75 and r["basis"] == "carry_worst_rung"
+
+
+def test_partial_close_counts_the_original_quantity(convexity_db):
+    # #467 review: 10 bought at 1.50 (ask 1.60), 6 sold at 2.00 → the entry haircut is on all 10, not the 4 left.
+    c = convexity_db
+    pid = _pos(c, "PL", px=1.50, contracts=10, rationale={"quote": Q})
+    state.record_partial_close(c, pid, sold_qty=6, exit_price=2.00, reason="time_stop",
+                               as_of="2026-11-09T15:00:00+00:00")
+    state.mark_convexity_position(c, pid, mark=1.80, as_of="2026-11-09T16:00:00+00:00")
+    r = _rows(c)["PL"]
+    assert r["partial"] is True and r["sold_qty"] == 6 and r["contracts_remaining"] == 4 and r["contracts"] == 10
+    assert r["premium_filled_usd"] == 1500.0 and r["premium_conservative_usd"] == 1600.0 and r["haircut_usd"] == 100.0
+    # realized on the sold 6 ((200 − 150) × 6 = 300) + marked on the remaining 4 ((180 − 150) × 4 = 120)
+    assert r["pnl_kind"] == "realized+marked" and r["pnl_filled_usd"] == 420.0 and r["pnl_conservative_usd"] == 320.0
+
+
+def test_a_final_close_after_a_partial_is_not_double_counted(convexity_db):
+    c = convexity_db
+    pid = _pos(c, "PL", px=1.50, contracts=10, rationale={"quote": Q})
+    state.record_partial_close(c, pid, sold_qty=6, exit_price=2.00, reason="time_stop",
+                               as_of="2026-11-09T15:00:00+00:00")
+    # what monitor._close_and_resolve does: the whole bet restored on the row, every part's P&L added
+    state.close_convexity_position(c, pid, exit_price=1.92, realized_pnl=420.0, reason="time_stop",
+                                   as_of="2026-11-10T15:00:00+00:00", contracts=10, total_premium=1500.0)
+    r = _rows(c)["PL"]
+    assert r["contracts"] == 10 and r["partial"] is True and r["premium_filled_usd"] == 1500.0
+    assert r["haircut_usd"] == 100.0 and r["pnl_filled_usd"] == 420.0 and r["pnl_conservative_usd"] == 320.0
 
 
 def test_totals_cover_priced_rows_only(convexity_db):

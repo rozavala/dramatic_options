@@ -111,7 +111,8 @@ export function buildTelemetry(P: Snapshot): TelemetryVM {
   const UNKNOWN = "unknown";
   const usd2 = (v: number) => "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const signed = (v: number) => (v < 0 ? "−" : v > 0 ? "+" : "") + usd2(v);
-  const basisLabel = { ask_at_entry: "ask at entry", carry_worst_rung: "carry worst rung" } as const;
+  const basisLabel = { ask_at_entry: "ask at decision", carry_worst_rung: "carry worst rung",
+    ask_below_fill: "ask at decision below the fill" } as const;
   return {
     slip: sl && {
       note: sl.note, entries: sl.totals.entries, known: sl.totals.known, unknown: sl.totals.unknown,
@@ -121,7 +122,10 @@ export function buildTelemetry(P: Snapshot): TelemetryVM {
         const known = r.conservative_px != null;
         return {
           key: r.position_id, symbol: r.symbol, contract: r.short_contract ? `+${r.contract} / −${r.short_contract}` : r.contract,
-          status: r.status, fill: n2(r.fill_px), cons: known ? n2(r.conservative_px) : UNKNOWN,
+          status: r.status,
+          // #449: a partially closed entry counts its original quantity; say how much is already sold
+          partial: r.partial ? `partial: ${r.sold_qty ?? 0} of ${r.contracts} sold` : null,
+          fill: n2(r.fill_px), cons: known ? n2(r.conservative_px) : UNKNOWN,
           basis: r.basis ? basisLabel[r.basis] : "no quote at entry",
           premium: usd2(r.premium_filled_usd),
           premiumCons: r.premium_conservative_usd != null ? usd2(r.premium_conservative_usd) : UNKNOWN,
