@@ -87,8 +87,9 @@ def test_normal_chain_is_unchanged_by_the_guard():
     assert off.contract.symbol == on.contract.symbol and on.contract.strike == 125.0
 
 
-def test_the_empty_chain_reason_is_unchanged():
-    assert _pick([], "bearish", 10.0, guard=True)[1] == ("no_eligible_contract_in_tenor_window",)
+def test_the_empty_chain_reason_is_the_same_with_or_without_the_guard():
+    # #437 renamed it from no_eligible_contract_in_tenor_window: an empty chain is a dead underlying, not a tenor gap
+    assert _pick([], "bearish", 10.0, guard=True)[1] == _pick([], "bearish", 10.0, guard=False)[1] == ("empty_chain",)
 
 
 def test_spread_limit_admits_exactly_the_limit_only():
