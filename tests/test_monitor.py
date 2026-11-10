@@ -228,10 +228,44 @@ def test_a_raising_expiry_price_leaves_that_position_open_and_closes_the_rest(co
     assert row["status"] == "closed" and row["realized_pnl"] == (20.0 * 100 - 200.0)
 
 
-def test_a_raising_exit_spot_never_blocks_a_decided_close(convexity_db):
+def test_an_in_db_close_waits_when_the_price_lookup_raises(convexity_db):
+    # nothing is transmitted on the in-DB path, so the row stays open (retried next cycle) rather than closing with an
+    # outcome that could never be scored
     exp = (NOW.date() + timedelta(days=10)).isoformat()             # ≤ 21 DTE → time-stop at the mark
     pid = _open(convexity_db, contract="DEAD260611C00080000", entry_pc=200.0, expiry=exp, symbol="DEAD")
     res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({"DEAD260611C00080000": 1.0}),
                             config=CONFIG, underlying_price_of=_dead_or(100.0))
-    assert res.time_stopped == 1 and res.closed == 1
-    assert convexity_db.execute("SELECT status FROM convexity_positions WHERE id=?", (pid,)).fetchone()[0] == "closed"
+    assert res.time_stopped == 0 and res.closed == 0 and res.marked == 1
+    assert convexity_db.execute("SELECT status FROM convexity_positions WHERE id=?", (pid,)).fetchone()[0] == "open"
+
+
+def test_a_filled_sell_is_booked_even_when_the_exit_spot_lookup_raises(convexity_db):
+    # #440 review: on main a raise after a FILLED SELL_TO_CLOSE left a sold position 'open' in the journal
+    from broker import Fill
+    exp = (NOW.date() + timedelta(days=10)).isoformat()
+    pid = _open(convexity_db, contract="DEAD260611C00080000", entry_pc=200.0, expiry=exp, symbol="DEAD")
+    broker = _FakeBroker(sell=Fill(True, 1.0, 1, "filled", order_id="cl-9", pending=False))
+    res = monitor_positions(conn=convexity_db, clock=CLOCK,
+                            quote_provider=StaticQuoteProvider({"DEAD260611C00080000": 1.0}), config=CONFIG,
+                            broker=broker, dry_run=False, underlying_price_of=_dead_or(100.0))
+    assert len(broker.sells) == 1 and res.closed == 1
+    assert _row(convexity_db, pid, "status")["status"] == "closed"
+
+
+def test_expiry_while_closing_with_a_raising_price_stays_closing_then_closes(convexity_db, monkeypatch):
+    import notify
+    pages = []
+    monkeypatch.setattr(notify, "send", lambda t, m, priority=0: pages.append(t) or True)
+    exp = (NOW.date() + timedelta(days=5)).isoformat()
+    pid = _open(convexity_db, contract="DEAD260606C00080000", entry_pc=500.0, expiry=exp, symbol="DEAD")
+    state.begin_close_convexity_position(convexity_db, pid, close_order_id="cl-1", reason="time_stop_21dte", as_of="t")
+    past = FixedClock(NOW + timedelta(days=10))
+    broker = _FakeBroker()
+    res = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
+                            broker=broker, dry_run=False, underlying_price_of=_dead_or(100.0))
+    assert res.unmarked == 1 and res.closed == 0 and broker.cancelled == ["cl-1"]
+    assert _row(convexity_db, pid, "status")["status"] == "closing"
+    assert pages == ["EXPIRY PRICE LOOKUP FAILED"]
+    res2 = monitor_positions(conn=convexity_db, clock=past, quote_provider=StaticQuoteProvider({}), config=CONFIG,
+                             broker=broker, dry_run=False, underlying_price_of=lambda s: 100.0)
+    assert res2.expired == 1 and _row(convexity_db, pid, "status")["status"] == "closed"

@@ -101,8 +101,8 @@ class MonitorResult:
 
 
 def _exit_spot(underlying_price_of, symbol: str) -> float | None:
-    """The underlying's price recorded beside a close (``exit_spot``), or None. Never raises (#440): it is a
-    recorded field, so a failing price lookup must not abort the pass after the close has already filled."""
+    """The underlying's price recorded beside a close (``exit_spot``), or None. Never raises (#440). Used only after a
+    real sell has FILLED: the close must be booked, so a failing price lookup records an unknown spot instead."""
     if not underlying_price_of:
         return None
     try:
@@ -177,6 +177,9 @@ def monitor_positions(
             except Exception as e:  # noqa: BLE001 — #440: per-POSITION; never book an invented intrinsic
                 log.warning("expiry price lookup failed #%d %s — left open, retried next cycle: %s",
                             pid, pos["symbol"], e)
+                _page_once(conn, pos, today, "EXPIRY PRICE LOOKUP FAILED",
+                           f"#{pid} {pos['contract_symbol']} expired but its underlying price lookup raised ({e}). "
+                           "Left open in the journal and retried every cycle; the venue has expired or exercised it.")
                 res.unmarked += 1
                 continue
             intrinsic = _intrinsic_of(pos, up)
@@ -273,7 +276,15 @@ def _exit_position(
         # is preserved so the forward-scoring resolution still keys correctly).
         reason = reason + "_unsellable"
 
-    up = _exit_spot(underlying_price_of, pos["symbol"])
+    # Nothing was transmitted on this path, so a failing price lookup leaves the row open for the next cycle rather
+    # than booking a close whose forward outcome could never be scored (#440 review).
+    try:
+        up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+    except Exception as e:  # noqa: BLE001 — per-POSITION
+        log.warning("exit price lookup failed #%d %s — in-DB %s left open, retried next cycle: %s",
+                    pid, contract, reason, e)
+        setattr(res, counter, getattr(res, counter) - 1)
+        return
     pnl = _realized(mid, entry_pc, contracts)
     _close_and_resolve(conn, pos, exit_price=mid, realized_pnl=pnl, reason=reason, as_of=as_of_iso,
                        conv_map=conv_map, exit_spot=up)
@@ -380,6 +391,9 @@ def _reconcile_closing(
             except Exception as e:  # noqa: BLE001 — #440: per-POSITION; stays 'closing', retried next cycle
                 log.warning("expiry price lookup failed #%d %s (closing) — retried next cycle: %s",
                             pid, pos["symbol"], e)
+                _page_once(conn, pos, today, "EXPIRY PRICE LOOKUP FAILED",
+                           f"#{pid} {pos['contract_symbol']} expired while closing and its underlying price lookup "
+                           f"raised ({e}). Left 'closing' in the journal and retried every cycle.")
                 res.unmarked += 1
                 continue
             intrinsic = _intrinsic_of(pos, up)
