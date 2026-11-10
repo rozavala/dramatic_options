@@ -9,7 +9,7 @@
 
 import type {
   AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
-  NextRunVM, NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
+  NextRunVM, NullStepVM, PositionRow, PositionVM, VerticalLegsVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
   OutsideFrameVM, Snapshot, SpendVM, TailFigure, TelemetryVM, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
 } from "./types";
 import { etDate, formatRunLabel } from "./runLabel";
@@ -87,7 +87,17 @@ const dayStamp = (day: string | null | undefined): string => {
   const t = Date.parse(`${day}T12:00:00Z`);
   return Number.isNaN(t) ? day : `${new Date(t).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${day}`;
 };
-const orderDetail = (o: { contract: string | null; contracts: number | null; premium: number | null }): string | null => {
+// #463: both legs of a debit call vertical (positions_panel: short_contract_symbol from migration 0021, detected with
+// verticals.is_vertical). A single-leg row → null, so its rendering is unchanged.
+const strikeLabel = (k: number | null | undefined): string => (k == null ? DASH : "$" + Number(k).toLocaleString("en-US", { maximumFractionDigits: 2 }));
+function verticalLegs(p: PositionRow): VerticalLegsVM | null {
+  if (!p.short_contract_symbol) return null;
+  return {
+    long: p.contract_symbol, longStrike: strikeLabel(p.strike), short: p.short_contract_symbol, shortStrike: strikeLabel(p.short_strike),
+    netDebit: p.net_debit == null ? DASH : "$" + Number(p.net_debit).toFixed(2),
+  };
+}
+const orderDetail = (o:{ contract: string | null; contracts: number | null; premium: number | null }): string | null => {
   const parts = [o.contract ? `${o.contracts != null ? `${o.contracts}× ` : ""}${o.contract}` : null, o.premium != null ? fmt(o.premium) : null];
   const out = parts.filter(Boolean).join(" · ");
   return out || null;
@@ -273,6 +283,7 @@ export function fromBackend(P: Snapshot): ViewModel {
     premium: fmt(p.total_premium), premiumUsd: Number(p.total_premium ?? 0),
     mark: markByContract.get(p.contract_symbol) ?? p.mark ?? null, opened: p.opened_at ? String(p.opened_at).slice(0, 10) : null,
     expiry: p.expiry ? String(p.expiry).slice(0, 10) : null, timeStop: p.time_stop_on ?? null,
+    legs: verticalLegs(p),
   }));
   const sentinels: SentinelVM[] = (se.active ?? []).map((x) => ({ symbol: x.symbol, basket: x.basket, dir: x.direction, note: sentinelNote(x) })); // #4
 

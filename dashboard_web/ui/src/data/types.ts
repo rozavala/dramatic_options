@@ -43,6 +43,9 @@ export interface PositionRow {
   origin_conviction: string | null; opened_at?: string | null;
   theme: string | null; // emitted by positions_panel (dashboard_data.py SELECT p.theme)
   expiry?: string | null; time_stop_on?: string | null; // YYYY-MM-DD; time_stop_on = the 21d L2 time-stop's close day (#306)
+  // #463: a debit call vertical (migration 0021). contract_symbol/strike are the LONG leg; net_debit is per share.
+  strike?: number | null; vertical?: boolean; short_contract_symbol?: string | null; short_strike?: number | null;
+  net_debit?: number | null;
 }
 
 // Active sentinel rows are state.active_sentinel_rows() (wide); only the fields the UI reads are named.
@@ -294,7 +297,9 @@ export interface BookCI { n: number; p95: number | null }
 export interface TailFigure { n: number; p95: number | null; withLegacy: BookCI | null }
 export interface OutsideFrameVM { book: string; symbol: string; kind: string; dir: string; moneyness: number | null; status: string }
 export interface ClusterVM { name: string; premium: number; cap: number; dirs: string }
-export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; premiumUsd: number; mark: number | null; opened: string | null; expiry: string | null; timeStop: string | null }
+// #463: legs is null for a single-leg row; for a vertical it names both legs and the net debit paid (per share).
+export interface VerticalLegsVM { long: string; longStrike: string; short: string; shortStrike: string; netDebit: string }
+export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; premiumUsd: number; mark: number | null; opened: string | null; expiry: string | null; timeStop: string | null; legs: VerticalLegsVM | null }
 export interface SentinelVM { symbol: string; basket?: string; dir?: string; note: string }
 export interface T4ItemVM { id: number; name: string; detail: string; verdict: T4Verdict; state: DisplayState }
 export interface ProviderVM { provider: string; calls: number; parseError: number; rate: number | null }
