@@ -999,6 +999,24 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             except Exception as e:  # noqa: BLE001 — fail-closed: an error here places nothing and never breaks the cycle
                 log.warning("carry-over pass failed (non-fatal; nothing placed): %s", e)
 
+        # 1f. Venue-vs-journal expiry check (#444 option (a); records/2026-11-10_expiry_exercise_audit_DRAFT.md): each
+        #     L2 tick, market open or closed, reads the venue quantity of every real-book contract not yet expired (per
+        #     contract via broker.venue_quantity, never an account listing; §3a.3) and pages any difference from the
+        #     journal. READ-ONLY: sends, cancels and closes nothing. After the monitor pass, so it sees this tick's
+        #     closes. The CONFIGURED dry_run (not monitor_dry_run, forced on a closed tick): off under DRY_RUN only.
+        if monitor_only and not demo:
+            try:
+                import venue_check
+
+                venue_check.run_tick(conn, broker=broker, clock=clock, dry_run=dry_run, paper_account=not is_live,
+                                     run_id=run_id, underlying_price_of=provider.underlying_price)
+            except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                log.warning("venue check failed (non-fatal): %s", e)
+                try:   # the run must show that it failed, not silence
+                    append_run_note(conn, run_id, f"venue_check: FAILED {type(e).__name__}")
+                except Exception:  # noqa: BLE001 — the note is best-effort
+                    pass
+
         # 2. Council pass → themes (T2). The council PROPOSES; the deterministic gates in
         #    run_paper_cycle still DISPOSE. Entries are gated BEFORE any LLM spend by
         #    FORWARD_ENABLED + market-open (PR2 §B): an inert env or a closed market pays
