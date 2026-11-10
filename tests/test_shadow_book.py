@@ -328,3 +328,19 @@ def test_shadow_cluster_cap_admits_only_a_subset(convexity_db, monkeypatch):
     assert 0 < res.booked < 4
     assert state.shadow_cluster_open_premium(
         convexity_db, {"AAA", "BBB", "CCC", "DDD"}) <= 100_000.0 * 0.02 + 1e-6
+
+
+def test_a_raising_expiry_price_leaves_that_row_open_and_closes_the_rest(convexity_db):
+    # #440: ATKR's null calls expire 2027-01-15 on a delisted symbol; a provider that raises for it must not abort
+    # the pass, and must not close it at an invented price.
+    def price(sym):
+        if sym == "DEAD":
+            raise RuntimeError("no bars for DEAD")
+        return 100.0
+    dead = _insert_shadow(convexity_db, contract="DEAD251231C00080000", expiry="2025-12-31", symbol="DEAD")
+    live = _insert_shadow(convexity_db, contract="FCX251231C00080000", expiry="2025-12-31")
+    res = shadow_book.mark_shadow_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({}),
+                                            config=CONFIG, underlying_price_of=price)
+    assert res.expired == 1 and res.unmarked == 1
+    st = {r["id"]: r["status"] for r in convexity_db.execute("SELECT id, status FROM shadow_positions")}
+    assert st[dead] == "open" and st[live] == "closed"

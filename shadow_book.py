@@ -329,7 +329,13 @@ def mark_shadow_positions(
 
         # 1. Expiry → close at intrinsic.
         if expiry is not None and today >= expiry:
-            up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            try:
+                up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            except Exception as e:  # noqa: BLE001 — #440: per-POSITION, like the mark below; never an invented close
+                log.warning("shadow expiry price lookup failed for %s (%s) — left open, retried next cycle: %s",
+                            pos["symbol"], pos["contract_symbol"], e)
+                res.unmarked += 1
+                continue
             intrinsic = (verticals.position_intrinsic(pos, up) if verticals.is_vertical(pos)
                          else _intrinsic_value(kind, float(pos["strike"]), up))
             _close(conn, pid, exit_price=intrinsic, entry_pc=entry_pc, contracts=contracts,

@@ -205,3 +205,33 @@ def test_expiry_while_closing_cancels_and_books_intrinsic(convexity_db):
     assert res.expired == 1 and res.closed == 1 and broker.cancelled == ["cl-1"]
     row = _row(convexity_db, pid, "status, mark")
     assert row["status"] == "closed" and row["mark"] == 20.0  # intrinsic 100−80
+
+
+def _dead_or(price):
+    # #440: a price provider that RAISES for a dead symbol (ATKR after its take-private) and prices the rest
+    def f(sym):
+        if sym == "DEAD":
+            raise RuntimeError("no bars for DEAD")
+        return price
+    return f
+
+
+def test_a_raising_expiry_price_leaves_that_position_open_and_closes_the_rest(convexity_db):
+    exp = (NOW.date() - timedelta(days=1)).isoformat()
+    dead = _open(convexity_db, contract="DEAD260531C00080000", entry_pc=200.0, expiry=exp, symbol="DEAD")
+    live = _open(convexity_db, contract="FCX260531C00080000", entry_pc=200.0, expiry=exp)
+    res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({}),
+                            config=CONFIG, underlying_price_of=_dead_or(100.0))
+    assert res.expired == 1 and res.unmarked == 1
+    assert convexity_db.execute("SELECT status FROM convexity_positions WHERE id=?", (dead,)).fetchone()[0] == "open"
+    row = convexity_db.execute("SELECT status, realized_pnl FROM convexity_positions WHERE id=?", (live,)).fetchone()
+    assert row["status"] == "closed" and row["realized_pnl"] == (20.0 * 100 - 200.0)
+
+
+def test_a_raising_exit_spot_never_blocks_a_decided_close(convexity_db):
+    exp = (NOW.date() + timedelta(days=10)).isoformat()             # ≤ 21 DTE → time-stop at the mark
+    pid = _open(convexity_db, contract="DEAD260611C00080000", entry_pc=200.0, expiry=exp, symbol="DEAD")
+    res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=StaticQuoteProvider({"DEAD260611C00080000": 1.0}),
+                            config=CONFIG, underlying_price_of=_dead_or(100.0))
+    assert res.time_stopped == 1 and res.closed == 1
+    assert convexity_db.execute("SELECT status FROM convexity_positions WHERE id=?", (pid,)).fetchone()[0] == "closed"

@@ -100,6 +100,18 @@ class MonitorResult:
     notes: list[str] = field(default_factory=list)
 
 
+def _exit_spot(underlying_price_of, symbol: str) -> float | None:
+    """The underlying's price recorded beside a close (``exit_spot``), or None. Never raises (#440): it is a
+    recorded field, so a failing price lookup must not abort the pass after the close has already filled."""
+    if not underlying_price_of:
+        return None
+    try:
+        return underlying_price_of(symbol)
+    except Exception as e:  # noqa: BLE001 — informational field; the close itself is already decided
+        log.warning("exit-spot lookup failed for %s (recorded as unknown): %s", symbol, e)
+        return None
+
+
 def intrinsic_value(kind: str, strike: float, underlying_price: float | None) -> float:
     """Per-share intrinsic value of an option at expiry. 0 if underlying unknown."""
     if underlying_price is None:
@@ -160,7 +172,13 @@ def monitor_positions(
 
         # 1. Expiry → close at intrinsic (a vertical: long intrinsic − short intrinsic).
         if expiry is not None and today >= expiry:
-            up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            try:
+                up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            except Exception as e:  # noqa: BLE001 — #440: per-POSITION; never book an invented intrinsic
+                log.warning("expiry price lookup failed #%d %s — left open, retried next cycle: %s",
+                            pid, pos["symbol"], e)
+                res.unmarked += 1
+                continue
             intrinsic = _intrinsic_of(pos, up)
             pnl = _realized(intrinsic, entry_pc, contracts)
             _close_and_resolve(conn, pos, exit_price=intrinsic, realized_pnl=pnl, reason="expiry",
@@ -243,7 +261,7 @@ def _exit_position(
                 res.closing += 1
                 log.info("SELL_TO_CLOSE submitted #%d %s @ %.2f (resting) → closing", pid, contract, float(bid))
                 return
-            up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            up = _exit_spot(underlying_price_of, pos["symbol"])
             pnl = _realized(fill.price, entry_pc, contracts)
             _close_and_resolve(conn, pos, exit_price=fill.price, realized_pnl=pnl, reason=reason,
                                as_of=as_of_iso, conv_map=conv_map, exit_spot=up)
@@ -255,7 +273,7 @@ def _exit_position(
         # is preserved so the forward-scoring resolution still keys correctly).
         reason = reason + "_unsellable"
 
-    up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+    up = _exit_spot(underlying_price_of, pos["symbol"])
     pnl = _realized(mid, entry_pc, contracts)
     _close_and_resolve(conn, pos, exit_price=mid, realized_pnl=pnl, reason=reason, as_of=as_of_iso,
                        conv_map=conv_map, exit_spot=up)
@@ -307,7 +325,7 @@ def _exit_vertical(
         log.info("VERTICAL CLOSE submitted #%d +%s/-%s @ %.2f credit (resting) → closing", pid, contract, short,
                  credit)
         return True
-    up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+    up = _exit_spot(underlying_price_of, pos["symbol"])
     pnl = _realized(fill.price, entry_pc, contracts)
     _close_and_resolve(conn, pos, exit_price=fill.price, realized_pnl=pnl, reason=reason, as_of=as_of_iso,
                        conv_map=conv_map, exit_spot=up)
@@ -357,7 +375,13 @@ def _reconcile_closing(
         if expiry is not None and today >= expiry:  # expiry while closing → cancel + intrinsic
             if oid and hasattr(broker, "cancel_order"):
                 broker.cancel_order(oid)
-            up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            try:
+                up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            except Exception as e:  # noqa: BLE001 — #440: per-POSITION; stays 'closing', retried next cycle
+                log.warning("expiry price lookup failed #%d %s (closing) — retried next cycle: %s",
+                            pid, pos["symbol"], e)
+                res.unmarked += 1
+                continue
             intrinsic = _intrinsic_of(pos, up)
             pnl = _realized(intrinsic, entry_pc, contracts)
             _close_and_resolve(conn, pos, exit_price=intrinsic, realized_pnl=pnl, reason="expiry",
@@ -375,7 +399,7 @@ def _reconcile_closing(
         st = str(info.get("state", "")).lower()
         if st == "filled":
             price = abs(float(info.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER)))  # mleg: net, maybe signed
-            up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            up = _exit_spot(underlying_price_of, pos["symbol"])
             pnl = _realized(price, entry_pc, contracts)
             _close_and_resolve(conn, pos, exit_price=price, realized_pnl=pnl, reason=reason,
                                as_of=as_of_iso, conv_map=conv_map, exit_spot=up)
