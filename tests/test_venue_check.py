@@ -95,17 +95,17 @@ def test_a_closed_in_db_row_the_venue_still_holds_pages_once_per_day(convexity_d
     assert len(pager.sent) == 1, "a contract the venue holds while the journal shows it closed did not page"
     page = pager.sent[0]
     assert page["title"] == "VENUE ≠ JOURNAL: PL" and page["priority"] == 1
-    assert "the venue holds a contract the journal shows closed" in page["message"]
-    assert "Orphan by design" in page["message"] and "4 NYSE trading day(s) to expiry 2027-01-15" in page["message"]
+    assert "expected orphan" in page["message"] and "the unsellable in-DB close booked 1 closed" in page["message"]
+    assert "4 NYSE trading day(s) to expiry 2027-01-15" in page["message"]
     assert "strike 40: 5.0% OTM" in page["message"]
-    assert "mismatch=1" in line and f"mismatches={PL}:closed_but_held" in line and "paged=1" in line
+    assert "mismatch=1" in line and f"mismatches={PL}:orphan" in line and "paged=1 digest=sent" in line
 
     _, again = _run(convexity_db, broker, MON_LATER)          # the L2 runs every 30 min: same ET day, no repeat
     assert again.sent == [], "the same mismatch paged twice on one ET day"
     _, tue = _run(convexity_db, broker, TUE)                  # the next ET day pages again
     assert len(tue.sent) == 1
     paged = json.loads(state_row(convexity_db, pid)["rationale"])["paged"]
-    assert paged[f"venue_check:closed_but_held:{PL}"] == "2027-01-12"
+    assert paged[f"venue_check:orphan:{PL}"] == "2027-01-12"
 
 
 def state_row(conn, pid):
@@ -195,12 +195,12 @@ def test_a_venue_read_error_is_an_unknown_not_a_match(convexity_db, caplog, brok
     run_id = state.record_run(convexity_db, mode="PAPER", equity=None, note="l2")
     with caplog.at_level(logging.WARNING, logger="venue_check"):
         line, pager = _run(convexity_db, broker, run_id=run_id)
-    assert "match=0" in line and "unknown=1" in line and f"unknown={PL}" in line, line
+    assert "contracts=1 match=0 mismatch=0 unknown=1" in line and f"unknown_keys={PL}" in line, line
     assert any(r.levelno == logging.WARNING and PL in r.getMessage() for r in caplog.records)
     note = convexity_db.execute("SELECT note FROM runs WHERE id = ?", (run_id,)).fetchone()["note"]
-    assert f"unknown={PL}" in note
+    assert f"unknown_keys={PL}" in note
     assert len(pager.sent) == 1 and pager.sent[0]["title"] == "VENUE READ UNKNOWN: PL"
-    assert "UNKNOWN, not a match" in pager.sent[0]["message"]
+    assert "UNKNOWN, not a match" in pager.sent[0]["message"] and "venue read failed" in pager.sent[0]["message"]
 
 
 def test_contracts_past_the_budget_are_unknown(convexity_db):
@@ -244,9 +244,10 @@ def test_after_expiry_a_held_contract_and_shares_page_on_paper(convexity_db):
     tue_after = FixedClock(datetime(2027, 1, 19, 14, tzinfo=UTC))   # the first session after expiry
     broker = _Broker({PL: 1, "PL": 100})
     _, pager = _run(convexity_db, broker, tue_after)
-    assert len(pager.sent) == 2 and all(p["priority"] == 1 for p in pager.sent)
-    assert any("still holds the contract after its expiry" in p["message"] for p in pager.sent)
-    assert any("holds 100 share(s) of PL" in p["message"] for p in pager.sent)
+    assert len(pager.sent) == 1 and pager.sent[0]["priority"] == 1, "one digest per tick"
+    assert "2 finding(s)" in pager.sent[0]["message"]
+    assert "still holds the contract after its expiry" in pager.sent[0]["message"]
+    assert "holds 100 share(s) of PL" in pager.sent[0]["message"]
     assert broker.reads == [PL, "PL"]
     _, pager = _run(convexity_db, _Broker({PL: 0, "PL": 0}), mon_after)
     assert pager.sent == []
@@ -367,3 +368,139 @@ def test_orchestrator_wiring_runs_in_the_l2_after_the_monitor_in_a_non_raising_t
     monitor = [n for n in ast.walk(run_once) if isinstance(n, ast.Call) and getattr(n.func, "id", "") ==
                "monitor_positions"]
     assert monitor and all(m.lineno < call.lineno for m in monitor), "the check must read this tick's closes"
+
+
+# ── #444 review ──────────────────────────────────────────────────────────────────────────────────────────────────
+@pytest.mark.parametrize("venue", [5, -1, 2])
+def test_orphan_by_design_only_when_the_unsellable_close_explains_the_quantity_and_sign(convexity_db, venue):
+    pid = _open(convexity_db)
+    _close(convexity_db, pid)                          # a 1-lot unsellable close
+    line, pager = _run(convexity_db, _Broker({PL: venue}))
+    msg = pager.sent[0]["message"]
+    assert "expected orphan" not in msg, f"venue {venue} on a 1-lot unsellable close was called by design"
+    assert "The journal explains none of it" in msg and f"mismatches={PL}:closed_but_held" in line
+
+
+def test_a_short_leg_orphan_is_by_design_only_when_negative(convexity_db):
+    short = "PL270115C00050000"
+    pid = _open(convexity_db, short=short)
+    _close(convexity_db, pid)
+    line, _ = _run(convexity_db, _Broker({PL: 1, short: -1}))
+    assert f"{PL}:orphan" in line and f"{short}:orphan" in line
+    line, _ = _run(convexity_db, _Broker({PL: 1, short: 1}), TUE)
+    assert f"{short}:closed_but_held" in line
+
+
+def test_an_undelivered_page_is_not_stamped_and_retries_next_tick(convexity_db):
+    pid = _open(convexity_db)
+    _close(convexity_db, pid)
+    sent = []
+
+    def undelivered(title, message, *, priority=0):
+        sent.append(title)
+        return False                                   # notify.send: no creds / transient, never raises
+    line = vc.run_tick(convexity_db, broker=_Broker({PL: 1}), clock=MON, dry_run=False, paper_account=True,
+                       run_id=None, notify_send=undelivered)
+    assert "paged=0 digest=undelivered" in line, line
+    assert "paged" not in json.loads(state_row(convexity_db, pid)["rationale"]), "an undelivered page was stamped"
+    _, pager = _run(convexity_db, _Broker({PL: 1}), MON_LATER)
+    assert len(sent) == 1 and len(pager.sent) == 1, "the undelivered page was not retried the same day"
+
+
+def test_one_digest_per_tick_with_the_highest_priority(convexity_db):
+    near = _open(convexity_db, contracts=3)                                          # 4 trading days → prio 1
+    _open(convexity_db, contract="FCX270618C00080000", symbol="FCX", strike=80.0, expiry="2027-06-18")   # prio 0
+    _open(convexity_db, contract="MP270618C00070000", symbol="MP", strike=70.0, expiry="2027-06-18")
+    line, pager = _run(convexity_db, _Broker({PL: 2, "FCX270618C00080000": 0, "MP270618C00070000": None}))
+    assert len(pager.sent) == 1, "one page per finding instead of one digest"
+    page = pager.sent[0]
+    assert page["priority"] == 1 and page["title"] == "VENUE ≠ JOURNAL: PL, FCX, MP"
+    assert "3 finding(s)" in page["message"] and page["message"].index(PL) < page["message"].index("FCX")
+    assert "paged=3" in line
+    paged = json.loads(state_row(convexity_db, near)["rationale"])["paged"]
+    assert paged == {f"venue_check:quantity:{PL}": "2027-01-11"}
+
+
+def test_an_orphan_by_design_pages_when_first_seen_then_only_in_the_window(convexity_db):
+    c = "PL270129C00040000"                       # expiry Fri 2027-01-29
+    pid = _open(convexity_db, contract=c, expiry="2027-01-29")
+    _close(convexity_db, pid)
+    broker = _Broker({c: 1})
+    days = {d: FixedClock(datetime(2027, 1, d, 15, tzinfo=UTC)) for d in (11, 12, 13, 22, 25, 26)}
+    got = {d: len(_run(convexity_db, broker, clk)[1].sent) for d, clk in days.items()}
+    # 01-11: first seen (13 sessions out). 01-12/13: outside the window, quiet. 01-22 is 5 sessions out: daily again.
+    assert got == {11: 1, 12: 0, 13: 0, 22: 1, 25: 1, 26: 1}, got
+
+
+def test_other_kinds_stay_daily_outside_the_window(convexity_db):
+    c = "PL270618C00040000"
+    _open(convexity_db, contract=c, expiry="2027-06-18", contracts=2)
+    got = [len(_run(convexity_db, _Broker({c: 1}), FixedClock(datetime(2027, 1, d, 15, tzinfo=UTC)))[1].sent)
+           for d in (11, 12, 13)]
+    assert got == [1, 1, 1]
+
+
+def test_the_status_line_reconciles_contract_and_share_reads(convexity_db):
+    pid = _open(convexity_db)
+    _close(convexity_db, pid, reason="expiry")
+    line, _ = _run(convexity_db, _Broker({PL: 0, "PL": 0}), FixedClock(datetime(2027, 1, 19, 14, tzinfo=UTC)))
+    assert "contracts=1 match=1 mismatch=0 unknown=0 shares_match=1 shares_mismatch=0 shares_unknown=0" in line, line
+    assert " unknown=" not in line.split("window=")[1]
+
+
+def test_a_failed_share_read_is_an_unknown(convexity_db):
+    pid = _open(convexity_db)
+    _close(convexity_db, pid, reason="expiry")
+    line, pager = _run(convexity_db, _Broker({PL: 0}, raises={"PL"}),
+                       FixedClock(datetime(2027, 1, 19, 14, tzinfo=UTC)))
+    assert "match=1" in line and "shares_match=0 shares_mismatch=0 shares_unknown=1" in line, line
+    assert "unknown_keys=PL" in line and len(pager.sent) == 1 and "share read failed" in pager.sent[0]["message"]
+
+
+def test_an_unparsable_expiry_is_an_unknown_not_skipped(convexity_db, caplog):
+    pid = _open(convexity_db, contract="XYZ-BAD")
+    convexity_db.execute("UPDATE convexity_positions SET expiry = 'soon' WHERE id = ?", (pid,))
+    convexity_db.commit()
+    with caplog.at_level(logging.WARNING, logger="venue_check"):
+        line, pager = _run(convexity_db, _Broker())
+    assert "skipped_window=0" in line and "contracts=1 match=0 mismatch=0 unknown=1" in line, line
+    assert "unknown_keys=XYZ-BAD" in line and len(pager.sent) == 1 and "unparsable" in pager.sent[0]["message"]
+    assert any("unparsable expiry" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.parametrize("long_q,short_q,ok", [(2, -2, True), (1, -1, True), (0, 0, True), (0, -2, False),
+                                               (2, 0, False)])
+def test_a_closing_vertical_is_checked_jointly(convexity_db, long_q, short_q, ok):
+    short = "PL270115C00050000"
+    pid = _open(convexity_db, contracts=2, short=short)
+    state.begin_close_convexity_position(convexity_db, pid, close_order_id="cl-1", reason="time_stop_21dte",
+                                         as_of="2027-01-11T14:30:00+00:00")
+    line, pager = _run(convexity_db, _Broker({PL: long_q, short: short_q}))
+    assert (pager.sent == []) is ok, line
+    if not ok:
+        assert "vertical legs disagree" in pager.sent[0]["message"] and "contracts=2 match=0 mismatch=2" in line
+
+
+@pytest.mark.parametrize("day,prio", [(8, 1), (7, 0)])     # 2027-01-08 is 5 sessions to 01-15; 01-07 is 6
+def test_the_priority_window_boundary(convexity_db, day, prio):
+    _open(convexity_db, contracts=2)
+    _, pager = _run(convexity_db, _Broker({PL: 1}), FixedClock(datetime(2027, 1, day, 15, tzinfo=UTC)))
+    assert pager.sent[0]["priority"] == prio
+
+
+@pytest.mark.parametrize("day,read", [(20, True), (21, False)])   # 01-19 is the 1st session after 01-15 (MLK 01-18)
+def test_the_post_expiry_window_far_edge(convexity_db, day, read):
+    pid = _open(convexity_db)
+    _close(convexity_db, pid, reason="expiry")
+    broker = _Broker({PL: 0})
+    line, _ = _run(convexity_db, broker, FixedClock(datetime(2027, 1, day, 15, tzinfo=UTC)), paper=False)
+    assert (broker.reads == [PL]) is read and ("skipped_window=1" in line) is (not read), line
+
+
+def test_a_null_rationale_is_stamped_as_a_plain_dict(convexity_db):
+    pid = _open(convexity_db, contracts=2)
+    convexity_db.execute("UPDATE convexity_positions SET rationale = 'null' WHERE id = ?", (pid,))
+    convexity_db.commit()
+    _run(convexity_db, _Broker({PL: 1}))
+    assert json.loads(state_row(convexity_db, pid)["rationale"]) == {"paged": {f"venue_check:quantity:{PL}":
+                                                                               "2027-01-11"}}
