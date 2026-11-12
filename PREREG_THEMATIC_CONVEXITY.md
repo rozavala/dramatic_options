@@ -368,8 +368,17 @@ the waiting posture itself had no pre-registered falsifier (found 2026-07-01,
 > - **Dry leg ("bleeds 9 months with zero payoff"):** the clock starts at the first real fill's `opened_at` (2026-07-01, PL) and restarts at the `closed_at` of each real-book close with `realized_pnl > 0` (payoff P1, under any exit reason). Backfill positions count; cancelled or never-filled orders do not; null books never feed it; "months" are calendar months on the US-Eastern date. (These four sub-rules are the draft's §3 reading of clock A and P1, recorded as CC's reading. The operator worded the letters.) On today's book it binds on **2027-04-01** unless a real position closes above cost first.
 > - **Drawdown leg ("draws down ≥ 20% of its premium budget"):** the book's net loss since the first real fill, i.e. realized P&L of real-book closes (partial closes included) plus unrealized P&L of open and closing positions at their marks, divided by the premium budget (`account_equity × book_fraction`, $10,000). A closed loss no longer leaves the figure. Until the first real close (none yet; PL's time-stop is first possible on 2026-12-28) the two readings never differed, so no past admission or halt would have been decided differently.
 > - **Effect of a trip (either leg):** it halts NEW real-book entries and the council, exactly as before, and **the null books keep booking** (the brain-off controls keep running while the real book is halted). The manual `KILL` switch still halts everything. The L0 scan's behaviour on a trip is unchanged by this note: it is an open question whether L0 keeps scanning so the null books do not run out of sentinels.
-> - **Release:** a trip clears through a payoff close or a mark recovery. A dated operator re-anchor is not built; it needs its own word.
+> - **Release:** a trip clears through a payoff close or a mark recovery. A dated operator re-anchor was not yet worded here; it was worded the same day (see the addendum below).
 > - **Unchanged:** the 20% and 9-month thresholds, §5's numbers, flat-by-slots sizing, §6a exits, "open positions are not force-closed", the posture review (D = 2027-03-02), and `frame_version` (the hashed `kill_rule` block already contained both legs; the implementing PR changes code only).
+
+> **Addendum to the conformance notes (2026-11-12, operator word: "accept all" (2026-11-12), on CC's table of suggestions in-session).**
+> - **The L0 scan keeps running on a trip**, LLM framer included, so the shadow book and 3A keep receiving sentinels.
+>   The council stays halted (no council spend), and the real book stays halted. This replaces "the L0 scan's
+>   behaviour on a trip is unchanged".
+> - **Release by re-anchor:** two dated keys in the hashed `kill_rule` block, written only on the operator's word after
+>   a review: `dry_clock_reanchored_on` restarts the dry clock at that date, and `drawdown_reanchored_on` counts the
+>   drawdown from that date (closes before it are excluded). Writing either key moves `frame_version`: the
+>   post-review book is a new regime. Two keys, so that reviewing one leg leaves the other leg's history intact.
 
 ## 6a. Exit rules (frozen) — the L2 reflex, deterministic, no LLM
 

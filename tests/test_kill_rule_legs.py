@@ -203,7 +203,8 @@ def test_a_rule_trip_does_not_halt_3a(convexity_db, monkeypatch):
     assert res.halted is False and res.booked == 1
 
 
-def test_l0_on_a_trip_skips_the_scan_but_still_runs_3b_and_shares(monkeypatch, caplog):
+def test_l0_on_a_trip_keeps_scanning_and_runs_3b_and_shares(monkeypatch, caplog):
+    # operator word 2026-11-12 ("accept all"): the scan and its framer keep the null books' sentinel feed on a trip
     import logging
 
     import orchestrator
@@ -214,5 +215,58 @@ def test_l0_on_a_trip_skips_the_scan_but_still_runs_3b_and_shares(monkeypatch, c
     with caplog.at_level(logging.INFO):
         assert orchestrator.run_discover(demo=True) == 0
     text = "\n".join(r.getMessage() for r in caplog.records)
-    assert "discovery scan skipped" in text and "Discovery: scanned=" not in text
+    assert "the L0 scan and null books run" in text and "Discovery: scanned=" in text
     assert "No-gate(3B basket) book:" in text and " HALTED" not in text.split("No-gate(3B basket) book:")[1].split("\n")[0]
+    assert "Shares(null) DESCRIPTIVE return report" in text          # the shares pass ran too
+
+
+# ── the re-anchor keys (operator word 2026-11-12, "accept all") ─────────────────────────────────
+
+def test_a_dry_clock_reanchor_restarts_the_clock_at_its_date(convexity_db):
+    _pos(convexity_db, opened_at="2026-07-01T19:45:00+00:00")
+    cfg = {**CONFIG, "kill_rule": {**CONFIG["kill_rule"], "dry_clock_reanchored_on": "2027-04-15"}}
+    krs = kill_rule_status(convexity_db, cfg, _clock(2027, 5, 1))
+    assert krs.tripped is False and krs.dry_since == "2027-04-15" and krs.dry_binds_on == "2028-01-15"
+
+
+def test_a_drawdown_reanchor_drops_earlier_closes_but_keeps_open_marks(convexity_db):
+    _pos(convexity_db, opened_at="2026-07-01T19:45:00+00:00", status="closed", mark=0.015, realized=-1500.0,
+         closed_at="2026-12-28T15:00:00+00:00")
+    _pos(convexity_db, opened_at="2026-11-04T15:30:00+00:00", premium=1000.0, mark=5.0, symbol="FLNC")   # −$500 open
+    assert kill_rule_status(convexity_db, CONFIG, _clock(2027, 1, 5)).tripped is True               # −$2,000: 20%
+    cfg = {**CONFIG, "kill_rule": {**CONFIG["kill_rule"], "drawdown_reanchored_on": "2027-01-04"}}
+    krs = kill_rule_status(convexity_db, cfg, _clock(2027, 1, 5))
+    assert krs.tripped is False and abs(krs.book_drawdown - 0.05) < 1e-9                             # the open −$500 only
+    import dashboard_data
+    assert abs(dashboard_data.risk_panel(convexity_db, cfg)["kill_rule"]["book_drawdown"] - 0.05) < 1e-9
+
+
+def test_a_close_on_the_drawdown_anchor_day_counts(convexity_db):
+    _pos(convexity_db, opened_at="2026-07-01T19:45:00+00:00", status="closed", mark=0.0, realized=-2000.0,
+         closed_at="2027-01-04T15:00:00+00:00")                       # 10:00 ET on the anchor day
+    cfg = {**CONFIG, "kill_rule": {**CONFIG["kill_rule"], "drawdown_reanchored_on": "2027-01-04"}}
+    assert kill_rule_status(convexity_db, cfg, _clock(2027, 1, 5)).tripped is True
+
+
+def test_a_malformed_or_future_anchor_fails_closed(convexity_db):
+    import pytest
+    _pos(convexity_db, opened_at="2026-07-01T19:45:00+00:00", status="closed", mark=0.0, realized=-2000.0,
+         closed_at="2026-12-28T15:00:00+00:00")
+    for key, value in (("drawdown_reanchored_on", "2027/01/04"), ("dry_clock_reanchored_on", "2027/01/04"),
+                       ("dry_clock_reanchored_on", "2072-04-15")):
+        cfg = {**CONFIG, "kill_rule": {**CONFIG["kill_rule"], key: value}}
+        with pytest.raises(ValueError):
+            kill_rule_status(convexity_db, cfg, _clock(2027, 1, 5))
+
+
+def test_every_drawdown_reader_takes_the_anchor_from_one_place():
+    import inspect
+
+    import dashboard_data
+    import orchestrator
+    import paper_loop
+    for mod in (orchestrator, dashboard_data, paper_loop):
+        src = inspect.getsource(mod)
+        for line in src.splitlines():
+            if "convexity_book_drawdown(" in line and "def " not in line:
+                assert "since=drawdown_since(config)" in line, (mod.__name__, line.strip())
