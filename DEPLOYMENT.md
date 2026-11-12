@@ -37,8 +37,9 @@ same session (not into a closed after-hours book). `Persistent=true` lets a run 
 the box was down fire on next boot; that catch-up is safe because (a) acting on slightly-stale
 marks is immaterial to a 6–12-month hold, and (b) the orchestrator computes `is_market_open()`
 once per cycle **fail-closed** and, when the market is closed, **skips entries and runs the
-monitor mark-only** (no real submit) — so a post-close catch-up can never submit into a closed
-market. The orchestrator also **re-checks market-open immediately before submitting entries**
+monitor mark-only** (no real submit; a triggered profit-take or time-stop is deferred to the next
+open-market tick, not booked in the journal without a sale, #451) — so a post-close catch-up can
+never submit into a closed market. The orchestrator also **re-checks market-open immediately before submitting entries**
 (after the possibly-slow council), so "no entry outside RTH" is literally enforced, not merely
 bounded by `TimeoutStartSec`. 15:45 is also kept **off** the L2 `:00/:30` grid so the two timers
 never start the same monitor pass concurrently.

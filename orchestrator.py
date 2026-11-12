@@ -434,13 +434,28 @@ def _safe_market_open(clock: Clock) -> bool:
 
     The market-state call hits the broker/network; any error (outage, partial failure) must
     NOT be read as "open". Returning False means: no new entries, and the monitor runs
-    mark-only (no real SELL_TO_CLOSE) — we never act on an unconfirmed market state.
+    mark-only (no real SELL_TO_CLOSE, and no exit booked without one) — we never act on an
+    unconfirmed market state.
     """
     try:
         return bool(clock.is_market_open())
     except Exception as e:  # noqa: BLE001 — fail-closed: unknown ⇒ treat as closed
         log.warning("market-state check failed (%s) — treating market as CLOSED (fail-closed).", e)
         return False
+
+
+def monitor_mode(*, dry_run: bool, market_open: bool, demo: bool) -> tuple[bool, bool]:
+    """``(dry_run, mark_only)`` for the real-book monitor pass. Pure → unit-testable.
+
+    A closed market (or an unconfirmed one: ``_safe_market_open`` reads an error as closed) never transmits: dry_run is
+    forced (PR2 R1). Outside DRY_RUN it is also MARK-ONLY (#451): marks are written and expiry settles at intrinsic,
+    but a triggered profit-take or time-stop is not booked, because no sale happened; the next open-market tick
+    re-evaluates it (a real sell if it still triggers and is sellable). DRY_RUN (pure simulation) and demo (an offline run whose FixedClock always reads closed)
+    still book exits in-DB at the mark.
+    """
+    if market_open:
+        return dry_run, False
+    return True, not dry_run and not demo
 
 
 def entries_allowed(*, forward_enabled: bool, market_open: bool, demo: bool) -> tuple[bool, str]:
@@ -909,22 +924,24 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
         market_open = _safe_market_open(clock)
 
         # 1. Monitor pass — reconcile pending real orders, then mark + fire exits.
-        #    When the market is CLOSED the monitor runs MARK-ONLY: dry_run is forced true so a
-        #    real SELL_TO_CLOSE never transmits into a closed options book (PR2 R1) — covers
-        #    half-days, holidays, and a Persistent=true post-close catch-up. Real exits fire on
-        #    an open-market cycle (L1 at 15:45 ET; the L2 intraday ticks).
+        #    When the market is CLOSED the monitor runs MARK-ONLY (monitor_mode): dry_run is forced
+        #    true so a real SELL_TO_CLOSE never transmits into a closed options book (PR2 R1) — covers
+        #    half-days, holidays, and a Persistent=true post-close catch-up — and, outside DRY_RUN, a
+        #    triggered exit is deferred, not booked without a sale (#451). Real exits fire on an
+        #    open-market cycle (L1 at 15:45 ET; the L2 intraday ticks).
         reconciled = reconcile_pending(conn=conn, broker=broker, clock=clock, config=config)
         if reconciled:
             log.info("Reconciled %d pending order(s).", reconciled)
+        monitor_dry_run, mark_only = monitor_mode(dry_run=dry_run, market_open=market_open, demo=demo)
         mres = monitor_positions(
             conn=conn, clock=clock, quote_provider=quote_provider, config=config,
             underlying_price_of=provider.underlying_price, broker=broker,
-            dry_run=dry_run or not market_open,
+            dry_run=monitor_dry_run, mark_only=mark_only,
         )
         log.info(
-            "Monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) unmarked=%d realized=$%.0f",
+            "Monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) deferred=%d unmarked=%d realized=$%.0f",
             mres.marked, mres.closed, mres.expired, mres.profit_taken, mres.time_stopped,
-            mres.unmarked, mres.realized_pnl,
+            mres.deferred, mres.unmarked, mres.realized_pnl,
         )
 
         # 1b. Brain-off NULL shadow book (T3 PR3b) — mark + exit the simulated control book alongside
@@ -981,6 +998,24 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                     log.info("Carry-over: placed %d attempt(s).", placed)
             except Exception as e:  # noqa: BLE001 — fail-closed: an error here places nothing and never breaks the cycle
                 log.warning("carry-over pass failed (non-fatal; nothing placed): %s", e)
+
+        # 1f. Venue-vs-journal expiry check (#444 option (a); records/2026-11-10_expiry_exercise_audit_DRAFT.md): each
+        #     L2 tick, market open or closed, reads the venue quantity of every real-book contract not yet expired (per
+        #     contract via broker.venue_quantity, never an account listing; §3a.3) and pages any difference from the
+        #     journal. READ-ONLY: sends, cancels and closes nothing. After the monitor pass, so it sees this tick's
+        #     closes. The CONFIGURED dry_run (not monitor_dry_run, forced on a closed tick): off under DRY_RUN only.
+        if monitor_only and not demo:
+            try:
+                import venue_check
+
+                venue_check.run_tick(conn, broker=broker, clock=clock, dry_run=dry_run, paper_account=not is_live,
+                                     run_id=run_id, underlying_price_of=provider.underlying_price)
+            except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                log.warning("venue check failed (non-fatal): %s", e)
+                try:   # the run must show that it failed, not silence
+                    append_run_note(conn, run_id, f"venue_check: FAILED {type(e).__name__}")
+                except Exception:  # noqa: BLE001 — the note is best-effort
+                    pass
 
         # 2. Council pass → themes (T2). The council PROPOSES; the deterministic gates in
         #    run_paper_cycle still DISPOSE. Entries are gated BEFORE any LLM spend by
@@ -1254,6 +1289,21 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                     except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the real cycle
                         log.warning("cheapness-watch pass failed (non-fatal): %s", e)
                         notify.send("Cheapness-watch failed (non-fatal)", str(e))
+
+            # #458: delisting / pending-deal guard over the universe, sentinels and every open book. TELEMETRY +
+            # PAGING ONLY (never closes, vetoes or edits the universe). L1 only, after entries are decided. Fail-soft.
+            if not demo:
+                try:
+                    import listing_guard
+
+                    listing_guard.run_nightly(conn, config, run_id=run_id, cache=chain_cache, client=client,
+                                              as_of=clock.now())
+                except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                    log.warning("listing guard failed (non-fatal): %s", e)
+                    try:   # the nightly grade must see that it failed, not silence
+                        append_run_note(conn, run_id, f"listing_guard: FAILED {type(e).__name__}")
+                    except Exception:  # noqa: BLE001 — the note is best-effort
+                        pass
 
         _print_book_summary(conn, config)
         return 0

@@ -109,8 +109,16 @@ def test_cancels_only_take_ids_from_this_projects_journal():
     # The only live cancel callers are the monitor's reconcilers and the carry-over (#386), which pass ids read
     # from this project's own journal rows (pos['close_order_id'] / a pending entry's or carry attempt's order id)
     # — never an id listed from the account.
+    # (since #445 the monitor cancels only through carry.cancel_and_settle, so it is a settle caller below)
     callers = [rel for rel, src in _py_sources() if re.search(r"\.cancel_order\(", src)]
-    assert sorted(callers) == ["carry.py", "monitor.py", "scripts/smoke_order_roundtrip.py"]
+    # #466: the exit fire-drill's DrillBroker overrides cancel_order to refuse every id but the do-drill- orders its
+    # own scratch DB recorded (and everything without --send); it forwards through exactly ONE super() call.
+    assert sorted(callers) == ["carry.py", "scripts/drill_exit_paths.py", "scripts/smoke_order_roundtrip.py"]
+    drill_src = (REPO / "scripts" / "drill_exit_paths.py").read_text()
+    assert re.findall(r"\S*\.cancel_order\(", drill_src) == ["super().cancel_order("]
+    # ... and never reaches past the broker: no raw client cancel, no order listing
+    assert "cancel_order_by_id(" not in drill_src, "the drill cancels through the raw client"
+    assert "get_orders(" not in drill_src, "the drill lists the account's orders"
     for rel in ("monitor.py", "carry.py"):
         src = (REPO / rel).read_text()
         assert "get_orders" not in src and "list_orders" not in src, rel

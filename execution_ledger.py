@@ -163,6 +163,124 @@ def panel(conn: sqlite3.Connection, n_recent: int = 12) -> dict:
     return {"summary": summarize(led), "rows": led[-n_recent:][::-1]}
 
 
+# ── #467 step 3: the "net of slippage" twin (display only; nothing is re-booked, no stored value changes) ─────────
+# Alpaca's paper engine fills thin, wide, long-dated options at or near the mid, which a real book would not get.
+# Each booked real-book entry is shown twice: as filled (the journal's entry_premium_per_contract) and at a
+# conservative fill, from what the journal already holds:
+#   1. ``ask_at_entry``: the ask of the quote taken at decision time (``rationale.quote``, recorded since
+#      2026-10-27; the order may have filled after it moved); for a vertical, the natural debit = long ask − short
+#      bid (``rationale.vertical.short_quote``). Used only when it is at or above the fill;
+#   2. ``carry_worst_rung``: else the highest limit this approval's carry walk placed (``rationale.carry.limit``
+#      over the chain), when it is above the fill;
+#   3. else unknown (None), never a stand-in equal to the fill. A stored ask BELOW the fill means the ask moved
+#      before the fill, so the ask at fill time is unknown: basis ``ask_below_fill``, counted unknown (#467 review).
+# A partial close (#449) shrinks the open row and keeps the sold part in ``rationale.partial_closes``; the entry
+# haircut counts the ORIGINAL quantity (remaining + sold). A final close restores the whole bet on the row itself.
+# Entry side only: exits already sell at the bid (monitor), and no quote at exit is stored.
+HAIRCUT_NOTE = ("Estimate (#467): each entry re-priced at a conservative fill, the ask quoted at decision time (the "
+                "order may have filled after it moved), else the carry walk's worst rung, else unknown. Entry side "
+                "only. Display only: nothing is re-booked.")
+HAIRCUT_ROWS_N = 50
+
+
+def _num(v) -> float | None:
+    try:
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def conservative_px(row, rat: dict, chain_limits: list[float]) -> tuple[float | None, str | None]:
+    """The conservative per-share entry price of a booked row and its basis; the price is None when it can't be
+    derived (basis None, or ``ask_below_fill`` when the only quote is an ask the fill already exceeded)."""
+    fill = float(row["entry_premium_per_contract"]) / 100.0
+    q = rat.get("quote")
+    ask = _num(q.get("ask")) if isinstance(q, dict) else None
+    short_leg = row["short_contract_symbol"] if "short_contract_symbol" in row.keys() else None
+    if short_leg or rat.get("vertical") is not None:   # a vertical's fill is a NET debit: compare the natural debit
+        sq = (rat.get("vertical") or {}).get("short_quote")
+        sbid = _num(sq.get("bid")) if isinstance(sq, dict) else None
+        ask = (ask - sbid) if (ask is not None and sbid is not None) else None
+    if ask is not None and ask > 0 and ask >= fill - 1e-9:
+        return round(ask, 4), "ask_at_entry"
+    top = max(chain_limits, default=None)
+    if top is not None and top > fill + 1e-9:
+        return round(top, 4), "carry_worst_rung"
+    return None, ("ask_below_fill" if ask is not None and ask > 0 else None)
+
+
+def haircut(conn: sqlite3.Connection, n_rows: int = HAIRCUT_ROWS_N) -> dict:
+    """Every booked real-book entry (open / closing / closed) as filled and at a conservative fill, with the
+    realized (closed) or marked (open) P&L twin; an open row an earlier partial close reduced counts its original
+    quantity and premium, and its P&L is the sold parts' realized P&L plus the marked remainder. Read-only, newest
+    first. Totals cover the rows whose conservative price is known; ``unknown`` counts the rest."""
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT * FROM convexity_positions WHERE status IN ('open', 'closing', 'closed') "
+                        "ORDER BY id").fetchall()
+    rungs: dict[int, list[float]] = {}   # every limit a carry walk placed, by the L1 row it carries
+    for r in conn.execute("SELECT rationale FROM convexity_positions WHERE rationale LIKE '%\"carry\"%'"):
+        c = _json(r["rationale"]).get("carry")
+        lim = _num(c.get("limit")) if isinstance(c, dict) else None
+        if isinstance(c, dict) and c.get("of") is not None and lim is not None:
+            rungs.setdefault(int(c["of"]), []).append(lim)
+    out = []
+    t = {"entries": 0, "known": 0, "unknown": 0, "premium_filled_usd": 0.0, "premium_filled_known_usd": 0.0,
+         "premium_conservative_usd": 0.0, "haircut_usd": 0.0, "pnl_n": 0, "pnl_filled_usd": 0.0,
+         "pnl_conservative_usd": 0.0}
+    for r in rows:
+        rat = _json(r["rationale"])
+        c = rat.get("carry")
+        of = c.get("of") if isinstance(c, dict) else None
+        epc, n_rest, prem = float(r["entry_premium_per_contract"]), int(r["contracts"]), float(r["total_premium"])
+        parts = [p for p in (rat.get("partial_closes") or []) if isinstance(p, dict)]
+        sold = sum(int(p.get("qty") or 0) for p in parts)
+        n, realized_part = n_rest, 0.0
+        if parts and r["status"] != "closed":   # a final close already restored the whole bet on the row
+            n = n_rest + sold
+            prem += sum(float(p.get("premium") or 0.0) for p in parts)
+            realized_part = sum(float(p.get("realized") or 0.0) for p in parts)
+        fill = round(epc / 100.0, 4)
+        cons, basis = conservative_px(r, rat, rungs.get(int(of), []) if of is not None else [])
+        hc = round((cons - fill) * 100.0 * n, 2) if cons is not None else None
+        if r["status"] == "closed":
+            kind, pnl = "realized", _num(r["realized_pnl"])
+        else:
+            mark = _num(r["mark"])
+            kind = ("realized+marked" if parts else "marked") if mark is not None else "unmarked"
+            # the whole bet: the sold parts' realized P&L plus the marked remainder
+            pnl = realized_part + (mark * 100.0 - epc) * n_rest if mark is not None else None
+        out.append({
+            "position_id": r["id"], "symbol": r["symbol"], "contract": r["contract_symbol"],
+            "short_contract": r["short_contract_symbol"] if "short_contract_symbol" in r.keys() else None,
+            "status": r["status"], "opened_at": r["opened_at"], "contracts": n,
+            "partial": bool(parts), "sold_qty": sold,
+            "contracts_remaining": n_rest if r["status"] != "closed" else 0,
+            "fill_px": fill, "conservative_px": cons, "basis": basis,
+            "premium_filled_usd": round(prem, 2),
+            "premium_conservative_usd": round(prem + hc, 2) if hc is not None else None,
+            "haircut_usd": hc, "haircut_pct": round(hc / prem, 4) if hc is not None and prem > 0 else None,
+            "pnl_kind": kind, "pnl_filled_usd": round(pnl, 2) if pnl is not None else None,
+            "pnl_conservative_usd": round(pnl - hc, 2) if pnl is not None and hc is not None else None,
+        })
+        t["entries"] += 1
+        t["premium_filled_usd"] += prem
+        if hc is None:
+            t["unknown"] += 1
+            continue
+        t["known"] += 1
+        t["premium_filled_known_usd"] += prem
+        t["premium_conservative_usd"] += prem + hc
+        t["haircut_usd"] += hc
+        if pnl is not None:
+            t["pnl_n"] += 1
+            t["pnl_filled_usd"] += pnl
+            t["pnl_conservative_usd"] += pnl - hc
+    totals = {k: round(v, 2) if isinstance(v, float) else v for k, v in t.items()}
+    totals["haircut_pct"] = (round(t["haircut_usd"] / t["premium_filled_known_usd"], 4)
+                             if t["premium_filled_known_usd"] > 0 else None)
+    return {"rows": out[-n_rows:][::-1], "totals": totals, "note": HAIRCUT_NOTE}
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 

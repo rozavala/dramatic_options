@@ -9,7 +9,7 @@
 
 import type {
   AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
-  NextRunVM, NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
+  NextRunVM, NullStepVM, PositionRow, PositionVM, VerticalLegsVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
   OutsideFrameVM, Snapshot, SpendVM, TailFigure, TelemetryVM, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
 } from "./types";
 import { etDate, formatRunLabel } from "./runLabel";
@@ -87,6 +87,16 @@ const dayStamp = (day: string | null | undefined): string => {
   const t = Date.parse(`${day}T12:00:00Z`);
   return Number.isNaN(t) ? day : `${new Date(t).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${day}`;
 };
+// #463: both legs of a debit call vertical (positions_panel: short_contract_symbol from migration 0021, detected with
+// verticals.is_vertical). A single-leg row → null, so its rendering is unchanged.
+const strikeLabel = (k: number | null | undefined): string => (k == null ? DASH : "$" + Number(k).toLocaleString("en-US", { maximumFractionDigits: 2 }));
+function verticalLegs(p: PositionRow): VerticalLegsVM | null {
+  if (!p.short_contract_symbol) return null;
+  return {
+    long: p.contract_symbol, longStrike: strikeLabel(p.strike), short: p.short_contract_symbol, shortStrike: strikeLabel(p.short_strike),
+    netDebit: p.net_debit == null ? DASH : "$" + Number(p.net_debit).toFixed(2),
+  };
+}
 const orderDetail = (o: { contract: string | null; contracts: number | null; premium: number | null }): string | null => {
   const parts = [o.contract ? `${o.contracts != null ? `${o.contracts}× ` : ""}${o.contract}` : null, o.premium != null ? fmt(o.premium) : null];
   const out = parts.filter(Boolean).join(" · ");
@@ -106,7 +116,34 @@ export function buildTelemetry(P: Snapshot): TelemetryVM {
   const fa = ok(P.falsifiers) ? P.falsifiers! : null;
   const cx = ok(P.capex_cycle) ? P.capex_cycle! : null;
   const at = ok(P.attention) ? P.attention! : null;
+  const sl = ok(P.slippage) ? P.slippage! : null;
+  // #467: a conservative figure that can't be derived reads "unknown", never "—" and never the as-filled number.
+  const UNKNOWN = "unknown";
+  const usd2 = (v: number) => "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const signed = (v: number) => (v < 0 ? "−" : v > 0 ? "+" : "") + usd2(v);
+  const basisLabel = { ask_at_entry: "ask at decision", carry_worst_rung: "carry worst rung",
+    ask_below_fill: "ask at decision below the fill" } as const;
   return {
+    slip: sl && {
+      note: sl.note, entries: sl.totals.entries, known: sl.totals.known, unknown: sl.totals.unknown,
+      haircut: usd2(sl.totals.haircut_usd), haircutPct: pct(sl.totals.haircut_pct), pnlN: sl.totals.pnl_n,
+      pnlFilled: signed(sl.totals.pnl_filled_usd), pnlCons: signed(sl.totals.pnl_conservative_usd),
+      rows: (sl.rows ?? []).map((r) => {
+        const known = r.conservative_px != null;
+        return {
+          key: r.position_id, symbol: r.symbol, contract: r.short_contract ? `+${r.contract} / −${r.short_contract}` : r.contract,
+          status: r.status,
+          // #449: a partially closed entry counts its original quantity; say how much is already sold
+          partial: r.partial ? `partial: ${r.sold_qty ?? 0} of ${r.contracts} sold` : null,
+          fill: n2(r.fill_px), cons: known ? n2(r.conservative_px) : UNKNOWN,
+          basis: r.basis ? basisLabel[r.basis] : "no quote at entry",
+          premium: usd2(r.premium_filled_usd),
+          premiumCons: r.premium_conservative_usd != null ? usd2(r.premium_conservative_usd) : UNKNOWN,
+          pnlKind: r.pnl_kind, pnl: r.pnl_filled_usd != null ? signed(r.pnl_filled_usd) : DASH,
+          pnlCons: r.pnl_filled_usd == null ? DASH : r.pnl_conservative_usd != null ? signed(r.pnl_conservative_usd) : UNKNOWN,
+        };
+      }),
+    },
     exec: ex && {
       read: ex.summary.read, approvals: ex.summary.all.approvals, reached: ex.summary.all.reached_order,
       decided: ex.summary.all.decided, filled: ex.summary.all.filled, fillRate: pct(ex.summary.all.fill_rate),
@@ -259,7 +296,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
       ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence], ["staleness", P.staleness],
       ["why_no_entry", P.why_no_entry],
-      ["execution", P.execution], ["iv_history", P.iv_history], ["falsifiers", P.falsifiers],
+      ["execution", P.execution], ["slippage", P.slippage], ["iv_history", P.iv_history], ["falsifiers", P.falsifiers],
       ["capex_cycle", P.capex_cycle], ["attention", P.attention],
     ] as [string, unknown][]
   )
@@ -273,6 +310,7 @@ export function fromBackend(P: Snapshot): ViewModel {
     premium: fmt(p.total_premium), premiumUsd: Number(p.total_premium ?? 0),
     mark: markByContract.get(p.contract_symbol) ?? p.mark ?? null, opened: p.opened_at ? String(p.opened_at).slice(0, 10) : null,
     expiry: p.expiry ? String(p.expiry).slice(0, 10) : null, timeStop: p.time_stop_on ?? null,
+    legs: verticalLegs(p),
   }));
   const sentinels: SentinelVM[] = (se.active ?? []).map((x) => ({ symbol: x.symbol, basket: x.basket, dir: x.direction, note: sentinelNote(x) })); // #4
 

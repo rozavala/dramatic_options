@@ -148,4 +148,33 @@ describe("upcoming actions (#306)", () => {
     expect(screen.getByText("2026-01-16")).toBeTruthy();
     expect(screen.getByText("2025-12-26")).toBeTruthy();
   });
+
+  // #463: a vertical shows its short leg and net debit; a single-leg row renders no legs line.
+  const single = { id: 1, symbol: "FLNC", direction: "bullish", contract_symbol: "FLNC270521C00005000", status: "open", dte: 190, contracts: 10, total_premium: 1000, mark: null, origin_conviction: "MODERATE", theme: null, strike: 5, vertical: false, short_contract_symbol: null, short_strike: null, net_debit: null };
+  const vert = { id: 2, symbol: "GEV", direction: "bullish", contract_symbol: "GEV270617C00750000", status: "open", dte: 219, contracts: 1, total_premium: 1840, mark: null, origin_conviction: "HIGH", theme: null, strike: 750, vertical: true, short_contract_symbol: "GEV270617C01050000", short_strike: 1050, net_debit: 18.4 };
+
+  it("shows both legs of a vertical and the net debit (#463)", () => {
+    const vm = vmFrom({ positions: { real_open: [vert, single] } });
+    expect(vm.positions[0].legs).toEqual({ long: "GEV270617C00750000", longStrike: "$750", short: "GEV270617C01050000", shortStrike: "$1,050", netDebit: "$18.40" });
+    expect(vm.positions[1].legs).toBeNull();
+    render(<Book vm={vm} />);
+    const legs = screen.getAllByTestId("vertical-legs");
+    expect(legs).toHaveLength(1);   // the single-leg row gets none
+    expect(legs[0].textContent).toContain("short GEV270617C01050000 ($1,050)");
+    expect(legs[0].textContent).toContain("long GEV270617C00750000 ($750)");
+    expect(legs[0].textContent).toContain("net debit $18.40");
+  });
+
+  it("renders a single-leg row with no legs line (#463)", () => {
+    render(<Book vm={vmFrom({ positions: { real_open: [single] } })} />);
+    expect(screen.queryByTestId("vertical-legs")).toBeNull();
+    expect(screen.getByText("$1,000")).toBeTruthy();
+  });
+
+  it("shows the short leg on mobile too (#463)", () => {
+    render(<MobileApp {...props({ vm: vmFrom({ positions: { real_open: [vert] } }) })} />);
+    const nav = screen.queryAllByText("Book");
+    if (nav.length) fireEvent.click(nav[nav.length - 1]);
+    expect(screen.getByTestId("m-vertical-legs").textContent).toContain("short GEV270617C01050000 ($1,050)");
+  });
 });

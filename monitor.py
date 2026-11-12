@@ -31,20 +31,43 @@ log = logging.getLogger("monitor")
 CONTRACT_MULTIPLIER = 100.0
 
 
+def _partial_closes(conn, pid: int) -> list[dict]:
+    """The sold parts of earlier partial closes (#449), from the row's rationale; [] if none or unreadable."""
+    import json
+
+    row = conn.execute("SELECT rationale FROM convexity_positions WHERE id = ?", (pid,)).fetchone()
+    try:
+        rat = json.loads(row["rationale"]) if row and row["rationale"] else {}
+    except (TypeError, ValueError):
+        return []
+    return list(rat.get("partial_closes") or []) if isinstance(rat, dict) else []
+
+
 def _close_and_resolve(conn, pos, *, exit_price, realized_pnl, reason, as_of, conv_map,
                        intrinsic=None, exit_spot=None) -> None:
-    """Book a position closed (in-DB) and resolve its council proposal at the actual exit."""
-    state.close_convexity_position(conn, int(pos["id"]), exit_price=exit_price,
-                                   realized_pnl=realized_pnl, reason=reason, as_of=as_of)
+    """Book a position closed (in-DB) and resolve its council proposal at the actual exit. A row an earlier partial
+    close reduced (#449) is closed as the whole bet: contracts and premium restored, the P&L of every sold part added,
+    and the exit price blended over all contracts."""
+    contracts = total_premium = None
+    parts = _partial_closes(conn, int(pos["id"]))
+    if parts:
+        n_rest, q_sold = int(pos["contracts"]), sum(int(p["qty"]) for p in parts)
+        contracts = n_rest + q_sold
+        total_premium = float(pos["total_premium"]) + sum(float(p["premium"]) for p in parts)
+        exit_price = (exit_price * n_rest + sum(int(p["qty"]) * float(p["price"]) for p in parts)) / contracts
+        realized_pnl = realized_pnl + sum(float(p["realized"]) for p in parts)
+    state.close_convexity_position(conn, int(pos["id"]), exit_price=exit_price, realized_pnl=realized_pnl,
+                                   reason=reason, as_of=as_of, contracts=contracts, total_premium=total_premium)
     _maybe_resolve_proposal(conn, pos, reason=reason, as_of=as_of, conviction_to_prob=conv_map,
                             intrinsic=intrinsic, exit_spot=exit_spot)
     _maybe_resolve_sentinel(conn, pos, reason=reason, as_of=as_of, conviction_to_prob=conv_map,
-                            intrinsic=intrinsic, exit_spot=exit_spot, realized_pnl=realized_pnl)
+                            intrinsic=intrinsic, exit_spot=exit_spot, realized_pnl=realized_pnl,
+                            entry_premium=total_premium)
 
 
 def _maybe_resolve_sentinel(
     conn, pos, *, reason: str, as_of: str, conviction_to_prob, intrinsic=None, exit_spot=None,
-    realized_pnl=None,
+    realized_pnl=None, entry_premium=None,
 ) -> None:
     """Resolve a TRADED sentinel's forward outcome at close (T3): outcome + Brier + the realized
     **multiple** (the tail-aware magnitude binary Brier discards). No-op unless the position's
@@ -58,7 +81,8 @@ def _maybe_resolve_sentinel(
     outcome, b, mult = sentinel_scoring.resolve_traded_sentinel(
         reason=reason, direction=pos["direction"], conviction=prop["conviction"],
         intrinsic=intrinsic, exit_spot=exit_spot, entry_spot=pos["entry_spot"],
-        entry_premium=pos["total_premium"], realized_pnl=realized_pnl,
+        # the whole bet's premium when an earlier partial close reduced the row (#449 review)
+        entry_premium=pos["total_premium"] if entry_premium is None else entry_premium, realized_pnl=realized_pnl,
         conviction_to_prob=conviction_to_prob,
     )
     state.resolve_sentinel(conn, int(prop["sentinel_id"]), resolved_at=as_of, outcome=outcome,
@@ -95,6 +119,7 @@ class MonitorResult:
     expired: int = 0
     profit_taken: int = 0
     time_stopped: int = 0
+    deferred: int = 0         # mark-only (#451): a triggered exit left open for the next open-market tick
     unmarked: int = 0
     realized_pnl: float = 0.0
     notes: list[str] = field(default_factory=list)
@@ -135,6 +160,7 @@ def monitor_positions(
     underlying_price_of=None,
     broker=None,
     dry_run: bool = True,
+    mark_only: bool = False,
 ) -> MonitorResult:
     """Mark + apply exits to every open position. Returns a MonitorResult.
 
@@ -144,6 +170,12 @@ def monitor_positions(
     (bid below ``min_close_bid``) books in-DB at mark, avoiding an open↔closing churn deadlock;
     expiry books intrinsic. In DRY_RUN / sim (no broker) every exit books in-DB at mark, as before.
     ``underlying_price_of(symbol)`` is used at expiry (intrinsic) + to resolve time-stops.
+
+    ``mark_only`` (#451; the orchestrator sets it on a closed-market tick outside DRY_RUN): mark every position and
+    settle expiries at intrinsic, but transmit nothing and book no triggered profit-take or time-stop. Nothing was
+    sold, so booking one would close the journal row while the contract stays at the broker. Each is logged as
+    deferred and stays open; the next open-market tick re-evaluates it through the normal path (a real sell if it
+    still triggers and is sellable; the in-DB ``_unsellable`` close if its bid is below ``min_close_bid``).
     """
     exits = config.get("convexity_exits", {})
     profit_mult = float(exits.get("profit_take_multiple", 4.0))
@@ -154,7 +186,7 @@ def monitor_positions(
     today = now.date()
     as_of_iso = now.isoformat()
     res = MonitorResult()
-    real_submit = broker is not None and not dry_run
+    real_submit = broker is not None and not dry_run and not mark_only
 
     # 0. Reconcile in-flight SELL_TO_CLOSE orders first (fill → closed at the real fill, terminal →
     #    reopen, expiry-while-closing → cancel + intrinsic). Closing positions are NOT re-evaluated
@@ -211,6 +243,9 @@ def monitor_positions(
 
         # 3. Profit-take: mark ≥ profit_mult × entry (per-contract basis).
         if entry_pc > 0 and mid * CONTRACT_MULTIPLIER >= profit_mult * entry_pc:
+            if mark_only:
+                _defer(res, pos, f"profit_take_{profit_mult:g}x")
+                continue
             _exit_position(conn, pos, mid=mid, entry_pc=entry_pc, contracts=contracts,
                            reason=f"profit_take_{profit_mult:g}x", real_submit=real_submit,
                            broker=broker, quote_provider=quote_provider, min_close_bid=min_close_bid,
@@ -220,6 +255,9 @@ def monitor_positions(
 
         # 4. Time-stop: close when ≤ time_stop_dte days to expiry (avoid the theta/gamma endgame).
         if dte is not None and dte <= time_stop_dte:
+            if mark_only:
+                _defer(res, pos, f"time_stop_{time_stop_dte}dte")
+                continue
             _exit_position(conn, pos, mid=mid, entry_pc=entry_pc, contracts=contracts,
                            reason=f"time_stop_{time_stop_dte}dte", real_submit=real_submit,
                            broker=broker, quote_provider=quote_provider, min_close_bid=min_close_bid,
@@ -227,6 +265,13 @@ def monitor_positions(
                            conv_map=conv_map, res=res, counter="time_stopped")
 
     return res
+
+
+def _defer(res, pos, reason: str) -> None:
+    """Mark-only (#451): a triggered exit on a closed-market tick is left open, never booked without a sale."""
+    res.deferred += 1
+    log.info("EXIT DEFERRED #%d %s (%s): market closed (mark-only) — left open; the next open-market tick "
+             "re-evaluates it", int(pos["id"]), pos["contract_symbol"], reason)
 
 
 def _exit_position(
@@ -257,6 +302,11 @@ def _exit_position(
                                        limit_price=round(float(bid), 2), client_order_id=coid)
             if not fill.filled:
                 log.warning("SELL_TO_CLOSE submit failed #%d %s — left open to retry: %s", pid, contract, fill.note)
+                # #473: a refused close (our pre-check or the venue) is retried every L2 with the same result, so it
+                # pages once per position per ET day, as the vertical close does (#412). It moves no order.
+                _page_once(conn, pos, today, "CLOSE REFUSED",
+                           f"#{pid} {contract} {reason} ×{contracts} @ {float(bid):.2f}: {fill.note}. Left open; "
+                           "retried each cycle.")
                 return  # stays 'open' → re-evaluated next cycle
             if getattr(fill, "pending", False):
                 state.begin_close_convexity_position(conn, pid, close_order_id=(fill.order_id or coid),
@@ -374,7 +424,10 @@ def _reconcile_closing(
 ) -> None:
     """Reconcile in-flight SELL_TO_CLOSE orders. Closes are left resting until they fill (NOT
     cancel_unfilled'd — that would re-use the single-use per-day id); a terminal order reopens the
-    position to retry next cycle; expiry-while-closing cancels the sell and books intrinsic."""
+    position to retry next cycle; expiry-while-closing cancels the sell, reads the order (``carry.cancel_and_settle``,
+    #445), and books its fill, intrinsic, or a blend of the two for a partial fill."""
+    import carry
+
     for pos in state.closing_positions(conn):
         pid = int(pos["id"])
         contracts = int(pos["contracts"])
@@ -383,9 +436,33 @@ def _reconcile_closing(
         reason = pos["exit_reason"] or "close"
         expiry = _parse_date(pos["expiry"])
 
-        if expiry is not None and today >= expiry:  # expiry while closing → cancel + intrinsic
-            if oid and hasattr(broker, "cancel_order"):
-                broker.cancel_order(oid)
+        if expiry is not None and today >= expiry:  # expiry while closing → cancel, READ the order, then book
+            sold, sold_price = 0, 0.0
+            if oid:
+                # #445: cancel_and_settle, as reconcile_pending does. A sell that filled before or during the cancel
+                # books its fill (a partial one blends with intrinsic); an unknown outcome waits for the next cycle.
+                settled = carry.cancel_and_settle(broker, oid)
+                if settled is None:
+                    log.warning("expiry while closing #%d %s: cancel outcome not known yet — retried next cycle",
+                                pid, pos["contract_symbol"])
+                    _page_once(conn, pos, today, "EXPIRY CANCEL OUTCOME UNKNOWN",
+                               f"#{pid} {pos['contract_symbol']} expired while closing; its sell {oid} was cancelled but "
+                               "the order can't be read back yet. Left 'closing' and retried every cycle.")
+                    res.unmarked += 1
+                    continue
+                if str(settled.get("state", "")).lower() == "filled":
+                    sold = min(carry.filled_qty(settled) or contracts, contracts)
+                    # no reported price: the reconciled-fill branch's fallback (the entry price), never 0
+                    sold_price = abs(float(settled.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER)))
+            if sold == contracts:
+                up = _exit_spot(underlying_price_of, pos["symbol"])
+                pnl = _realized(sold_price, entry_pc, contracts)
+                _close_and_resolve(conn, pos, exit_price=sold_price, realized_pnl=pnl, reason=reason,
+                                   as_of=as_of_iso, conv_map=conv_map, exit_spot=up)
+                res.closed += 1
+                res.realized_pnl += pnl
+                log.info("CLOSE FILLED at expiry #%d %s @ %.2f → P&L $%.0f", pid, pos["contract_symbol"], sold_price, pnl)
+                continue
             try:
                 up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
             except Exception as e:  # noqa: BLE001 — #440: per-POSITION; stays 'closing', retried next cycle
@@ -397,8 +474,9 @@ def _reconcile_closing(
                 res.unmarked += 1
                 continue
             intrinsic = _intrinsic_of(pos, up)
-            pnl = _realized(intrinsic, entry_pc, contracts)
-            _close_and_resolve(conn, pos, exit_price=intrinsic, realized_pnl=pnl, reason="expiry",
+            exit_price = intrinsic if sold == 0 else (sold * sold_price + (contracts - sold) * intrinsic) / contracts
+            pnl = _realized(exit_price, entry_pc, contracts)
+            _close_and_resolve(conn, pos, exit_price=exit_price, realized_pnl=pnl, reason="expiry",
                                as_of=as_of_iso, conv_map=conv_map, intrinsic=intrinsic, exit_spot=up)
             res.expired += 1
             res.closed += 1
@@ -411,6 +489,17 @@ def _reconcile_closing(
         if info is None:
             continue
         st = str(info.get("state", "")).lower()
+        if st in ("canceled", "cancelled", "expired", "rejected") and carry.filled_qty(info) > 0:
+            st, info = "filled", carry.settle_terminal(info)   # #449: it sold some before it ended — never reopen at full
+        sold = min(carry.filled_qty(info) or contracts, contracts) if st == "filled" else 0
+        if st == "filled" and sold < contracts:
+            price = abs(float(info.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER)))
+            part = state.record_partial_close(conn, pid, sold_qty=sold, exit_price=price,
+                                              reason=f"{reason}_partial", as_of=as_of_iso, order_id=oid)
+            res.realized_pnl += part
+            log.warning("CLOSE PARTIAL (reconciled) #%d %s: %d of %d sold @ %.2f (P&L $%.0f); the rest reopened to retry",
+                        pid, pos["contract_symbol"], sold, contracts, price, part)
+            continue
         if st == "filled":
             price = abs(float(info.get("filled_avg_price") or (entry_pc / CONTRACT_MULTIPLIER)))  # mleg: net, maybe signed
             up = _exit_spot(underlying_price_of, pos["symbol"])
