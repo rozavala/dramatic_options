@@ -8,6 +8,32 @@ Maintained by CC; updated on every ruling, clock change, staged-PR change, or pe
 The header's absence is itself a signal.
 
 ## Rulings in force
+- **Operator decisions on the roadmap drafts (2026-11-12; `records/2026-11-12_operator_decisions_roadmap.md`):**
+  - **Kill rule made operational** (#465, #472; PREREG_THEMATIC_CONVEXITY §6 conformance notes and §5 reading note):
+    - **Dry leg:** runs from the first real fill (2026-07-01) and resets on a real close with `realized_pnl > 0`. It
+      binds **2027-04-01** absent a payoff.
+    - **Drawdown leg:** the cumulative net loss since 2026-07-01 (realized + unrealized) ÷ $10,000.
+    - **R2:** the 10% book is premium committed at any moment.
+    - **Effect of a trip:** it halts the real book and the council, and **the null books keep booking**. KILL still
+      halts all. Release is by a payoff or a mark recovery.
+    - **Code:** lands before 12-25, as worded; CC recommends the 12-07 boundary weekend. Thresholds are unchanged,
+      and so is `frame_version`.
+    - **Open:** whether L0 keeps scanning on a trip, and a dated re-anchor.
+  - **Scheduled record boundary B** (#470): record-segmenting changes (a `frame_version`, prompt-hash, model or
+    `model_mix` move) land on **the first Monday L1 of each month**, deployed the weekend before its Sunday L0.
+    - **Next:** Mon **2026-12-07**.
+    - **Off-cycle classes (working default, not worded):** a money-safety defect or a fail-closed outage, recorded the
+      same day with its reason. The exempt list, the staging rule and the register/CI tooling are open
+      (`records/2026-11-12_operator_decisions_roadmap.md`).
+    - **Model refresh:** it rides 12-07 only if its PR and the Gemini/xAI price checks are ready. restate_v1 (#426)
+      was the last unscheduled boundary (11-12).
+  - **T4 conditions (2) = 2B, (4) = 4A** (#468; IMPLEMENTATION_PLAN dated note). **No live arming.**
+  - **Authorized but not done:**
+    - PROD promotion of main, inert (`FORWARD_ENABLED=false`), **after** the PROD `.env` PAPER=true/false
+      contradiction is resolved by a read-only check;
+    - an inert arming PR, a draft only;
+    - a 1-week paper rehearsal on a **separate paper account**.
+  - **#469 deferred.**
 - **Quote filter restatements, restate_v1 (adopted 2026-11-04, operator word "Adopt both the 15% floor and A+B+C at
   the 11-12 boundary"; #421; PREREG_FORWARD_CATALYST_GROUNDING §13; IN FORCE FROM THE FIRST L1 AFTER THE 2026-11-12 DEPLOY;
   operator 2026-11-12 "merge it": lands alone, ahead of the model refresh, which takes its own boundary):** council roles only. A: rendered signed 3-decimal figures pool their
@@ -244,12 +270,17 @@ The header's absence is itself a signal.
   11-04 via carry from #1918), TITN #7 3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry);
   unrealized ≈ −$750, drawdown 8%. Null books accruing (shadow · 3A · 3B · shares; CF booked 11-04). **Last above-floor
   conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816 (HL), both cancelled unfilled.
-- Open issues: #421 (filter restatements; adopted 11-04, its PR #426 lands on the ~11-12 boundary); #444 (pre-T4
-  audit: a real option left at the broker through expiry, auto-exercise not modelled; lane:profit, needs-operator);
-  #449 (a partly filled then expired close is reopened at full size; lane:profit). #445
-  (expiry-while-closing settles the cancel) and #446 (this simplification) close with their PRs. As of 2026-11-10;
-  no count is kept (#446): `gh issue list` is the source.
-  Closed 11-10: #437 by #441 (an empty chain reports `empty_chain`), #440 by #442 (a raising price lookup is
-  per-position in the real monitor and both null books; a stuck real-book expiry pages once a day).
-  Closed: #416 by #425 (merged 11-05, frame `880e893e1660`), #427 by #428, #429 by #431, #430 by #432, #434 by #435.
+- Open issues: as of 2026-11-12; no count kept (#446): `gh issue list` is the source. The parser reads only this
+  bullet's continuation lines, so they carry no sub-bullets.
+  **Roadmap tracker #452 and its children:** measurement #453–#456 (#454's audit shipped in #474, the issue left
+  open) · the gate #457 · discovery #459 · calibration #460 · extensions #461–#463 · held-name tracking #464 · risk
+  and T4 #465–#469 · the segment register #470.
+  **Decided 2026-11-12:** #465 and #472 (the kill rule, implementation for 12-07) · #470 (boundary B) · #468, (2)
+  and (4) only · #469, deferred.
+  **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
+  · #473 (the live close ceiling) · #477 (null-book exits on closed-market ticks) · #479 (`_page_once` stamps
+  before sending) · #480 (the monitor's "today" is the UTC date).
+  **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467, #473.
+  **Closed 11-10 to 11-12:** #421 by #426 (restate_v1, 11-12) · #437 by #441 · #440 by #442 · #445 by #447 ·
+  #446 by #448 · #449 by #450 · #451 by #478 · #458 by #475.
 - NVDA opra canary at or above 1.0 for 18 prints (11-06 1.1324) after eight below (low 0.9818).
