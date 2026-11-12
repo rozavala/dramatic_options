@@ -97,7 +97,7 @@ def run_fixed_basket_3a_cycle(
 ) -> FixedBasketResult:
     """Book 3A: a SIM position for every candidate in the union that clears eligibility + sizing with
     the **IV GATE OFF** (no `is_cheap_convexity`), under the full cap-ON frame. NEVER touches the broker.
-    Mirrors `shadow_book.run_shadow_cycle`'s gate sequence (kill → slot reservation → eligibility →
+    Mirrors `shadow_book.run_shadow_cycle`'s gate sequence (KILL switch only, never the kill rule, #465 → slot reservation → eligibility →
     [GATE SKIPPED] → cluster cap → sizing) so the only difference vs the shadow book is the missing gate."""
     result = FixedBasketResult(book=BOOK_UNION_NOGATE)
     if kill_switch_active():  # a kill-RULE trip halts the real book only; the null books keep booking (§6, 2026-11-12)

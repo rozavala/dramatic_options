@@ -152,3 +152,67 @@ def test_no_null_book_reads_the_kill_rule():
     for mod in (shadow_book, fixed_basket, shares_basket):
         src = inspect.getsource(mod)
         assert "kill_rule_status" not in src and "kill_switch_active()" in src, mod.__name__
+
+
+# ── #487 review: the rest of the draft's required tests ──────────────────────────────────────────
+
+def test_pending_and_carried_orders_never_start_the_clock(convexity_db):
+    for status in ("pending", "carried"):
+        pid = _pos(convexity_db, opened_at="2026-01-02T20:00:00+00:00", symbol=f"X{status[:2].upper()}")
+        convexity_db.execute("UPDATE convexity_positions SET status = ? WHERE id = ?", (status, pid))
+    assert kill_rule_status(convexity_db, CONFIG, _clock(2027, 6, 1)).dry_since is None
+
+
+def test_a_backfill_fill_starts_the_clock(convexity_db):
+    pid = _pos(convexity_db, opened_at="2026-11-04T15:30:00+00:00", symbol="TITN")
+    convexity_db.execute("UPDATE convexity_positions SET rationale = '{\"origin\": \"backfill\"}' WHERE id = ?", (pid,))
+    assert kill_rule_status(convexity_db, CONFIG, _clock(2026, 12, 1)).dry_since == "2026-11-04"
+
+
+def test_a_month_end_start_reads_the_full_limit_on_its_clamped_bind_day(convexity_db):
+    _pos(convexity_db, opened_at="2026-05-31T19:45:00+00:00")
+    krs = kill_rule_status(convexity_db, CONFIG, _clock(2027, 2, 28))           # 05-31 + 9 months → 02-28
+    assert krs.tripped is True and krs.dry_binds_on == "2027-02-28" and krs.months_dry == 9.0
+
+
+def test_a_state_read_error_fails_closed(convexity_db, monkeypatch):
+    import pytest
+
+    def boom(_conn):
+        raise RuntimeError("db unreadable")
+    monkeypatch.setattr(state, "real_book_dry_clock", boom)
+    with pytest.raises(RuntimeError):
+        kill_rule_status(convexity_db, CONFIG, _clock(2027, 1, 5))
+
+
+def test_the_risk_panel_shows_the_dry_clock(convexity_db):
+    import dashboard_data
+    _pos(convexity_db, opened_at=datetime.now(UTC).isoformat())
+    kr = dashboard_data.risk_panel(convexity_db, CONFIG)["kill_rule"]
+    assert kr["dry_since"] and kr["dry_binds_on"] and kr["months_dry"] == 0.0 and kr["dry_months_halt"] == 9
+
+
+def test_a_rule_trip_does_not_halt_3a(convexity_db, monkeypatch):
+    _no_kill(monkeypatch)
+    _pos(convexity_db, opened_at="2026-01-02T20:00:00+00:00", premium=3000.0, mark=5.0)    # 25% dd: tripped
+    clock = _clock(2026, 1, 5)
+    assert kill_rule_status(convexity_db, CONFIG, clock).tripped is True
+    res = fixed_basket.run_fixed_basket_3a_cycle(config=CONFIG, conn=convexity_db, clock=clock,
+                                                 provider=SyntheticChainProvider(as_of=clock.now().date()),
+                                                 candidates=[Theme("c", "FCX", "bullish", "x")])
+    assert res.halted is False and res.booked == 1
+
+
+def test_l0_on_a_trip_skips_the_scan_but_still_runs_3b_and_shares(monkeypatch, caplog):
+    import logging
+
+    import orchestrator
+    from paper_loop import KillRuleStatus
+    _no_kill(monkeypatch)
+    monkeypatch.setattr(orchestrator, "kill_rule_status",
+                        lambda *a, **k: KillRuleStatus(True, 0.25, 0.0, ("book drawdown 25% >= 20%",)))
+    with caplog.at_level(logging.INFO):
+        assert orchestrator.run_discover(demo=True) == 0
+    text = "\n".join(r.getMessage() for r in caplog.records)
+    assert "discovery scan skipped" in text and "Discovery: scanned=" not in text
+    assert "No-gate(3B basket) book:" in text and " HALTED" not in text.split("No-gate(3B basket) book:")[1].split("\n")[0]

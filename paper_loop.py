@@ -71,8 +71,9 @@ def _et_date(ts: str):
 
 def kill_rule_status(conn, config: dict, clock: Clock) -> KillRuleStatus:
     """Evaluate the §6 kill rule from state (PREREG_THEMATIC_CONVEXITY §6 conformance notes, operator word 2026-11-12).
-    A trip halts NEW real-book entries and the council; it never force-closes, and the null books keep booking (only
-    the KILL switch stops them).
+    A trip halts NEW real-book entries, the council and the L0 scan; it never force-closes. All four null books keep
+    booking (the shadow and 3A in the L1, 3B and shares in the L0 run even when its scan is skipped); only the KILL
+    switch stops them.
 
     - **Drawdown leg:** the cumulative net loss since the first real fill ÷ the premium budget
       (``state.convexity_book_drawdown``) ≥ ``kill_rule.book_drawdown_halt``.
@@ -100,7 +101,8 @@ def kill_rule_status(conn, config: dict, clock: Clock) -> KillRuleStatus:
         today = _et_date(clock.now().isoformat())
         binds = _add_months(start, int(dry_halt))
         whole = (today.year - start.year) * 12 + (today.month - start.month) - (1 if today.day < start.day else 0)
-        months_dry = float(max(0, whole))
+        # on or after the bind day the clock reads at least the limit (a month-end start clamps the bind day earlier)
+        months_dry = float(max(0, whole, int(dry_halt) if today >= binds else 0))
         dry_since, dry_binds_on = start.isoformat(), binds.isoformat()
         if today >= binds:
             tripped = True
