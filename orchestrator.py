@@ -144,7 +144,7 @@ def _page_drawdown_warn(conn, config: dict, *, demo: bool) -> bool:
     """Drawdown pages (#355/#366, #370): one push per upward crossing, normal priority at the 10% warn and priority 1
     at the kill rule's halt, evaluated once per cycle after the monitor pass (L1 and every L2 tick).
 
-    Reads the SAME open-book drawdown the kill rule uses (``state.convexity_book_drawdown``) and never alters
+    Reads the SAME book drawdown the kill rule uses (``state.convexity_book_drawdown``, cumulative since #472) and never alters
     it. Skipped entirely under ``--demo``: the demo drawdown comes from a throwaway DB, and the latch file sits
     beside the REAL db path, so a demo run would clobber the real book's latch (and re-page). Best-effort:
     never raises into the cycle. Returns True iff a page was sent."""

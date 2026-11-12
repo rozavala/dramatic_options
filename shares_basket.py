@@ -29,7 +29,6 @@ from clock import Clock
 from convexity_data import ChainProvider
 from discovery import compute_markers, direction_of
 from fixed_basket import basket_symbols
-from paper_loop import kill_rule_status
 from risk import kill_switch_active
 from sentinel_scoring import reference_return_from_bars
 from structure import contract_eligible, select_structure
@@ -67,7 +66,7 @@ def run_shares_basket_cycle(
     MOTION-derived direction, weekly (L0). Time-dedups within the longest horizon (≈ the option books'
     skip-already-open). NEVER the broker. Kill-guarded + per-name fail-soft."""
     result = SharesBasketResult()
-    if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
+    if kill_switch_active():  # a kill-RULE trip halts the real book only; the null books keep booking (§6, 2026-11-12)
         result.halted = True
         return result
 

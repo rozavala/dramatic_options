@@ -162,8 +162,12 @@ def _status_db(convexity_db, monkeypatch):
     convexity_db.execute(
         "INSERT INTO council_proposals(run_id, as_of, theme, symbol, direction, conviction) "
         "VALUES(?, ?, 'ai_compute', 'ZZQTEST', 'bullish', 'LOW')", (run_id, started))
+    # the position opens "yesterday": the status path reads the wall clock, and since #465 the dry leg trips nine
+    # months after the first fill, so a fixed date here would trip the kill rule in this test from 2027-07-27
+    from datetime import UTC, datetime, timedelta
     state.record_convexity_position(
-        convexity_db, run_id=run_id, opened_at=started, theme="ai_compute", symbol="ZZQTEST",
+        convexity_db, run_id=run_id, opened_at=(datetime.now(UTC) - timedelta(days=1)).isoformat(),
+        theme="ai_compute", symbol="ZZQTEST",
         direction="bullish", structure_kind="long_call", contract_symbol="ZZQTESTC", expiry="2027-01-15",
         strike=100.0, dte=300, moneyness=0.25, contracts=1, entry_premium_per_contract=500.0,
         total_premium=500.0, status="open")
