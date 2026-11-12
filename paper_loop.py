@@ -71,21 +71,22 @@ def _et_date(ts: str):
 
 def kill_rule_status(conn, config: dict, clock: Clock) -> KillRuleStatus:
     """Evaluate the §6 kill rule from state (PREREG_THEMATIC_CONVEXITY §6 conformance notes, operator word 2026-11-12).
-    A trip halts NEW real-book entries, the council and the L0 scan; it never force-closes. All four null books keep
-    booking (the shadow and 3A in the L1, 3B and shares in the L0 run even when its scan is skipped); only the KILL
-    switch stops them.
+    A trip halts NEW real-book entries and the council; it never force-closes. The L0 scan and all four null books keep
+    running (operator word 2026-11-12); only the KILL switch stops them.
 
     - **Drawdown leg:** the cumulative net loss since the first real fill ÷ the premium budget
       (``state.convexity_book_drawdown``) ≥ ``kill_rule.book_drawdown_halt``.
     - **Dry leg:** ``kill_rule.dry_months_halt`` calendar months (US-Eastern dates) since the first real fill, or since
       the last real close with ``realized_pnl > 0`` if later. Off while ``dry_months_halt`` is absent or no real
-      position has filled. A state read that fails raises, so the cycle fails closed."""
+      position has filled. A state read that fails raises, so the cycle fails closed.
+    - **Release:** a payoff close, a mark recovery, or the operator's dated re-anchor keys
+      (``kill_rule.dry_clock_reanchored_on`` / ``drawdown_reanchored_on``; each moves ``frame_version``)."""
     kr = config.get("kill_rule", {})
     book = config.get("convexity_book", {})
     dd_halt = float(kr.get("book_drawdown_halt", 0.20))
     book_budget = float(book.get("account_equity", 0.0)) * float(book.get("book_fraction", 0.0))
 
-    book_dd, _have_marks = state.convexity_book_drawdown(conn, book_budget)
+    book_dd, _have_marks = state.convexity_book_drawdown(conn, book_budget, since=kr.get("drawdown_reanchored_on"))
 
     reasons: list[str] = []
     tripped = False
@@ -98,6 +99,9 @@ def kill_rule_status(conn, config: dict, clock: Clock) -> KillRuleStatus:
     first_fill, last_payoff = state.real_book_dry_clock(conn)
     if dry_halt is not None and first_fill:
         start = max(_et_date(first_fill), _et_date(last_payoff)) if last_payoff else _et_date(first_fill)
+        if kr.get("dry_clock_reanchored_on"):   # the operator's dated re-anchor after a review (a frame boundary)
+            from datetime import date
+            start = max(start, date.fromisoformat(str(kr["dry_clock_reanchored_on"])))
         today = _et_date(clock.now().isoformat())
         binds = _add_months(start, int(dry_halt))
         whole = (today.year - start.year) * 12 + (today.month - start.month) - (1 if today.day < start.day else 0)

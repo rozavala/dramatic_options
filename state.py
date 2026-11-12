@@ -422,21 +422,37 @@ def revert_closing_to_open(conn: sqlite3.Connection, position_id: int, *, reason
         )
 
 
-def convexity_book_drawdown(conn: sqlite3.Connection, book_budget: float) -> tuple[float, bool]:
+def convexity_book_drawdown(conn: sqlite3.Connection, book_budget: float,
+                            since: str | None = None) -> tuple[float, bool]:
     """§6 book drawdown = the real book's net loss since its first fill ÷ ``book_budget`` (cumulative, operator word
     2026-11-12, #472): realized P&L of closed rows, plus the sold part of any partial close still open (#449), plus
     unrealized P&L (marked value − entry premium) of open and closing rows. Unmarked rows carry at cost. A closed loss
     therefore stays in the figure. Negative when the book is up.
 
+    ``since`` (``kill_rule.drawdown_reanchored_on``, "YYYY-MM-DD", written only on the operator's word after a review):
+    realized P&L (closes and partial sales) dated before that US-Eastern date is excluded; open rows' unrealized P&L
+    always counts.
+
     Returns ``(drawdown_fraction, have_marks)``. ``have_marks`` is False while nothing has been marked or realized,
     so callers can treat the drawdown as not yet meaningful."""
     import json
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
 
-    realized_row = conn.execute(
-        "SELECT COALESCE(SUM(realized_pnl), 0.0) AS pnl, COUNT(*) AS n FROM convexity_positions "
-        "WHERE status = 'closed' AND realized_pnl IS NOT NULL").fetchone()
-    net = float(realized_row["pnl"])
-    have_marks = int(realized_row["n"]) > 0
+    def _counts(ts) -> bool:
+        if since is None:
+            return True
+        try:
+            return datetime.fromisoformat(str(ts)).astimezone(ZoneInfo("America/New_York")).date().isoformat() >= since
+        except (TypeError, ValueError):
+            return True   # an unreadable date counts: the conservative side of a loss figure
+
+    net, have_marks = 0.0, False
+    for r in conn.execute("SELECT realized_pnl, closed_at FROM convexity_positions "
+                          "WHERE status = 'closed' AND realized_pnl IS NOT NULL"):
+        if _counts(r["closed_at"]):
+            net += float(r["realized_pnl"])
+            have_marks = True
     rows = conn.execute(
         f"SELECT contracts, total_premium, mark, rationale FROM convexity_positions WHERE status IN {_EXPOSURE_STATES}"
     ).fetchall()
@@ -449,8 +465,9 @@ def convexity_book_drawdown(conn: sqlite3.Connection, book_budget: float) -> tup
         except (TypeError, ValueError):
             rat = {}
         for part in (rat.get("partial_closes") or []) if isinstance(rat, dict) else []:
-            have_marks = True
-            net += float(part.get("realized") or 0.0)
+            if _counts(part.get("at")):
+                have_marks = True
+                net += float(part.get("realized") or 0.0)
     if not have_marks or book_budget <= 0:
         return (0.0, have_marks)
     return (-net / book_budget, have_marks)
