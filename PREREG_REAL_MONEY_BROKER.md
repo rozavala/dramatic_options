@@ -118,3 +118,23 @@ only ~30% of contracts booked to date fit the $200 per-name cap.
 **Not in this amendment.** Venue-named env keys (`ALPACA_PAPER_KEY_ID` / `ALPACA_LIVE_KEY_ID`, refuse
 legacy names; finance#947 §5) is a separate, coordinated change, because it touches the `.env` on both
 boxes and the paper/live selection path.
+
+## §3b Amendment (2026-11-12) — the ceiling bounds opening orders only (#473; T4 checklist decision 3)
+
+**Operator word:** "accept all" (2026-11-12), on CC's table of suggestions in-session, accepting "T4 decision 3 (order ceiling vs closes, #473): (a) bound opening orders only —
+a ceiling that blocks a 10× profit-take close is backwards." Drafted in `records/2026-11-10_live_close_ceiling_amendment_DRAFT.md`
+(PR #476).
+
+- **The change:** §3's per-order notional ceiling, and its absent-config rejection, apply to **opening** orders only
+  (a single-leg buy-to-open and a vertical's open). A close is never rejected for its notional.
+- **Why:** a position that reaches the §6a 10× profit-take is worth about ten times the per-name cap. A ceiling set
+  near that cap would refuse its sale on every cycle, leaving the book's largest winner unsellable and, at expiry,
+  exercised at the venue.
+- **Unchanged:** §3's purpose, which is to bound a sizing or pricing bug on the way in. A refused close already pages
+  once per position per day (#482).
+- **Not worded:** the draft's companion guard, which would refuse any close whose quantity exceeds the journal's or
+  the venue's held quantity. It stays open. The partial-close fix (#450) already keeps the journal equal to the venue
+  after a partial sale.
+- **No record segments:** `frame_version` does not move (`safety` is outside the hashed frame), and no live order
+  has ever been placed.
+
