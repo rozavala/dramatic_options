@@ -436,8 +436,12 @@ def convexity_book_drawdown(conn: sqlite3.Connection, book_budget: float,
     Returns ``(drawdown_fraction, have_marks)``. ``have_marks`` is False while nothing has been marked or realized,
     so callers can treat the drawdown as not yet meaningful."""
     import json
-    from datetime import datetime
+    from datetime import date, datetime
     from zoneinfo import ZoneInfo
+
+    if since is not None:
+        # a malformed anchor raises (fail-closed): compared as a string it would silently drop every close (#489 review)
+        since = date.fromisoformat(str(since)).isoformat()
 
     def _counts(ts) -> bool:
         if since is None:

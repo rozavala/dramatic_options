@@ -59,7 +59,7 @@ from council.wiring import council_to_themes
 from discovery import MarkerParams, scan_baskets
 from feeds import to_equity_feed, to_option_feed
 from monitor import monitor_positions, reconcile_pending
-from paper_loop import kill_rule_status, run_paper_cycle
+from paper_loop import drawdown_since, kill_rule_status, run_paper_cycle
 from risk import kill_switch_active
 from sentinel_scoring import resolve_due_references
 from state import append_run_note, get_db, record_run
@@ -153,7 +153,7 @@ def _page_drawdown_warn(conn, config: dict, *, demo: bool) -> bool:
     try:
         book = config.get("convexity_book", {})
         budget = float(book.get("account_equity", 0.0)) * float(book.get("book_fraction", 0.0))
-        book_dd, _have_marks = state.convexity_book_drawdown(conn, budget, since=config.get("kill_rule", {}).get("drawdown_reanchored_on"))
+        book_dd, _have_marks = state.convexity_book_drawdown(conn, budget, since=drawdown_since(config))
         return drawdown_warn.page_on_upward_crossing(
             book_dd,
             float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)),
@@ -170,7 +170,7 @@ def _print_book_summary(conn, config: dict) -> None:
     book = config.get("convexity_book", {})
     budget = float(book.get("account_equity", 0.0)) * float(book.get("book_fraction", 0.0))
     open_prem = state.convexity_book_open_premium(conn)
-    dd, have_marks = state.convexity_book_drawdown(conn, budget, since=config.get("kill_rule", {}).get("drawdown_reanchored_on"))
+    dd, have_marks = state.convexity_book_drawdown(conn, budget, since=drawdown_since(config))
     halt = float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20))
     n_open = state.count_open_convexity_positions(conn)
     log.info(
@@ -517,8 +517,9 @@ def run_discover(demo: bool = False) -> int:
 
     DISCOVERS only: it never trades, never submits, runs no monitor. The candidates it persists
     are judged by the council on the next L1 cycle and disposed by the deterministic gates (the
-    hard seam is unchanged). Kill-before-spend + FORWARD_ENABLED gating apply (PR1 spends nothing
-    — the LLM framer is PR2). Safe market-closed (reads as-of data, submits nothing).
+    hard seam is unchanged). The KILL switch and FORWARD_ENABLED gate it; a tripped kill RULE does not (the scan,
+    its framer and the 3B / shares null books keep running, operator word 2026-11-12). Safe market-closed (reads
+    as-of data, submits nothing).
     """
     if kill_switch_active():
         log.warning("KILL switch engaged — discovery halted (no scan, no spend).")
