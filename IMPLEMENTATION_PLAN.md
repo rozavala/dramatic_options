@@ -57,8 +57,20 @@
 >
 >   Items (i)–(iii) are mechanics; (iv) is sanity, not significance.
 >
-> No live arming is authorized (same word). The draft's other decisions (the §3 mechanics rows, the order ceiling
-> for closes, the live smoke) are not yet worded.
+> No live arming is authorized (same word).
+>
+> **The checklist's other decisions (2026-11-12, operator word "accept all" on CC's suggestions):**
+> - **Decision 2:** the §3 mechanics rows are adopted into the frozen checklist. They are:
+>   - exits proven end to end on the paper account (#466's fire drill, #444, #451), with the journal equal to the
+>     venue afterwards;
+>   - measured slippage (#467);
+>   - the live account's options approval level.
+> - **Decision 3:** (a) the order ceiling bounds **opening** orders only (PREREG_REAL_MONEY_BROKER §3b, #473).
+> - **Decision 6:** the live smoke (#467) is deferred until arming is on the table.
+> - **The PROD rehearsal** (decision 5), one week:
+>   - a **separate paper account** and a **separate Pushover app token**;
+>   - shared LLM keys;
+>   - starting DB (i), a copy of DEV's taken on a Friday after the 16:00 L2 with no pending or carried rows.
 
 ---
 

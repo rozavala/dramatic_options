@@ -18,16 +18,29 @@ The header's absence is itself a signal.
       halts all. Release is by a payoff or a mark recovery.
     - **Code:** lands before 12-25, as worded; CC recommends the 12-07 boundary weekend. Thresholds are unchanged,
       and so is `frame_version`.
-    - **Open:** whether L0 keeps scanning on a trip, and a dated re-anchor.
+    - **Second word 2026-11-12 ("accept all"):** L0 keeps scanning on a trip (framer included). The re-anchor keys
+      (`dry_clock_reanchored_on`, `drawdown_reanchored_on`) are to be built; each is a frame boundary.
   - **Scheduled record boundary B** (#470): record-segmenting changes (a `frame_version`, prompt-hash, model or
     `model_mix` move) land on **the first Monday L1 of each month**, deployed the weekend before its Sunday L0.
     - **Next:** Mon **2026-12-07**.
-    - **Off-cycle classes (working default, not worded):** a money-safety defect or a fail-closed outage, recorded the
-      same day with its reason. The exempt list, the staging rule and the register/CI tooling are open
-      (`records/2026-11-12_operator_decisions_roadmap.md`).
+    - **Off-cycle, recorded the same day with its reason (worded 2026-11-12, "accept all"):** a money-safety defect, a
+      fail-closed outage, or a frame-conformance defect (the #276 class).
+    - **Exempt and staging:** as drafted (#470). Config-gated changes ship default-off; prompt and constant-stamp
+      changes stay as draft PRs.
+    - **Tooling:** the segment register only, with no CI fingerprint check.
     - **Model refresh:** it rides 12-07 only if its PR and the Gemini/xAI price checks are ready. restate_v1 (#426)
       was the last unscheduled boundary (11-12).
   - **T4 conditions (2) = 2B, (4) = 4A** (#468; IMPLEMENTATION_PLAN dated note). **No live arming.**
+    - **Decision 2:** the mechanics rows are adopted.
+    - **Decision 3:** the ceiling bounds opening orders only (PREREG_REAL_MONEY_BROKER §3b, #473).
+    - **Decision 6:** the live smoke is deferred.
+    - **Rehearsal:** a separate paper account, a separate Pushover app token, shared LLM keys, and a starting DB
+      copied from DEV on a Friday after the 16:00 L2 with no pending or carried rows.
+  - **PROD `.env` verified 2026-11-12:** `PAPER=false` with the live pair only (no paper pair, no legacy names),
+    `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`, code `a7548e8`. DEPLOYMENT.md is corrected.
+  - **Backfill and `include=false` (RDW):** decided at #456's look.
+  - **The remaining #476 drafts, in priority order:** (1) #456, the cheaper arm; (2) #455 and #462; (3) #464, option B;
+    later #453, #460, #457, #459 and #461.
   - **Authorized but not done:**
     - PROD promotion of main, inert (`FORWARD_ENABLED=false`), **after** the PROD `.env` PAPER=true/false
       contradiction is resolved by a read-only check;
