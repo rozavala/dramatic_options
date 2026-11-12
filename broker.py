@@ -188,6 +188,9 @@ class _AlpacaBrokerBase:
         if qty < 1 or limit_price <= 0:
             return Fill(False, 0.0, 0, f"rejected: qty={qty} px={limit_price}")
         limit = round(float(limit_price), 2)
+        if str(side).lower() not in ("buy", "sell"):
+            # fail-closed (#490 review): an unexpected side must never be read as a close, which skips the §3b ceiling
+            return Fill(False, 0.0, 0, f"rejected: unknown side {side!r} (expected 'buy' or 'sell')")
         is_buy = str(side).lower() == "buy"
         intent_label = "buy_to_open" if is_buy else "sell_to_close"
 
@@ -262,6 +265,8 @@ class _AlpacaBrokerBase:
         if qty < 1 or limit_price <= 0:
             return Fill(False, 0.0, 0, f"rejected: qty={qty} px={limit_price}")
         limit = round(float(limit_price), 2)
+        if str(action).lower() not in ("open", "close"):
+            return Fill(False, 0.0, 0, f"rejected: unknown spread action {action!r} (expected 'open' or 'close')")
         opening = str(action).lower() == "open"
         label = f"{'open' if opening else 'close'}_vertical"
         for leg in (long_symbol, short_symbol):
@@ -353,9 +358,10 @@ class AlpacaLiveBroker(_AlpacaBrokerBase):
     """Real Alpaca **REAL-MONEY** broker (``paper=False``). Constructed ONLY under the triple-gate
     (``config_loader.live_allowed``; PREREG_REAL_MONEY_BROKER §2). DRY_RUN still simulates.
 
-    **The SOLE broker-level real-money safeguard (§3): a hard per-order NOTIONAL CEILING.** Any order
-    whose premium (``qty × limit × 100``) exceeds ``max_order_notional`` is rejected fail-closed; an
-    ABSENT ceiling (``None``) rejects EVERYTHING (fail-closed — the operator must set
+    **The SOLE broker-level real-money safeguard (§3): a hard per-order NOTIONAL CEILING on OPENING orders (§3b,
+    2026-11-12; a close is never refused for its notional).** Any opening order whose premium
+    (``qty × limit × 100``) exceeds ``max_order_notional`` is rejected fail-closed; an ABSENT ceiling (``None``)
+    rejects every opening order (fail-closed — the operator must set
     ``safety.live_max_order_notional`` before arming real money). Bounds a sizing/pricing bug
     independently of the upstream book/cluster caps."""
 
@@ -373,6 +379,11 @@ class AlpacaLiveBroker(_AlpacaBrokerBase):
 
     def _reject_precheck(self, *, contract_symbol: str, qty: int, limit: float,
                          is_buy: bool = True) -> Fill | None:
+        if not is_buy:
+            # PREREG_REAL_MONEY_BROKER §3b (operator word 2026-11-12, #473): the ceiling bounds OPENING orders only.
+            # A 10x profit-take is worth ~10x the per-name cap; a ceiling near that cap would refuse the book's
+            # largest winner on every cycle. A close needs no buying power, so the reserve never applies either.
+            return None
         notional = float(qty) * float(limit) * 100.0
         if self._max_order_notional is None:
             return Fill(False, 0.0, 0,
@@ -382,9 +393,7 @@ class AlpacaLiveBroker(_AlpacaBrokerBase):
             return Fill(False, 0.0, 0,
                         f"LIVE rejected {contract_symbol}: order notional ${notional:,.0f} exceeds the "
                         f"${float(self._max_order_notional):,.0f} per-order ceiling (fail-closed)")
-        if is_buy:
-            return self._reserve_precheck(contract_symbol, notional)
-        return None  # a close needs no buying power (selling a long option) and is never reserve-blocked
+        return self._reserve_precheck(contract_symbol, notional)
 
     def _reserve_precheck(self, contract_symbol: str, notional: float) -> Fill | None:
         """§3a: a buy may not take the shared account's options buying power below the reserve declared for
