@@ -315,6 +315,8 @@ cost of the tail (p99 ≈10.7× → ≈7×).
 > close at most once per position per day), and a broker without a multi-leg path leaves the spread open, never
 > booked closed. The short leg is chosen as stated: among eligible calls ≥ +50% OTM, the one nearest +75%.
 
+> **Reading note (2026-11-12, operator word: "Kill rule: clock A (from 2026-07-01), payoff P1, drawdown option 1 (cumulative), R2, null books keep booking. Land before 12-25."; #472).** "Convexity book = 10% of account — the total premium-at-risk" means **10% committed at any moment (R2)**: a closed position frees its premium budget, which is what sizing already does (`book_remaining = book_budget − committed premium`). The lifetime loss before review is bounded by the §6 drawdown leg (cumulative since 2026-07-01, see §6's conformance notes), at most about 1.2 books. No frozen number changes.
+
 ## 6. Kill rule (frozen)
 
 Halt **new entries** for human review if **either**:
@@ -359,6 +361,15 @@ the waiting posture itself had no pre-registered falsifier (found 2026-07-01,
 > **2026-11-02 interim checkpoint** per its standing recommendation. Ownership of
 > **D = 2027-03-02**, the checkpoint, and the go-live clock anchor is the operator's,
 > exercised in that delegated form on that date.
+
+> <!-- #465 / #472 kill-rule conformance notes -->
+> **Conformance notes (2026-11-12, operator word: "Kill rule: clock A (from 2026-07-01), payoff P1, drawdown option 1 (cumulative), R2, null books keep booking. Land before 12-25."; #465, #472; drafts `records/2026-11-10_kill_rule_dry_leg_conformance_DRAFT.md` in PR #476).**
+> Both legs above were frozen here and in `config.json:kill_rule` (`book_drawdown_halt: 0.20`, `dry_months_halt: 9`). Only the drawdown leg was in code, and it measured the open book only. From the merge commit of the implementing PR (landing on the 2026-12-07 boundary, and before 2026-12-25), they are computed as follows.
+> - **Dry leg ("bleeds 9 months with zero payoff"):** the clock starts at the first real fill's `opened_at` (2026-07-01, PL) and restarts at the `closed_at` of each real-book close with `realized_pnl > 0` (payoff P1, under any exit reason). Backfill positions count; cancelled or never-filled orders do not; null books never feed it. "Months" are calendar months on the US-Eastern date. On today's book it binds on **2027-04-01** unless a real position closes above cost first.
+> - **Drawdown leg ("draws down ≥ 20% of its premium budget"):** the book's net loss since the first real fill, i.e. realized P&L of real-book closes (partial closes included) plus unrealized P&L of open and closing positions at their marks, divided by the premium budget (`account_equity × book_fraction`, $10,000). A closed loss no longer leaves the figure. Before PL's first possible close (2026-12-28) the two readings never differed, so no past admission or halt would have been decided differently.
+> - **Effect of a trip (either leg):** it halts NEW real-book entries and the council, exactly as before, and **the null books keep booking** (the brain-off controls keep running while the real book is halted). The manual `KILL` switch still halts everything. The L0 scan's behaviour on a trip is unchanged by this note: it is an open question whether L0 keeps scanning so the null books do not run out of sentinels.
+> - **Release:** a trip clears through a payoff close or a mark recovery. A dated operator re-anchor is not built; it needs its own word.
+> - **Unchanged:** the 20% and 9-month thresholds, §5's numbers, flat-by-slots sizing, §6a exits, "open positions are not force-closed", the posture review (D = 2027-03-02), and `frame_version` (the hashed `kill_rule` block already contained both legs; the implementing PR changes code only).
 
 ## 6a. Exit rules (frozen) — the L2 reflex, deterministic, no LLM
 
