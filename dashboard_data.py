@@ -446,14 +446,14 @@ def risk_panel(conn, config: dict) -> dict:
     """Book drawdown vs the kill threshold, open slots vs the cap, per-cluster premium vs the cluster cap, and
     KILL/cost-cap TRIP state (distinct from raw threshold values). Reuses the canonical kill rule."""
     from clock import FixedClock
-    from paper_loop import kill_rule_status
+    from paper_loop import drawdown_since, kill_rule_status
     from risk import kill_switch_active
 
     book = config.get("convexity_book", {})
     equity = float(book.get("account_equity", 0.0))
     book_budget = equity * float(book.get("book_fraction", 0.0))
     krs = kill_rule_status(conn, config, FixedClock(datetime.now(UTC)))
-    _dd, have_marks = state.convexity_book_drawdown(conn, book_budget)
+    _dd, have_marks = state.convexity_book_drawdown(conn, book_budget, since=drawdown_since(config))
 
     cmap = clusters.load_cluster_map(config)
     cluster_cap = equity * float(book.get("cluster_fraction", 0.0))
