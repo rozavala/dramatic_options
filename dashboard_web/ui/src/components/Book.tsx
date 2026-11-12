@@ -1,5 +1,7 @@
+import { Fragment } from "react";
+
 import { directionLabel, markLevel } from "../data/status";
-import type { ViewModel } from "../data/types";
+import type { VerticalLegsVM, ViewModel } from "../data/types";
 import { signal } from "../theme/tokens";
 import { Card, Chip } from "./primitives";
 
@@ -12,6 +14,17 @@ const Row = ({ label, value }: { label: React.ReactNode; value: React.ReactNode 
   </div>
 );
 const money = (v: number) => `${v < 0 ? "−" : "+"}$${Math.abs(Math.round(v)).toLocaleString("en-US")}`;
+
+/** #463: the two legs of a debit call vertical, under its row. Premium and mark on the row are the spread's (net). */
+export function VerticalLegs({ legs }: { legs: VerticalLegsVM }) {
+  return (
+    <div data-testid="vertical-legs" className="font-mono" style={{ padding: "0 4px 10px", borderBottom: "1px solid #f6f8fa", fontSize: 11.5, color: "#414956" }}>
+      <span style={{ fontFamily: "Roboto", color: "#6a7280" }}>vertical · </span>
+      long {legs.long} ({legs.longStrike}) · short {legs.short} ({legs.shortStrike}) · net debit {legs.netDebit}
+      <span style={{ fontFamily: "Roboto", color: "#6a7280" }}> per share; premium and mark are the spread's</span>
+    </div>
+  );
+}
 
 /** Book & Watchlist: the real book with running P&L · sentinels grouped by basket · the five books' open
  *  counts · the data-accrual card with its honesty flag. */
@@ -43,7 +56,8 @@ export function Book({ vm }: { vm: ViewModel }) {
               const running = p.mark != null ? p.premiumUsd * (p.mark - 1) : null;
               const bled = p.mark != null && p.mark < 1 ? Math.round((1 - p.mark) * 100) : null;
               return (
-                <div key={i} className="grid items-center font-mono" style={{ gridTemplateColumns: GRID, gap: 10, padding: "11px 4px", borderBottom: "1px solid #f6f8fa", fontSize: 12.5 }}>
+                <Fragment key={i}>
+                <div className="grid items-center font-mono" style={{ gridTemplateColumns: GRID, gap: 10, padding: "11px 4px", borderBottom: p.legs ? "none" : "1px solid #f6f8fa", fontSize: 12.5 }}>
                   <span style={{ fontWeight: 500, color: "#141b28" }}>{p.symbol} <span style={{ fontSize: 10, fontFamily: "Roboto", color: p.dir === "bearish" ? signal.bad.text : signal.ok.text }}>{directionLabel(p.dir)}</span></span>
                   <span style={{ fontFamily: "Roboto", fontSize: 12, color: "#414956" }}>{p.theme ?? "—"}</span>
                   <span style={{ color: "#2c3645" }}>{p.conviction ?? "—"}</span>
@@ -61,6 +75,8 @@ export function Book({ vm }: { vm: ViewModel }) {
                     {running == null ? "—" : money(running)}{bled != null && <span style={{ color: "#6a7280" }}> · {bled}% bled</span>}
                   </span>
                 </div>
+                {p.legs && <VerticalLegs legs={p.legs} />}
+                </Fragment>
               );
             })}
             <div style={{ fontSize: 11, color: "#6a7280", marginTop: 10, lineHeight: 1.5 }}>Running is mark-to-market, unrealized. A far-OTM option sitting near zero mid-life is the design, not a fault — the read is the tail at expiry.</div>

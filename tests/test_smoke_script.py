@@ -63,3 +63,15 @@ def test_script_never_touches_the_journal():
     assert "state." not in src and "import state" not in src
     assert "council" not in src.lower() or "never the council" in src  # doc mention only
     assert "record_convexity_position" not in src
+
+
+def test_vertical_roundtrip_in_the_simulator():
+    from broker import PaperBroker
+
+    lines = []
+    rc = smoke.run_vertical_roundtrip(PaperBroker(100_000.0), long_symbol="BIG270731C00125000",
+                                      short_symbol="BIG270731C00175000", debit_limit=2.0, credit_limit=1.0,
+                                      budget=250.0, log=lines.append)
+    assert rc == 0 and "VERTICAL ROUND-TRIP COMPLETE" in lines[-1]
+    assert smoke.run_vertical_roundtrip(PaperBroker(100_000.0), long_symbol="a", short_symbol="b",
+                                        debit_limit=3.0, credit_limit=None, budget=250.0, log=lines.append) == 2

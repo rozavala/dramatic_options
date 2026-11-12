@@ -349,3 +349,56 @@ calls `sentinel_context_pack` with no catalysts (the §6 leash). `grounded` is u
 
 **Record segmentation.** `runs.model_mix.forward_catalysts = "forward_catalyst_v1+sentinel_v1"` from the
 first L1 after the switch is set.
+
+## §12 Amendment (2026-10-31, operator word "A", #403; from the first L1 after deploy) — the §3 named deviation, re-read
+
+**Why.** The §3 named deviation pins that the fundamentals tokenizer (`fundamental_evidence_tokens`) EXCLUDES dates
+from the authenticity filter's evidence pool, because date digits are noise that would let a fabricated number pass
+the digit-substring match, and that a symmetry-minded cleanup must not "fix" this back. The side effect it did not
+foresee: a council role that cites a rendered filing date (`period 2026-06-30, filed 2026-08-07`) has the date split
+into year/month/day digit runs that miss the date-free pool, and is dampened one level. L1 #1884 (2026-10-30, the
+first session under PREREG_COUNCIL_GATE_SEPARATION §10.11, which asks for "its latest filing") showed it: the FRO
+adversary's 6 flags equal a verbatim quote of one rendered fundamentals line. 47 of 179 dampened strategist outputs
+cite an ISO date; none had a raw conviction ≥ MODERATE, so no entry has yet been lost.
+
+**The change (council roles only).** A full ISO date in a proposer / adversary / strategist text is checked WHOLE
+against the dates rendered in that agent's prompt block (`council/filters.py::rendered_dates`): shown → accepted;
+not shown → one `unsupported date` flag. The date is removed before the figure scan. The discovery framer keeps the
+pre-amendment scan (its L0 runs carry no quote-filter stamp to segment on).
+
+**What does not change.** §3's rule holds as pinned: **the digit pool stays date-free**, so "2026", "06" or "30" never
+become citable figures and a fabricated bare number still flags. This channel's own date tokens
+(`catalyst_cite_tokens`), K, N, the char bound and the §4 counters are unchanged; a catalyst date remains accepted.
+
+**Record segmentation.** `runs.model_mix.quote_filter = "musd_billions_v1+iso_dates_v1"` from the first L1 after deploy
+(final convictions can change; raw ones cannot). The §10.11 read uses raw and final convictions so the two
+changes stay separable.
+
+## §13 Amendment (2026-11-04, operator word "Adopt both the 15% floor and A+B+C at the 11-12 boundary", #421; in force from the 11-12 boundary) — restatements of rendered figures
+
+**Why.** After §12, every flag the council's authenticity filter stored (11 outputs on L1 #1901, #1918 and #1935) was a
+faithful restatement of a figure the agent was shown, not an invented one. FRO's proposer was dropped from deliberation
+on L1 #1935 over the bare year of its rendered `period 2025-12-31`.
+
+**The change (council roles only; the discovery framer's scan is unchanged):**
+- **A:** each rendered marker value (lines shaped `{label} {v:+.3f}`) and each unitless fundamentals value also pools
+  its percent restatement at one decimal (`−0.628` → `62.8`). News headlines contribute nothing, even a signed
+  3-decimal figure.
+- **B:** a rendered `$M` figure ≥ $1,000M also pools its `$B` form to 3 decimals (extending #336).
+- **C:** the bare 4-digit year of a date rendered in the agent's prompt block is accepted, including the prose form
+  "In 2025, …" (a trailing comma is ignored; "2,025" stays a count).
+
+**What does not change.** The §3 rule holds for the fundamentals and catalyst pools: they carry **no date digits**, and
+month and day digits never become citable. A year not rendered still flags. Option D (rounding tolerance, bps/ratio
+rescaling) is not adopted. (Pre-existing, not this amendment's doing: with `marker_refresh = both` the marker lines
+`markers_computed <date>` / `… at_surfacing <date>` sit in the headline evidence, so their year was already
+substring-citable on live sentinel packs; C's marginal effect is other rendered years, such as 2025 periods.)
+
+**Trade-offs, stated.** Under C, a fabricated count that happens to equal a rendered year (e.g. "2026 units") passes.
+Under A, because the scan matches digits as substrings, a pooled `62.8` also admits its tail `2.8`. Measured on a
+live-shaped sentinel pack (the #426 review): A adds ~13 tokens; 1-decimal figures 0.1–9.9 that pass by coincidence rise
+from 13% to 20%, and 10.0–99.9 from 0.4% to 1.4%. Single digits and a third of two-digit integers already passed before.
+
+**Record segmentation.** `runs.model_mix.quote_filter = "musd_billions_v1+iso_dates_v1+restate_v1"` from the first L1 after
+deploy. Planned on the ~11-12 model-refresh boundary so the record would break once; **operator 2026-11-12: lands alone on
+11-12** (the refresh was not ready, and the filter kept dropping deliberations), so the refresh takes its own later boundary.

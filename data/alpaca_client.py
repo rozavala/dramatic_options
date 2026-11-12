@@ -51,6 +51,10 @@ class AlpacaClient:
     def get_positions(self) -> list[Any]:
         return self._trading.get_all_positions()
 
+    def get_asset(self, symbol: str) -> Any:
+        """The venue's CURRENT asset record (``status``, ``tradable``) — a live read, never point-in-time (#458)."""
+        return self._trading.get_asset(symbol)
+
     # ── Market data (read-only) ───────────────────────────────────────────
     def get_stock_bars(
         self,

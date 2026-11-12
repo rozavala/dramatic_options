@@ -446,14 +446,14 @@ def risk_panel(conn, config: dict) -> dict:
     """Book drawdown vs the kill threshold, open slots vs the cap, per-cluster premium vs the cluster cap, and
     KILL/cost-cap TRIP state (distinct from raw threshold values). Reuses the canonical kill rule."""
     from clock import FixedClock
-    from paper_loop import kill_rule_status
+    from paper_loop import drawdown_since, kill_rule_status
     from risk import kill_switch_active
 
     book = config.get("convexity_book", {})
     equity = float(book.get("account_equity", 0.0))
     book_budget = equity * float(book.get("book_fraction", 0.0))
     krs = kill_rule_status(conn, config, FixedClock(datetime.now(UTC)))
-    _dd, have_marks = state.convexity_book_drawdown(conn, book_budget)
+    _dd, have_marks = state.convexity_book_drawdown(conn, book_budget, since=drawdown_since(config))
 
     cmap = clusters.load_cluster_map(config)
     cluster_cap = equity * float(book.get("cluster_fraction", 0.0))
@@ -473,7 +473,10 @@ def risk_panel(conn, config: dict) -> dict:
                       # #355: DISPLAY-ONLY ok/warn/tripped. `tripped` above stays the kill rule's own verdict.
                       "drawdown_warn": drawdown_warn.WARN_FRACTION,
                       "level": "tripped" if krs.tripped else drawdown_warn.drawdown_level(
-                          krs.book_drawdown, float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)))},
+                          krs.book_drawdown, float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20))),
+                      # #465: the dry leg's clock (None until the first real fill)
+                      "months_dry": krs.months_dry, "dry_since": krs.dry_since, "dry_binds_on": krs.dry_binds_on,
+                      "dry_months_halt": config.get("kill_rule", {}).get("dry_months_halt")},
         "cost_cap": {"last_council_health": last_health, "tripped": last_health == "cost_cap",
                      "cap_usd": float(config.get("council", {}).get("cost_cap_usd", 0.0))},
         "book": {"open": state.count_open_convexity_positions(conn),
@@ -658,13 +661,15 @@ def regime_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
 def _real_multiples_by_origin(conn) -> dict[str, list[float]]:
     """Real-book closed realized multiples split by ORIGIN via a LEFT join (a hand-seed predates sentinels
     and may have NO proposal row / a null sentinel_id ⇒ 'hand_seed'; only a non-null sentinel_id ⇒ 'sentinel')."""
-    out: dict[str, list[float]] = {"hand_seed": [], "sentinel": []}
+    out: dict[str, list[float]] = {"hand_seed": [], "sentinel": [], "backfill": []}
     for r in conn.execute(
-        "SELECT p.total_premium AS tp, p.realized_pnl AS pnl, cp.sentinel_id AS sid "
+        "SELECT p.total_premium AS tp, p.realized_pnl AS pnl, cp.sentinel_id AS sid, p.rationale AS rat "
         "FROM convexity_positions p LEFT JOIN council_proposals cp ON p.proposal_id = cp.id "
         "WHERE p.status='closed' AND p.realized_pnl IS NOT NULL AND p.total_premium > 0"
     ):
-        origin = "sentinel" if r["sid"] is not None else "hand_seed"
+        # PREREG §5 amendment 2026-11-03: a ranked-backfill entry is its own origin, whatever its provenance.
+        origin = "backfill" if '"origin": "backfill"' in str(r["rat"] or "") else (
+            "sentinel" if r["sid"] is not None else "hand_seed")
         out[origin].append((float(r["tp"]) + float(r["pnl"])) / float(r["tp"]))
     return out
 
@@ -1461,8 +1466,12 @@ def _time_stop_on(expiry: Any, time_stop_dte: int) -> str | None:
 def positions_panel(conn, *, stale_pending_cycles: int = 6, time_stop_dte: int = 21) -> dict:
     """All 5 books — open + recent closed. Surfaces pending/closing distinctly + STALE-PENDING (a resting limit
     unfilled across many cycles = the v2 analog of a missed order; a dedicated queue is unbuilt in v2)."""
+    import verticals
+
     real_open = _book_table(conn, "SELECT p.id, p.symbol, p.direction, p.contract_symbol, p.status, p.dte, "
                                   "p.expiry, p.contracts, p.total_premium, p.mark, p.marked_at, p.opened_at, p.theme, "
+                                  "p.strike, p.short_contract_symbol, p.short_strike, "
+                                  "p.entry_premium_per_contract AS entry_per_contract, "
                                   "cp.run_id AS origin_run, cp.conviction AS origin_conviction "
                                   "FROM convexity_positions p LEFT JOIN council_proposals cp "
                                   "ON p.proposal_id = cp.id WHERE p.status IN ('open','closing','pending') "
@@ -1477,6 +1486,12 @@ def positions_panel(conn, *, stale_pending_cycles: int = 6, time_stop_dte: int =
         if live is not None:  # live days-left from expiry; fall back to the entry value only if no expiry
             p["dte"] = live
         p["time_stop_on"] = _time_stop_on(p.get("expiry"), time_stop_dte)
+        # #463: a debit call vertical (migration 0021) is two legs; contract_symbol/strike are the LONG leg. Its
+        # entry premium is the NET debit, and its mark is the spread mark monitor stores (verticals.position_mid:
+        # long mid − short mid). A single-leg row keeps short_* None and net_debit None.
+        p["vertical"] = verticals.is_vertical(p)
+        epc = p.pop("entry_per_contract", None)
+        p["net_debit"] = round(float(epc) / 100.0, 4) if p["vertical"] and epc is not None else None
     return {
         "real_open": real_open,
         "real_closed": real_closed,
@@ -1765,8 +1780,8 @@ def _gap_note_class(note: str | None) -> str:
 
       - ``entitlement`` — a subscription/permission lapse (``feeds.classify_feed_error``) ⇒ feed-wide.
       - ``transient``   — a per-name fetch blip ⇒ log/escalate.
-      - ``structural``  — OPRA legitimately has no tradeable wing (``no_eligible_contract_in_tenor_window``
-                          and the other selection reasons), OR an unrecognized/empty note (fail-safe:
+      - ``structural``  — OPRA legitimately has no tradeable wing (``no_eligible_contract_in_tenor_window``,
+                          ``empty_chain`` (#437) and the other selection reasons), OR an unrecognized/empty note (fail-safe:
                           an unknown absence is treated as OPRA-correct, never as a feed outage)."""
     msg = (note or "").strip().lower()
     if msg.startswith("entitlement:"):
@@ -2186,3 +2201,50 @@ def fundamentals_staleness_panel(conn, *, n: int = STALENESS_RUNS_N) -> dict:
             runs.append({"run_id": r["id"], "started_at": r["started_at"], **parsed})
     return {"runs": runs, "latest_lagging": runs[0]["lagging"] if runs else []}
 
+
+
+# ── 2026-11-03 profit-program telemetry (records/2026-11-03_profit_program_DRAFTS.md) ────────────────────────
+def execution_panel(conn) -> dict:
+    """D0: every council approval followed to the broker (fill rate, overall and under carry-over)."""
+    import execution_ledger
+
+    return execution_ledger.panel(conn)
+
+
+def slippage_panel(conn) -> dict:
+    """#467 step 3: each booked real-book entry as filled and at a conservative fill, with the P&L twin. An
+    estimate, display only (nothing is re-booked); an entry with no stored quote or walk above the fill is unknown."""
+    import execution_ledger
+
+    return execution_ledger.haircut(conn)
+
+
+def iv_history_panel(conn, cache_dir: str | Path) -> dict:
+    """D4: own-history IV/RV + skew percentiles, term slope, 21-session ATM call/put dIV. Read-only, no fetch."""
+    import iv_history
+    from data.cache import PointInTimeCache
+
+    return iv_history.panel(conn, PointInTimeCache(cache_dir, offline=True))
+
+
+def falsifier_panel(config: dict) -> dict:
+    """D3b: the forward falsifier-accuracy ledger (sealed reads + specs still waiting for their quarter)."""
+    import falsifier_ledger
+
+    return falsifier_ledger.panel(symbols_of=falsifier_ledger.basket_symbols_of(config))
+
+
+def capex_cycle_panel(cache_dir: str | Path) -> dict:
+    """D5 step 1: per-cluster TTM capex YoY and acceleration (latest daily record). Read-only, no fetch."""
+    import capex_cycle
+    from data.cache import PointInTimeCache
+
+    return capex_cycle.panel(PointInTimeCache(cache_dir, offline=True))
+
+
+def attention_panel(cache_dir: str | Path) -> dict:
+    """D6 step 1: analyst-coverage history of judged names, the ~90-day change and a descriptive label."""
+    import attention
+    from data.cache import PointInTimeCache
+
+    return attention.panel(PointInTimeCache(cache_dir, offline=True))

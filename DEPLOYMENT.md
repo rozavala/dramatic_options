@@ -37,8 +37,9 @@ same session (not into a closed after-hours book). `Persistent=true` lets a run 
 the box was down fire on next boot; that catch-up is safe because (a) acting on slightly-stale
 marks is immaterial to a 6–12-month hold, and (b) the orchestrator computes `is_market_open()`
 once per cycle **fail-closed** and, when the market is closed, **skips entries and runs the
-monitor mark-only** (no real submit) — so a post-close catch-up can never submit into a closed
-market. The orchestrator also **re-checks market-open immediately before submitting entries**
+monitor mark-only** (no real submit; a triggered profit-take or time-stop is deferred to the next
+open-market tick, not booked in the journal without a sale, #451) — so a post-close catch-up can
+never submit into a closed market. The orchestrator also **re-checks market-open immediately before submitting entries**
 (after the possibly-slow council), so "no entry outside RTH" is literally enforced, not merely
 bounded by `TimeoutStartSec`. 15:45 is also kept **off** the L2 `:00/:30` grid so the two timers
 never start the same monitor pass concurrently.
@@ -67,14 +68,22 @@ trade on the loop at all" switch.
 
 | Flag | DEV (paper) | PROD (real-money) | Meaning |
 |---|---|---|---|
-| `PAPER` | `true` | `true` | paper endpoint |
+| `PAPER` | `true` | **`false`** (verified read-only 2026-11-12) | the venue: `true` = paper endpoint and the paper key pair; `false` = the live pair |
 | `LIVE_TRADING_ENABLED` | `false` | `false` | half of the live gate |
 | `--live` (CLI) | not passed | not passed | the other half — `live_allowed` needs all three |
 | `FORWARD_ENABLED` | **`true`** | **`false`** | this env runs the scheduled loop |
 
-PROD is inert by several independent margins until T4: `FORWARD_ENABLED=false` (timers stay
-disabled), **no real-money broker path in code** (`AlpacaPaperBroker` hardcodes `paper=True`),
-`DRY_RUN` not set false, and the live triple-gate unsatisfied. DEV runs `DRY_RUN=false`
+PROD is inert by several independent margins until T4. Its `.env` was verified read-only on 2026-11-12 (names
+and flags only):
+- `FORWARD_ENABLED=false`, so the timers stay disabled;
+- `DRY_RUN=true`;
+- `LIVE_TRADING_ENABLED=false` and no `--live`, so the triple gate is unsatisfied;
+- `PAPER=false`, with only the **live** key pair present (`ALPACA_LIVE_KEY_ID`/`ALPACA_LIVE_SECRET_KEY`), no paper
+  pair and no legacy names.
+
+A real-money broker path does exist in code: `AlpacaLiveBroker` (PREREG_REAL_MONEY_BROKER), selected only through
+the triple gate. A PROD paper rehearsal therefore needs its `.env` edited to `PAPER=true` with a **separate**
+paper pair (operator word 2026-11-12; `records/2026-11-12_operator_decisions_roadmap.md`). DEV runs `DRY_RUN=false`
 (real two-sided paper submit) for an honest forward record toward T4.
 
 ## Observability dashboard (read-only)
@@ -124,7 +133,7 @@ is tested against (`dashboard_web/api/test_snapshot_parity.py`) and can still be
    verify gate **fails the deploy and rolls back** if a key is missing/placeholder on a trading
    env (a missing-`.env` failure cannot self-page — the `notify@` unit reads the same file).
    ```
-   ALPACA_PAPER_KEY_ID= ALPACA_PAPER_SECRET_KEY=   (legacy ALPACA_API_KEY/ALPACA_SECRET_KEY/ALPACA_PAPER are REFUSED — issue #279. **PROD:** its .env still carries the legacy names because `production` runs pre-#284 code; rename PROD's .env in the SAME act that promotes `production` past #284, at T4 arming — the live pair is ALPACA_LIVE_KEY_ID/ALPACA_LIVE_SECRET_KEY, shared with the other projects, finance#947 §5)
+   ALPACA_PAPER_KEY_ID= ALPACA_PAPER_SECRET_KEY=   (legacy ALPACA_API_KEY/ALPACA_SECRET_KEY/ALPACA_PAPER are REFUSED — issue #279. **PROD** (verified 2026-11-12): no legacy names; it carries only the live pair ALPACA_LIVE_KEY_ID/ALPACA_LIVE_SECRET_KEY, shared with the other projects, finance#947 §5)
    PAPER=true  LIVE_TRADING_ENABLED=false  DRY_RUN=false  FORWARD_ENABLED=true
    GEMINI_API_KEY=  XAI_API_KEY=  ANTHROPIC_API_KEY=
    PUSHOVER_API_TOKEN=  PUSHOVER_USER_KEY=

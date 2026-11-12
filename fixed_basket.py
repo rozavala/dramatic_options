@@ -32,11 +32,11 @@ from datetime import date, datetime
 import clusters
 import restricted as restricted_list
 import state
+import verticals
 from clock import Clock
 from convexity_data import ChainProvider, QuoteProvider
 from convexity_sizing import convexity_position_size, equal_weight_contracts
 from discovery import compute_markers, direction_of
-from paper_loop import kill_rule_status
 from risk import kill_switch_active
 from sentinels import active_sentinel_candidates, union_candidates
 from shadow_book import tail_summary
@@ -97,10 +97,10 @@ def run_fixed_basket_3a_cycle(
 ) -> FixedBasketResult:
     """Book 3A: a SIM position for every candidate in the union that clears eligibility + sizing with
     the **IV GATE OFF** (no `is_cheap_convexity`), under the full cap-ON frame. NEVER touches the broker.
-    Mirrors `shadow_book.run_shadow_cycle`'s gate sequence (kill → slot reservation → eligibility →
+    Mirrors `shadow_book.run_shadow_cycle`'s gate sequence (KILL switch only, never the kill rule, #465 → slot reservation → eligibility →
     [GATE SKIPPED] → cluster cap → sizing) so the only difference vs the shadow book is the missing gate."""
     result = FixedBasketResult(book=BOOK_UNION_NOGATE)
-    if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
+    if kill_switch_active():  # a kill-RULE trip halts the real book only; the null books keep booking (§6, 2026-11-12)
         result.halted = True
         return result
 
@@ -224,12 +224,21 @@ def _eval_and_book_nogate(
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
-        underlying_symbol=theme.symbol, require_otm_side=bool(gate.get("otm_side_guard", False)),
+        underlying_symbol=theme.symbol, require_otm_side=bool(gate.get("otm_side_guard", False)), min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0),
     )
     if structure is None:
         return "no_structure", None
     premium_pc = structure.entry_premium * CONTRACT_MULTIPLIER
     # >>> NO is_cheap_convexity here — that veto is exactly what 3A removes (the gate test). <<<
+    # The SAME over-cap vertical rule as the real/shadow books (PREREG §5 amendment 2026-11-03b; inert when off).
+    vert, vwhy = verticals.maybe_vertical(
+        chain, structure, config={"convexity_gate": gate}, direction=theme.direction,
+        underlying_price=underlying_price, eligibility=eligibility, symbol=theme.symbol,
+        per_name_cap=account_equity * float(book_cfg.get("per_name_fraction", 0.01)))
+    if vwhy is not None:
+        return "no_vertical", premium_pc
+    entry_ps = round(vert.net_debit, 2) if vert is not None else structure.entry_premium
+    premium_pc = entry_ps * CONTRACT_MULTIPLIER
 
     # The SAME cap-ON cluster cap the real/shadow books apply (3A holds the full frame).
     cluster = clusters.cluster_of(theme.symbol, cluster_map)
@@ -246,7 +255,7 @@ def _eval_and_book_nogate(
         max_open_positions=int(book_cfg.get("max_open_positions", 15)),
         open_positions_count=state.count_open_fixed_basket_positions(conn, BOOK_UNION_NOGATE),
         open_premium_total=state.fixed_basket_book_open_premium(conn, BOOK_UNION_NOGATE),
-        entry_premium_per_share=structure.entry_premium,
+        entry_premium_per_share=entry_ps,
         cluster_remaining=cluster_remaining,
     )
     if sizing.contracts < 1:
@@ -258,6 +267,8 @@ def _eval_and_book_nogate(
         strike=structure.contract.strike, dte=structure.dte, moneyness=structure.moneyness,
         contracts=sizing.contracts, entry_premium_per_contract=premium_pc,
         total_premium=premium_pc * sizing.contracts, entry_spot=underlying_price,
+        short_contract_symbol=(vert.short.symbol if vert is not None else None),
+        short_strike=(vert.short.strike if vert is not None else None),
     )
     return "booked", premium_pc
 
@@ -284,7 +295,7 @@ def run_fixed_basket_3b_cycle(
     vs-basket read. Weekly (L0 cadence). NEVER the broker. ``market``/``benchmark``/``params`` are the
     discovery context (the motion read); ``provider`` supplies the option chains."""
     result = FixedBasketResult(book=BOOK_BASKET_NOGATE)
-    if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
+    if kill_switch_active():  # a kill-RULE trip halts the real book only; the null books keep booking (§6, 2026-11-12)
         result.halted = True
         return result
     # Restricted list (enforcement (c)): 3B walks the RAW basket (never the union), so it needs its
@@ -349,21 +360,29 @@ def _eval_and_book_3b(
         chain, direction=direction, as_of=as_of, underlying_price=underlying_price,
         tenor_min_days=int(gate.get("tenor_min_days", 180)), tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)), eligibility=eligibility,
-        underlying_symbol=sym, require_otm_side=bool(gate.get("otm_side_guard", False)),
+        underlying_symbol=sym, require_otm_side=bool(gate.get("otm_side_guard", False)), min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0),
     )
     if structure is None:
         return "no_structure"
+    vert, vwhy = verticals.maybe_vertical(   # the same over-cap rule (PREREG §5 amendment 2026-11-03b)
+        chain, structure, config={"convexity_gate": gate}, direction=direction, underlying_price=underlying_price,
+        eligibility=eligibility, symbol=sym, per_name_cap=account_equity * per_name_fraction)
+    if vwhy is not None:
+        return "no_vertical"
+    entry_ps = round(vert.net_debit, 2) if vert is not None else structure.entry_premium
     n = equal_weight_contracts(account_equity=account_equity, per_name_fraction=per_name_fraction,
-                               entry_premium_per_share=structure.entry_premium)
+                               entry_premium_per_share=entry_ps)
     if n < 1:
         return "sizing"
-    entry_pc = structure.entry_premium * CONTRACT_MULTIPLIER
+    entry_pc = entry_ps * CONTRACT_MULTIPLIER
     state.record_fixed_basket_position(
         conn, run_id=run_id, book=BOOK_BASKET_NOGATE, origin="basket", opened_at=as_of_iso, theme=basket,
         symbol=sym, direction=direction, structure_kind=structure.kind,
         contract_symbol=structure.contract.symbol, expiry=structure.contract.expiry.isoformat(),
         strike=structure.contract.strike, dte=structure.dte, moneyness=structure.moneyness,
         contracts=n, entry_premium_per_contract=entry_pc, total_premium=entry_pc * n, entry_spot=underlying_price,
+        short_contract_symbol=(vert.short.symbol if vert is not None else None),
+        short_strike=(vert.short.strike if vert is not None else None),
     )
     return "booked"
 
@@ -400,8 +419,15 @@ def mark_fixed_basket_positions(
         dte = (expiry - today).days if expiry else None
 
         if expiry is not None and today >= expiry:
-            up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
-            intrinsic = _intrinsic_value(kind, float(pos["strike"]), up)
+            try:
+                up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
+            except Exception as e:  # noqa: BLE001 — #440: per-POSITION, like the mark below; never an invented close
+                log.warning("3A/3B expiry price lookup failed for %s (%s) — left open, retried next cycle: %s",
+                            pos["symbol"], pos["contract_symbol"], e)
+                res.unmarked += 1
+                continue
+            intrinsic = (verticals.position_intrinsic(pos, up) if verticals.is_vertical(pos)
+                         else _intrinsic_value(kind, float(pos["strike"]), up))
             _close(conn, pid, exit_price=intrinsic, entry_pc=entry_pc, contracts=contracts,
                    total_premium=total_premium, reason="expiry", as_of=as_of_iso)
             res.expired += 1
@@ -409,7 +435,8 @@ def mark_fixed_basket_positions(
             continue
 
         try:
-            mid = quote_provider.option_mid(pos["contract_symbol"])
+            mid = (verticals.position_mid(pos, quote_provider) if verticals.is_vertical(pos)
+                   else quote_provider.option_mid(pos["contract_symbol"]))
         except Exception as e:  # noqa: BLE001 — per-POSITION fail-soft: one unquotable row (the
             # 2026-07-06 CDE2 adjusted-class defect) must not abort the pass tail or page every L2.
             log.warning("3A/3B mark failed for %s (%s): %s", pos["symbol"],

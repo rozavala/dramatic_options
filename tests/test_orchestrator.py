@@ -2,8 +2,8 @@
 
 These are the two pure pieces of the FORWARD_ENABLED + market-open gate that decides — BEFORE
 any LLM spend — whether a cycle evaluates new entries, and that fails CLOSED if the market-state
-call errors. The heavier wiring (monitor mark-only when closed, post-council re-check) is
-exercised by the offline `--demo` run.
+call errors. The monitor's closed-market mark-only wiring (#451) is tested in
+tests/test_monitor_mark_only.py; the post-council re-check is exercised by the offline `--demo` run.
 """
 
 from datetime import UTC, datetime

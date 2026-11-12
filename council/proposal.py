@@ -40,6 +40,7 @@ class AgentOutput:
     raw: dict
     flagged_unsupported: int = 0    # # of claims the authenticity filter stripped
     cost_usd: float = 0.0
+    flagged_details: tuple[str, ...] = ()  # #402: WHICH claims were flagged (one per count), for the record
 
 
 @dataclass(frozen=True)

@@ -43,6 +43,34 @@
 > (5) the remaining pre-T4 items are done (PR2c ✅, the correlation diagnostic ✅ + basket-quality report ✅,
 > all merged 2026-06-05; the §5b dashboard PR-A BUILT & green 2026-06-05 — read-only; it RENDERS this condition's evidence (the breach-audit recompute + the per-arm null plumbing) but does NOT adjudicate; the §5b file-structure refactor remains). Graduating on ≈zero resolved trades + a just-discovered silent-inert
 > apparatus would be the capital-stakes HARKing this project killed twice.
+>
+> **Dated numbers for conditions (2) and (4) (2026-11-12, operator word "T4: 2B + 4A"; #468; draft
+> `records/2026-11-10_t4_go_no_go_checklist_DRAFT.md` §2 in PR #476).**
+> - **(2):** ≥ 5 resolved **real** positions covering ≥ 2 distinct exit paths, and ≥ 30 resolved in each of the shadow
+>   book and 3A, with the p95 and bootstrap CI rendering for all three books.
+> - **(4)**, a shape test that can fail, over the resolved real positions (`state.convexity_realized_multiples`):
+>   - (i) every realized multiple M ≥ 0, so no loss beyond the premium;
+>   - (ii) median M ≤ 1;
+>   - (iii) every close is one of the three §6a exits, and its M agrees with that rule;
+>   - (iv) P(M ≥ 1) lies inside the two-sided 95% binomial interval around 0.23 (calibration v2's `live_10x` cell)
+>     for the observed N.
+>
+>   Items (i)–(iii) are mechanics; (iv) is sanity, not significance.
+>
+> No live arming is authorized (same word).
+>
+> **The checklist's other decisions (2026-11-12, operator word "accept all" on CC's suggestions):**
+> - **Decision 2:** the §3 mechanics rows are adopted into the frozen checklist. They are:
+>   - exits proven end to end on the paper account (#466's fire drill, #444, #451), with the journal equal to the
+>     venue afterwards;
+>   - measured slippage (#467);
+>   - the live account's options approval level.
+> - **Decision 3:** (a) the order ceiling bounds **opening** orders only (PREREG_REAL_MONEY_BROKER §3b, #473).
+> - **Decision 6:** the live smoke (#467) is deferred until arming is on the table.
+> - **The PROD rehearsal** (decision 5), one week:
+>   - a **separate paper account** and a **separate Pushover app token**;
+>   - shared LLM keys;
+>   - starting DB (i), a copy of DEV's taken on a Friday after the 16:00 L2 with no pending or carried rows.
 
 ---
 

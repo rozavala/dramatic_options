@@ -11,6 +11,7 @@ writes. Writes use the connection as a context manager for atomic transactions.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -127,6 +128,7 @@ def record_convexity_eval(
     proposal_id: int | None = None,
     reasons: Any = None,
     cluster_state: dict | None = None,
+    selection: dict | None = None,
 ) -> int:
     """Append a survivorship-log row for EVERY evaluated bet (open or veto). Atomic.
 
@@ -141,7 +143,16 @@ def record_convexity_eval(
     # committed premium, cap, equity — so a future breach audit can RECOMPUTE within-cap-ness at the
     # admission instead of trusting the enforcement code. Nested under the existing reasons column only
     # when present, so every non-cluster call site stays byte-identical.
-    payload = reasons if cluster_state is None else {"reasons": reasons, "cluster_state": cluster_state}
+    # selection (#417): why contracts nearer the target strike were refused, when the chosen one is not the
+    # target-nearest; nested the same way, and only when present.
+    if cluster_state is None and selection is None:
+        payload = reasons
+    else:
+        payload = {"reasons": reasons}
+        if cluster_state is not None:
+            payload["cluster_state"] = cluster_state
+        if selection is not None:
+            payload["selection"] = selection
     if not isinstance(payload, str):
         payload = json.dumps(payload, default=str)
     with conn:
@@ -216,8 +227,13 @@ def record_convexity_position(
     order_id: str | None = None,
     proposal_id: int | None = None,
     entry_spot: float | None = None,
+    short_contract_symbol: str | None = None,
+    short_strike: float | None = None,
 ) -> int:
     """Insert a paper position. Returns its id. Atomic.
+
+    ``short_contract_symbol``/``short_strike`` (migration 0021): the short leg of a debit call vertical; then
+    ``entry_premium_per_contract`` is the NET debit. None = a single-leg position.
 
     ``status`` is 'open' for a simulated/confirmed fill, or 'pending' when a real Alpaca
     order is resting and awaiting reconciliation (then ``order_id`` carries the broker id).
@@ -241,7 +257,15 @@ def record_convexity_position(
                 total_premium, status, rationale, order_id, proposal_id, entry_spot,
             ),
         )
+        _set_short_leg(conn, "convexity_positions", cur.lastrowid, short_contract_symbol, short_strike)
     return int(cur.lastrowid)
+
+
+def _set_short_leg(conn, table: str, row_id, short_contract_symbol, short_strike) -> None:
+    """Write a vertical's short leg onto a just-inserted row (inside the caller's transaction)."""
+    if short_contract_symbol:
+        conn.execute(f"UPDATE {table} SET short_contract_symbol = ?, short_strike = ? WHERE id = ?",
+                     (short_contract_symbol, short_strike, row_id))
 
 
 def open_convexity_positions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -303,14 +327,52 @@ def close_convexity_position(
     realized_pnl: float,
     reason: str,
     as_of: str,
+    contracts: int | None = None,
+    total_premium: float | None = None,
 ) -> None:
-    """Close a position: status='closed', store exit mark, realized P&L, reason. Atomic."""
+    """Close a position: status='closed', store exit mark, realized P&L, reason. Atomic. ``contracts`` /
+    ``total_premium`` restore the whole bet on a row an earlier partial close had reduced (#449)."""
     with conn:
         conn.execute(
             "UPDATE convexity_positions SET status = 'closed', mark = ?, realized_pnl = ?, "
-            "exit_reason = ?, closed_at = ?, marked_at = ? WHERE id = ?",
-            (float(exit_price), float(realized_pnl), reason, as_of, as_of, position_id),
+            "exit_reason = ?, closed_at = ?, marked_at = ?, contracts = COALESCE(?, contracts), "
+            "total_premium = COALESCE(?, total_premium) WHERE id = ?",
+            (float(exit_price), float(realized_pnl), reason, as_of, as_of,
+             None if contracts is None else int(contracts),
+             None if total_premium is None else float(total_premium), position_id),
         )
+
+
+def record_partial_close(conn: sqlite3.Connection, position_id: int, *, sold_qty: int, exit_price: float,
+                         reason: str, as_of: str, order_id: str | None = None) -> float:
+    """A SELL_TO_CLOSE that filled ``sold_qty`` of the row's contracts and then ended (#449). The row keeps only the
+    unsold contracts (premium pro rata) and goes back to 'open' with a fresh close id, so the retry sells only what
+    the venue still holds. The sold part (qty, price, premium, realized P&L) is kept in ``rationale.partial_closes``;
+    the final close merges it back. Returns the sold part's realized P&L. Atomic."""
+    import json
+
+    with conn:
+        row = conn.execute("SELECT contracts, total_premium, entry_premium_per_contract, rationale "
+                           "FROM convexity_positions WHERE id = ?", (position_id,)).fetchone()
+        n, q = int(row["contracts"]), int(sold_qty)
+        if not 0 < q < n:
+            raise ValueError(f"partial close of {q} needs 0 < q < {n}")
+        sold_premium = float(row["total_premium"]) * q / n
+        realized = (float(exit_price) * 100.0 - float(row["entry_premium_per_contract"])) * q
+        try:
+            rat = json.loads(row["rationale"]) if row["rationale"] else {}
+        except (TypeError, ValueError):
+            rat = {}
+        rat = rat if isinstance(rat, dict) else {"rationale": rat}
+        rat.setdefault("partial_closes", []).append(
+            {"qty": q, "price": float(exit_price), "premium": sold_premium, "realized": realized,
+             "reason": reason, "at": as_of, "order_id": order_id})
+        conn.execute(
+            "UPDATE convexity_positions SET status = 'open', close_order_id = NULL, exit_reason = ?, contracts = ?, "
+            "total_premium = ?, rationale = ? WHERE id = ?",
+            (reason, n - q, float(row["total_premium"]) - sold_premium, json.dumps(rat, default=str), position_id),
+        )
+    return realized
 
 
 def drop_convexity_position(conn: sqlite3.Connection, position_id: int, *, reason: str) -> None:
@@ -348,8 +410,9 @@ def begin_close_convexity_position(
 def revert_closing_to_open(conn: sqlite3.Connection, position_id: int, *, reason: str) -> None:
     """A close order failed terminally → reopen so the monitor re-evaluates next cycle. Atomic.
 
-    Clears ``close_order_id`` so a re-fire mints a fresh (per-day) id rather than re-using the
-    single-use one Alpaca already saw.
+    Clears ``close_order_id``. The re-fire's id is per contract per ET day (``make_client_order_id``), so a same-day
+    re-fire reuses it and Alpaca rejects the duplicate until the next day's id; an expired DAY order is reconciled on
+    the next trading day, so its retry gets a fresh id.
     """
     with conn:
         conn.execute(
@@ -359,29 +422,70 @@ def revert_closing_to_open(conn: sqlite3.Connection, position_id: int, *, reason
         )
 
 
-def convexity_book_drawdown(conn: sqlite3.Connection, book_budget: float) -> tuple[float, bool]:
-    """Book drawdown = (entry premium − marked value) / book_budget across OPEN positions.
+def convexity_book_drawdown(conn: sqlite3.Connection, book_budget: float,
+                            since: str | None = None) -> tuple[float, bool]:
+    """§6 book drawdown = the real book's net loss since its first fill ÷ ``book_budget`` (cumulative, operator word
+    2026-11-12, #472): realized P&L of closed rows, plus the sold part of any partial close still open (#449), plus
+    unrealized P&L (marked value − entry premium) of open and closing rows. Unmarked rows carry at cost. A closed loss
+    therefore stays in the figure. Negative when the book is up.
 
-    Returns ``(drawdown_fraction, have_marks)``. Unmarked positions carry at cost (no DD
-    contribution). ``have_marks`` is False when nothing has been marked yet, so callers can
-    treat drawdown as not-yet-meaningful. Closed/realized losses are NOT counted here — this
-    is the open-book mark drawdown the kill rule watches.
-    """
-    rows = conn.execute(
-        f"SELECT contracts, total_premium, mark FROM convexity_positions WHERE status IN {_EXPOSURE_STATES}"
-    ).fetchall()
-    entry_total = sum(float(r["total_premium"]) for r in rows)
-    marked_total = 0.0
-    have_marks = False
-    for r in rows:
-        if r["mark"] is None:
-            marked_total += float(r["total_premium"])
-        else:
+    ``since`` (``kill_rule.drawdown_reanchored_on``, "YYYY-MM-DD", written only on the operator's word after a review):
+    realized P&L (closes and partial sales) dated before that US-Eastern date is excluded; open rows' unrealized P&L
+    always counts.
+
+    Returns ``(drawdown_fraction, have_marks)``. ``have_marks`` is False while nothing has been marked or realized,
+    so callers can treat the drawdown as not yet meaningful."""
+    import json
+    from datetime import date, datetime
+    from zoneinfo import ZoneInfo
+
+    if since is not None:
+        # a malformed anchor raises (fail-closed): compared as a string it would silently drop every close (#489 review)
+        since = date.fromisoformat(str(since)).isoformat()
+
+    def _counts(ts) -> bool:
+        if since is None:
+            return True
+        try:
+            return datetime.fromisoformat(str(ts)).astimezone(ZoneInfo("America/New_York")).date().isoformat() >= since
+        except (TypeError, ValueError):
+            return True   # an unreadable date counts: the conservative side of a loss figure
+
+    net, have_marks = 0.0, False
+    for r in conn.execute("SELECT realized_pnl, closed_at FROM convexity_positions "
+                          "WHERE status = 'closed' AND realized_pnl IS NOT NULL"):
+        if _counts(r["closed_at"]):
+            net += float(r["realized_pnl"])
             have_marks = True
-            marked_total += float(r["mark"]) * int(r["contracts"]) * 100.0
+    rows = conn.execute(
+        f"SELECT contracts, total_premium, mark, rationale FROM convexity_positions WHERE status IN {_EXPOSURE_STATES}"
+    ).fetchall()
+    for r in rows:
+        if r["mark"] is not None:
+            have_marks = True
+            net += float(r["mark"]) * int(r["contracts"]) * 100.0 - float(r["total_premium"])
+        try:
+            rat = json.loads(r["rationale"]) if r["rationale"] else {}
+        except (TypeError, ValueError):
+            rat = {}
+        for part in (rat.get("partial_closes") or []) if isinstance(rat, dict) else []:
+            if _counts(part.get("at")):
+                have_marks = True
+                net += float(part.get("realized") or 0.0)
     if not have_marks or book_budget <= 0:
         return (0.0, have_marks)
-    return ((entry_total - marked_total) / book_budget, have_marks)
+    return (-net / book_budget, have_marks)
+
+
+def real_book_dry_clock(conn: sqlite3.Connection) -> tuple[str | None, str | None]:
+    """The §6 dry leg's inputs (operator word 2026-11-12, #465): ``(first_fill_at, last_payoff_at)``. The first fill is
+    the earliest ``opened_at`` of a real row that held exposure (open, closing or closed; a cancelled or never-filled
+    order never starts it). A payoff is a real close with ``realized_pnl > 0`` (P1). Either is None when absent."""
+    first = conn.execute("SELECT MIN(opened_at) AS t FROM convexity_positions "
+                         "WHERE status IN ('open', 'closing', 'closed')").fetchone()["t"]
+    payoff = conn.execute("SELECT MAX(closed_at) AS t FROM convexity_positions "
+                          "WHERE status = 'closed' AND realized_pnl > 0").fetchone()["t"]
+    return first, payoff
 
 
 # A position mid-exit ('closing') still holds REAL exposure until its sell fills, so the
@@ -579,6 +683,8 @@ def record_shadow_position(
     entry_premium_per_contract: float,
     total_premium: float,
     entry_spot: float | None = None,
+    short_contract_symbol: str | None = None,
+    short_strike: float | None = None,
 ) -> int:
     """Book a simulated (NEVER broker) shadow position at the chain mid. Returns its id. Atomic."""
     with conn:
@@ -593,6 +699,7 @@ def record_shadow_position(
                 entry_premium_per_contract, total_premium, entry_spot,
             ),
         )
+        _set_short_leg(conn, "shadow_positions", cur.lastrowid, short_contract_symbol, short_strike)
     return int(cur.lastrowid)
 
 
@@ -700,7 +807,11 @@ def journal_contract_quantity(conn: sqlite3.Connection, contract_symbol: str) ->
     row = conn.execute(
         "SELECT COALESCE(SUM(contracts), 0) FROM convexity_positions "
         "WHERE contract_symbol = ? AND status IN ('open', 'closing')", (contract_symbol,)).fetchone()
-    return int(row[0] or 0)
+    # A vertical's short leg (migration 0021) is a NEGATIVE venue quantity in that contract.
+    short = conn.execute(
+        "SELECT COALESCE(SUM(contracts), 0) FROM convexity_positions "
+        "WHERE short_contract_symbol = ? AND status IN ('open', 'closing')", (contract_symbol,)).fetchone()
+    return int(row[0] or 0) - int(short[0] or 0)
 
 
 def convexity_realized_multiples(conn: sqlite3.Connection, *, in_frame_only: bool = False) -> list[float]:
@@ -725,7 +836,7 @@ def record_fixed_basket_position(
     conn: sqlite3.Connection, *, run_id: int | None, book: str, origin: str, opened_at: str, theme: str,
     symbol: str, direction: str, structure_kind: str, contract_symbol: str, expiry: str, strike: float,
     dte: int, moneyness: float, contracts: int, entry_premium_per_contract: float, total_premium: float,
-    entry_spot: float | None = None,
+    entry_spot: float | None = None, short_contract_symbol: str | None = None, short_strike: float | None = None,
 ) -> int:
     """Book a simulated (NEVER broker) no-gate position at the chain mid. Returns its id. Atomic."""
     with conn:
@@ -737,6 +848,7 @@ def record_fixed_basket_position(
             (run_id, book, origin, opened_at, theme, symbol, direction, structure_kind, contract_symbol,
              expiry, strike, dte, moneyness, contracts, entry_premium_per_contract, total_premium, entry_spot),
         )
+        _set_short_leg(conn, "fixed_basket_positions", cur.lastrowid, short_contract_symbol, short_strike)
     return int(cur.lastrowid)
 
 
@@ -947,8 +1059,12 @@ def record_agent_output(
     raw: Any = None,
     flagged_unsupported: int = 0,
     cost_usd: float | None = None,
+    flagged_details: Sequence[str] = (),
 ) -> int:
-    """Insert one agent's contribution to a proposal (proposer/adversary/strategist). Atomic."""
+    """Insert one agent's contribution to a proposal (proposer/adversary/strategist). Atomic.
+
+    ``flagged_details`` (#402) is the authenticity filter's list of WHICH claims it flagged, stored as a JSON list
+    beside the count (``[]`` when nothing was flagged; NULL only on rows recorded before migration 0020)."""
     import json
 
     if not isinstance(raw, str):
@@ -956,11 +1072,11 @@ def record_agent_output(
     with conn:
         cur = conn.execute(
             "INSERT INTO council_agent_outputs (proposal_id, role, provider, model, confidence, "
-            "stance, weakest_point, raw, flagged_unsupported, cost_usd, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            "stance, weakest_point, raw, flagged_unsupported, cost_usd, flagged_details, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
             (
                 proposal_id, role, provider, model, confidence, stance, weakest_point, raw,
-                int(flagged_unsupported), cost_usd,
+                int(flagged_unsupported), cost_usd, json.dumps(list(flagged_details)),
             ),
         )
     return int(cur.lastrowid)
@@ -1118,7 +1234,7 @@ def gate_cheap_reads(conn: sqlite3.Connection, *, now, max_age_td: int = 5) -> d
 
 def unexpressible_symbols(conn: sqlite3.Connection, *, now, max_age_td: int = 5) -> frozenset[str]:
     """Symbols whose most recent GATE-OF-RECORD (opra) dual-read row, aged ≤ ``max_age_td`` weekdays, found NO
-    eligible structure (``structured = 0``: no OTM contract in the tenor window). Demotion needs positive,
+    eligible structure (``structured = 0``: no OTM contract in the tenor window, or an empty chain — #437). Demotion needs positive,
     fresh evidence — no row, a stale row or a structured row ⇒ not in the set (council.demote_unexpressible).
     Written after the council each cycle, so the read is prior-cycle, like ``gate_cheap_reads``."""
     today = now.date() if hasattr(now, "date") else now

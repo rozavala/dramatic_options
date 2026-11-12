@@ -83,10 +83,12 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     presp = router.call(role="proposer", system=sys, user=user)
     praw = _parsed("proposer", presp, agents.parse_proposer, candidate.symbol)
     pconf, pfr = apply_filter([str(praw.get("inflection_thesis", "")), *map(str, praw.get("cited", []))],
-                              pack, confidence=praw.get("confidence"))
+                              pack, confidence=praw.get("confidence"),
+                              accept_rendered_dates=True)
     proposer_ao = AgentOutput(
         "proposer", presp.provider, presp.model, pconf, candidate.direction,
         None, praw, flagged_unsupported=pfr.flagged, cost_usd=presp.cost_usd,
+        flagged_details=tuple(pfr.details),
     )
     if pconf == "NEUTRAL":  # proposer abstained → drop without spending on adversary/strategist
         return _neutral_proposal(candidate, pack, reason="proposer abstained (NEUTRAL)",
@@ -98,11 +100,12 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     aresp = router.call(role="adversary", system=sys, user=user)
     araw = _parsed("adversary", aresp, agents.parse_adversary, candidate.symbol)
     aconf, afr = apply_filter([str(araw.get("counter_case", "")), str(araw.get("weakest_point", "")),
-                               *map(str, araw.get("cited", []))], pack, confidence=araw.get("confidence"))
+                               *map(str, araw.get("cited", []))], pack, confidence=araw.get("confidence"),
+                              accept_rendered_dates=True)
     adversary_ao = AgentOutput(
         "adversary", aresp.provider, aresp.model, aconf, against_stance,
         str(araw.get("weakest_point", "")) or None, araw, flagged_unsupported=afr.flagged,
-        cost_usd=aresp.cost_usd,
+        cost_usd=aresp.cost_usd, flagged_details=tuple(afr.details),
     )
 
     # 3. Strategist — synthesize (randomized for/against order), conviction-dampened.
@@ -111,7 +114,8 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     sresp = router.call(role="strategist", system=sys, user=user)
     sraw = _parsed("strategist", sresp, agents.parse_strategist, candidate.symbol)
     sconf, sfr = apply_filter([str(sraw.get("summary", "")), str(sraw.get("weakest_point", ""))],
-                              pack, confidence=sraw.get("conviction"))
+                              pack, confidence=sraw.get("conviction"),
+                              accept_rendered_dates=True)
 
     # CGS §10.7 deterministic enforcement — the single coercion point (the only layer with BOTH
     # raws in scope, so the sanctioned strategist-or-proposer structural_vs_fad fallback applies,
@@ -134,7 +138,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     strategist_ao = AgentOutput(
         "strategist", sresp.provider, sresp.model, sconf, str(sraw.get("direction", candidate.direction)),
         str(sraw.get("weakest_point", "")) or None, sraw, flagged_unsupported=sfr.flagged,
-        cost_usd=sresp.cost_usd,
+        cost_usd=sresp.cost_usd, flagged_details=tuple(sfr.details),
     )
 
     direction = str(sraw.get("direction", candidate.direction)).strip().lower()

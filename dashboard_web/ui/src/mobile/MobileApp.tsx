@@ -6,7 +6,7 @@ import { Sparkline } from "../components/Sparkline";
 import { Banner, Chip, Skeleton, StaleChip } from "../components/primitives";
 import { OutsideFrameChip, WithLegacy } from "../components/Tails";
 import { WhyNoEntryList, WhyNoEntryTiles } from "../components/WhyNoEntry";
-import { STATE_PRESENT, clusterLevel, directionLabel, isAccruingState, markLevel, relativeAge } from "../data/status";
+import { DRY_MONTHS_LINE, STATE_PRESENT, clusterLevel, directionLabel, isAccruingState, markLevel, relativeAge } from "../data/status";
 import type { ConsoleProps, TailFigure, ViewModel } from "../data/types";
 import { runLabel } from "../data/runLabel";
 import { useCountUp } from "../data/useCountUp";
@@ -109,10 +109,10 @@ function MOverview({ vm }: { vm: ViewModel }) {
 function MSafety({ vm }: { vm: ViewModel }) {
   const c = vm.council;
   const sig = signal[c.vlevel];
-  const tiles: { label: string; value: string; color: string; sub: string; secondary?: { label: string; value: string; sub: string; series?: { equity: number }[] }; asOf?: { label: string | null; stale: boolean } }[] = [
+  const tiles: { label: string; value: string; color: string; sub: React.ReactNode; secondary?: { label: string; value: string; sub: string; series?: { equity: number }[] }; asOf?: { label: string | null; stale: boolean } }[] = [
     { label: "Dramatic book value", value: vm.bookValue, color: color.ink, sub: vm.bookValueSub, asOf: { label: vm.bookAsOf, stale: vm.bookStale },
       secondary: { label: "Broker equity (shared account)", value: vm.equity, sub: vm.deltaFrame, series: vm.equitySeries } },
-    { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: `warn ${vm.ddWarnPct}% · halt 20%` },
+    { label: "Drawdown", value: vm.bookDD, color: signal[vm.bookDDlevel].text, sub: <>warn {vm.ddWarnPct}% · halt {vm.haltPct == null ? "—" : `${vm.haltPct}%`}<br />{vm.ddToHaltLine}<br />{DRY_MONTHS_LINE}</> },
     { label: "Positions", value: `${vm.openN}/${vm.maxN}`, color: color.ink, sub: `${vm.openPrem} at risk` },
     { label: "Headroom", value: vm.headroom, color: signal.ok.text, sub: `of ${vm.bookBudget}` },
   ];
@@ -400,6 +400,7 @@ function MBook({ vm }: { vm: ViewModel }) {
                   <div className="font-mono" style={{ fontSize: 13, fontWeight: 700, color: "#141b28" }}>{p.symbol} <span style={{ fontSize: 9, fontFamily: "Roboto", color: p.dir === "bearish" ? signal.bad.text : signal.ok.text }}>{dirLabel(p.dir)}</span></div>
                   <div style={{ fontSize: 10, color: "#5f6675" }}>{[p.theme, p.conviction, p.dte != null ? `${p.dte}d` : null].filter(Boolean).join(" · ")}</div>
                   {(p.expiry || p.timeStop) && <div className="font-mono" style={{ fontSize: 10, color: "#5f6675" }}>expiry {p.expiry ?? "—"} · time-stop {p.timeStop ?? "—"}</div>}
+                  {p.legs && <div data-testid="m-vertical-legs" className="font-mono" style={{ fontSize: 10, color: "#5f6675", overflowWrap: "anywhere" }}>vertical · long {p.legs.long} ({p.legs.longStrike}) · short {p.legs.short} ({p.legs.shortStrike}) · net debit {p.legs.netDebit}</div>}
                 </div>
                 <div className="text-right font-mono">
                   <div style={{ fontSize: 13, fontWeight: 700, color: lv.text }}>{p.mark != null ? `${p.mark.toFixed(1)}×` : "—"}</div>

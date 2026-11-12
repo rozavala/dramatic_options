@@ -48,30 +48,80 @@ class KillRuleStatus:
     book_drawdown: float
     months_dry: float
     reasons: tuple[str, ...]
+    dry_since: str | None = None      # the dry clock's ET start date (first real fill, or the last payoff close)
+    dry_binds_on: str | None = None   # the ET date the dry leg trips absent a payoff
+
+
+def drawdown_since(config: dict) -> str | None:
+    """The drawdown leg's dated re-anchor (``kill_rule.drawdown_reanchored_on``): one reader for every drawdown caller."""
+    return (config.get("kill_rule") or {}).get("drawdown_reanchored_on")
+
+
+def _add_months(d, n: int):
+    """``d`` plus ``n`` calendar months, the day clamped to the target month's length (01-31 + 1 → 02-28)."""
+    import calendar
+    from datetime import date
+
+    y, m = divmod(d.month - 1 + n, 12)
+    year, month = d.year + y, m + 1
+    return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
+
+
+def _et_date(ts: str):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    return datetime.fromisoformat(str(ts)).astimezone(ZoneInfo("America/New_York")).date()
 
 
 def kill_rule_status(conn, config: dict, clock: Clock) -> KillRuleStatus:
-    """Evaluate the §6 kill rule from state. Halts NEW entries (does not force-close).
+    """Evaluate the §6 kill rule from state (PREREG_THEMATIC_CONVEXITY §6 conformance notes, operator word 2026-11-12).
+    A trip halts NEW real-book entries and the council; it never force-closes. The L0 scan and all four null books keep
+    running (operator word 2026-11-12); only the KILL switch stops them.
 
-    T1 scope: book-drawdown is computed from position *marks* when present (NULL marks →
-    no drawdown yet, since T1 does not mark-to-market — that lands with position tracking in
-    Phase 2). ``months_dry`` is surfaced for visibility but does not trip until realized
-    payoff tracking exists. The check is wired and called every cycle so it activates
-    automatically once marks/outcomes are recorded.
-    """
+    - **Drawdown leg:** the cumulative net loss since the first real fill ÷ the premium budget
+      (``state.convexity_book_drawdown``) ≥ ``kill_rule.book_drawdown_halt``.
+    - **Dry leg:** ``kill_rule.dry_months_halt`` calendar months (US-Eastern dates) since the first real fill, or since
+      the last real close with ``realized_pnl > 0`` if later. Off while ``dry_months_halt`` is absent or no real
+      position has filled. A state read that fails raises, so the cycle fails closed.
+    - **Release:** a payoff close, a mark recovery, or the operator's dated re-anchor keys
+      (``kill_rule.dry_clock_reanchored_on`` / ``drawdown_reanchored_on``; each moves ``frame_version``)."""
     kr = config.get("kill_rule", {})
     book = config.get("convexity_book", {})
     dd_halt = float(kr.get("book_drawdown_halt", 0.20))
     book_budget = float(book.get("account_equity", 0.0)) * float(book.get("book_fraction", 0.0))
 
-    book_dd, _have_marks = state.convexity_book_drawdown(conn, book_budget)
+    book_dd, _have_marks = state.convexity_book_drawdown(conn, book_budget, since=drawdown_since(config))
 
     reasons: list[str] = []
     tripped = False
     if book_dd >= dd_halt:
         tripped = True
         reasons.append(f"book drawdown {book_dd:.0%} >= {dd_halt:.0%}")
-    return KillRuleStatus(tripped=tripped, book_drawdown=book_dd, months_dry=0.0, reasons=tuple(reasons))
+
+    months_dry, dry_since, dry_binds_on = 0.0, None, None
+    dry_halt = kr.get("dry_months_halt")
+    first_fill, last_payoff = state.real_book_dry_clock(conn)
+    if dry_halt is not None and first_fill:
+        today_et = _et_date(clock.now().isoformat())
+        start = max(_et_date(first_fill), _et_date(last_payoff)) if last_payoff else _et_date(first_fill)
+        if kr.get("dry_clock_reanchored_on"):   # the operator's dated re-anchor after a review (a frame boundary)
+            from datetime import date
+            anchor = date.fromisoformat(str(kr["dry_clock_reanchored_on"]))   # malformed → raises (fail-closed)
+            if anchor > today_et:
+                raise ValueError(f"kill_rule.dry_clock_reanchored_on {anchor} is in the future (would park the clock)")
+            start = max(start, anchor)
+        today = today_et
+        binds = _add_months(start, int(dry_halt))
+        whole = (today.year - start.year) * 12 + (today.month - start.month) - (1 if today.day < start.day else 0)
+        # on or after the bind day the clock reads at least the limit (a month-end start clamps the bind day earlier)
+        months_dry = float(max(0, whole, int(dry_halt) if today >= binds else 0))
+        dry_since, dry_binds_on = start.isoformat(), binds.isoformat()
+        if today >= binds:
+            tripped = True
+            reasons.append(f"book dry since {dry_since} (>= {int(dry_halt)} months, no realized payoff)")
+    return KillRuleStatus(tripped=tripped, book_drawdown=book_dd, months_dry=months_dry, reasons=tuple(reasons),
+                          dry_since=dry_since, dry_binds_on=dry_binds_on)
 
 
 def run_paper_cycle(
@@ -168,10 +218,31 @@ def run_paper_cycle(
     dualread_veto_active = _dualread.disagree_veto_active(config, as_of)
     entitlement_paged = False
 
+    # PREREG §5 amendment 2026-11-03 (ranked backfill): the weekly quota, computed once per cycle and spent as backfill
+    # entries open. A carry attempt (walk) is the same approved entry, so it never draws on the quota again.
+    backfill_left: int | None = None
+
     for theme in themes:
         if not theme.active:
             continue
         result.evaluated += 1
+        is_backfill = theme.entry_origin == "backfill" and walk is None
+        if is_backfill:
+            if backfill_left is None:
+                import backfill as _backfill
+
+                cfg_bf = _backfill.settings(config)
+                backfill_left = (0 if cfg_bf is None
+                                 else cfg_bf.per_week - _backfill.used_this_week(conn, now=as_of_dt))
+            if backfill_left <= 0:
+                result.skipped += 1
+                state.record_convexity_eval(
+                    conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+                    direction=theme.direction, decision="skip-backfill-quota", proposal_id=theme.proposal_id,
+                    reasons=["the week's backfill entry is already taken (or backfill is off)"],
+                )
+                continue
+        opened_before = result.opened
         if theme.symbol in open_syms:
             result.skipped += 1
             state.record_convexity_eval(
@@ -190,6 +261,8 @@ def run_paper_cycle(
                 shadow_provider=shadow_provider, dualread_veto_active=dualread_veto_active,
                 walk=(walk or {}).get(theme.symbol),
             )
+            if is_backfill and result.opened > opened_before:
+                backfill_left -= 1
         except Exception as e:  # noqa: BLE001 — fail-closed: log, never open on error
             result.errors += 1
             # PREREG_DATA_FEED_OPRA_SEQUENCING §7: an ENTITLEMENT lapse on the premium gate feed is
@@ -324,7 +397,7 @@ def _process_theme(
         as_of=as_of,
         underlying_price=underlying_price,
         underlying_symbol=theme.symbol,
-        require_otm_side=bool(gate.get("otm_side_guard", False)),
+        require_otm_side=bool(gate.get("otm_side_guard", False)), min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0),
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)),
@@ -338,6 +411,12 @@ def _process_theme(
             proposal_id=theme.proposal_id, reasons=list(sreasons),
         )
         return
+    # #417: when a contract nearer the target strike was refused, say why on every row this evaluation writes.
+    selection = ({"refused_nearer": [{"contract": sym, "reasons": list(why)} for sym, why in structure.refused_nearer]}
+                 if structure.refused_nearer else None)
+    if selection:
+        log.info("Strike fallback %s: chose %s; nearer refused %s", theme.symbol, structure.contract.symbol,
+                 "; ".join(f"{sym} ({', '.join(why)})" for sym, why in structure.refused_nearer))
 
     # 2. The IV / cheap-convexity gate (the hard veto).
     verdict = is_cheap_convexity(
@@ -382,7 +461,7 @@ def _process_theme(
             conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
             direction=theme.direction, eligible=True, gate_cheap=False,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
-            decision="veto-iv-gate", proposal_id=theme.proposal_id, reasons=list(verdict.reasons),
+            decision="veto-iv-gate", proposal_id=theme.proposal_id, reasons=list(verdict.reasons), selection=selection,
         )
         return
 
@@ -398,7 +477,27 @@ def _process_theme(
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-dualread-disagree", proposal_id=theme.proposal_id,
-            reasons=[f"OPRA cheap but INDICATIVE shadow disagrees: {shadow_row}"],
+            reasons=[f"OPRA cheap but INDICATIVE shadow disagrees: {shadow_row}"], selection=selection,
+        )
+        return
+
+    # 2c. Over-cap call vertical (PREREG §5 amendment 2026-11-03b; inert unless
+    # convexity_gate.vertical_for_over_cap.enabled). A bullish name whose ONE naked contract exceeds the per-name cap
+    # is expressed as long this gated wing / short ≈+75%; the NET debit is then the premium-at-risk for every cap.
+    import verticals
+
+    vert, vwhy = verticals.maybe_vertical(
+        chain, structure, config=config, direction=theme.direction, underlying_price=underlying_price,
+        eligibility=eligibility, symbol=theme.symbol,
+        per_name_cap=account_equity * float(book.get("per_name_fraction", 0.01)))
+    if vwhy is not None:
+        result.vetoed += 1
+        state.record_convexity_eval(
+            conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
+            direction=theme.direction, eligible=True, gate_cheap=True,
+            iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
+            decision="veto-vertical", proposal_id=theme.proposal_id,
+            reasons=[f"naked contract over the per-name cap and no vertical: {vwhy}"], selection=selection,
         )
         return
 
@@ -410,7 +509,10 @@ def _process_theme(
     # The entry limit: mid for an L1 entry; for a carried attempt (#386) the walk price — mid + fraction × (ask − mid),
     # never above the ask. Sizing and every cap below use THIS price, so a walked limit can only shrink the order.
     entry_px = structure.entry_premium
-    if walk is not None:
+    if vert is not None:   # the vertical's mid debit; a carry walks it toward the natural debit (long ask − short bid)
+        entry_px = (verticals.walk_limit(vert, float(walk.get("fraction", 0.0))) if walk is not None
+                    else round(vert.net_debit, 2))
+    elif walk is not None:
         ask = structure.contract.ask
         frac = min(max(float(walk.get("fraction", 0.0)), 0.0), 1.0)
         if ask is not None and ask > entry_px:
@@ -424,7 +526,7 @@ def _process_theme(
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-cluster-cap", proposal_id=theme.proposal_id,
             reasons=[f"cluster {cluster!r} budget ${cluster_remaining:.0f} < one contract ${premium_per_contract:.0f}"],
-            cluster_state=cluster_state,
+            cluster_state=cluster_state, selection=selection,
         )
         return
 
@@ -447,7 +549,7 @@ def _process_theme(
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
             decision="veto-sizing", proposal_id=theme.proposal_id, reasons=list(sizing.reasons),
-            cluster_state=cluster_state,
+            cluster_state=cluster_state, selection=selection,
         )
         return
 
@@ -456,18 +558,25 @@ def _process_theme(
     # project's journal explains. A mismatch (another project holds it) or an unreadable venue → no entry.
     # A broker with no venue (the simulated PaperBroker) has no ``venue_quantity`` and skips the check.
     if callable(getattr(broker, "venue_quantity", None)):
-        venue_qty = broker.venue_quantity(structure.contract.symbol)
-        journal_qty = state.journal_contract_quantity(conn, structure.contract.symbol)
-        if venue_qty is None or venue_qty != journal_qty:
+        # a vertical reads BOTH contracts (the short leg is a negative venue quantity the journal must explain)
+        why = None
+        for leg in ([structure.contract.symbol] + ([vert.short.symbol] if vert is not None else [])):
+            venue_qty = broker.venue_quantity(leg)
+            journal_qty = state.journal_contract_quantity(conn, leg)
+            if venue_qty is None or venue_qty != journal_qty:
+                why = ("venue quantity unreadable" if venue_qty is None
+                       else f"venue holds {venue_qty} but this journal explains {journal_qty}")
+                if leg != structure.contract.symbol:
+                    why = f"short leg {leg}: {why}"
+                break
+        if why is not None:
             result.vetoed += 1
-            why = ("venue quantity unreadable" if venue_qty is None
-                   else f"venue holds {venue_qty} but this journal explains {journal_qty}")
             state.record_convexity_eval(
                 conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
                 direction=theme.direction, eligible=True, gate_cheap=True,
                 iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
                 decision="veto-foreign-quantity", proposal_id=theme.proposal_id,
-                reasons=[f"{structure.contract.symbol}: {why} (shared account, fail-closed)"],
+                reasons=[f"{structure.contract.symbol}: {why} (shared account, fail-closed)"], selection=selection,
             )
             log.error("foreign-quantity veto %s: %s", structure.contract.symbol, why)
             try:
@@ -479,21 +588,40 @@ def _process_theme(
                 log.warning("foreign-quantity page failed to send")
             return
 
-    # 4. Paper fill (simulated at mid).
-    fill = broker.submit_paper(
-        contract_symbol=structure.contract.symbol, qty=sizing.contracts, side="buy",
-        limit_price=entry_px,
-        client_order_id=make_client_order_id("open", structure.contract.symbol, str(as_of))
-        + (f"-c{int(walk['step'])}" if walk is not None else ""),
-    )
+    # 4. Paper fill (simulated at mid). A vertical is ONE atomic multi-leg order, never legged.
+    coid = (make_client_order_id("open", structure.contract.symbol, str(as_of))
+            + (f"-c{int(walk['step'])}" if walk is not None else ""))
+    if vert is not None:
+        if not callable(getattr(broker, "submit_spread", None)):
+            from broker import Fill
+
+            fill = Fill(False, 0.0, 0, "broker has no multi-leg order path (fail-closed)")
+        else:
+            fill = broker.submit_spread(long_symbol=structure.contract.symbol, short_symbol=vert.short.symbol,
+                                        qty=sizing.contracts, action="open", limit_price=entry_px,
+                                        client_order_id=coid)
+    else:
+        fill = broker.submit_paper(
+            contract_symbol=structure.contract.symbol, qty=sizing.contracts, side="buy",
+            limit_price=entry_px, client_order_id=coid,
+        )
     if not fill.filled:
         result.vetoed += 1
         state.record_convexity_eval(
             conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
             direction=theme.direction, eligible=True, gate_cheap=True,
             iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
-            decision="veto-fill", proposal_id=theme.proposal_id, reasons=[fill.note],
+            decision="veto-fill", proposal_id=theme.proposal_id, reasons=[fill.note], selection=selection,
         )
+        if vert is not None:   # a refused multi-leg open (e.g. the account's options level) must not be silent
+            try:
+                import notify
+
+                notify.send("VERTICAL ORDER REFUSED",
+                            f"{theme.symbol} +{structure.contract.symbol}/-{vert.short.symbol} {sizing.contracts}x "
+                            f"@ {entry_px:.2f} debit: {fill.note}", priority=1)
+            except Exception:  # noqa: BLE001 — paging never breaks the cycle
+                log.warning("vertical refusal page failed to send")
         return
 
     # 5. Log the paper position + the survivorship-log row.
@@ -510,6 +638,13 @@ def _process_theme(
         "rv": verdict.rv, "atm_iv": verdict.atm_iv, "wing_iv": verdict.wing_iv,
         "quote": q,
     }
+    if theme.entry_origin:
+        rationale["origin"] = theme.entry_origin   # PREREG §5 amendment 2026-11-03: scored apart (real_by_origin)
+    if vert is not None:
+        rationale["vertical"] = {"short": vert.short.symbol, "short_strike": vert.short.strike,
+                                 "short_moneyness": round(vert.short_moneyness, 4), "width": vert.width,
+                                 "naked_premium": round(structure.entry_premium, 4),
+                                 "short_quote": _quote(vert.short)}
     if walk is not None:
         rationale["carry"] = {"of": walk.get("intent_id"), "step": int(walk.get("step", 0)), "limit": entry_px}
     pos_id = state.record_convexity_position(
@@ -521,6 +656,8 @@ def _process_theme(
         total_premium=fill_premium_per_contract * sizing.contracts, rationale=rationale,
         status=status, order_id=getattr(fill, "order_id", None),
         proposal_id=theme.proposal_id, entry_spot=underlying_price,
+        short_contract_symbol=(vert.short.symbol if vert is not None else None),
+        short_strike=(vert.short.strike if vert is not None else None),
     )
     # Link the council proposal to the position it became (T2 forward-scoring substrate).
     if theme.proposal_id is not None:
@@ -534,7 +671,7 @@ def _process_theme(
         direction=theme.direction, eligible=True, gate_cheap=True,
         iv_rv=verdict.iv_rv_ratio, otm_skew=verdict.otm_skew_volpts,
         decision=(("carry-" if walk is not None else "") + ("submit-pending" if pending else "open")), position_id=pos_id,
-        proposal_id=theme.proposal_id, reasons=list(verdict.reasons), cluster_state=cluster_state,
+        proposal_id=theme.proposal_id, reasons=list(verdict.reasons), cluster_state=cluster_state, selection=selection,
     )
     result.opened += 1
     result.opened_ids.append(pos_id)
@@ -550,8 +687,10 @@ def _process_theme(
         try:
             import notify
 
+            legs = (f"+{structure.contract.symbol}/-{vert.short.symbol} (vertical, net debit)" if vert is not None
+                    else structure.contract.symbol)
             notify.send("REAL-BOOK ORDER SUBMITTED",
-                        f"#{pos_id} {theme.symbol} {sizing.contracts}x {structure.contract.symbol} LIMIT "
+                        f"#{pos_id} {theme.symbol} {sizing.contracts}x {legs} LIMIT "
                         f"{fill.price:.2f} (${fill_premium_per_contract * sizing.contracts:,.0f}); quote "
                         f"{q['bid']}/{q['ask']} spread {q['spread_pct']}%. Reconciles at the next L2.")
         except Exception:  # noqa: BLE001 — paging never breaks the cycle

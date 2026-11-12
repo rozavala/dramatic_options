@@ -30,6 +30,14 @@ that differs from the newest banner is a FINDING unless STANDING_STATE records a
    `under_narrated` / `at_inflection` flags; classify rejections (timing / narration / contradicting fundamentals);
    count `at_inflection=false` of deliberated. Report any name the newest banner or STANDING_STATE asks to watch
    (new admissions' first council reads, repeated reads).
+   Persistence (STANDING_STATE watch, 2026-11-04, amended 2026-11-09 to the next 3 reads): for every real-book entry
+   whose name was read tonight within its first 3 reads since entry, report that read (at/above the floor, or for a
+   backfill entry `include = true` at ≥ LOW) and the entry's tally so far. Reads start strictly after the entry's own
+   run; an abstained or NEUTRAL read counts as below. Decided at 2 agreeing reads: 2 at/above ⇒ persisted, 2 below ⇒
+   reversed (a 3rd read after a decision is reported but never changes it). A name that goes dormant before a
+   decision is "not measurable" and stays out of the count unless it is read again. Continue the running count from
+   STANDING_STATE's watch line: decided real entries (the first 5 are the trigger's denominator) against the pinned
+   trigger, with backfill entries reported beside it, not in it.
    Running tallies (continue the newest banner's counts, by ROLE): register-thesis consensus-leak, falsifier misuse,
    misattributed claims (check `flagged_unsupported`), productive uses; marker-refresh reads (fresh-as-current /
    at_surfacing misread / since-surfacing contrast; quote any verdict flip). Driver scope (criterion 3, STANDING_STATE):
@@ -45,7 +53,9 @@ that differs from the newest banner is a FINDING unless STANDING_STATE records a
 3. Box: live checkout HEAD = origin/main; no failed units; the app answers 200 at
    https://all-options-dev.tail57521e.ts.net:8602/; installed `/etc/systemd/system/dramatic-options-l{0,1,2}.service`
    ExecStart is `-m orchestrator`; `PYTHONPATH=. venv/bin/python scripts/ops/standing_state_issues.py` (read-only,
-   #371): a DRIFT line (an open issue STANDING_STATE doesn't list, or a wrong count) is a finding; quote the line.
+   #371): a DRIFT line (an open issue STANDING_STATE doesn't list) is a finding only for an issue filed before the
+   `as_of` in STANDING_STATE's header (compare `gh issue view N --json createdAt`); one filed since is information
+   (the Sunday review lists it). Quote the line.
 4. Prepend ONE dated banner to the memory file (same format and density as the newest one; insert it directly above
    the newest banner, never edit older ones).
 5. Final message: a concise plain-prose report for the operator. End with exactly one line:

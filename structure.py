@@ -31,6 +31,9 @@ class Structure:
     moneyness: float     # signed (strike − spot)/spot
     entry_premium: float  # per share (mid); per-contract debit = ×100
     max_loss: float       # = entry_premium per share (defined risk)
+    # #417: eligibility-refused contracts that ranked AHEAD of the chosen one (nearer the target strike), up to 3,
+    # each (symbol, reasons). Empty when the target-nearest contract was itself chosen. Record-only.
+    refused_nearer: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
 def mid_price(c: Contract) -> float | None:
@@ -92,6 +95,11 @@ def is_wrong_side(kind: str | None, moneyness: float | None) -> bool:
 OUTSIDE_FRAME_SQL = "((structure_kind = 'C' AND moneyness <= 0) OR (structure_kind = 'P' AND moneyness >= 0))"
 
 
+def _otm_by(c: Contract, kind: str, underlying_price: float) -> float:
+    """How far out of the money ``c`` is on the thesis side, as a fraction of spot (negative = in the money)."""
+    return (c.strike - underlying_price) / underlying_price if kind == "C" else (underlying_price - c.strike) / underlying_price
+
+
 def select_structure(
     chain: list[Contract],
     *,
@@ -104,6 +112,7 @@ def select_structure(
     eligibility: Callable[[Contract], tuple[bool, tuple[str, ...]]],
     underlying_symbol: str | None = None,
     require_otm_side: bool = False,
+    min_otm_moneyness: float = 0.0,
 ) -> tuple[Structure | None, tuple[str, ...]]:
     """Pick the defined-risk long option closest to the target OTM strike within the tenor
     window, among eligible contracts. Returns (Structure, ()) or (None, reasons).
@@ -111,6 +120,11 @@ def select_structure(
     ``require_otm_side`` (issue #276; callers pass ``convexity_gate.otm_side_guard``, default OFF =
     byte-identical): drop wrong-side candidates before choosing, and fail closed when only in-the-money
     contracts are eligible.
+
+    ``min_otm_moneyness`` (#416; callers pass ``convexity_gate.min_otm_moneyness``, default 0 = byte-identical): keep
+    only candidates at least this far out of the money (achieved |strike − spot| / spot, on the thesis side), and fail
+    closed when none is. The frame is far-OTM; a fallback to a near-money strike (TITN C25 at 7% on 2026-11-03) is a
+    different payoff shape, not a nearer approximation of the target.
 
     ``underlying_symbol`` (pass it everywhere a symbol is known): contracts whose OCC root ≠
     the underlying ticker are EXCLUDED — adjusted classes carry non-standard deliverables (the
@@ -120,6 +134,10 @@ def select_structure(
     kind = DIRECTION_KIND.get(direction)
     if kind is None:
         return None, (f"bad_direction:{direction}",)
+    # #437: a chain with no contract at ANY expiry is a dead or halted underlying (ATKR after its take-private:
+    # expiries=[] beside a frozen spot), not a name between expiries; say so instead of "not in the tenor window".
+    if not chain:
+        return None, ("empty_chain",)
     if not underlying_price or underlying_price <= 0:
         return None, ("no_underlying_price",)
 
@@ -130,6 +148,7 @@ def select_structure(
     tenor_mid = (tenor_min_days + tenor_max_days) / 2.0
 
     cands: list[tuple[Contract, int]] = []
+    refused: list[tuple[Contract, int, tuple[str, ...]]] = []
     for c in chain:
         if c.kind != kind:
             continue
@@ -138,8 +157,9 @@ def select_structure(
         dte = (c.expiry - as_of).days
         if dte < tenor_min_days or dte > tenor_max_days:
             continue
-        ok, _ = eligibility(c)
+        ok, why = eligibility(c)
         if not ok:
+            refused.append((c, dte, tuple(why)))
             continue
         cands.append((c, dte))
 
@@ -155,10 +175,29 @@ def select_structure(
         if not otm:
             return None, ("no_otm_eligible_contract_in_tenor_window",)
         cands = otm
+    if min_otm_moneyness > 0:
+        far = [(c, d) for (c, d) in cands if _otm_by(c, kind, underlying_price) >= min_otm_moneyness - SPREAD_LIMIT_EPS]
+        if not far:
+            return None, ("no_eligible_contract_beyond_min_moneyness",)
+        cands = far
 
-    c, dte = min(cands, key=lambda t: (abs(t[0].strike - target_strike), abs(t[1] - tenor_mid)))
+    def rank(con: Contract, d: int) -> tuple[float, float]:
+        return abs(con.strike - target_strike), abs(d - tenor_mid)
+
+    c, dte = min(cands, key=lambda t: rank(*t))
     m = mid_price(c)
     if m is None or m <= 0:
         return None, ("chosen_contract_no_mid",)
     moneyness = (c.strike - underlying_price) / underlying_price
-    return Structure(direction, kind, c, dte, moneyness, m, m), ()
+    chosen = rank(c, dte)
+    # "<=": an exact tie that lost only to chain order still counts (refused and cands are disjoint, so the chosen
+    # contract never lists itself). Under the side guard a wrong-side refusal could never have been chosen: leave it out.
+    def otm_side(con: Contract) -> bool:
+        return con.strike > underlying_price if kind == "C" else con.strike < underlying_price
+
+    nearer = sorted((t for t in refused if rank(t[0], t[1]) <= chosen and (not require_otm_side or otm_side(t[0]))
+                     and (min_otm_moneyness <= 0
+                          or _otm_by(t[0], kind, underlying_price) >= min_otm_moneyness - SPREAD_LIMIT_EPS)),
+                    key=lambda t: rank(t[0], t[1]))[:3]
+    return Structure(direction, kind, c, dte, moneyness, m, m,
+                     refused_nearer=tuple((r[0].symbol, r[2]) for r in nearer)), ()

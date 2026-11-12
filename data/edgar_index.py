@@ -19,7 +19,7 @@ Coverage-only / no-lookahead notes:
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -78,6 +78,18 @@ def parse_form_index(text: str, *, form: str = "424B5") -> list[dict[str, Any]]:
     return out
 
 
+# EDGAR rebuilds a quarter's full-index nightly while the quarter is open; the last day's filings land after it closes.
+_INDEX_SETTLE = timedelta(days=2)
+
+
+def _complete(path: Path, year: int, quarter: int) -> bool:
+    """A cached quarter index is final only if it was written after the quarter closed (plus the settle margin). One
+    fetched mid-quarter (2026q2 was cached 06-30 06:46, before that day's filings) is refetched instead of being
+    reused forever (#408)."""
+    nxt = datetime(year + quarter // 4, quarter % 4 * 3 + 1, 1, tzinfo=UTC)
+    return datetime.fromtimestamp(path.stat().st_mtime, UTC) >= nxt + _INDEX_SETTLE
+
+
 class EdgarIndex:
     """Enumerate 424B5 events from the quarterly full-index, with disk + point-in-time cache.
 
@@ -106,7 +118,9 @@ class EdgarIndex:
 
     def _quarter_text(self, year: int, quarter: int) -> str | None:
         path = self.raw_dir / f"{year}q{quarter}_form.idx"
-        if path.exists():
+        # A partial quarter is refetched when we can; offline (or with no client) the cached text is still better
+        # than nothing, as before.
+        if path.exists() and (_complete(path, year, quarter) or self.edgar is None or self.cache.offline):
             return path.read_text(encoding="latin-1")
         if self.edgar is None or self.cache.offline:
             return None

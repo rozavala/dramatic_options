@@ -40,7 +40,7 @@ def disagree_veto_active(config: dict, as_of: date) -> bool:
 
 
 def shadow_gate_eval(provider, *, symbol: str, direction: str, rv, underlying_price,
-                     gate: dict, eligibility, as_of: date | None = None) -> dict:
+                     gate: dict, eligibility, as_of: date | None = None, chain_sink=None) -> dict:
     """One arm's gate read with the SAME rv/spot as the of-record evaluation (isolates the option
     feed). Returns a row dict; an exception is the CALLER's to catch (it becomes a note row).
 
@@ -48,8 +48,16 @@ def shadow_gate_eval(provider, *, symbol: str, direction: str, rv, underlying_pr
     its own ``as_of_iso`` date so the read is anchored on the cycle's clock, not the wall clock —
     live they coincide; under a fixed test clock the wall-clock default silently aged every
     synthetic contract out of the tenor window (the 2026-09-13 CI failure, 95 days after the
-    fixture's AS_OF). Default (None) keeps the wall-clock behaviour for legacy callers."""
+    fixture's AS_OF). Default (None) keeps the wall-clock behaviour for legacy callers.
+
+    ``chain_sink`` (D4, 2026-11-03): called with the fetched chain before the gate read, so the sweep can record
+    the IV term structure without a second fetch. Telemetry: a sink error never changes the gate read."""
     chain = provider.chain(symbol)
+    if chain_sink is not None:
+        try:
+            chain_sink(chain)
+        except Exception as e:  # noqa: BLE001 — telemetry never touches the gate read
+            log.warning("chain sink failed for %s (non-fatal): %s", symbol, e)
     s, why = select_structure(
         chain, direction=direction, as_of=as_of or datetime.now().astimezone().date(),
         underlying_price=underlying_price,
@@ -57,7 +65,7 @@ def shadow_gate_eval(provider, *, symbol: str, direction: str, rv, underlying_pr
         tenor_min_days=int(gate.get("tenor_min_days", 180)),
         tenor_max_days=int(gate.get("tenor_max_days", 365)),
         target_moneyness=float(gate.get("target_moneyness", 0.25)),
-        require_otm_side=bool(gate.get("otm_side_guard", False)),
+        require_otm_side=bool(gate.get("otm_side_guard", False)), min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0),
         eligibility=eligibility,
     )
     if s is None:
@@ -97,14 +105,20 @@ def record_arm(conn, *, run_id, as_of_iso: str, symbol: str, feed: str, source: 
 
 
 def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, provider_shadow,
-                   market_closes, gate: dict, eligibility, skip: set[str] | None = None) -> dict:
+                   market_closes, gate: dict, eligibility, skip: set[str] | None = None,
+                   term_cache=None) -> dict:
     """The §5 tripwire-population sweep (post-entries, fail-soft). ``market_closes(sym)`` supplies
-    the closes for RV; ``skip`` = names already dual-read inline this run. Returns counts."""
+    the closes for RV; ``skip`` = names already dual-read inline this run. Returns counts.
+
+    ``term_cache`` (D4, 2026-11-03): when given, the OPRA arm's chain is summarized into the compact
+    ``iv_term_snapshot`` record (iv_history.py) for every swept name. Fail-soft; counted as ``term_ok``."""
     sweep_as_of = date.fromisoformat(str(as_of_iso)[:10])  # the cycle's clock anchors the tenor read
     from convexity_gate import realized_vol
 
     skip = {s.upper() for s in (skip or set())}
     counts = {"swept": 0, "record_ok": 0, "shadow_ok": 0, "errors": 0}
+    if term_cache is not None:
+        counts["term_ok"] = 0
     rv_window = int(gate.get("rv_window_days", 252))
     for sym in symbols:
         sym = sym.upper()
@@ -127,11 +141,21 @@ def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, pr
             record_arm(conn, run_id=run_id, as_of_iso=as_of_iso, symbol=sym, feed="opra",
                        source="sweep", error=classify_error_note(e))
             continue
+        sink = None
+        if term_cache is not None:
+            def sink(chain, _sym=sym, _spot=spot, _rv=rv):
+                import iv_history
+
+                as_of_dt = datetime.fromisoformat(str(as_of_iso))
+                iv_history.persist_term_record(
+                    term_cache, iv_history.term_record(_sym, chain, spot=_spot, rv=_rv, as_of_dt=as_of_dt), as_of_dt)
+                counts["term_ok"] += 1
         for feed, prov, ok_key in (("opra", provider_record, "record_ok"),
                                    ("indicative", provider_shadow, "shadow_ok")):
             try:
                 row = shadow_gate_eval(prov, symbol=sym, direction=direction, rv=rv,
-                                       underlying_price=spot, gate=gate, eligibility=eligibility, as_of=sweep_as_of)
+                                       underlying_price=spot, gate=gate, eligibility=eligibility, as_of=sweep_as_of,
+                                       chain_sink=(sink if feed == "opra" else None))
                 record_arm(conn, run_id=run_id, as_of_iso=as_of_iso, symbol=sym, feed=feed,
                            source="sweep", row=row)
                 if row.get("structured"):

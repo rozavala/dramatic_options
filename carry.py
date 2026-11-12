@@ -134,7 +134,8 @@ def cancel_and_settle(broker, order_id: str) -> dict | None:
 def confirm_fill(conn, pos, info: dict, now_iso: str) -> None:
     """Flip a 'pending' row to 'open' at the broker's fill price and filled quantity (a partial fill opens only what
     filled), and page it."""
-    price = float(info.get("filled_avg_price") or pos["entry_premium_per_contract"] / CONTRACT_MULTIPLIER)
+    # abs(): a multi-leg (vertical) order may report its net price signed; a single leg is always positive.
+    price = abs(float(info.get("filled_avg_price") or pos["entry_premium_per_contract"] / CONTRACT_MULTIPLIER))
     per_contract = price * CONTRACT_MULTIPLIER
     q = filled_qty(info) or int(pos["contracts"])
     state.confirm_convexity_fill(conn, int(pos["id"]), entry_premium_per_contract=per_contract,
@@ -243,7 +244,8 @@ def work_carried(conn, *, config: dict, clock, provider, broker, run_id, chain_c
         sentinel_id = sid[0] if sid else None
         theme = Theme(name=intent["theme"], symbol=intent["symbol"], direction=intent["direction"],
                       thesis=str(rat.get("thesis") or ""), proposal_id=intent["proposal_id"],
-                      source="sentinel" if sentinel_id is not None else "hand-seed", sentinel_id=sentinel_id)
+                      source="sentinel" if sentinel_id is not None else "hand-seed", sentinel_id=sentinel_id,
+                      entry_origin=rat.get("origin"))   # a backfill stays labelled through its carry
         res = run_paper_cycle(config=config, conn=conn, clock=clock, provider=provider, broker=broker,
                               themes=[theme], run_id=run_id, chain_cache=chain_cache, shadow_provider=shadow_provider,
                               walk={theme.symbol: {"intent_id": int(intent["id"]), "step": k,

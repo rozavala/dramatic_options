@@ -117,6 +117,33 @@ changes `frame_version` and therefore starts a new recorded segment. The six pre
 positions are retained and tagged outside-frame; tail reports show both with and without those positions.
 Confirmed directly by the operator in session on 2026-09-30 ("Go ahead"). Follow-up PR: tests for the tagging, and the dashboard performance panel lists the tagged positions (`outside_frame`).
 
+<!-- #416 minimum-moneyness amendment -->
+**Minimum-moneyness amendment (2026-11-04, operator word: "Adopt both the 15% floor and A+B+C at the 11-12
+boundary"; #416).** The selector also reads `config.json:convexity_gate.min_otm_moneyness = 0.15`: it admits only
+contracts at least **15% out of the money** (achieved, on the thesis side: `(strike − spot)/spot` for a call,
+`(spot − strike)/spot` for a put) and fails closed with no structure (`no_eligible_contract_beyond_min_moneyness`)
+when none is eligible. It runs after the side guard; the target stays `target_moneyness = 0.25` and the choice
+among admitted contracts stays nearest-to-target.
+- **Why:** on L1 #1918 (2026-11-03) the first ranked-backfill entry, TITN, had its ~28%-OTM wing refused by
+  eligibility, and the nearest-eligible fallback bought C25 at **7% OTM** (17.8% of spot), a different payoff shape
+  from the far-OTM frame. Its cheapness verdict passed only because the strike moved (C30 iv/rv 1.086 on 11-02, C25
+  0.96). It was the only entry below 15% on any book since the side guard (2026-09-30). This is option 2 of #276
+  in its floor-only form; no 35% ceiling (nothing has entered above 35%).
+- **Scope:** every book and gate path that already reads the side guard: real (`paper_loop`), shadow, 3A and 3B
+  (`fixed_basket`), shares, the gate dual-read record and the cheapness watch, so the nulls stay comparable. Out of
+  scope: the survivor cards (their admission band already requires an achieved 15–35%) and the weekly sweeps
+  (PREREG_MISS_BASERATE and the basket gate base-rate; their frozen definitions change only by their own dated note).
+- **Boundary:** `frame-f86f37a0bd4f` → `frame-880e893e1660` from the first L1 after deploy. Positions already open
+  are retained in their own frame segment (none on the real book is below 15%; the null books' 8 near-money
+  positions are untouched, and the six #276 wrong-side positions keep their outside-frame tag).
+- **Consequence for the slate, stated:** the gate-of-record reads apply the floor too. On L1 #1935 (11-04), 5–7 of
+  38 structured names' gate-of-record wings were below 15% OTM, all of them cheap (FIG, KLAR, LHX, NOC, NTSK; LUNR
+  and VRT on the day's closes). Each either re-selects a farther eligible strike or becomes unexpressible, which
+  demotes it in the council slate and removes it from the cheap reserve. The two weekly sweeps keep their frozen
+  definitions until their own dated notes (#427).
+- **Unchanged:** `target_moneyness`, the tenor window, eligibility thresholds, the IV gate, sizing, the caps, the
+  carry-over and the backfill rules.
+
 
 **Data-provenance amendment (2026-06-08) — `equity_bars` IEX→SIP (the data-feed upgrade, PR1).** The
 gate's `RV_h` is computed from daily closes; PR1 moves those closes from the free **IEX** feed (~2–3% of
@@ -203,6 +230,93 @@ entry-premium cap**:
 This only **tightens** the frame (the lowest-risk §5 edit) and makes no edge claim — pure concentration
 risk-control. Converged over the operator's R2/R3/R4 plan red-team. *(Operator-authorized 2026-06-03.)*
 
+**Amendment 2026-11-03 — ranked backfill for an idle book (operator word 2026-11-03, "follow your suggested
+steps"; draft D1 in `records/2026-11-03_profit_program_DRAFTS.md`).** *Written before the code.* The book
+held 1 of 15 slots for months; three above-floor verdicts since July. With a skewed payoff the number of
+independent shots sets the odds of a large winner (Bessembinder 2018), and the council's value over
+brain-off is not yet measured (the null hierarchy's "council (real − shadow)" step has no matured data).
+This adds one labelled entry path that fills idle slots from the council's own ranking, inside the
+unchanged gates:
+
+- **Inert until switched on.** Active only when `convexity_book.backfill` exists with `enabled: true`.
+  An absent block is off, so merging the code changes nothing. The dated config edit that adds the block
+  is the single `frame_version` boundary (the hash covers `convexity_book`).
+- **Trigger (deterministic, from state):** committed slots now (open + closing + pending + carried) ≤
+  `max_open_positions − empty_slots_min` (10 ⇒ ≤ 5 committed), **and** the most committed slots on any
+  day of the trailing `lookback_days` (28) was also ≤ that.
+- **Quota:** at most `per_week` (1) backfill entry per trailing 7 days, counting every backfill order that
+  holds or held exposure or a working order. A carry attempt of an approved backfill is the same entry,
+  never a second one.
+- **Pool:** this L1's council proposals that did **not** clear the floor and tri-criteria, with
+  `structural_vs_fad = structural` and conviction ≥ LOW (NEUTRAL = abstain or parse failure, never
+  eligible). Direction coherence has already been applied upstream.
+- **Rank (deterministic):** number of the three criteria the strategist asserted true (desc), then
+  conviction (desc), then the latest fresh gate-of-record IV/RV (asc; a name without a fresh cheap read
+  ranks after every name with one), then symbol. The top `candidates` (3) go to the gates **after** every
+  above-floor name; the first to clear every gate is the week's entry.
+- **Everything else is unchanged:** §3 eligibility, the §4 gate, side guard, dual-read veto, cluster and
+  per-name caps, flat-by-slots sizing, the book cap, the §6 kill rule, the restricted list and the
+  foreign-quantity check. Conviction still never sizes.
+- **Labelled and scored apart:** the position's rationale carries `origin = backfill`, the proposal's
+  rationale carries `backfill.rank`, and the dashboard's `real_by_origin` reports `backfill` as its own
+  origin.
+- **Stop rule (pre-stated):** backfill suspends itself (logged and paged once per run) when ≥ 8 backfill
+  entries are ≥ 90 days old **and** their running premium-bled fraction exceeds the comparator's by more
+  than 25 percentage points. The comparator is above-floor entries aged ≥ 90 days if there are ≥ 3 of
+  them, else the brain-off shadow book's entries aged ≥ 90 days. A suspension is lifted only by a dated
+  operator edit.
+
+This **widens** entries (more shots), so it is a riskier §5 edit than the cluster cap; the protection is
+that every frozen gate and cap still disposes, the path is capped at one per week, and it has a pre-stated
+stop. No edge claim.
+
+**Amendment 2026-11-03b — wide debit call verticals for over-cap names (operator word 2026-11-03; draft D3;
+calibration v2 Rule V: CANDIDATE, `records/2026-11-03_calibration_v2_finding.md`).** *Written before the
+order-path code.* Nine names (NVDA, LHX, LMT, CEG, NOC, ETN, VRT, PWR, GEV on the 11-01 read) cannot take one
+naked contract under the $1,000 per-name cap, so the book can never express them. Rule V found a long
+≈25%-OTM / short ≈+75%-OTM call vertical keeps ≈0.98× the naked mean multiple at ≈0.71× the premium, at the
+cost of the tail (p99 ≈10.7× → ≈7×).
+
+- **Inert until switched on:** active only when `convexity_gate.vertical_for_over_cap` exists with
+  `enabled: true`. An absent block is off. The dated enabling edit is the `frame_version` boundary (the hash
+  covers `convexity_gate`).
+- **When:** a **bullish** theme whose gate-of-record naked contract passed eligibility, the side guard and
+  the frozen §4 gate, but whose **one-contract premium exceeds the per-name cap**. No other veto falls back
+  to a vertical: book, cluster, slots and gate vetoes stand as written. Bearish theses are out of scope
+  (put verticals were not calibrated).
+- **Structure:** long = the gate-of-record wing, unchanged. Short = the call at the same expiry and OCC class
+  nearest +75% OTM (`short_moneyness`, default 0.75), eligible under §3, strictly above the long strike, and
+  no nearer than +50% (`min_short_moneyness`): a narrower spread is a different payoff object. Net debit =
+  long mid − short mid, > 0 and < the width; else no structure (fail-closed). The short leg is not
+  cheapness-gated (selling a rich wing only lowers the debit).
+- **Sizing and caps:** the **net debit** is the premium-at-risk (the defined max loss). Per-name, cluster
+  and book caps and flat-by-slots sizing apply to it unchanged.
+- **Orders:** one atomic multi-leg limit order (buy-to-open long, sell-to-open short, 1:1), never legged. The
+  L1 limit is the mid debit; a carry walks it toward the natural debit (long ask − short bid) as #386 walks a
+  single leg. The shared-account guards (reserved roots, restricted list) apply to **both** legs; the
+  foreign-quantity check reads **both** contracts; the live per-order notional ceiling and the reserve check
+  apply to the net debit. A venue that refuses multi-leg orders (options approval level) is a rejected
+  order, fail-closed and paged.
+- **Exits (§6a, on the spread's value):** the mark is long mid − short mid. Profit-take at 10× the net debit,
+  time-stop at 21 DTE, expiry at intrinsic(long) − intrinsic(short). A close is one atomic multi-leg order
+  at the mid credit. When the long leg's bid is under `min_close_bid`, the close books in-DB at mark, as for
+  a single leg.
+- **Null books stay paired:** the shadow book and 3A apply the same over-cap rule, so the council and gate
+  contrasts still differ in one variable. 3B already skips names it cannot size; it gets the same rule.
+- **Recorded:** the row carries the short leg's symbol and strike (`short_contract_symbol`, `short_strike`;
+  migration 0021). `structure_kind` stays `C`, so a vertical is the row with a short leg.
+
+> **Dated note 2026-11-03c (independent review of the order-path diff, before any merge; the bullet above is left
+> as written):** a close priced at the **mid** credit can rest unfilled day after day on wide far-OTM quotes and
+> reach expiry, where an in-the-money long is exercised or the short assigned (outside the defined-risk frame). The
+> close is therefore priced at the **natural credit** (long bid − short ask), the two-leg equivalent of a single
+> leg selling at the bid; the mid is used only when the natural credit is not positive, and a spread with no
+> positive credit is booked at mark like an unsellable single leg. A refused multi-leg open or close pages (a
+> close at most once per position per day), and a broker without a multi-leg path leaves the spread open, never
+> booked closed. The short leg is chosen as stated: among eligible calls ≥ +50% OTM, the one nearest +75%.
+
+> **Reading note (2026-11-12, operator word: "Kill rule: clock A (from 2026-07-01), payoff P1, drawdown option 1 (cumulative), R2, null books keep booking. Land before 12-25."; #472).** "Convexity book = 10% of account — the total premium-at-risk" means **10% committed at any moment (R2)**: a closed position frees its premium budget, which is what sizing already does (`book_remaining = book_budget − committed premium`). The lifetime loss before review is bounded by the §6 drawdown leg (cumulative since 2026-07-01, see §6's conformance notes): roughly 1.2 books at most, absent a gap between L2 ticks or an in-flight entry. No frozen number changes.
+
 ## 6. Kill rule (frozen)
 
 Halt **new entries** for human review if **either**:
@@ -247,6 +361,24 @@ the waiting posture itself had no pre-registered falsifier (found 2026-07-01,
 > **2026-11-02 interim checkpoint** per its standing recommendation. Ownership of
 > **D = 2027-03-02**, the checkpoint, and the go-live clock anchor is the operator's,
 > exercised in that delegated form on that date.
+
+> <!-- #465 / #472 kill-rule conformance notes -->
+> **Conformance notes (2026-11-12, operator word: "Kill rule: clock A (from 2026-07-01), payoff P1, drawdown option 1 (cumulative), R2, null books keep booking. Land before 12-25."; #465, #472; drafts `records/2026-11-10_kill_rule_dry_leg_conformance_DRAFT.md` in PR #476).**
+> Both legs above were frozen here and in `config.json:kill_rule` (`book_drawdown_halt: 0.20`, `dry_months_halt: 9`). Only the drawdown leg was in code, and it measured the open book only. From the merge commit of the implementing PR (before 2026-12-25 as worded; CC recommends the 2026-12-07 boundary weekend), they are computed as follows.
+> - **Dry leg ("bleeds 9 months with zero payoff"):** the clock starts at the first real fill's `opened_at` (2026-07-01, PL) and restarts at the `closed_at` of each real-book close with `realized_pnl > 0` (payoff P1, under any exit reason). Backfill positions count; cancelled or never-filled orders do not; null books never feed it; "months" are calendar months on the US-Eastern date. (These four sub-rules are the draft's §3 reading of clock A and P1, recorded as CC's reading. The operator worded the letters.) On today's book it binds on **2027-04-01** unless a real position closes above cost first.
+> - **Drawdown leg ("draws down ≥ 20% of its premium budget"):** the book's net loss since the first real fill, i.e. realized P&L of real-book closes (partial closes included) plus unrealized P&L of open and closing positions at their marks, divided by the premium budget (`account_equity × book_fraction`, $10,000). A closed loss no longer leaves the figure. Until the first real close (none yet; PL's time-stop is first possible on 2026-12-28) the two readings never differed, so no past admission or halt would have been decided differently.
+> - **Effect of a trip (either leg):** it halts NEW real-book entries and the council, exactly as before, and **the null books keep booking** (the brain-off controls keep running while the real book is halted). The manual `KILL` switch still halts everything. The L0 scan's behaviour on a trip is unchanged by this note: it is an open question whether L0 keeps scanning so the null books do not run out of sentinels.
+> - **Release:** a trip clears through a payoff close or a mark recovery. A dated operator re-anchor was not yet worded here; it was worded the same day (see the addendum below).
+> - **Unchanged:** the 20% and 9-month thresholds, §5's numbers, flat-by-slots sizing, §6a exits, "open positions are not force-closed", the posture review (D = 2027-03-02), and `frame_version` (the hashed `kill_rule` block already contained both legs; the implementing PR changes code only).
+
+> **Addendum to the conformance notes (2026-11-12, operator word: "accept all" (2026-11-12), on CC's table of suggestions in-session).**
+> - **The L0 scan keeps running on a trip**, LLM framer included, so the shadow book and 3A keep receiving sentinels.
+>   The council stays halted (no council spend), and the real book stays halted. This replaces "the L0 scan's
+>   behaviour on a trip is unchanged".
+> - **Release by re-anchor:** two dated keys in the hashed `kill_rule` block, written only on the operator's word after
+>   a review: `dry_clock_reanchored_on` restarts the dry clock at that date, and `drawdown_reanchored_on` counts the
+>   drawdown from that date (closes before it are excluded). Writing either key moves `frame_version`: the
+>   post-review book is a new regime. Two keys, so that reviewing one leg leaves the other leg's history intact.
 
 ## 6a. Exit rules (frozen) — the L2 reflex, deterministic, no LLM
 

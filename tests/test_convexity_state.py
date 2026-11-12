@@ -22,10 +22,11 @@ def test_mark_close_and_drawdown(convexity_db):
     row = conn.execute("SELECT status, realized_pnl, exit_reason, closed_at FROM convexity_positions WHERE id=?", (pid,)).fetchone()
     assert row["status"] == "closed" and row["realized_pnl"] == -2000.0
     assert row["exit_reason"] == "time_stop_21dte" and row["closed_at"]
-    # closed positions no longer count toward open book/drawdown
+    # a closed position leaves the open book, but its realized loss STAYS in the §6 drawdown (cumulative since the first
+    # fill, operator word 2026-11-12, #472): before, the figure dropped back to 0 the moment a loser closed
     assert state.count_open_convexity_positions(conn) == 0
     dd2, have2 = state.convexity_book_drawdown(conn, 10_000.0)
-    assert have2 is False and dd2 == 0.0
+    assert have2 is True and abs(dd2 - 0.20) < 1e-9
 
 
 def test_pending_confirm_and_drop(convexity_db):

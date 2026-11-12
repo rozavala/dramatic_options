@@ -9,8 +9,8 @@
 
 import type {
   AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
-  NextRunVM, NullStepVM, PositionVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
-  OutsideFrameVM, Snapshot, SpendVM, TailFigure, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
+  NextRunVM, NullStepVM, PositionRow, PositionVM, VerticalLegsVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
+  OutsideFrameVM, Snapshot, SpendVM, TailFigure, TelemetryVM, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
 } from "./types";
 import { etDate, formatRunLabel } from "./runLabel";
 import { DD_WARN_DEFAULT, directionLabel, drawdownDisplay, levelFromSystem, t4RowState, verdictDisplay } from "./status";
@@ -23,6 +23,19 @@ const EDGE_TARGET = 30;
 const fmt = (v: number | null | undefined): string =>
   v == null ? DASH : "$" + Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 });
 const pct = (v: number | null | undefined): string => (v == null ? DASH : (v * 100).toFixed(1) + "%");
+// Kill-tile distance to the halt, in dollars: (halt − drawdown) × book frame. The halt fraction is read from the
+// snapshot (config kill_rule.book_drawdown_halt) — never defaulted here: absent ⇒ no distance, not a guessed 20%.
+// Past the halt reads $0 (the tripped chip carries the rest). The kill rule measures OPEN-BOOK MARK loss
+// (state.convexity_book_drawdown: realized losses don't count, unmarked positions carry at cost), so the line says so,
+// and with nothing marked yet the drawdown is a placeholder 0 — flagged, not shown as a measured full distance.
+// A missing or non-positive book frame has no distance ("—"), never "$0", which would read as tripped.
+function haltDistance(kr: { book_drawdown?: number; drawdown_halt?: number; have_marks?: boolean } | null | undefined, budget: number | null | undefined) {
+  const halt = kr?.drawdown_halt;
+  const line = (d: string) => `${d} of open-book mark loss to the halt${kr?.have_marks === false ? " (no marks yet)" : ""}`;
+  if (halt == null || !(halt > 0)) return { haltPct: null, haltFrac: null, ddToHalt: DASH, ddToHaltLine: line(DASH) };
+  const left = budget == null || !(budget > 0) ? null : Math.max(0, (halt - (kr?.book_drawdown ?? 0)) * budget);
+  return { haltPct: Math.round(halt * 1000) / 10, haltFrac: halt, ddToHalt: fmt(left), ddToHaltLine: line(fmt(left)) };
+}
 const ageH = (b?: { age_hours: number | null } | null): string =>
   b && b.age_hours != null ? Math.round(b.age_hours) + "h" : DASH;
 const beatLevel = (b?: { status?: string } | null) => (b && b.status && b.status !== "ONLINE" ? "warn" : "ok");
@@ -74,6 +87,16 @@ const dayStamp = (day: string | null | undefined): string => {
   const t = Date.parse(`${day}T12:00:00Z`);
   return Number.isNaN(t) ? day : `${new Date(t).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${day}`;
 };
+// #463: both legs of a debit call vertical (positions_panel: short_contract_symbol from migration 0021, detected with
+// verticals.is_vertical). A single-leg row → null, so its rendering is unchanged.
+const strikeLabel = (k: number | null | undefined): string => (k == null ? DASH : "$" + Number(k).toLocaleString("en-US", { maximumFractionDigits: 2 }));
+function verticalLegs(p: PositionRow): VerticalLegsVM | null {
+  if (!p.short_contract_symbol) return null;
+  return {
+    long: p.contract_symbol, longStrike: strikeLabel(p.strike), short: p.short_contract_symbol, shortStrike: strikeLabel(p.short_strike),
+    netDebit: p.net_debit == null ? DASH : "$" + Number(p.net_debit).toFixed(2),
+  };
+}
 const orderDetail = (o: { contract: string | null; contracts: number | null; premium: number | null }): string | null => {
   const parts = [o.contract ? `${o.contracts != null ? `${o.contracts}× ` : ""}${o.contract}` : null, o.premium != null ? fmt(o.premium) : null];
   const out = parts.filter(Boolean).join(" · ");
@@ -83,6 +106,79 @@ const orderDetail = (o: { contract: string | null; contracts: number | null; pre
 // #351 — the "why no entry" table. Where a row's name reached the gate and an order exists, the ORDER'S REAL
 // outcome replaces the gate stamp (gate_decision stays "submit-pending" after a cancel — it is not the outcome).
 // Dates come from the server already on the ET calendar; nothing here re-derives a day from a UTC stamp.
+/** 2026-11-03 telemetry (D0 / D4 / D3b). A missing or errored panel is null (the card says "not yet"). */
+export function buildTelemetry(P: Snapshot): TelemetryVM {
+  const n2 = (v: number | null | undefined, d = 2) => (v == null ? DASH : Number(v).toFixed(d));
+  const pct = (v: number | null | undefined) => (v == null ? DASH : `${Math.round(Number(v) * 100)}%`);
+  const ok = (p: unknown) => p != null && !panelError(p);
+  const ex = ok(P.execution) ? P.execution! : null;
+  const iv = ok(P.iv_history) ? P.iv_history! : null;
+  const fa = ok(P.falsifiers) ? P.falsifiers! : null;
+  const cx = ok(P.capex_cycle) ? P.capex_cycle! : null;
+  const at = ok(P.attention) ? P.attention! : null;
+  const sl = ok(P.slippage) ? P.slippage! : null;
+  // #467: a conservative figure that can't be derived reads "unknown", never "—" and never the as-filled number.
+  const UNKNOWN = "unknown";
+  const usd2 = (v: number) => "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const signed = (v: number) => (v < 0 ? "−" : v > 0 ? "+" : "") + usd2(v);
+  const basisLabel = { ask_at_entry: "ask at decision", carry_worst_rung: "carry worst rung",
+    ask_below_fill: "ask at decision below the fill" } as const;
+  return {
+    slip: sl && {
+      note: sl.note, entries: sl.totals.entries, known: sl.totals.known, unknown: sl.totals.unknown,
+      haircut: usd2(sl.totals.haircut_usd), haircutPct: pct(sl.totals.haircut_pct), pnlN: sl.totals.pnl_n,
+      pnlFilled: signed(sl.totals.pnl_filled_usd), pnlCons: signed(sl.totals.pnl_conservative_usd),
+      rows: (sl.rows ?? []).map((r) => {
+        const known = r.conservative_px != null;
+        return {
+          key: r.position_id, symbol: r.symbol, contract: r.short_contract ? `+${r.contract} / −${r.short_contract}` : r.contract,
+          status: r.status,
+          // #449: a partially closed entry counts its original quantity; say how much is already sold
+          partial: r.partial ? `partial: ${r.sold_qty ?? 0} of ${r.contracts} sold` : null,
+          fill: n2(r.fill_px), cons: known ? n2(r.conservative_px) : UNKNOWN,
+          basis: r.basis ? basisLabel[r.basis] : "no quote at entry",
+          premium: usd2(r.premium_filled_usd),
+          premiumCons: r.premium_conservative_usd != null ? usd2(r.premium_conservative_usd) : UNKNOWN,
+          pnlKind: r.pnl_kind, pnl: r.pnl_filled_usd != null ? signed(r.pnl_filled_usd) : DASH,
+          pnlCons: r.pnl_filled_usd == null ? DASH : r.pnl_conservative_usd != null ? signed(r.pnl_conservative_usd) : UNKNOWN,
+        };
+      }),
+    },
+    exec: ex && {
+      read: ex.summary.read, approvals: ex.summary.all.approvals, reached: ex.summary.all.reached_order,
+      decided: ex.summary.all.decided, filled: ex.summary.all.filled, fillRate: pct(ex.summary.all.fill_rate),
+      carryDecided: ex.summary.under_carry.decided, carryFilled: ex.summary.under_carry.filled,
+      rows: (ex.rows ?? []).map((r) => ({ key: r.proposal_id, date: r.date ?? DASH, symbol: r.symbol, outcome: r.outcome,
+        limit: n2(r.limit), ask: n2(r.ask), fill: n2(r.fill_px), attempts: (r.attempts ?? []).length })),
+    },
+    iv: iv && {
+      status: iv.status, termSessions: iv.max_term_sessions ?? 0,
+      rows: (iv.rows ?? []).map((r) => ({ symbol: r.symbol, n: r.sessions, ivrv: n2(r.iv_rv), ivrvPct: pct(r.iv_rv_pct),
+        skew: n2(r.skew, 1), slope: n2(r.term_slope, 1), dIvC: n2(r.d_iv_call, 1), dIvP: n2(r.d_iv_put, 1) })),
+    },
+    fals: fa && {
+      reads: fa.summary.reads, fired: fa.summary.fired, note: fa.note,
+      rows: (fa.rows ?? []).map((r) => ({ key: `${r.spec_id}/${r.symbol}`, readAt: r.read_at, symbol: r.symbol,
+        value: pct(Number(r.value)), threshold: pct(Number(r.threshold)), fired: String(r.fired) === "1" })),
+      waiting: (fa.waiting ?? []).map((w) => ({ key: `${w.spec_id}/${w.symbol}`, symbol: w.symbol,
+        threshold: pct(w.threshold), after: w.first_filed_after ?? DASH })),
+    },
+    capex: cx && {
+      asOf: cx.as_of ? cx.as_of.slice(0, 10) : DASH, note: cx.note,
+      rows: (cx.rows ?? []).map((r) => ({ cluster: r.cluster, n: `${r.n_with_data}/${(r.members ?? []).length}`,
+        ttm: r.ttm_now_musd == null ? DASH : `$${Math.round(r.ttm_now_musd).toLocaleString()}M`,
+        yoy: pct(r.yoy), accel: r.accel == null ? DASH : `${r.accel > 0 ? "+" : ""}${Math.round(r.accel * 100)} pp`,
+        phase: r.phase })),
+    },
+    attention: at && {
+      status: at.status, note: at.note,
+      rows: (at.rows ?? []).map((r) => ({ symbol: r.symbol, count: String(r.count),
+        change: r.change == null ? DASH : `${r.change > 0 ? "+" : ""}${r.change} since ${r.then}`,
+        label: r.label, asOf: r.as_of })),
+    },
+  };
+}
+
 function buildWhyNoEntry(P: Snapshot): WhyNoEntryVM {
   const w = P.why_no_entry;
   const blank: WhyNoEntryVM = {
@@ -200,6 +296,8 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
       ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence], ["staleness", P.staleness],
       ["why_no_entry", P.why_no_entry],
+      ["execution", P.execution], ["slippage", P.slippage], ["iv_history", P.iv_history], ["falsifiers", P.falsifiers],
+      ["capex_cycle", P.capex_cycle], ["attention", P.attention],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
@@ -212,6 +310,7 @@ export function fromBackend(P: Snapshot): ViewModel {
     premium: fmt(p.total_premium), premiumUsd: Number(p.total_premium ?? 0),
     mark: markByContract.get(p.contract_symbol) ?? p.mark ?? null, opened: p.opened_at ? String(p.opened_at).slice(0, 10) : null,
     expiry: p.expiry ? String(p.expiry).slice(0, 10) : null, timeStop: p.time_stop_on ?? null,
+    legs: verticalLegs(p),
   }));
   const sentinels: SentinelVM[] = (se.active ?? []).map((x) => ({ symbol: x.symbol, basket: x.basket, dir: x.direction, note: sentinelNote(x) })); // #4
 
@@ -373,6 +472,7 @@ export function fromBackend(P: Snapshot): ViewModel {
   };
 
   const whyNoEntry = buildWhyNoEntry(P);
+  const telemetry = buildTelemetry(P);
 
   // Month-to-date spend vs the per-provider tripwire (spend_panel).
   const spP = panelError(P.spend) ? null : P.spend;
@@ -498,6 +598,7 @@ export function fromBackend(P: Snapshot): ViewModel {
     bookBudget: fmt(acc.frame?.book_budget), headroom: fmt(acc.headroom), equitySeries: acc.equity_series ?? [],
     bookDD: pct(rk.kill_rule?.book_drawdown), bookDDlevel: drawdownDisplay(rk.kill_rule)[0], bookDDchip: drawdownDisplay(rk.kill_rule)[1],
     ddWarnPct: Math.round((rk.kill_rule?.drawdown_warn ?? DD_WARN_DEFAULT) * 100),
+    ...haltDistance(rk.kill_rule, acc.frame?.book_budget ?? rk.book?.budget),
     openN: rk.book?.open ?? 0, maxN: rk.book?.max ?? 0, openPrem: fmt(rk.book?.open_premium),
     council: {
       verdict: verdictLabel, vlevel, runId: ch.run_id ?? null, roundtrips: ch.roundtrip?.n ?? 0,
@@ -547,6 +648,6 @@ export function fromBackend(P: Snapshot): ViewModel {
     t4: cond,
     readiness,
     edgeAccrual: { n: edgeN, target: EDGE_TARGET }, phasePct, phaseSub,
-    session, spend, canary, dircoherence, staleness, whyNoEntry, wingMismatch, dataAccrual, booksOpen, firstEntry,
+    session, spend, canary, dircoherence, staleness, whyNoEntry, telemetry, wingMismatch, dataAccrual, booksOpen, firstEntry,
   };
 }

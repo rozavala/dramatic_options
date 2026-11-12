@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -25,8 +25,11 @@ CLOCK = FixedClock(datetime(2026, 6, 1, tzinfo=UTC))
 def _book_at_drawdown(conn, dd_frac: float) -> None:
     """One open position whose mark puts the open-book drawdown at ``dd_frac`` of the $10k book budget."""
     entry = 10_000.0
+    # opened yesterday: risk_panel reads the wall clock, and since #465 the dry leg trips 9 months after the first fill,
+    # so a fixed old date would turn this drawdown test into a date bomb
+    opened = (datetime.now(UTC) - timedelta(days=1)).isoformat()
     pid = state.record_convexity_position(
-        conn, run_id=None, opened_at="2026-01-01T00:00:00+00:00", theme="t", symbol="FCX", direction="bullish",
+        conn, run_id=None, opened_at=opened, theme="t", symbol="FCX", direction="bullish",
         structure_kind="long_call", contract_symbol="FCXC", expiry="2026-12-18", strike=80.0, dte=270,
         moneyness=0.25, contracts=1, entry_premium_per_contract=entry, total_premium=entry)
     state.mark_convexity_position(conn, pid, mark=entry * (1 - dd_frac) / 100.0, as_of="2026-06-01T00:00:00+00:00")

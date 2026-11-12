@@ -109,3 +109,13 @@ on (#343; FRO's C35, 33.9% in the money, 2026-10-25).
   as two regimes when a report splits by them.
 - Unchanged: the denominator, the seal, direction, the outcome definition (directional return, big move ≥ +0.50),
   the maturity gate and the pinned reads (§4), none of which depend on the selected contract.
+
+## 8. AMENDMENT (2026-11-05, operator word "let's go ahead with … 427") — the sweep applies the gate of record's 15% floor
+The gate of record gained `convexity_gate.min_otm_moneyness = 0.15` on 2026-11-04 (#416 / #425, operator word; frame
+`frame-880e893e1660`): only contracts at least 15% out of the money are admitted, else no structure. The sweep did not
+pass it, so from #425's deploy a row could be `structured = 1` on a near-money contract the live path now refuses
+(the #343 class again; #427).
+- From the **2026-11-08 sweep** the sweep passes `min_otm_moneyness = convexity_gate.min_otm_moneyness`. Rows dated
+  before 11-08 are left as written (append-only); `structured`/`gate_cheap` before and after the boundary are read as
+  two regimes when a report splits by them (as with §7's 11-01 boundary).
+- Unchanged: everything §7 lists as unchanged.

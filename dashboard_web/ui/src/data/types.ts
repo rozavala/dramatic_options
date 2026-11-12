@@ -43,6 +43,9 @@ export interface PositionRow {
   origin_conviction: string | null; opened_at?: string | null;
   theme: string | null; // emitted by positions_panel (dashboard_data.py SELECT p.theme)
   expiry?: string | null; time_stop_on?: string | null; // YYYY-MM-DD; time_stop_on = the 21d L2 time-stop's close day (#306)
+  // #463: a debit call vertical (migration 0021). contract_symbol/strike are the LONG leg; net_debit is per share.
+  strike?: number | null; vertical?: boolean; short_contract_symbol?: string | null; short_strike?: number | null;
+  net_debit?: number | null;
 }
 
 // Active sentinel rows are state.active_sentinel_rows() (wide); only the fields the UI reads are named.
@@ -141,6 +144,12 @@ export interface Snapshot {
   dircoherence?: DirCoherencePanel; // PREREG_DIRECTION_COHERENCE: what the union filter withheld (direction_coherence_panel)
   staleness?: StalenessPanel;       // #269: names judged on an older quarter than their latest filing (fundamentals_staleness_panel)
   why_no_entry?: WhyNoEntryPanel;   // #351: per-name "why no entry" of the latest session + expressible / last above-floor / last order tiles
+  execution?: ExecutionPanel;       // D0 (2026-11-03): approvals followed to the broker
+  slippage?: SlippagePanel;         // #467 step 3: each booked entry as filled and at a conservative fill (estimate)
+  iv_history?: IvHistoryPanel;      // D4 (2026-11-03): own-history IV/RV + skew percentiles, term slope, dIV
+  falsifiers?: FalsifierPanel;      // D3b (2026-11-03): the forward falsifier-accuracy ledger
+  capex_cycle?: CapexCyclePanel;    // D5 step 1 (2026-11-03): per-cluster TTM capex YoY + acceleration
+  attention?: AttentionPanel;       // D6 step 1 (2026-11-03): analyst-coverage history + ~90-day trend
   _fatal?: string;
 }
 
@@ -289,7 +298,9 @@ export interface BookCI { n: number; p95: number | null }
 export interface TailFigure { n: number; p95: number | null; withLegacy: BookCI | null }
 export interface OutsideFrameVM { book: string; symbol: string; kind: string; dir: string; moneyness: number | null; status: string }
 export interface ClusterVM { name: string; premium: number; cap: number; dirs: string }
-export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; premiumUsd: number; mark: number | null; opened: string | null; expiry: string | null; timeStop: string | null }
+// #463: legs is null for a single-leg row; for a vertical it names both legs and the net debit paid (per share).
+export interface VerticalLegsVM { long: string; longStrike: string; short: string; shortStrike: string; netDebit: string }
+export interface PositionVM { symbol: string; theme: string | null; dir: string; conviction: string | null; dte: number | null; premium: string; premiumUsd: number; mark: number | null; opened: string | null; expiry: string | null; timeStop: string | null; legs: VerticalLegsVM | null }
 export interface SentinelVM { symbol: string; basket?: string; dir?: string; note: string }
 export interface T4ItemVM { id: number; name: string; detail: string; verdict: T4Verdict; state: DisplayState }
 export interface ProviderVM { provider: string; calls: number; parseError: number; rate: number | null }
@@ -390,7 +401,7 @@ export interface ViewModel {
   bookAsOf: string | null; bookStale: boolean; // oldest open mark ("YYYY-MM-DD HH:MM UTC"); stale = older than BOOK_STALE_HOURS, or the cycle heartbeat is not ONLINE
   equity: string; deltaFrame: string; bookBudget: string; headroom: string; // equity = BROKER equity (shared account)
   equitySeries: { day: string; equity: number }[];   // BROKER equity per day (shared account) — there is no book-value history
-  bookDD: string; bookDDlevel: Level; bookDDchip: string; ddWarnPct: number; openN: number; maxN: number; openPrem: string;
+  bookDD: string; bookDDlevel: Level; bookDDchip: string; ddWarnPct: number; haltPct: number | null; haltFrac: number | null; ddToHalt: string; ddToHaltLine: string; openN: number; maxN: number; openPrem: string;
   council: {
     verdict: string; vlevel: Level; runId: number | null; roundtrips: number; strategistAbstained: number;
     parseFail: number; parseCalled: number; cost: string; streak: string; models: string;
@@ -431,6 +442,7 @@ export interface ViewModel {
   canary: CanaryVM | null;            // the gate-rich canary (NVDA) iv/rv trend
   dircoherence: DirCoherenceVM | null; // the direction-coherence union filter, latest L1 + recent nights
   staleness: StalenessVM | null;       // names judged on an older quarter than their latest filed report
+  telemetry: TelemetryVM;              // 2026-11-03 profit-program telemetry (D0 / D4 / D3b), display only
   whyNoEntry: WhyNoEntryVM;            // #351 — per-name why-no-entry table + expressible / last above-floor / last order tiles
   wingMismatch: string[];             // latest dual-read session's wing-mismatch names (boundary class)
   dataAccrual: DataAccrualVM;         // chain-snapshot store, with the honesty flag
@@ -445,4 +457,67 @@ export interface ConsoleProps {
   error: string | null;
   fatal: string | null;
   refresh: () => void;
+}
+
+// ── 2026-11-03 profit-program telemetry (records/2026-11-03_profit_program_DRAFTS.md) ─────────────────────────
+export interface ExecutionRow {
+  proposal_id: number; date: string | null; symbol: string; conviction: string | null; outcome: string;
+  limit: number | null; mid: number | null; ask: number | null; fill_px: number | null; under_carry: boolean;
+  attempts: { step: number | null; limit: number | null; status: string }[];
+}
+export interface ExecutionBlock { approvals: number; reached_order: number; decided: number; filled: number; fill_rate: number | null }
+export interface ExecutionPanel { summary: { all: ExecutionBlock; under_carry: ExecutionBlock; read: string }; rows: ExecutionRow[] }
+// #467 step 3 (execution_ledger.haircut): the net-of-slippage twin. conservative_px is null when it can't be derived.
+export interface SlippageRow {
+  position_id: number; symbol: string; contract: string; short_contract: string | null; status: string;
+  opened_at: string | null; contracts: number; fill_px: number; conservative_px: number | null;
+  // #449 partial closes: contracts is the ORIGINAL quantity; sold_qty already sold, contracts_remaining still open
+  partial?: boolean; sold_qty?: number; contracts_remaining?: number;
+  basis: "ask_at_entry" | "carry_worst_rung" | "ask_below_fill" | null; premium_filled_usd: number; premium_conservative_usd: number | null;
+  haircut_usd: number | null; haircut_pct: number | null; pnl_kind: "realized" | "marked" | "realized+marked" | "unmarked";
+  pnl_filled_usd: number | null; pnl_conservative_usd: number | null;
+}
+export interface SlippagePanel {
+  rows: SlippageRow[]; note: string;
+  totals: { entries: number; known: number; unknown: number; premium_filled_usd: number; premium_filled_known_usd: number;
+    premium_conservative_usd: number; haircut_usd: number; haircut_pct: number | null; pnl_n: number;
+    pnl_filled_usd: number; pnl_conservative_usd: number };
+}
+export interface IvHistoryRow {
+  symbol: string; sessions: number; iv_rv: number | null; iv_rv_pct: number | null; skew: number | null; skew_pct: number | null;
+  term_sessions: number; term_slope: number | null; d_iv_call: number | null; d_iv_put: number | null;
+}
+export interface IvHistoryPanel { rows: IvHistoryRow[]; status: string; note: string; max_term_sessions: number }
+export interface FalsifierRow { read_at: string; spec_id: string; symbol: string; value: string; threshold: string; fired: string }
+export interface FalsifierPanel {
+  rows: FalsifierRow[]; waiting: { spec_id: string; symbol: string; threshold: number | null; first_filed_after: string | null }[];
+  summary: { reads: number; fired: number; not_fired: number }; note: string;
+}
+export interface CapexCycleRow {
+  cluster: string; n_with_data: number; members: string[]; missing: string[]; ttm_now_musd: number | null;
+  yoy: number | null; yoy_prev: number | null; accel: number | null; phase: string; latest_period: string | null;
+}
+export interface CapexCyclePanel { as_of: string | null; rows: CapexCycleRow[]; note: string }
+export interface AttentionRow {
+  symbol: string; count: number; as_of: string; count_then: number | null; then: string | null;
+  change: number | null; label: string; stale_days: number;
+}
+export interface AttentionPanel { rows: AttentionRow[]; records: number; since: string | null; status: string; note: string }
+export interface TelemetryVM {
+  exec: { read: string; approvals: number; reached: number; decided: number; filled: number; fillRate: string;
+    carryDecided: number; carryFilled: number;
+    rows: { key: number; date: string; symbol: string; outcome: string; limit: string; ask: string; fill: string; attempts: number }[] } | null;
+  slip: { note: string; entries: number; known: number; unknown: number; haircut: string; haircutPct: string;
+    pnlFilled: string; pnlCons: string; pnlN: number;
+    rows: { key: number; symbol: string; contract: string; status: string; partial: string | null; fill: string; cons: string; basis: string;
+      premium: string; premiumCons: string; pnlKind: string; pnl: string; pnlCons: string }[] } | null;
+  iv: { status: string; termSessions: number;
+    rows: { symbol: string; n: number; ivrv: string; ivrvPct: string; skew: string; slope: string; dIvC: string; dIvP: string }[] } | null;
+  fals: { reads: number; fired: number; note: string;
+    rows: { key: string; readAt: string; symbol: string; value: string; threshold: string; fired: boolean }[];
+    waiting: { key: string; symbol: string; threshold: string; after: string }[] } | null;
+  capex: { asOf: string; note: string;
+    rows: { cluster: string; n: string; ttm: string; yoy: string; accel: string; phase: string }[] } | null;
+  attention: { status: string; note: string;
+    rows: { symbol: string; count: string; change: string; label: string; asOf: string }[] } | null;
 }

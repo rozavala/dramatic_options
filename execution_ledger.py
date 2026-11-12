@@ -1,0 +1,308 @@
+"""Execution ledger (D0, records/2026-11-03_profit_program_DRAFTS.md) — telemetry only.
+
+One row per council approval (a proposal that cleared the floor: ``status`` 'proposed' or 'traded'), following it
+from the gates to the broker:
+
+    approved → gate outcome → L1 order → filled | carried → carry attempts → filled | lapsed | vetoed
+
+It answers the question the HL/AG cancels raised: when the council says yes, does the book actually get the
+contract? Read-only over existing tables (council_proposals, convexity_eval, convexity_positions); no schema change,
+no frame change, never touches the trade path.
+
+    python -m execution_ledger            # the table + the fill-rate summary
+"""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
+
+_ET = ZoneInfo("America/New_York")
+
+# Carry-over (#386) went on after AG's 10-29 cancel, so the first approval it covers is the 10-30 session.
+CARRY_ON_ET_DATE = "2026-10-30"
+# The D0 read: after this many approvals under carry-over that reached an order.
+READ_AFTER_N = 5
+
+_FILLED = ("open", "closing", "closed")
+_ORDER_DECISIONS = ("open", "submit-pending")
+
+
+def _json(raw) -> dict:
+    try:
+        v = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _et_date(iso: str | None) -> str | None:
+    if not iso:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(iso))
+    except ValueError:
+        return str(iso)[:10]
+    dt = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+    return dt.astimezone(_ET).date().isoformat()
+
+
+def _px(row) -> float | None:
+    v = row["entry_premium_per_contract"] if row is not None else None
+    return round(float(v) / 100.0, 4) if v is not None else None
+
+
+def _outcome(orig, attempts: list) -> str:
+    """Classify the order chain that started at the L1 row ``orig``."""
+    st, why = orig["status"], (orig["exit_reason"] or "")
+    if st in _FILLED:
+        return "filled_l1"
+    if st == "pending":
+        return "working"
+    if st == "carried":
+        return "carry_in_progress"
+    if st == "cancelled":
+        if why == "carry_filled" or any(a["status"] in _FILLED for a in attempts):
+            return "filled_carry"
+        if why == "cancelled_unfilled":
+            return "unfilled_no_carry"
+        if why == "carry_lapsed":
+            return "carry_lapsed"
+        if why.startswith("carry_veto"):
+            return "carry_veto"
+        if why == "kill_cancelled":
+            return "kill_cancelled"
+        return f"cancelled:{why or '?'}"
+    return st
+
+
+def build_ledger(conn: sqlite3.Connection) -> list[dict]:
+    """Every approval, oldest first, with its execution chain."""
+    conn.row_factory = sqlite3.Row
+    props = conn.execute(
+        "SELECT id, run_id, as_of, symbol, direction, conviction, status, position_id FROM council_proposals "
+        "WHERE status IN ('proposed', 'traded') ORDER BY id").fetchall()
+    # Carry attempts point at the L1 row they carry (rationale.carry.of); index them once.
+    attempts_of: dict[int, list] = {}
+    for r in conn.execute("SELECT * FROM convexity_positions WHERE rationale LIKE '%\"carry\"%' ORDER BY id"):
+        of = (_json(r["rationale"]).get("carry") or {}).get("of")
+        if of is not None:
+            attempts_of.setdefault(int(of), []).append(r)
+    out = []
+    for p in props:
+        evals = conn.execute("SELECT decision, position_id, reasons FROM convexity_eval WHERE proposal_id = ? "
+                             "ORDER BY id", (p["id"],)).fetchall()
+        l1 = next((e for e in evals if e["decision"] in _ORDER_DECISIONS and e["position_id"] is not None), None)
+        row = {
+            "proposal_id": p["id"], "run_id": p["run_id"], "date": _et_date(p["as_of"]), "symbol": p["symbol"],
+            "direction": p["direction"], "conviction": p["conviction"],
+            "under_carry": (_et_date(p["as_of"]) or "") >= CARRY_ON_ET_DATE,
+            "position_id": None, "contract": None, "contracts": None, "limit": None, "mid": None, "ask": None,
+            "spread_pct": None, "attempts": [], "fill_px": None, "outcome": None, "short_contract": None,
+        }
+        if l1 is None:
+            first = evals[0]["decision"] if evals else None
+            row["outcome"] = f"gate:{first}" if first else "not_evaluated"
+            out.append(row)
+            continue
+        orig = conn.execute("SELECT * FROM convexity_positions WHERE id = ?", (l1["position_id"],)).fetchone()
+        if orig is None:
+            row["outcome"] = "position_missing"
+            out.append(row)
+            continue
+        rat = _json(orig["rationale"])
+        q = rat.get("quote") or {}
+        atts = attempts_of.get(int(orig["id"]), [])
+        row.update({
+            "position_id": orig["id"], "contract": orig["contract_symbol"], "contracts": orig["contracts"],
+            "limit": _px(orig), "mid": q.get("mid"), "ask": q.get("ask"), "spread_pct": q.get("spread_pct"),
+            "attempts": [{"id": a["id"], "step": (_json(a["rationale"]).get("carry") or {}).get("step"),
+                          "limit": _px(a), "status": a["status"], "exit_reason": a["exit_reason"]} for a in atts],
+            "outcome": _outcome(orig, atts),
+            # a vertical's limit/fill are NET debits; mid/ask above are the LONG leg's quote
+            "short_contract": (orig["short_contract_symbol"] if "short_contract_symbol" in orig.keys() else None),
+        })
+        filled = orig if orig["status"] in _FILLED else next((a for a in atts if a["status"] in _FILLED), None)
+        row["fill_px"] = _px(filled) if filled is not None else None
+        out.append(row)
+    return out
+
+
+def summarize(ledger: list[dict]) -> dict:
+    """Fill rates, overall and under carry-over. 'Reached an order' excludes gate vetoes; 'decided' also excludes
+    chains still working, so a resting order never counts as a miss."""
+    def block(rows: list[dict]) -> dict:
+        ordered = [r for r in rows if r["position_id"] is not None]
+        decided = [r for r in ordered if r["outcome"] not in ("working", "carry_in_progress")]
+        filled = [r for r in decided if r["outcome"] in ("filled_l1", "filled_carry")]
+        counts: dict[str, int] = {}
+        for r in rows:
+            counts[r["outcome"]] = counts.get(r["outcome"], 0) + 1
+        return {"approvals": len(rows), "reached_order": len(ordered), "decided": len(decided),
+                "filled": len(filled), "fill_rate": (round(len(filled) / len(decided), 4) if decided else None),
+                "outcomes": counts}
+
+    carry_rows = [r for r in ledger if r["under_carry"]]
+    carry = block(carry_rows)
+    n = carry["decided"]
+    if n < READ_AFTER_N:
+        read = f"accruing: {n} of {READ_AFTER_N} decided orders under carry-over"
+    elif carry["filled"] >= READ_AFTER_N - 1:
+        read = f"carry-over is filling ({carry['filled']} of {n})"
+    else:
+        read = (f"fewer than {READ_AFTER_N - 1} of {n} filled under carry-over: consider submitting every "
+                "approval at the next session's open (D0)")
+    return {"all": block(ledger), "under_carry": carry, "read": read, "carry_on_et_date": CARRY_ON_ET_DATE}
+
+
+def panel(conn: sqlite3.Connection, n_recent: int = 12) -> dict:
+    """The dashboard panel: the summary plus the most recent approvals."""
+    led = build_ledger(conn)
+    return {"summary": summarize(led), "rows": led[-n_recent:][::-1]}
+
+
+# ── #467 step 3: the "net of slippage" twin (display only; nothing is re-booked, no stored value changes) ─────────
+# Alpaca's paper engine fills thin, wide, long-dated options at or near the mid, which a real book would not get.
+# Each booked real-book entry is shown twice: as filled (the journal's entry_premium_per_contract) and at a
+# conservative fill, from what the journal already holds:
+#   1. ``ask_at_entry``: the ask of the quote taken at decision time (``rationale.quote``, recorded since
+#      2026-10-27; the order may have filled after it moved); for a vertical, the natural debit = long ask − short
+#      bid (``rationale.vertical.short_quote``). Used only when it is at or above the fill;
+#   2. ``carry_worst_rung``: else the highest limit this approval's carry walk placed (``rationale.carry.limit``
+#      over the chain), when it is above the fill;
+#   3. else unknown (None), never a stand-in equal to the fill. A stored ask BELOW the fill means the ask moved
+#      before the fill, so the ask at fill time is unknown: basis ``ask_below_fill``, counted unknown (#467 review).
+# A partial close (#449) shrinks the open row and keeps the sold part in ``rationale.partial_closes``; the entry
+# haircut counts the ORIGINAL quantity (remaining + sold). A final close restores the whole bet on the row itself.
+# Entry side only: exits already sell at the bid (monitor), and no quote at exit is stored.
+HAIRCUT_NOTE = ("Estimate (#467): each entry re-priced at a conservative fill, the ask quoted at decision time (the "
+                "order may have filled after it moved), else the carry walk's worst rung, else unknown. Entry side "
+                "only. Display only: nothing is re-booked.")
+HAIRCUT_ROWS_N = 50
+
+
+def _num(v) -> float | None:
+    try:
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def conservative_px(row, rat: dict, chain_limits: list[float]) -> tuple[float | None, str | None]:
+    """The conservative per-share entry price of a booked row and its basis; the price is None when it can't be
+    derived (basis None, or ``ask_below_fill`` when the only quote is an ask the fill already exceeded)."""
+    fill = float(row["entry_premium_per_contract"]) / 100.0
+    q = rat.get("quote")
+    ask = _num(q.get("ask")) if isinstance(q, dict) else None
+    short_leg = row["short_contract_symbol"] if "short_contract_symbol" in row.keys() else None
+    if short_leg or rat.get("vertical") is not None:   # a vertical's fill is a NET debit: compare the natural debit
+        sq = (rat.get("vertical") or {}).get("short_quote")
+        sbid = _num(sq.get("bid")) if isinstance(sq, dict) else None
+        ask = (ask - sbid) if (ask is not None and sbid is not None) else None
+    if ask is not None and ask > 0 and ask >= fill - 1e-9:
+        return round(ask, 4), "ask_at_entry"
+    top = max(chain_limits, default=None)
+    if top is not None and top > fill + 1e-9:
+        return round(top, 4), "carry_worst_rung"
+    return None, ("ask_below_fill" if ask is not None and ask > 0 else None)
+
+
+def haircut(conn: sqlite3.Connection, n_rows: int = HAIRCUT_ROWS_N) -> dict:
+    """Every booked real-book entry (open / closing / closed) as filled and at a conservative fill, with the
+    realized (closed) or marked (open) P&L twin; an open row an earlier partial close reduced counts its original
+    quantity and premium, and its P&L is the sold parts' realized P&L plus the marked remainder. Read-only, newest
+    first. Totals cover the rows whose conservative price is known; ``unknown`` counts the rest."""
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT * FROM convexity_positions WHERE status IN ('open', 'closing', 'closed') "
+                        "ORDER BY id").fetchall()
+    rungs: dict[int, list[float]] = {}   # every limit a carry walk placed, by the L1 row it carries
+    for r in conn.execute("SELECT rationale FROM convexity_positions WHERE rationale LIKE '%\"carry\"%'"):
+        c = _json(r["rationale"]).get("carry")
+        lim = _num(c.get("limit")) if isinstance(c, dict) else None
+        if isinstance(c, dict) and c.get("of") is not None and lim is not None:
+            rungs.setdefault(int(c["of"]), []).append(lim)
+    out = []
+    t = {"entries": 0, "known": 0, "unknown": 0, "premium_filled_usd": 0.0, "premium_filled_known_usd": 0.0,
+         "premium_conservative_usd": 0.0, "haircut_usd": 0.0, "pnl_n": 0, "pnl_filled_usd": 0.0,
+         "pnl_conservative_usd": 0.0}
+    for r in rows:
+        rat = _json(r["rationale"])
+        c = rat.get("carry")
+        of = c.get("of") if isinstance(c, dict) else None
+        epc, n_rest, prem = float(r["entry_premium_per_contract"]), int(r["contracts"]), float(r["total_premium"])
+        parts = [p for p in (rat.get("partial_closes") or []) if isinstance(p, dict)]
+        sold = sum(int(p.get("qty") or 0) for p in parts)
+        n, realized_part = n_rest, 0.0
+        if parts and r["status"] != "closed":   # a final close already restored the whole bet on the row
+            n = n_rest + sold
+            prem += sum(float(p.get("premium") or 0.0) for p in parts)
+            realized_part = sum(float(p.get("realized") or 0.0) for p in parts)
+        fill = round(epc / 100.0, 4)
+        cons, basis = conservative_px(r, rat, rungs.get(int(of), []) if of is not None else [])
+        hc = round((cons - fill) * 100.0 * n, 2) if cons is not None else None
+        if r["status"] == "closed":
+            kind, pnl = "realized", _num(r["realized_pnl"])
+        else:
+            mark = _num(r["mark"])
+            kind = ("realized+marked" if parts else "marked") if mark is not None else "unmarked"
+            # the whole bet: the sold parts' realized P&L plus the marked remainder
+            pnl = realized_part + (mark * 100.0 - epc) * n_rest if mark is not None else None
+        out.append({
+            "position_id": r["id"], "symbol": r["symbol"], "contract": r["contract_symbol"],
+            "short_contract": r["short_contract_symbol"] if "short_contract_symbol" in r.keys() else None,
+            "status": r["status"], "opened_at": r["opened_at"], "contracts": n,
+            "partial": bool(parts), "sold_qty": sold,
+            "contracts_remaining": n_rest if r["status"] != "closed" else 0,
+            "fill_px": fill, "conservative_px": cons, "basis": basis,
+            "premium_filled_usd": round(prem, 2),
+            "premium_conservative_usd": round(prem + hc, 2) if hc is not None else None,
+            "haircut_usd": hc, "haircut_pct": round(hc / prem, 4) if hc is not None and prem > 0 else None,
+            "pnl_kind": kind, "pnl_filled_usd": round(pnl, 2) if pnl is not None else None,
+            "pnl_conservative_usd": round(pnl - hc, 2) if pnl is not None and hc is not None else None,
+        })
+        t["entries"] += 1
+        t["premium_filled_usd"] += prem
+        if hc is None:
+            t["unknown"] += 1
+            continue
+        t["known"] += 1
+        t["premium_filled_known_usd"] += prem
+        t["premium_conservative_usd"] += prem + hc
+        t["haircut_usd"] += hc
+        if pnl is not None:
+            t["pnl_n"] += 1
+            t["pnl_filled_usd"] += pnl
+            t["pnl_conservative_usd"] += pnl - hc
+    totals = {k: round(v, 2) if isinstance(v, float) else v for k, v in t.items()}
+    totals["haircut_pct"] = (round(t["haircut_usd"] / t["premium_filled_known_usd"], 4)
+                             if t["premium_filled_known_usd"] > 0 else None)
+    return {"rows": out[-n_rows:][::-1], "totals": totals, "note": HAIRCUT_NOTE}
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    from config_loader import load_config
+    from state import get_db
+
+    ap = argparse.ArgumentParser(description="Execution ledger: does an approval become a filled contract?")
+    ap.add_argument("--db", default=None, help="SQLite path (default: config database.path)")
+    args = ap.parse_args(argv)
+    conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True) if args.db else get_db(load_config())
+    conn.row_factory = sqlite3.Row
+    led = build_ledger(conn)
+    print(f"{'date':10} {'prop':>5} {'sym':6} {'conv':9} {'outcome':20} {'limit':>7} {'mid':>7} {'ask':>7} "
+          f"{'fill':>7}  attempts")
+    for r in led:
+        atts = " ".join(f"{a['step']}@{a['limit']}:{a['status']}" for a in r["attempts"]) or "-"
+        f = lambda v: "-" if v is None else f"{v:.2f}"  # noqa: E731
+        print(f"{r['date'] or '-':10} {r['proposal_id']:>5} {r['symbol']:6} {str(r['conviction']):9} "
+              f"{r['outcome']:20} {f(r['limit']):>7} {f(r['mid']):>7} {f(r['ask']):>7} {f(r['fill_px']):>7}  {atts}")
+    print(json.dumps(summarize(led), indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

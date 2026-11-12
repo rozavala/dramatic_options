@@ -9,6 +9,7 @@ record is complete (dropped proposals included) while only survivors reach the g
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 
 import state
@@ -102,6 +103,7 @@ def council_to_themes(
                       if getattr(c, "sentinel_id", None) is not None and (c.markers or {}).get("refreshed_asof")}
     themes = []
     n_dropped = 0
+    dropped_ids: dict[int, int] = {}   # id(proposal) → proposal_id, for the ranked backfill below
     for p in proposals:
         is_trade = id(p) in tradeable_ids
         # finding #1 / §7.1: stamp when the markers the binding at_inflection leg judged were last
@@ -133,13 +135,37 @@ def council_to_themes(
                 conn, proposal_id=proposal_id, role=ao.role, provider=ao.provider, model=ao.model,
                 confidence=ao.confidence, stance=ao.stance, weakest_point=ao.weakest_point,
                 raw=ao.raw, flagged_unsupported=ao.flagged_unsupported, cost_usd=ao.cost_usd,
+                flagged_details=ao.flagged_details,
             )
         if is_trade:
             themes.append(p.to_theme(proposal_id))
         else:
             n_dropped += 1
+            dropped_ids[id(p)] = proposal_id
+
+    # PREREG §5 amendment 2026-11-03 — ranked backfill (inert unless convexity_book.backfill.enabled). The ranked
+    # candidates go to the gates AFTER every above-floor theme; paper_loop enforces the weekly quota at entry.
+    import backfill
+
+    n_backfilled = 0
+    if backfill.settings(config) is not None and conn is not None:
+        try:
+            dropped = [p for p in proposals if id(p) in dropped_ids]
+            cheap = state.gate_cheap_reads(conn, now=clock.now(),
+                                           max_age_td=int(council_cfg.get("cheap_reserve_staleness_td", 5)))
+            picks, why = backfill.select(conn, config, dropped=dropped, cheap_reads=cheap, now=clock.now())
+            log.info("Backfill: %s", why)
+            for rank_i, p in enumerate(picks, start=1):
+                pid = dropped_ids[id(p)]
+                backfill.stamp_proposal(conn, pid, rank=rank_i)
+                themes.append(dataclasses.replace(p.to_theme(pid), entry_origin=backfill.ORIGIN))
+                n_backfilled += 1
+        except Exception as e:  # noqa: BLE001 — fail-closed: no backfill this cycle, the ordinary path is untouched
+            log.error("Backfill selection failed — no backfill this cycle: %s", e)
 
     n_criteria_vetoed = sum(1 for p in proposals if p.criteria_veto)
-    log.info("Council: %d proposal(s) → %d to gates, %d dropped (floor=%s, criteria-vetoed=%d)",
-             len(proposals), len(themes), n_dropped, floor, n_criteria_vetoed)
+    # A backfill pick is a dropped proposal that went to the gates anyway (#418): count it once, as backfilled.
+    log.info("Council: %d proposal(s) → %d to gates, %d dropped (floor=%s, criteria-vetoed=%d%s)",
+             len(proposals), len(themes), n_dropped - n_backfilled, floor, n_criteria_vetoed,
+             f", backfilled={n_backfilled}" if n_backfilled else "")
     return themes

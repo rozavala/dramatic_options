@@ -228,7 +228,7 @@ def fundamental_evidence_tokens(pack) -> list[str]:
             if x is not None:
                 toks.append(str(x))
                 if ln.get("concept") != "gross_margin" and abs(x) >= 1000:
-                    toks += [f"{x / 1000:.1f}", f"{x / 1000:.2f}"]
+                    toks += [f"{x / 1000:.1f}", f"{x / 1000:.2f}", f"{x / 1000:.3f}"]   # .3f: restate_v1 (#421)
     ac = getattr(pack, "analyst_count", None)
     if ac is not None:
         toks.append(str(ac))
@@ -237,6 +237,21 @@ def fundamental_evidence_tokens(pack) -> list[str]:
 
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _FIGURE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+_SIGNED_3DP = re.compile(r"[+-]\d+\.\d{3}(?!\d)")
+_MARKER_LINE = re.compile(r"^[a-z][a-z0-9_]* ([+-]\d+\.\d{3})(?!\d)")   # ``{label} {v:+.3f}`` (``_marker_evidence``)
+
+
+def restated_percent_tokens(pack) -> list[str]:
+    """restate_v1 (#421, operator word 2026-11-04): the percent restatement of every rendered marker value (lines shaped
+    ``{label} {v:+.3f}``) and every unitless fundamentals value (``_fmt_value``'s ``{v:+.3f}``) — an agent writing
+    ``62.8%`` for a rendered ``-0.628`` is quoting the evidence. Only those two rendered shapes count: a news headline's
+    numbers add nothing, even a signed 3-decimal one."""
+    vals = [m.group(1) for h in (getattr(pack, "headlines", None) or []) if (m := _MARKER_LINE.match(h))]
+    vals += [m for ln in (getattr(pack, "fundamentals", None) or []) if (v := _fmt_value(ln)) is not None
+             for m in _SIGNED_3DP.findall(v)]
+    return [f"{abs(float(x)) * 100:.1f}" for x in vals]
 
 
 def catalyst_cite_tokens(items: list[dict]) -> list[str]:

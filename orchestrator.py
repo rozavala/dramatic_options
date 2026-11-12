@@ -17,6 +17,7 @@ import argparse
 import importlib.util
 import json
 import logging
+import os
 import sys
 import tempfile
 from datetime import UTC, datetime
@@ -58,28 +59,42 @@ from council.wiring import council_to_themes
 from discovery import MarkerParams, scan_baskets
 from feeds import to_equity_feed, to_option_feed
 from monitor import monitor_positions, reconcile_pending
-from paper_loop import kill_rule_status, run_paper_cycle
+from paper_loop import drawdown_since, kill_rule_status, run_paper_cycle
 from risk import kill_switch_active
 from sentinel_scoring import resolve_due_references
 from state import append_run_note, get_db, record_run
 from themes import active_themes, load_themes
 
 log = logging.getLogger("orchestrator")
-if not log.handlers:
-    _h = logging.StreamHandler()
-    _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
-    log.addHandler(_h)
-    log.setLevel(logging.INFO)
-    log.propagate = False
-    # council.* INFO was journald-INVISIBLE until 2026-08-13: with no root handler, only
-    # WARNING+ escaped via logging.lastResort (which is why repair WARNINGs always showed while
-    # the cheap-reserve/fairness composition line never did — found on the fairness-activation
-    # night). Give the council tree the same handler so composition/displacement lines land in
-    # the journal, per the reserve preregs' "observable, never silent" promise.
-    _council_log = logging.getLogger("council")
-    _council_log.addHandler(_h)
-    _council_log.setLevel(logging.INFO)
-    _council_log.propagate = False
+# Both spellings of the repo dir: record.pathname is the code's co_filename, which keeps a symlinked path unresolved
+# (a script run through a symlinked checkout), while the modules' own paths may be resolved.
+_REPO_DIRS = tuple({str(Path(__file__).resolve().parent) + os.sep, os.path.dirname(os.path.abspath(__file__)) + os.sep})
+
+
+def _own_info(record: logging.LogRecord) -> bool:
+    """INFO from this project's code, WARNING+ from everyone. A library's INFO stays out: httpx and the LLM SDKs log
+    every request (URL included) at INFO."""
+    return record.levelno >= logging.WARNING or (
+        record.pathname.startswith(_REPO_DIRS) and "site-packages" not in record.pathname)
+
+
+def _configure_logging() -> None:
+    """One formatted ROOT handler for every logger in the process (#407). Before, only the ``orchestrator`` and (since
+    #228) ``council`` trees had a handler: every other module's INFO was dropped (monitor's exit and fill lines,
+    carry, broker, paper_loop) and its WARNINGs escaped bare through ``logging.lastResort``, with no time, level or
+    name. Idempotent, so a re-import or a probe script never stacks a second handler."""
+    root = logging.getLogger()
+    if any(h.get_name() == "dramatic" for h in root.handlers):
+        return
+    h = logging.StreamHandler()
+    h.set_name("dramatic")
+    h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    h.addFilter(_own_info)
+    root.addHandler(h)
+    root.setLevel(logging.INFO)
+
+
+_configure_logging()
 
 
 def _banner(mode: str) -> None:
@@ -129,7 +144,7 @@ def _page_drawdown_warn(conn, config: dict, *, demo: bool) -> bool:
     """Drawdown pages (#355/#366, #370): one push per upward crossing, normal priority at the 10% warn and priority 1
     at the kill rule's halt, evaluated once per cycle after the monitor pass (L1 and every L2 tick).
 
-    Reads the SAME open-book drawdown the kill rule uses (``state.convexity_book_drawdown``) and never alters
+    Reads the SAME book drawdown the kill rule uses (``state.convexity_book_drawdown``, cumulative since #472) and never alters
     it. Skipped entirely under ``--demo``: the demo drawdown comes from a throwaway DB, and the latch file sits
     beside the REAL db path, so a demo run would clobber the real book's latch (and re-page). Best-effort:
     never raises into the cycle. Returns True iff a page was sent."""
@@ -138,7 +153,7 @@ def _page_drawdown_warn(conn, config: dict, *, demo: bool) -> bool:
     try:
         book = config.get("convexity_book", {})
         budget = float(book.get("account_equity", 0.0)) * float(book.get("book_fraction", 0.0))
-        book_dd, _have_marks = state.convexity_book_drawdown(conn, budget)
+        book_dd, _have_marks = state.convexity_book_drawdown(conn, budget, since=drawdown_since(config))
         return drawdown_warn.page_on_upward_crossing(
             book_dd,
             float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)),
@@ -155,7 +170,7 @@ def _print_book_summary(conn, config: dict) -> None:
     book = config.get("convexity_book", {})
     budget = float(book.get("account_equity", 0.0)) * float(book.get("book_fraction", 0.0))
     open_prem = state.convexity_book_open_premium(conn)
-    dd, have_marks = state.convexity_book_drawdown(conn, budget)
+    dd, have_marks = state.convexity_book_drawdown(conn, budget, since=drawdown_since(config))
     halt = float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20))
     n_open = state.count_open_convexity_positions(conn)
     log.info(
@@ -199,7 +214,10 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
         mix["corpus_refresh"] = "filing_date_v1"  # #340 (2026-10-25): a raw fetched on/before the newest 10-Q/10-K's ET date refetches; record-segmenting
         mix["corpus"] = "fundamentals_v2"  # §9: pack-change record-segmentation (v2 = IFRS taxonomy + tag-recency + annual fallback; zero migration)
         mix["coverage_meter"] = "analyst_v2"  # §19 meter restored on the __data.json endpoint + the unknown line (#337, 2026-10-24); v1 = the dead /api endpoint (no counts since ~07-10)
-        mix["quote_filter"] = "musd_billions_v1"  # 2026-10-23: $B restatements of a rendered $M figure no longer dampen; verdict-mapping change, record-segmenting
+        # 2026-10-23 musd_billions_v1: $B restatements of a rendered $M figure no longer dampen. 2026-10-31 iso_dates_v1 (#403):
+        # a council role citing a date it was shown (e.g. the filing date) no longer dampens; an unshown date flags once.
+        # Both are verdict-mapping changes, record-segmenting.
+        mix["quote_filter"] = "musd_billions_v1+iso_dates_v1+restate_v1"   # restate_v1: #421 (decimal→%, 3-dp $B, bare years), from the 11-12 boundary
         if int(config.get("council", {}).get("cheap_reserve_slots", 0) or 0) > 0:
             # PREREG gate_cheap_reserve §6: judged-set composition change — record-segmenting from deploy.
             mix["union_rank"] = "cheap_reserve_v1"
@@ -416,13 +434,28 @@ def _safe_market_open(clock: Clock) -> bool:
 
     The market-state call hits the broker/network; any error (outage, partial failure) must
     NOT be read as "open". Returning False means: no new entries, and the monitor runs
-    mark-only (no real SELL_TO_CLOSE) — we never act on an unconfirmed market state.
+    mark-only (no real SELL_TO_CLOSE, and no exit booked without one) — we never act on an
+    unconfirmed market state.
     """
     try:
         return bool(clock.is_market_open())
     except Exception as e:  # noqa: BLE001 — fail-closed: unknown ⇒ treat as closed
         log.warning("market-state check failed (%s) — treating market as CLOSED (fail-closed).", e)
         return False
+
+
+def monitor_mode(*, dry_run: bool, market_open: bool, demo: bool) -> tuple[bool, bool]:
+    """``(dry_run, mark_only)`` for the real-book monitor pass. Pure → unit-testable.
+
+    A closed market (or an unconfirmed one: ``_safe_market_open`` reads an error as closed) never transmits: dry_run is
+    forced (PR2 R1). Outside DRY_RUN it is also MARK-ONLY (#451): marks are written and expiry settles at intrinsic,
+    but a triggered profit-take or time-stop is not booked, because no sale happened; the next open-market tick
+    re-evaluates it (a real sell if it still triggers and is sellable). DRY_RUN (pure simulation) and demo (an offline run whose FixedClock always reads closed)
+    still book exits in-DB at the mark.
+    """
+    if market_open:
+        return dry_run, False
+    return True, not dry_run and not demo
 
 
 def entries_allowed(*, forward_enabled: bool, market_open: bool, demo: bool) -> tuple[bool, str]:
@@ -484,8 +517,9 @@ def run_discover(demo: bool = False) -> int:
 
     DISCOVERS only: it never trades, never submits, runs no monitor. The candidates it persists
     are judged by the council on the next L1 cycle and disposed by the deterministic gates (the
-    hard seam is unchanged). Kill-before-spend + FORWARD_ENABLED gating apply (PR1 spends nothing
-    — the LLM framer is PR2). Safe market-closed (reads as-of data, submits nothing).
+    hard seam is unchanged). The KILL switch and FORWARD_ENABLED gate it; a tripped kill RULE does not (the scan,
+    its framer and the 3B / shares null books keep running, operator word 2026-11-12). Safe market-closed (reads
+    as-of data, submits nothing).
     """
     if kill_switch_active():
         log.warning("KILL switch engaged — discovery halted (no scan, no spend).")
@@ -561,11 +595,11 @@ def run_discover(demo: bool = False) -> int:
             from data.structural_events import build_event_provider
             event_provider, ev_reason = build_event_provider(config, cache, as_of)
 
-        # Kill-before-spend seam (the council-build discipline). PR1 spends nothing; the framer
-        # (PR2) sits behind this same guard.
+        # A tripped kill RULE halts the real book and the council only. The scan, its LLM framer (~$0.002 a week) and
+        # the 3B and shares null books keep running, so the brain-off controls keep their sentinel feed (§6 addendum,
+        # operator word 2026-11-12). Only the KILL switch, checked above, stops L0.
         if kill_rule_status(conn, config, clock).tripped:
-            log.warning("Kill rule tripped — discovery scan skipped (no spend).")
-            return 0
+            log.warning("Kill rule tripped — the real book and the council are halted; the L0 scan and null books run.")
 
         # Novelty/dedup: never re-surface a hand-seed name, an open position, or a live sentinel.
         sentinel_syms = state.active_sentinel_symbols(conn)
@@ -891,22 +925,24 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
         market_open = _safe_market_open(clock)
 
         # 1. Monitor pass — reconcile pending real orders, then mark + fire exits.
-        #    When the market is CLOSED the monitor runs MARK-ONLY: dry_run is forced true so a
-        #    real SELL_TO_CLOSE never transmits into a closed options book (PR2 R1) — covers
-        #    half-days, holidays, and a Persistent=true post-close catch-up. Real exits fire on
-        #    an open-market cycle (L1 at 15:45 ET; the L2 intraday ticks).
+        #    When the market is CLOSED the monitor runs MARK-ONLY (monitor_mode): dry_run is forced
+        #    true so a real SELL_TO_CLOSE never transmits into a closed options book (PR2 R1) — covers
+        #    half-days, holidays, and a Persistent=true post-close catch-up — and, outside DRY_RUN, a
+        #    triggered exit is deferred, not booked without a sale (#451). Real exits fire on an
+        #    open-market cycle (L1 at 15:45 ET; the L2 intraday ticks).
         reconciled = reconcile_pending(conn=conn, broker=broker, clock=clock, config=config)
         if reconciled:
             log.info("Reconciled %d pending order(s).", reconciled)
+        monitor_dry_run, mark_only = monitor_mode(dry_run=dry_run, market_open=market_open, demo=demo)
         mres = monitor_positions(
             conn=conn, clock=clock, quote_provider=quote_provider, config=config,
             underlying_price_of=provider.underlying_price, broker=broker,
-            dry_run=dry_run or not market_open,
+            dry_run=monitor_dry_run, mark_only=mark_only,
         )
         log.info(
-            "Monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) unmarked=%d realized=$%.0f",
+            "Monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) deferred=%d unmarked=%d realized=$%.0f",
             mres.marked, mres.closed, mres.expired, mres.profit_taken, mres.time_stopped,
-            mres.unmarked, mres.realized_pnl,
+            mres.deferred, mres.unmarked, mres.realized_pnl,
         )
 
         # 1b. Brain-off NULL shadow book (T3 PR3b) — mark + exit the simulated control book alongside
@@ -963,6 +999,24 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                     log.info("Carry-over: placed %d attempt(s).", placed)
             except Exception as e:  # noqa: BLE001 — fail-closed: an error here places nothing and never breaks the cycle
                 log.warning("carry-over pass failed (non-fatal; nothing placed): %s", e)
+
+        # 1f. Venue-vs-journal expiry check (#444 option (a); records/2026-11-10_expiry_exercise_audit_DRAFT.md): each
+        #     L2 tick, market open or closed, reads the venue quantity of every real-book contract not yet expired (per
+        #     contract via broker.venue_quantity, never an account listing; §3a.3) and pages any difference from the
+        #     journal. READ-ONLY: sends, cancels and closes nothing. After the monitor pass, so it sees this tick's
+        #     closes. The CONFIGURED dry_run (not monitor_dry_run, forced on a closed tick): off under DRY_RUN only.
+        if monitor_only and not demo:
+            try:
+                import venue_check
+
+                venue_check.run_tick(conn, broker=broker, clock=clock, dry_run=dry_run, paper_account=not is_live,
+                                     run_id=run_id, underlying_price_of=provider.underlying_price)
+            except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                log.warning("venue check failed (non-fatal): %s", e)
+                try:   # the run must show that it failed, not silence
+                    append_run_note(conn, run_id, f"venue_check: FAILED {type(e).__name__}")
+                except Exception:  # noqa: BLE001 — the note is best-effort
+                    pass
 
         # 2. Council pass → themes (T2). The council PROPOSES; the deterministic gates in
         #    run_paper_cycle still DISPOSE. Entries are gated BEFORE any LLM spend by
@@ -1031,6 +1085,48 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                     append_run_note(conn, run_id, " · " + st_line)
                                 except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
                                     log.warning("fundamentals-staleness check failed (non-fatal): %s", e)
+                            # D6 step 1: keep the analyst counts the council already fetched for tonight's judged names
+                            # (no extra requests: the meter cached them this cycle). TELEMETRY ONLY. Fail-soft.
+                            if analyst_dep is not None and not demo and chain_cache is not None:
+                                try:
+                                    import attention
+
+                                    now_dt = clock.now()
+                                    judged = [r[0] for r in conn.execute(
+                                        "SELECT DISTINCT symbol FROM council_proposals WHERE run_id = ?", (run_id,))]
+                                    attention.record_daily(chain_cache, judged,
+                                                           lambda s: analyst_dep.count_asof(s, now_dt), now_dt)
+                                except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                                    log.warning("attention history failed (non-fatal): %s", e)
+                            # D5 step 1: the per-cluster capex cycle (TTM capex from XBRL), one record per day. TELEMETRY
+                            # ONLY (nothing gated or rendered). Fail-soft.
+                            if fund_dep is not None and not demo and chain_cache is not None:
+                                try:
+                                    import capex_cycle
+                                    import clusters as _clusters
+
+                                    rec = capex_cycle.record_daily(chain_cache, _clusters.load_cluster_map(config),
+                                                                   fund_dep.companyfacts, clock.now())
+                                    if rec is not None:
+                                        log.info("Capex cycle: %s", {k: (v["yoy"], v["accel"], v["phase"])
+                                                                     for k, v in rec["clusters"].items()})
+                                except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                                    log.warning("capex cycle failed (non-fatal): %s", e)
+                            # D3b: the forward falsifier-accuracy ledger. Appends a read once per spec × name when the
+                            # named quarter becomes visible; TELEMETRY ONLY (never sells, gates or vetoes). Fail-soft.
+                            if fund_dep is not None and not demo:
+                                try:
+                                    import falsifier_ledger
+
+                                    new_reads = falsifier_ledger.record_due(
+                                        symbols_of=falsifier_ledger.basket_symbols_of(config),
+                                        points_of=fund_dep.quarterly_revenue_points,
+                                        close_of=lambda s: (provider.closes(s, window=5) or [None])[-1],
+                                        as_of=clock.now())
+                                    log.info("Falsifier ledger: %d new read(s) %s", len(new_reads),
+                                             [(r["symbol"], r["value"], r["fired"]) for r in new_reads])
+                                except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                                    log.warning("falsifier ledger failed (non-fatal): %s", e)
                         except BudgetExceeded as e:
                             # Soft, exit-0 condition: OnFailure can't catch it → page in-app (PR2 R-C).
                             log.error("Council cost cap hit (%s) — fail-closed: NO entries this cycle.", e)
@@ -1083,7 +1179,8 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                                 symbols=uni_syms, provider_record=provider,
                                 provider_shadow=shadow_gate_provider,
                                 market_closes=lambda s: provider.closes(s, window=300),
-                                gate=config.get("convexity_gate", {}), eligibility=_sweep_elig)
+                                gate=config.get("convexity_gate", {}), eligibility=_sweep_elig,
+                                term_cache=chain_cache)   # D4: the nightly IV term record (telemetry)
                             log.info("Gate dual-read sweep: %s", counts)
                         except Exception as e:  # noqa: BLE001 — measurement never halts the cycle
                             log.warning("gate dual-read sweep failed (non-fatal): %s", e)
@@ -1193,6 +1290,21 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                     except Exception as e:  # noqa: BLE001 — fail-soft: never breaks the real cycle
                         log.warning("cheapness-watch pass failed (non-fatal): %s", e)
                         notify.send("Cheapness-watch failed (non-fatal)", str(e))
+
+            # #458: delisting / pending-deal guard over the universe, sentinels and every open book. TELEMETRY +
+            # PAGING ONLY (never closes, vetoes or edits the universe). L1 only, after entries are decided. Fail-soft.
+            if not demo:
+                try:
+                    import listing_guard
+
+                    listing_guard.run_nightly(conn, config, run_id=run_id, cache=chain_cache, client=client,
+                                              as_of=clock.now())
+                except Exception as e:  # noqa: BLE001 — telemetry never breaks the cycle
+                    log.warning("listing guard failed (non-fatal): %s", e)
+                    try:   # the nightly grade must see that it failed, not silence
+                        append_run_note(conn, run_id, f"listing_guard: FAILED {type(e).__name__}")
+                    except Exception:  # noqa: BLE001 — the note is best-effort
+                        pass
 
         _print_book_summary(conn, config)
         return 0

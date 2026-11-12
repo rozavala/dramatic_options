@@ -12,7 +12,7 @@ Endpoints (explicit, safe-by-default):
   --endpoint live   Alpaca LIVE endpoint — requires the full triple-gate in config/env AND
                     --operator-go (the pre-reg's contemporaneous authorization; the freeze does
                     NOT imply it), AND the notional ceiling (absent ⇒ the live class rejects
-                    all). Real dollars.
+                    every opening order; §3b). Real dollars.
 
 Every mode enforces the smoke budget in the SCRIPT too (independent of the live class's
 ceiling): qty is hard-coded 1 and an order whose limit×100 exceeds --budget is refused.
@@ -20,6 +20,10 @@ ceiling): qty is hard-coded 1 and an order whose limit×100 exceeds --budget is 
 Contract selection: pass --contract (OCC symbol) + --limit explicitly, or --symbol + --pick to
 choose from the live chain: 15–35%-OTM call, bid ≥ 0.05, spread ≤ 25%, ask×100 ≤ budget —
 "far-OTM per the pre-reg but with a real bid + sane spread so SELL_TO_CLOSE can complete."
+
+Vertical round-trip (PREREG_THEMATIC_CONVEXITY §5 amendment 2026-11-03b, before the enabling edit):
+  python scripts/smoke_order_roundtrip.py --endpoint paper --contract <LONG OCC> --limit <debit> \
+      --vertical-short <SHORT OCC> --sell-limit <credit> --send
 
 Usage (Monday's paper rehearsal):
   LIVE_MAX_ORDER_NOTIONAL=250 python scripts/smoke_order_roundtrip.py \
@@ -125,6 +129,67 @@ def run_roundtrip(broker, *, contract_symbol: str, buy_limit: float, sell_limit:
     return 0
 
 
+def run_vertical_roundtrip(broker, *, long_symbol: str, short_symbol: str, debit_limit: float,
+                           credit_limit: float | None, budget: float, poll_s: int = 90, sleep_s: float = 3.0,
+                           log=print) -> int:
+    """PREREG_THEMATIC_CONVEXITY §5 amendment 2026-11-03b: ONE 1-lot debit call vertical opened and closed as
+    atomic multi-leg orders. The record it produces is the evidence the enabling edit needs: the venue accepts
+    multi-leg orders on this account, and how it reports (and signs) the net fill on the open and on the close.
+    Returns 0 iff both legs of the round-trip completed (or simulated)."""
+    if debit_limit * CONTRACT_MULTIPLIER > budget:
+        log(f"REFUSED: debit {debit_limit:.2f}×100 exceeds the smoke budget ${budget:.0f}")
+        return 2
+    if not callable(getattr(broker, "submit_spread", None)):
+        log("REFUSED: this broker has no multi-leg order path")
+        return 2
+    import datetime as _dt
+
+    from broker import make_client_order_id
+    today = _dt.date.today().isoformat()
+
+    def _await(fill, side):
+        if not fill.filled:
+            log(f"{side} REJECTED/FAILED: {fill.note}")
+            return None
+        log(f"{side}: {fill.note}")
+        if not getattr(fill, "pending", False):
+            return fill.price
+        deadline = time.time() + poll_s
+        while time.time() < deadline:
+            info = broker.order_status(fill.order_id) or {}
+            st = str(info.get("state", "")).lower()
+            if st == "filled":
+                raw = info.get("filled_avg_price")
+                log(f"{side} FILLED — venue filled_avg_price as reported: {raw!r} (record its SIGN)")
+                return abs(float(raw or 0.0))
+            if st in ("canceled", "cancelled", "expired", "rejected"):
+                log(f"{side} terminal without fill: {st}")
+                return None
+            time.sleep(sleep_s)
+        log(f"{side} NOT FILLED within {poll_s}s — cancelling")
+        if hasattr(broker, "cancel_order") and fill.order_id:
+            broker.cancel_order(fill.order_id)
+        return None
+
+    opened = _await(broker.submit_spread(long_symbol=long_symbol, short_symbol=short_symbol, qty=1, action="open",
+                                         limit_price=debit_limit,
+                                         client_order_id=make_client_order_id("smokevopen", long_symbol, today)),
+                    "OPEN_VERTICAL")
+    if opened is None:
+        return 3
+    cl = credit_limit if credit_limit is not None else max(0.01, round(opened * 0.5, 2))
+    closed = _await(broker.submit_spread(long_symbol=long_symbol, short_symbol=short_symbol, qty=1, action="close",
+                                         limit_price=cl,
+                                         client_order_id=make_client_order_id("smokevclose", long_symbol, today)),
+                    "CLOSE_VERTICAL")
+    if closed is None:
+        log("ROUND-TRIP INCOMPLETE: vertical opened but not closed — CLOSE BOTH LEGS MANUALLY, then record.")
+        return 4
+    log(f"VERTICAL ROUND-TRIP COMPLETE: debit {opened:.2f}, credit {closed:.2f} — friction "
+        f"${(opened - closed) * CONTRACT_MULTIPLIER:,.2f}.")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--endpoint", choices=("sim", "paper", "live"), default="sim")
@@ -133,6 +198,9 @@ def main(argv=None) -> int:
     ap.add_argument("--contract", help="explicit OCC contract symbol (skips --pick)")
     ap.add_argument("--limit", type=float, help="explicit buy limit (per share)")
     ap.add_argument("--sell-limit", type=float, default=None)
+    ap.add_argument("--vertical-short", default=None,
+                    help="OCC symbol of a short call: run a 1-lot debit-vertical round-trip with --contract as the "
+                         "long leg, --limit as the net debit and --sell-limit as the net credit (needs --contract)")
     ap.add_argument("--budget", type=float, default=None,
                     help="hard smoke budget in $ (default: the notional ceiling, else 250)")
     ap.add_argument("--send", action="store_true", help="actually transmit (else DRY_RUN)")
@@ -204,6 +272,12 @@ def main(argv=None) -> int:
         print(f"picked {contract_symbol} (spot {px:.2f}, strike {c.strike}, "
               f"bid {c.bid:.2f}/ask {c.ask:.2f})")
 
+    if args.vertical_short:
+        if not args.contract:
+            print("REFUSED: --vertical-short needs an explicit --contract (the long leg) and --limit (the debit).")
+            return 2
+        return run_vertical_roundtrip(broker, long_symbol=contract_symbol, short_symbol=args.vertical_short,
+                                      debit_limit=buy_limit, credit_limit=args.sell_limit, budget=budget)
     return run_roundtrip(broker, contract_symbol=contract_symbol, buy_limit=buy_limit,
                          sell_limit=args.sell_limit, budget=budget)
 
