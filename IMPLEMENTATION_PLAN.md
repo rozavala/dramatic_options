@@ -43,6 +43,22 @@
 > (5) the remaining pre-T4 items are done (PR2c ✅, the correlation diagnostic ✅ + basket-quality report ✅,
 > all merged 2026-06-05; the §5b dashboard PR-A BUILT & green 2026-06-05 — read-only; it RENDERS this condition's evidence (the breach-audit recompute + the per-arm null plumbing) but does NOT adjudicate; the §5b file-structure refactor remains). Graduating on ≈zero resolved trades + a just-discovered silent-inert
 > apparatus would be the capital-stakes HARKing this project killed twice.
+>
+> **Dated numbers for conditions (2) and (4) (2026-11-12, operator word "T4: 2B + 4A"; #468; draft
+> `records/2026-11-10_t4_go_no_go_checklist_DRAFT.md` §2 in PR #476).**
+> - **(2):** ≥ 5 resolved **real** positions covering ≥ 2 distinct exit paths, and ≥ 30 resolved in each of the shadow
+>   book and 3A, with the p95 and bootstrap CI rendering for all three books.
+> - **(4)**, a shape test that can fail, over the resolved real positions (`state.convexity_realized_multiples`):
+>   - (i) every realized multiple M ≥ 0, so no loss beyond the premium;
+>   - (ii) median M ≤ 1;
+>   - (iii) every close is one of the three §6a exits, and its M agrees with that rule;
+>   - (iv) P(M ≥ 1) lies inside the two-sided 95% binomial interval around 0.23 (calibration v2's `live_10x` cell)
+>     for the observed N.
+>
+>   Items (i)–(iii) are mechanics; (iv) is sanity, not significance.
+>
+> No live arming is authorized (same word). The draft's other decisions (the §3 mechanics rows, the order ceiling
+> for closes, the live smoke) are not yet worded.
 
 ---
 
