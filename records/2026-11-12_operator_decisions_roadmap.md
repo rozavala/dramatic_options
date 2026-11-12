@@ -22,14 +22,14 @@ The operator then answered "please go ahead". The open sub-decisions are listed 
 
 | Decision | Recorded in | Code |
 |---|---|---|
-| **Kill rule, dry leg:** clock A (first real fill, 2026-07-01), payoff P1 (a real close with `realized_pnl > 0`); binds 2027-04-01 absent a payoff | PREREG_THEMATIC_CONVEXITY §6, conformance notes (2026-11-12) | implementing PR, on the 12-07 boundary (before 12-25) |
+| **Kill rule, dry leg:** clock A (first real fill, 2026-07-01), payoff P1 (a real close with `realized_pnl > 0`); binds 2027-04-01 absent a payoff | PREREG_THEMATIC_CONVEXITY §6, conformance notes (2026-11-12) | implementing PR, before 12-25 (CC recommends the 12-07 boundary weekend) |
 | **Kill rule, drawdown leg:** option 1, cumulative net loss since 2026-07-01 (realized + unrealized) ÷ $10,000 | same | same PR |
 | **R2:** the 10% book is premium committed at any moment | PREREG_THEMATIC_CONVEXITY §5, reading note (2026-11-12) | none (sizing already does this) |
 | **A trip halts the real book and the council; the null books keep booking.** The manual KILL still halts everything | §6 conformance notes | same PR |
 | **Scheduled boundary B:** record-segmenting changes land on the first Monday L1 of each month, deployed the weekend before; next **Mon 2026-12-07**. The model refresh rides it only if its PR and the Gemini/xAI price checks are ready | STANDING_STATE ruling | none |
 | **T4 conditions:** (2) = 2B, (4) = 4A | IMPLEMENTATION_PLAN, T4 conditions (dated note) | the scoreboard reading them: a follow-up |
-| **PROD promotion** of main, inert (`FORWARD_ENABLED=false`), **after** the PROD `.env` PAPER contradiction is resolved | STANDING_STATE docket | the `production ← main` PR, when resolved |
-| **Inert arming PR**, a draft only; **1-week paper rehearsal on a separate paper account** | STANDING_STATE docket | draft PR; the rehearsal is an operator `.env` act |
+| **PROD promotion** of main, inert (`FORWARD_ENABLED=false`), **after** the PROD `.env` PAPER contradiction is resolved | STANDING_STATE ruling ("authorized but not done") | the `production ← main` PR, when resolved |
+| **Inert arming PR**, a draft only; **1-week paper rehearsal on a separate paper account** | STANDING_STATE ruling ("authorized but not done") | draft PR; the rehearsal is an operator `.env` act |
 | **No live arming.** **#469 (capital ladder) deferred** | STANDING_STATE | — |
 
 ## Still open, not assumed

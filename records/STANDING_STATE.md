@@ -16,18 +16,21 @@ The header's absence is itself a signal.
     - **R2:** the 10% book is premium committed at any moment.
     - **Effect of a trip:** it halts the real book and the council, and **the null books keep booking**. KILL still
       halts all. Release is by a payoff or a mark recovery.
-    - **Code:** lands on the 12-07 boundary (before 12-25). Thresholds are unchanged, and so is `frame_version`.
+    - **Code:** lands before 12-25, as worded; CC recommends the 12-07 boundary weekend. Thresholds are unchanged,
+      and so is `frame_version`.
     - **Open:** whether L0 keeps scanning on a trip, and a dated re-anchor.
   - **Scheduled record boundary B** (#470): record-segmenting changes (a `frame_version`, prompt-hash, model or
     `model_mix` move) land on **the first Monday L1 of each month**, deployed the weekend before its Sunday L0.
     - **Next:** Mon **2026-12-07**.
-    - **Off-cycle, recorded the same day with its reason:** a money-safety defect or a fail-closed outage.
+    - **Off-cycle classes (working default, not worded):** a money-safety defect or a fail-closed outage, recorded the
+      same day with its reason. The exempt list, the staging rule and the register/CI tooling are open
+      (`records/2026-11-12_operator_decisions_roadmap.md`).
     - **Model refresh:** it rides 12-07 only if its PR and the Gemini/xAI price checks are ready. restate_v1 (#426)
       was the last unscheduled boundary (11-12).
   - **T4 conditions (2) = 2B, (4) = 4A** (#468; IMPLEMENTATION_PLAN dated note). **No live arming.**
   - **Authorized but not done:**
     - PROD promotion of main, inert (`FORWARD_ENABLED=false`), **after** the PROD `.env` PAPER=true/false
-      contradiction is resolved, read-only;
+      contradiction is resolved by a read-only check;
     - an inert arming PR, a draft only;
     - a 1-week paper rehearsal on a **separate paper account**.
   - **#469 deferred.**
