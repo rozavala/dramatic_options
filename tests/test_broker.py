@@ -227,3 +227,17 @@ def test_select_broker_gates_real_money(monkeypatch):
     paper = orchestrator._select_broker({}, is_live=False, api_key="k", secret_key="s",
                                         dry_run=True, equity=100000.0)
     assert isinstance(paper, AlpacaPaperBroker) and not isinstance(paper, AlpacaLiveBroker)
+
+
+def test_live_ceiling_never_refuses_a_close(monkeypatch):
+    # PREREG_REAL_MONEY_BROKER §3b (#473): a 10x profit-take on a $1,000 position is a ~$10,000 sell; the ceiling
+    # bounds opening orders only, so the book's largest winner can be sold
+    b, fake, _ = _live_broker(monkeypatch, dry_run=False, max_order_notional=1000.0)
+    f = b.submit_paper(contract_symbol="FCX270319C00080000", qty=10, side="sell", limit_price=10.0)   # $10,000
+    assert f.filled and len(fake.submitted) == 1
+
+
+def test_an_absent_ceiling_still_refuses_every_open_but_not_a_close(monkeypatch):
+    b, fake, _ = _live_broker(monkeypatch, dry_run=False, max_order_notional=None)
+    assert b.submit_paper(contract_symbol="X", qty=1, side="buy", limit_price=1.0).filled is False
+    assert b.submit_paper(contract_symbol="FCX270319C00080000", qty=1, side="sell", limit_price=1.0).filled
