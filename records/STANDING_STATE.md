@@ -42,8 +42,8 @@ The header's absence is itself a signal.
   - **The remaining #476 drafts, in priority order:** (1) #456, the cheaper arm; (2) #455 and #462; (3) #464, option B;
     later #453, #460, #457, #459 and #461.
   - **Authorized but not done:**
-    - PROD promotion of main, inert (`FORWARD_ENABLED=false`), **after** the PROD `.env` PAPER=true/false
-      contradiction is resolved by a read-only check;
+    - PROD promotion of main, inert (`FORWARD_ENABLED=false`). The PAPER contradiction was resolved by a read-only
+      check on 2026-11-12, so the promotion is pending its PR;
     - an inert arming PR, a draft only;
     - a 1-week paper rehearsal on a **separate paper account**.
   - **#469 deferred.**
