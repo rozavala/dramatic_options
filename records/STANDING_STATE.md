@@ -9,8 +9,8 @@ The header's absence is itself a signal.
 
 ## Rulings in force
 - **Quote filter restatements, restate_v1 (adopted 2026-11-04, operator word "Adopt both the 15% floor and A+B+C at
-  the 11-12 boundary"; #421; PREREG_FORWARD_CATALYST_GROUNDING §13; IN FORCE FROM THE ~11-12 BOUNDARY, deployed with the
-  model refresh so the record breaks once):** council roles only. A: rendered signed 3-decimal figures pool their
+  the 11-12 boundary"; #421; PREREG_FORWARD_CATALYST_GROUNDING §13; IN FORCE FROM THE FIRST L1 AFTER THE 2026-11-12 DEPLOY;
+  operator 2026-11-12 "merge it": lands alone, ahead of the model refresh, which takes its own boundary):** council roles only. A: rendered signed 3-decimal figures pool their
   percent form (−0.628 → 62.8). B: $B to 3 decimals. C: the bare year of a rendered date. D (rounding, bps) is not
   adopted. Stamp `quote_filter = musd_billions_v1+iso_dates_v1+restate_v1` from the first L1 after deploy.
 - **Minimum moneyness 15% (2026-11-04, operator word "Adopt both the 15% floor and A+B+C at the 11-12 boundary";
@@ -203,8 +203,8 @@ The header's absence is itself a signal.
 - **2026-11-03:** May-2027 contracts (201 d on 11-01) fall under §12's 200-day admission runway (admission reads only).
 - **~2026-11-03:** one-night shadow check of the candidate council models (claude-opus-5-5 / gemini-3.8-flash /
   grok-4.7) on real packs — parse rate, cost, latency only (no outcome scoring).
-- **~2026-11-12 (moved from 11-05 by the operator, 11-01):** the planned model refresh, all roles at once, one dated
-  segment, after §10.11 has ~10 sessions; plumbing in
+- **Model refresh (moved from 11-05 to ~11-12 by the operator, 11-01; NOT ready on 11-12, so restate_v1 landed alone
+  that day, operator word 2026-11-12):** the planned model refresh, all roles at once, its own dated segment, after §10.11 has ~10 sessions; plumbing in
   #331 (`council.anthropic` knobs, refusal routing, unpriced-model guard). Gemini/xAI prices to verify at the switch.
 - **2026-11-04: DONE**, the two-week look (`records/2026-11-04_council_two_week_look.md`); its persistence watch
   (amended 11-09: majority of the next 3 reads) is read when the 5th real entry is decided.

@@ -400,4 +400,5 @@ live-shaped sentinel pack (the #426 review): A adds ~13 tokens; 1-decimal figure
 from 13% to 20%, and 10.0–99.9 from 0.4% to 1.4%. Single digits and a third of two-digit integers already passed before.
 
 **Record segmentation.** `runs.model_mix.quote_filter = "musd_billions_v1+iso_dates_v1+restate_v1"` from the first L1 after
-deploy, planned on the ~11-12 model-refresh boundary, so the record breaks once.
+deploy. Planned on the ~11-12 model-refresh boundary so the record would break once; **operator 2026-11-12: lands alone on
+11-12** (the refresh was not ready, and the filter kept dropping deliberations), so the refresh takes its own later boundary.
