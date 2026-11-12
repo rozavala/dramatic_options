@@ -473,7 +473,10 @@ def risk_panel(conn, config: dict) -> dict:
                       # #355: DISPLAY-ONLY ok/warn/tripped. `tripped` above stays the kill rule's own verdict.
                       "drawdown_warn": drawdown_warn.WARN_FRACTION,
                       "level": "tripped" if krs.tripped else drawdown_warn.drawdown_level(
-                          krs.book_drawdown, float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20)))},
+                          krs.book_drawdown, float(config.get("kill_rule", {}).get("book_drawdown_halt", 0.20))),
+                      # #465: the dry leg's clock (None until the first real fill)
+                      "months_dry": krs.months_dry, "dry_since": krs.dry_since, "dry_binds_on": krs.dry_binds_on,
+                      "dry_months_halt": config.get("kill_rule", {}).get("dry_months_halt")},
         "cost_cap": {"last_council_health": last_health, "tripped": last_health == "cost_cap",
                      "cap_usd": float(config.get("council", {}).get("cost_cap_usd", 0.0))},
         "book": {"open": state.count_open_convexity_positions(conn),

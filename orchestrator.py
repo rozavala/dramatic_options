@@ -144,7 +144,7 @@ def _page_drawdown_warn(conn, config: dict, *, demo: bool) -> bool:
     """Drawdown pages (#355/#366, #370): one push per upward crossing, normal priority at the 10% warn and priority 1
     at the kill rule's halt, evaluated once per cycle after the monitor pass (L1 and every L2 tick).
 
-    Reads the SAME open-book drawdown the kill rule uses (``state.convexity_book_drawdown``) and never alters
+    Reads the SAME book drawdown the kill rule uses (``state.convexity_book_drawdown``, cumulative since #472) and never alters
     it. Skipped entirely under ``--demo``: the demo drawdown comes from a throwaway DB, and the latch file sits
     beside the REAL db path, so a demo run would clobber the real book's latch (and re-page). Best-effort:
     never raises into the cycle. Returns True iff a page was sent."""
@@ -594,75 +594,78 @@ def run_discover(demo: bool = False) -> int:
             from data.structural_events import build_event_provider
             event_provider, ev_reason = build_event_provider(config, cache, as_of)
 
-        # Kill-before-spend seam (the council-build discipline). PR1 spends nothing; the framer
-        # (PR2) sits behind this same guard.
-        if kill_rule_status(conn, config, clock).tripped:
-            log.warning("Kill rule tripped — discovery scan skipped (no spend).")
-            return 0
+        # Kill-before-spend seam (the council-build discipline): a tripped kill RULE skips the scan and the LLM
+        # framer, but not the 3B and shares null books below. They keep booking (§6 conformance note, operator word
+        # 2026-11-12, #465); only the KILL switch, checked above, stops them. Whether the scan itself keeps running
+        # on a trip is the operator's open question.
+        scan_halted = kill_rule_status(conn, config, clock).tripped
+        if scan_halted:
+            log.warning("Kill rule tripped — discovery scan skipped (no spend); the 3B and shares null books still run.")
 
-        # Novelty/dedup: never re-surface a hand-seed name, an open position, or a live sentinel.
-        sentinel_syms = state.active_sentinel_symbols(conn)
-        exclude = set(state.open_position_symbols(conn)) | sentinel_syms
-        try:
-            exclude |= {t.symbol for t in active_themes(load_themes(config.get("themes_path", "themes.json")))}
-        except Exception as e:  # noqa: BLE001 — a missing themes.json must not break a scan
-            log.warning("themes.json load failed (%s) — scanning without hand-seed exclusion.", e)
+        if not scan_halted:
+            # Novelty/dedup: never re-surface a hand-seed name, an open position, or a live sentinel.
+            sentinel_syms = state.active_sentinel_symbols(conn)
+            exclude = set(state.open_position_symbols(conn)) | sentinel_syms
+            try:
+                exclude |= {t.symbol for t in active_themes(load_themes(config.get("themes_path", "themes.json")))}
+            except Exception as e:  # noqa: BLE001 — a missing themes.json must not break a scan
+                log.warning("themes.json load failed (%s) — scanning without hand-seed exclusion.", e)
 
-        result = scan_baskets(
-            baskets, as_of, market=market, benchmark=benchmark, params=params,
-            exclude_symbols=exclude, max_scan_names=int(disc.get("max_scan_names", 200)),
-            top_k=int(disc.get("scan_top_k", 8)), n_controls=int(disc.get("n_random_controls", 5)),
-            event_provider=event_provider,
-        )
-        # Event-leg status — structured, logged AND stamped into runs.note (record_run fires
-        # BEFORE the scan, so the counters need this post-scan write; journald rotates, the runs
-        # row doesn't). 'ON, 0 fresh' must never be indistinguishable from a broken leg.
-        if event_provider is not None:
-            from data.structural_events import event_status_line, form_set_hash
-            ctr = event_provider.counters
-            # `sentinel_syms` is the SAME pre-scan snapshot the novelty dedup used — a fresh-event
-            # name in it was blocked from surfacing THIS scan (detected-but-unjudgeable, stamped
-            # `fresh_on_active_lineage=` — the 2026-07-13 LUNR gap record).
-            ev_status = event_status_line(
-                form_set_hash((disc.get('events', {}) or {}).get('forms', [])), ctr,
-                active_lineage=sentinel_syms)
-            if ctr.systemic_failure():
-                log.warning("Event leg SYSTEMIC failure — %s", ev_status)
-                notify.send("Discovery event leg failing", ev_status)
-        else:
-            ev_status = f"events:OFF reason={ev_reason}"
-            if not demo:
-                log.warning("Event leg OFF (%s) — motion-only scan.", ev_reason)
-        log.info("Discovery %s", ev_status)
-        if not demo:
-            append_run_note(conn, run_id, ev_status)
-        # PR2: the bounded LLM framer adjudicates the confounds + grounds on the MARKERS over the
-        # top-K. Fail-closed: framer over-budget / unavailable → frame nothing (no new sentinels this
-        # scan). The skeptic disposes — only the framed survive (artifacts / NEUTRAL are dropped).
-        framings: dict = {}
-        if result.surfaced:
-            framer_router = _build_framer_router(config, demo=demo, disc=disc)
-            if framer_router is None:
-                result.surfaced = []
+            result = scan_baskets(
+                baskets, as_of, market=market, benchmark=benchmark, params=params,
+                exclude_symbols=exclude, max_scan_names=int(disc.get("max_scan_names", 200)),
+                top_k=int(disc.get("scan_top_k", 8)), n_controls=int(disc.get("n_random_controls", 5)),
+                event_provider=event_provider,
+            )
+            # Event-leg status — structured, logged AND stamped into runs.note (record_run fires
+            # BEFORE the scan, so the counters need this post-scan write; journald rotates, the runs
+            # row doesn't). 'ON, 0 fresh' must never be indistinguishable from a broken leg.
+            if event_provider is not None:
+                from data.structural_events import event_status_line, form_set_hash
+                ctr = event_provider.counters
+                # `sentinel_syms` is the SAME pre-scan snapshot the novelty dedup used — a fresh-event
+                # name in it was blocked from surfacing THIS scan (detected-but-unjudgeable, stamped
+                # `fresh_on_active_lineage=` — the 2026-07-13 LUNR gap record).
+                ev_status = event_status_line(
+                    form_set_hash((disc.get('events', {}) or {}).get('forms', [])), ctr,
+                    active_lineage=sentinel_syms)
+                if ctr.systemic_failure():
+                    log.warning("Event leg SYSTEMIC failure — %s", ev_status)
+                    notify.send("Discovery event leg failing", ev_status)
             else:
-                from council.sentinel import frame_candidates
+                ev_status = f"events:OFF reason={ev_reason}"
+                if not demo:
+                    log.warning("Event leg OFF (%s) — motion-only scan.", ev_reason)
+            log.info("Discovery %s", ev_status)
+            if not demo:
+                append_run_note(conn, run_id, ev_status)
+            # PR2: the bounded LLM framer adjudicates the confounds + grounds on the MARKERS over the
+            # top-K. Fail-closed: framer over-budget / unavailable → frame nothing (no new sentinels this
+            # scan). The skeptic disposes — only the framed survive (artifacts / NEUTRAL are dropped).
+            framings: dict = {}
+            if result.surfaced:
+                framer_router = _build_framer_router(config, demo=demo, disc=disc)
+                if framer_router is None:
+                    result.surfaced = []
+                else:
+                    from council.sentinel import frame_candidates
 
-                framings = frame_candidates(result.surfaced, framer_router, as_of=as_of)
-                log.info(framer_router.ledger.summary())
-                result.surfaced = [s for s in result.surfaced if s.markers.symbol in framings]
-        counts = sentinels.persist_discovery(conn, result, run_id=run_id,
-                                             as_of_iso=as_of.isoformat(), framings=framings)
-        dormant = state.expire_stale_sentinels(
-            conn, as_of=as_of, ttl_days=int(disc.get("sentinel_ttl_days", 35))
-        )
-        resolved = resolve_due_references(conn, market, now=as_of, horizon_days=horizon)
-        log.info(
-            "Discovery: scanned=%d cleared=%d surfaced=%d controls=%d · dormant(ttl)=%d refs_resolved=%d",
-            result.n_scanned, result.n_cleared, counts["sentinels"], counts["controls"], dormant, resolved,
-        )
-        for s in result.surfaced:
-            log.info("  + %-6s %-7s score=%.2f (%s) — basket=%s", s.markers.symbol, s.direction,
-                     s.inflection_score, s.gate_reason, s.markers.basket)
+                    framings = frame_candidates(result.surfaced, framer_router, as_of=as_of)
+                    log.info(framer_router.ledger.summary())
+                    result.surfaced = [s for s in result.surfaced if s.markers.symbol in framings]
+            counts = sentinels.persist_discovery(conn, result, run_id=run_id,
+                                                 as_of_iso=as_of.isoformat(), framings=framings)
+            dormant = state.expire_stale_sentinels(
+                conn, as_of=as_of, ttl_days=int(disc.get("sentinel_ttl_days", 35))
+            )
+            resolved = resolve_due_references(conn, market, now=as_of, horizon_days=horizon)
+            log.info(
+                "Discovery: scanned=%d cleared=%d surfaced=%d controls=%d · dormant(ttl)=%d refs_resolved=%d",
+                result.n_scanned, result.n_cleared, counts["sentinels"], counts["controls"], dormant, resolved,
+            )
+            for s in result.surfaced:
+                log.info("  + %-6s %-7s score=%.2f (%s) — basket=%s", s.markers.symbol, s.direction,
+                         s.inflection_score, s.gate_reason, s.markers.basket)
 
         # No-gate fixed-basket book 3B (PREREG_FIXED_BASKET_NULL, PR2b) — weekly, gate-OFF + EQUAL-WEIGHT
         # over the WHOLE eligible basket with the MOTION-derived direction. real−3B = the bundled

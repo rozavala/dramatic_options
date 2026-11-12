@@ -423,28 +423,48 @@ def revert_closing_to_open(conn: sqlite3.Connection, position_id: int, *, reason
 
 
 def convexity_book_drawdown(conn: sqlite3.Connection, book_budget: float) -> tuple[float, bool]:
-    """Book drawdown = (entry premium − marked value) / book_budget across OPEN positions.
+    """§6 book drawdown = the real book's net loss since its first fill ÷ ``book_budget`` (cumulative, operator word
+    2026-11-12, #472): realized P&L of closed rows, plus the sold part of any partial close still open (#449), plus
+    unrealized P&L (marked value − entry premium) of open and closing rows. Unmarked rows carry at cost. A closed loss
+    therefore stays in the figure. Negative when the book is up.
 
-    Returns ``(drawdown_fraction, have_marks)``. Unmarked positions carry at cost (no DD
-    contribution). ``have_marks`` is False when nothing has been marked yet, so callers can
-    treat drawdown as not-yet-meaningful. Closed/realized losses are NOT counted here — this
-    is the open-book mark drawdown the kill rule watches.
-    """
+    Returns ``(drawdown_fraction, have_marks)``. ``have_marks`` is False while nothing has been marked or realized,
+    so callers can treat the drawdown as not yet meaningful."""
+    import json
+
+    realized_row = conn.execute(
+        "SELECT COALESCE(SUM(realized_pnl), 0.0) AS pnl, COUNT(*) AS n FROM convexity_positions "
+        "WHERE status = 'closed' AND realized_pnl IS NOT NULL").fetchone()
+    net = float(realized_row["pnl"])
+    have_marks = int(realized_row["n"]) > 0
     rows = conn.execute(
-        f"SELECT contracts, total_premium, mark FROM convexity_positions WHERE status IN {_EXPOSURE_STATES}"
+        f"SELECT contracts, total_premium, mark, rationale FROM convexity_positions WHERE status IN {_EXPOSURE_STATES}"
     ).fetchall()
-    entry_total = sum(float(r["total_premium"]) for r in rows)
-    marked_total = 0.0
-    have_marks = False
     for r in rows:
-        if r["mark"] is None:
-            marked_total += float(r["total_premium"])
-        else:
+        if r["mark"] is not None:
             have_marks = True
-            marked_total += float(r["mark"]) * int(r["contracts"]) * 100.0
+            net += float(r["mark"]) * int(r["contracts"]) * 100.0 - float(r["total_premium"])
+        try:
+            rat = json.loads(r["rationale"]) if r["rationale"] else {}
+        except (TypeError, ValueError):
+            rat = {}
+        for part in (rat.get("partial_closes") or []) if isinstance(rat, dict) else []:
+            have_marks = True
+            net += float(part.get("realized") or 0.0)
     if not have_marks or book_budget <= 0:
         return (0.0, have_marks)
-    return ((entry_total - marked_total) / book_budget, have_marks)
+    return (-net / book_budget, have_marks)
+
+
+def real_book_dry_clock(conn: sqlite3.Connection) -> tuple[str | None, str | None]:
+    """The §6 dry leg's inputs (operator word 2026-11-12, #465): ``(first_fill_at, last_payoff_at)``. The first fill is
+    the earliest ``opened_at`` of a real row that held exposure (open, closing or closed; a cancelled or never-filled
+    order never starts it). A payoff is a real close with ``realized_pnl > 0`` (P1). Either is None when absent."""
+    first = conn.execute("SELECT MIN(opened_at) AS t FROM convexity_positions "
+                         "WHERE status IN ('open', 'closing', 'closed')").fetchone()["t"]
+    payoff = conn.execute("SELECT MAX(closed_at) AS t FROM convexity_positions "
+                          "WHERE status = 'closed' AND realized_pnl > 0").fetchone()["t"]
+    return first, payoff
 
 
 # A position mid-exit ('closing') still holds REAL exposure until its sell fills, so the

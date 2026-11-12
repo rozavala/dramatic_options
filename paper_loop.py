@@ -48,17 +48,38 @@ class KillRuleStatus:
     book_drawdown: float
     months_dry: float
     reasons: tuple[str, ...]
+    dry_since: str | None = None      # the dry clock's ET start date (first real fill, or the last payoff close)
+    dry_binds_on: str | None = None   # the ET date the dry leg trips absent a payoff
+
+
+def _add_months(d, n: int):
+    """``d`` plus ``n`` calendar months, the day clamped to the target month's length (01-31 + 1 → 02-28)."""
+    import calendar
+    from datetime import date
+
+    y, m = divmod(d.month - 1 + n, 12)
+    year, month = d.year + y, m + 1
+    return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
+
+
+def _et_date(ts: str):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    return datetime.fromisoformat(str(ts)).astimezone(ZoneInfo("America/New_York")).date()
 
 
 def kill_rule_status(conn, config: dict, clock: Clock) -> KillRuleStatus:
-    """Evaluate the §6 kill rule from state. Halts NEW entries (does not force-close).
+    """Evaluate the §6 kill rule from state (PREREG_THEMATIC_CONVEXITY §6 conformance notes, operator word 2026-11-12).
+    A trip halts NEW real-book entries, the council and the L0 scan; it never force-closes. All four null books keep
+    booking (the shadow and 3A in the L1, 3B and shares in the L0 run even when its scan is skipped); only the KILL
+    switch stops them.
 
-    T1 scope: book-drawdown is computed from position *marks* when present (NULL marks →
-    no drawdown yet, since T1 does not mark-to-market — that lands with position tracking in
-    Phase 2). ``months_dry`` is surfaced for visibility but does not trip until realized
-    payoff tracking exists. The check is wired and called every cycle so it activates
-    automatically once marks/outcomes are recorded.
-    """
+    - **Drawdown leg:** the cumulative net loss since the first real fill ÷ the premium budget
+      (``state.convexity_book_drawdown``) ≥ ``kill_rule.book_drawdown_halt``.
+    - **Dry leg:** ``kill_rule.dry_months_halt`` calendar months (US-Eastern dates) since the first real fill, or since
+      the last real close with ``realized_pnl > 0`` if later. Off while ``dry_months_halt`` is absent or no real
+      position has filled. A state read that fails raises, so the cycle fails closed."""
     kr = config.get("kill_rule", {})
     book = config.get("convexity_book", {})
     dd_halt = float(kr.get("book_drawdown_halt", 0.20))
@@ -71,7 +92,23 @@ def kill_rule_status(conn, config: dict, clock: Clock) -> KillRuleStatus:
     if book_dd >= dd_halt:
         tripped = True
         reasons.append(f"book drawdown {book_dd:.0%} >= {dd_halt:.0%}")
-    return KillRuleStatus(tripped=tripped, book_drawdown=book_dd, months_dry=0.0, reasons=tuple(reasons))
+
+    months_dry, dry_since, dry_binds_on = 0.0, None, None
+    dry_halt = kr.get("dry_months_halt")
+    first_fill, last_payoff = state.real_book_dry_clock(conn)
+    if dry_halt is not None and first_fill:
+        start = max(_et_date(first_fill), _et_date(last_payoff)) if last_payoff else _et_date(first_fill)
+        today = _et_date(clock.now().isoformat())
+        binds = _add_months(start, int(dry_halt))
+        whole = (today.year - start.year) * 12 + (today.month - start.month) - (1 if today.day < start.day else 0)
+        # on or after the bind day the clock reads at least the limit (a month-end start clamps the bind day earlier)
+        months_dry = float(max(0, whole, int(dry_halt) if today >= binds else 0))
+        dry_since, dry_binds_on = start.isoformat(), binds.isoformat()
+        if today >= binds:
+            tripped = True
+            reasons.append(f"book dry since {dry_since} (>= {int(dry_halt)} months, no realized payoff)")
+    return KillRuleStatus(tripped=tripped, book_drawdown=book_dd, months_dry=months_dry, reasons=tuple(reasons),
+                          dry_since=dry_since, dry_binds_on=dry_binds_on)
 
 
 def run_paper_cycle(

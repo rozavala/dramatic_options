@@ -40,7 +40,6 @@ from clock import Clock
 from convexity_data import ChainProvider, QuoteProvider
 from convexity_gate import is_cheap_convexity, realized_vol
 from convexity_sizing import convexity_position_size
-from paper_loop import kill_rule_status
 from risk import kill_switch_active
 from sentinels import active_sentinel_candidates, union_candidates
 from structure import contract_eligible, select_structure
@@ -100,10 +99,11 @@ def run_shadow_cycle(
     """Brain-OFF booking: book a SIM position for EVERY candidate that clears the same deterministic
     gates the real book uses, over the SAME candidate union — no council, no framer. NEVER touches the
     broker (no broker arg, no broker import, no submit path). Mirrors run_paper_cycle's gate sequence
-    (kill switch → kill rule → slot reservation → eligibility → IV gate → sizing) so the only
+    (kill switch → slot reservation → eligibility → IV gate → sizing; since #465 a tripped kill RULE halts only the real
+    book, so this control keeps booking) so the only
     difference is the selection."""
     result = ShadowBookResult()
-    if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
+    if kill_switch_active():  # a kill-RULE trip halts the real book only; the null books keep booking (§6, 2026-11-12)
         result.halted = True
         return result
 

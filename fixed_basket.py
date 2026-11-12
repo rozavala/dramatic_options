@@ -37,7 +37,6 @@ from clock import Clock
 from convexity_data import ChainProvider, QuoteProvider
 from convexity_sizing import convexity_position_size, equal_weight_contracts
 from discovery import compute_markers, direction_of
-from paper_loop import kill_rule_status
 from risk import kill_switch_active
 from sentinels import active_sentinel_candidates, union_candidates
 from shadow_book import tail_summary
@@ -98,10 +97,10 @@ def run_fixed_basket_3a_cycle(
 ) -> FixedBasketResult:
     """Book 3A: a SIM position for every candidate in the union that clears eligibility + sizing with
     the **IV GATE OFF** (no `is_cheap_convexity`), under the full cap-ON frame. NEVER touches the broker.
-    Mirrors `shadow_book.run_shadow_cycle`'s gate sequence (kill → slot reservation → eligibility →
+    Mirrors `shadow_book.run_shadow_cycle`'s gate sequence (KILL switch only, never the kill rule, #465 → slot reservation → eligibility →
     [GATE SKIPPED] → cluster cap → sizing) so the only difference vs the shadow book is the missing gate."""
     result = FixedBasketResult(book=BOOK_UNION_NOGATE)
-    if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
+    if kill_switch_active():  # a kill-RULE trip halts the real book only; the null books keep booking (§6, 2026-11-12)
         result.halted = True
         return result
 
@@ -296,7 +295,7 @@ def run_fixed_basket_3b_cycle(
     vs-basket read. Weekly (L0 cadence). NEVER the broker. ``market``/``benchmark``/``params`` are the
     discovery context (the motion read); ``provider`` supplies the option chains."""
     result = FixedBasketResult(book=BOOK_BASKET_NOGATE)
-    if kill_switch_active() or kill_rule_status(conn, config, clock).tripped:
+    if kill_switch_active():  # a kill-RULE trip halts the real book only; the null books keep booking (§6, 2026-11-12)
         result.halted = True
         return result
     # Restricted list (enforcement (c)): 3B walks the RAW basket (never the union), so it needs its

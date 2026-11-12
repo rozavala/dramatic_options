@@ -52,8 +52,10 @@ def hub_db(convexity_db, monkeypatch, tmp_path):
         "INSERT INTO council_proposals(run_id, as_of, theme, symbol, direction, conviction) "
         "VALUES(?, ?, 'ai_compute', 'ZZQTEST', 'bullish', 'LOW')", (run_id, _STARTED))
     import state
+    # opened "yesterday" (wall clock): since #465 the dry leg trips nine months after the first fill (no date bomb)
     state.record_convexity_position(
-        convexity_db, run_id=run_id, opened_at=_STARTED, theme="ai_compute", symbol="ZZQTEST",
+        convexity_db, run_id=run_id, opened_at=(datetime.now(UTC) - timedelta(days=1)).isoformat(),
+        theme="ai_compute", symbol="ZZQTEST",
         direction="bullish", structure_kind="long_call", contract_symbol="ZZQTESTC", expiry="2027-01-15",
         strike=100.0, dte=300, moneyness=0.25, contracts=2, entry_premium_per_contract=500.0,
         total_premium=1000.0, status="open")
