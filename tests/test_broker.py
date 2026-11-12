@@ -241,3 +241,23 @@ def test_an_absent_ceiling_still_refuses_every_open_but_not_a_close(monkeypatch)
     b, fake, _ = _live_broker(monkeypatch, dry_run=False, max_order_notional=None)
     assert b.submit_paper(contract_symbol="X", qty=1, side="buy", limit_price=1.0).filled is False
     assert b.submit_paper(contract_symbol="FCX270319C00080000", qty=1, side="sell", limit_price=1.0).filled
+
+
+def test_live_ceiling_on_a_vertical_bounds_the_open_not_the_close(monkeypatch):
+    # #490 review: the is_buy=opening wiring in submit_spread is what keeps §3 on a vertical's open
+    b, fake, _ = _live_broker(monkeypatch, dry_run=False, max_order_notional=1000.0, shared_reserve=0.0)
+    legs = dict(long_symbol="BIG270731C00125000", short_symbol="BIG270731C00175000", qty=2)
+    opened = b.submit_spread(action="open", limit_price=8.20, **legs)          # net debit $1,640 > $1,000
+    assert opened.filled is False and "exceeds" in opened.note and fake.submitted == []
+    closed = b.submit_spread(action="close", limit_price=30.0, **legs)         # $6,000 credit
+    assert closed.filled and len(fake.submitted) == 1
+
+
+def test_an_unknown_side_or_action_is_refused_never_read_as_a_close(monkeypatch):
+    b, fake, _ = _live_broker(monkeypatch, dry_run=False, max_order_notional=1000.0)
+    for side in ("buy_to_open", "open", "Buy ", "SELL_TO_CLOSE"):
+        f = b.submit_paper(contract_symbol="FCX270319C00080000", qty=10, side=side, limit_price=10.0)
+        assert f.filled is False and "unknown side" in f.note
+    s = b.submit_spread(long_symbol="BIG270731C00125000", short_symbol="BIG270731C00175000", qty=1,
+                        action="buy", limit_price=1.0)
+    assert s.filled is False and "unknown spread action" in s.note and fake.submitted == []

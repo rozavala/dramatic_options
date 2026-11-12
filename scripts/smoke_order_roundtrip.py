@@ -12,7 +12,7 @@ Endpoints (explicit, safe-by-default):
   --endpoint live   Alpaca LIVE endpoint — requires the full triple-gate in config/env AND
                     --operator-go (the pre-reg's contemporaneous authorization; the freeze does
                     NOT imply it), AND the notional ceiling (absent ⇒ the live class rejects
-                    all). Real dollars.
+                    every opening order; §3b). Real dollars.
 
 Every mode enforces the smoke budget in the SCRIPT too (independent of the live class's
 ceiling): qty is hard-coded 1 and an order whose limit×100 exceeds --budget is refused.

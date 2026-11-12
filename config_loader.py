@@ -64,7 +64,7 @@ def load_config() -> dict[str, Any]:
     )
     safety["dry_run"] = _as_bool(os.getenv("DRY_RUN"), default=bool(safety.get("dry_run", True)))
     # The live broker's hard per-order notional ceiling (PREREG_REAL_MONEY_BROKER §3 — absent ⇒
-    # the live class rejects ALL orders, fail-closed). Env path exists so the §5 smoke can arm the
+    # the live class rejects every OPENING order, fail-closed; §3b: a close is never refused for its notional). Env path exists so the §5 smoke can arm the
     # ceiling AT SESSION TIME and unset it after: config.json is git-tracked and a box-local edit
     # is clobbered by the next deploy's reset (the 2026-07-02 lesson) — a live-money knob should
     # not have to live in git to be usable. An unparseable value is ignored (stays fail-closed).

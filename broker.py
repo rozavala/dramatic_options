@@ -188,6 +188,9 @@ class _AlpacaBrokerBase:
         if qty < 1 or limit_price <= 0:
             return Fill(False, 0.0, 0, f"rejected: qty={qty} px={limit_price}")
         limit = round(float(limit_price), 2)
+        if str(side).lower() not in ("buy", "sell"):
+            # fail-closed (#490 review): an unexpected side must never be read as a close, which skips the §3b ceiling
+            return Fill(False, 0.0, 0, f"rejected: unknown side {side!r} (expected 'buy' or 'sell')")
         is_buy = str(side).lower() == "buy"
         intent_label = "buy_to_open" if is_buy else "sell_to_close"
 
@@ -262,6 +265,8 @@ class _AlpacaBrokerBase:
         if qty < 1 or limit_price <= 0:
             return Fill(False, 0.0, 0, f"rejected: qty={qty} px={limit_price}")
         limit = round(float(limit_price), 2)
+        if str(action).lower() not in ("open", "close"):
+            return Fill(False, 0.0, 0, f"rejected: unknown spread action {action!r} (expected 'open' or 'close')")
         opening = str(action).lower() == "open"
         label = f"{'open' if opening else 'close'}_vertical"
         for leg in (long_symbol, short_symbol):
