@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 import state
-from clock import FixedClock
+from clock import FixedClock, et_date
 from convexity_data import StaticQuoteProvider
 from monitor import intrinsic_value, monitor_positions
 from paper_loop import kill_rule_status
@@ -429,7 +429,7 @@ def test_a_refused_single_leg_close_pages_once_naming_the_contract_and_the_reaso
         assert after[col] == before[col], col
     rat_before = json.loads(before["rationale"]) if before["rationale"] else {}
     rat_after = json.loads(after["rationale"])
-    assert rat_after.pop("paged") == {"CLOSE REFUSED": str(CLOCK.now().date())}
+    assert rat_after.pop("paged") == {"CLOSE REFUSED": str(et_date(CLOCK.now()))}    # the ET date (#480)
     assert rat_after == (rat_before if isinstance(rat_before, dict) else {})
 
 
