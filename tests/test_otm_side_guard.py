@@ -45,7 +45,7 @@ def test_klar_shape_reproduces_the_defect_off_and_fails_closed_on():
     off, _ = _pick(KLAR, "bearish", 12.41, guard=False)
     assert off.contract.strike == 17.5 and off.moneyness > 0.40          # the booked 41%-ITM put
     on, why = _pick(KLAR, "bearish", 12.41, guard=True)
-    assert on is None and why == ("no_otm_eligible_contract_in_tenor_window",)
+    assert on is None and why[0] == "no_otm_eligible_contract_in_tenor_window" and why[1].startswith("refused ")
 
 
 def test_stub_shape_itm_only_fails_closed_on():
@@ -53,7 +53,7 @@ def test_stub_shape_itm_only_fails_closed_on():
     off, _ = _pick(itm_only, "bearish", 5.30, guard=False)
     assert off.contract.strike == 7.5 and off.moneyness > 0.40           # the booked 42%-ITM put
     on, why = _pick(itm_only, "bearish", 5.30, guard=True)
-    assert on is None and why == ("no_otm_eligible_contract_in_tenor_window",)
+    assert on is None and why[0] == "no_otm_eligible_contract_in_tenor_window" and why[1].startswith("refused ")
 
 
 def test_stub_shape_with_the_float_fix_selects_the_near_money_otm_put():
@@ -77,7 +77,8 @@ def test_calls_itm_only_fail_closed_and_atm_is_not_otm():
     off, _ = _pick(chain, "bullish", 100.0, guard=False)
     assert off.contract.strike == 100.0                                   # nearest eligible to 125 = ATM
     on, why = _pick(chain, "bullish", 100.0, guard=True)
-    assert on is None and why == ("no_otm_eligible_contract_in_tenor_window",)   # ATM is not OTM
+    assert on is None and why == ("no_otm_eligible_contract_in_tenor_window",
+                                  "refused TC125.0: no_two_sided_quote")   # ATM is not OTM; #494 names the refusal
 
 
 def test_normal_chain_is_unchanged_by_the_guard():

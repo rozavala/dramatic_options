@@ -163,8 +163,23 @@ def select_structure(
             continue
         cands.append((c, dte))
 
+    def rank(con: Contract, d: int) -> tuple[float, float]:
+        return abs(con.strike - target_strike), abs(d - tenor_mid)
+
+    def otm_side(con: Contract) -> bool:
+        return con.strike > underlying_price if kind == "C" else con.strike < underlying_price
+
+    def beyond_floor(con: Contract) -> bool:
+        return min_otm_moneyness <= 0 or _otm_by(con, kind, underlying_price) >= min_otm_moneyness - SPREAD_LIMIT_EPS
+
+    def refusals(keep) -> tuple[str, ...]:
+        """#494: on a veto, the (up to 3) eligibility-refused contracts nearest the target that the remaining filters
+        would have kept, with their reasons. Appended after the reason code, so ``reasons[0]`` stays the code."""
+        pool = sorted((t for t in refused if keep(t[0])), key=lambda t: rank(t[0], t[1]))[:3]
+        return tuple(f"refused {t[0].symbol}: {', '.join(t[2])}" for t in pool)
+
     if not cands:
-        return None, ("no_eligible_contract_in_tenor_window",)
+        return None, ("no_eligible_contract_in_tenor_window",) + refusals(lambda con: True)
     if require_otm_side:
         # Issue #276 — the frozen frame (PREREG_THEMATIC_CONVEXITY) is FAR-OTM only; in-the-money is a
         # separate, unbuilt sleeve, and the skew test misfires on ITM by put-call parity. On thin chains the
@@ -173,16 +188,14 @@ def select_structure(
         otm = [(c, d) for (c, d) in cands
                if (c.strike > underlying_price if kind == "C" else c.strike < underlying_price)]
         if not otm:
-            return None, ("no_otm_eligible_contract_in_tenor_window",)
+            return None, ("no_otm_eligible_contract_in_tenor_window",) + refusals(otm_side)
         cands = otm
     if min_otm_moneyness > 0:
         far = [(c, d) for (c, d) in cands if _otm_by(c, kind, underlying_price) >= min_otm_moneyness - SPREAD_LIMIT_EPS]
         if not far:
-            return None, ("no_eligible_contract_beyond_min_moneyness",)
+            return None, ("no_eligible_contract_beyond_min_moneyness",) + refusals(
+                lambda con: (not require_otm_side or otm_side(con)) and beyond_floor(con))
         cands = far
-
-    def rank(con: Contract, d: int) -> tuple[float, float]:
-        return abs(con.strike - target_strike), abs(d - tenor_mid)
 
     c, dte = min(cands, key=lambda t: rank(*t))
     m = mid_price(c)
@@ -192,9 +205,6 @@ def select_structure(
     chosen = rank(c, dte)
     # "<=": an exact tie that lost only to chain order still counts (refused and cands are disjoint, so the chosen
     # contract never lists itself). Under the side guard a wrong-side refusal could never have been chosen: leave it out.
-    def otm_side(con: Contract) -> bool:
-        return con.strike > underlying_price if kind == "C" else con.strike < underlying_price
-
     nearer = sorted((t for t in refused if rank(t[0], t[1]) <= chosen and (not require_otm_side or otm_side(t[0]))
                      and (min_otm_moneyness <= 0
                           or _otm_by(t[0], kind, underlying_price) >= min_otm_moneyness - SPREAD_LIMIT_EPS)),
