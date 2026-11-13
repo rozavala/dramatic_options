@@ -247,7 +247,7 @@ def test_refusals_page_and_never_book_a_live_spread_closed(convexity_db, monkeyp
     _no_kill(monkeypatch)
     import notify
     pages = []
-    monkeypatch.setattr(notify, "send", lambda title, msg, **kw: pages.append(title))
+    monkeypatch.setattr(notify, "send", lambda title, msg, **kw: pages.append(title) or True)   # delivered (#479)
     p = OverCapProvider()
 
     class Refuses(PaperBroker):

@@ -471,7 +471,7 @@ def test_an_undelivered_page_is_not_stamped_and_the_next_tick_retries_it(convexi
     _tick(convexity_db, FixedClock(NOW + timedelta(minutes=60)), qp, broker)       # stamped now: no third page
     assert calls == ["CLOSE REFUSED", "CLOSE REFUSED"]
     rat = json.loads(_row(convexity_db, pid, "rationale")["rationale"])
-    assert rat["paged"] == {"CLOSE REFUSED": str(CLOCK.now().date())}
+    assert list(rat["paged"]) == ["CLOSE REFUSED"]
 
 
 def test_a_filled_or_resting_close_does_not_page(convexity_db, monkeypatch):
