@@ -20,28 +20,28 @@ DRAMATIC_DB=$LIVE/data/dramatic_options.db DRAMATIC_CACHE_DIR=$LIVE/data/cache P
 *market* sample is not in `gate_dualread` (sealed in `records/miss_baserate/ledger.csv`), so this record explains the
 universe's pass rate only.
 
-## 1. The pass rate climbed as the gate's ratio fell
+## 1. The pass rate rose while the gate's ratio fell
 
 Universe cohort, pooled name-days per month:
 
-| Month | Sweep dates | Structured | Pass | Pass rate | Median `iv_rv` |
+| Month | Sweep dates | Structured | Pass | Pass rate | Median `iv_rv` (pooled) |
 |---|---|---|---|---|---|
-| 2026-06 | 13 | 455 | 387 | 0.85 | 1.07 |
+| 2026-06 | 13 | 455 | 387 | 0.85 | 1.08 |
 | 2026-07 | 22 | 757 | 675 | 0.89 | 1.03 |
 | 2026-08 | 21 | 682 | 643 | 0.94 | 0.97 |
-| 2026-09 | 21 | 809 | 780 | 0.96 | 0.93 |
-| 2026-10 | 22 | 874 | 851 | 0.97 | 0.93 |
+| 2026-09 | 21 | 809 | 780 | 0.96 | 0.94 |
+| 2026-10 | 22 | 874 | 851 | 0.97 | 0.92 |
 | 2026-11 (to 11-12) | 9 | 321 | 310 | 0.97 | 0.95 |
 
-- **Headroom.** The median pass sits about **0.25–0.27** under the 1.2 ceiling on `iv_rv` (late October to
-  November) and about **10 vol pts** under the skew ceiling. The median `otm_skew` is about 0, so the skew leg almost
+- **Headroom.** From 10-20 on, the median pass sits about **0.27** under the 1.2 ceiling on `iv_rv` (pooled; 0.24–0.30
+  by night) and about **10 vol pts** under the skew ceiling. The median `otm_skew` is about 0, so the skew leg almost
   never binds.
 - **What vetoes, all 108 dates.**
   - Not structured: 748 (no eligible contract in the tenor window 654, no OTM-eligible contract 72, none beyond the
     minimum moneyness 22).
   - `iv_rv`: 201. Fail-closed on a structured row: 42. Skew: 8. Both legs: 1.
-- **The binding filter is contract existence.** On every recent date the gate refuses 1–2 structured names, while
-  11–16 of the ~50 names have no structure at all.
+- **Most refusals are contract existence, not the gate.** Since 10-20 the gate refuses 1–2 structured names a
+  night, while 11–16 of the ~50 names have no structure at all.
 
 ## 2. How many passes rest on an elevated trailing 252-day RV
 
@@ -51,8 +51,9 @@ each gate pass, the audit recomputes RV as of the sweep date at 252, 63 and 21 s
 fail on the 63-day one.
 
 **Coverage window.** 2026-09-22 → 2026-11-06: 34 sweep dates where the bars cache covers at least 75% of structured
-rows (in fact 100%). The windows outside it are excluded rather than read:
-- Before 09-22, the cache holds fewer than 253 closes for every name (`unknown_short_history`).
+rows (in fact at least 95%: no cache misses; 7 dates have 1–2 structured rows with no `iv_rv`, `unknown_no_iv_rv`). The windows outside it are excluded rather than read:
+- Before 09-22, most names have fewer than 253 closes (`unknown_short_history`). Every name does until 09-15, and
+  about half of the structured rows read `ok` on 09-16 → 09-21 (79 `ok` rows in all before 09-22).
 - From 11-09, non-sentinel names miss the cache (`unknown_cache_miss`; bars for those are refreshed by the Sunday
   L0 only). The known subset would be the motion-selected sentinels, the bias #474 warned about.
 
@@ -67,7 +68,9 @@ rows (in fact 100%). The windows outside it are excluded rather than read:
   on most of their pass days:
   - PL 19/19, NEE 16/16, MOS 20/23, FLNC 25/32, BWXT 9/14, AMSC 11/19.
   - Next: NXE 15/31, LUNR 8/17, FLY 16/34, KTOS 15/33.
-- **The real book's entries, read on their entry date:**
+- **The real book's entries, as read by that date's nightly sweep** (~20:49 UTC, after the entry). The entry-time
+  inline read differs slightly: on 11-04, FLNC was 0.88 inline vs 0.90 in the sweep, and TITN 1.08 vs 1.08. Every
+  verdict is the same.
 
 | # | Name | Entry | `iv_rv` (RV252) | `IV/RV63` | `IV/RV21` | Depends on RV252? |
 |---|---|---|---|---|---|---|
@@ -88,21 +91,24 @@ The open FLNC put is the case #454 predicted: it passed on a 252-day RV inflated
 
 From 09-22 on, the cheapest 25/50/75% of structured names by `iv_rv` would admit 9–11 / 17–22 / 25–33 names per
 date. The 50% cut falls at `iv_rv` ≈ 0.93–0.96 from 10-19 on. On every date since 09-22, every name inside the
-cheapest 75% also passes the gate of record, so a rank cut-off is a pure tightening. The gate's 1.2 ceiling removes only the top 1–2.
+cheapest 75% also passes the gate of record, so a rank cut-off is a pure tightening. The gate's 1.2
+ceiling removes 0–2 names a night.
 
 ## 4. What this says, and what it does not
 
 - **Says.** On the record, the gate as frozen is close to a pass-through for anything that has a contract. Since
   September, ~97% of structured universe names pass. About one pass in six (15.7%) depends on the 252-day window
-  carrying an old move. On a 21-day window half the passes would fail. The window choice moves the verdict more than
-  the threshold does.
+  carrying an old move. On a 21-day window half the passes would fail. The window choice looks to move the verdict
+  more than the threshold does (an inference: no threshold sweep was run).
 - **Does not say.** Whether those passes are wrong. "Cheap vs trailing realized" is the frozen definition
   (`PREREG_THEMATIC_CONVEXITY` §1), and whether a gate-cheap read leads to repricing is M3's forward test (#455), not
   this audit. RV63 and RV21 are a sensitivity read, not a proposed rule.
 - **Bias notes.**
   - Name-days pool repeated reads of the same names: a persistent name counts every night. The per-name table
     above is the unpooled view.
-  - The 09-22 → 11-06 window is a single 7-week regime.
+  - The 09-22 → 11-06 window is a single regime of 6–7 weeks.
+  - The per-name "most of their pass days" figures rest on different n per name (IRDM has 6 days), so small-n
+    names are noisy.
   - Bar D's final close postdates the 15:45 ET evaluation (≤0.2% RV difference for a ≤5% late move; #474).
 
 ## 5. Feeds
