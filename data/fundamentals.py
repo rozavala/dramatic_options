@@ -63,13 +63,20 @@ def extract_quarterly_revenue(facts_json: dict) -> list[dict[str, Any]]:
     return sorted(best.values(), key=lambda r: r["end"])
 
 
+_PERIODIC_FORMS = frozenset({"10-Q", "10-K", "20-F", "40-F"})   # as fundamentals_staleness.PERIODIC_FORMS
+
+
 def _newest_filed(facts_json: dict | None) -> str | None:
-    """The newest ``filed`` date (YYYY-MM-DD, ET as SEC dates it) of any fact in a companyfacts payload; None if none."""
+    """The newest ``filed`` date (YYYY-MM-DD, ET as SEC dates it) of any PERIODIC-report fact in a companyfacts payload;
+    None if none. Only periodic forms count: a 424B5 / 8-K / S-4 fact indexed after a delayed 10-Q would otherwise
+    read as "contains it" (#495 review: 10 of 61 cached raws have a non-periodic newest fact)."""
     newest = None
     for tax in ((facts_json or {}).get("facts") or {}).values():
         for concept in (tax or {}).values():
             for unit_rows in ((concept or {}).get("units") or {}).values():
                 for row in unit_rows or ():
+                    if str(row.get("form") or "").upper() not in _PERIODIC_FORMS:
+                        continue
                     filed = str(row.get("filed") or "")[:10]
                     if filed and (newest is None or filed > newest):
                         newest = filed

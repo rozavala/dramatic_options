@@ -217,13 +217,14 @@ def test_filing_trigger_fires_once_per_cycle_on_the_filing_day(tmp_path):
     assert sess.calls == 1 and fd.filing_refetches == ["MINI"]
 
 
-def _raw_with_filed(tmp_path, utc: datetime, newest_filed: str, name="OLD"):
+def _raw_with_filed(tmp_path, utc: datetime, newest_filed: str, name="OLD", extra_rows=()):
     import os
     raw_dir = tmp_path / "xbrl_raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     p = raw_dir / "CIK0009999999.json"
     p.write_text(json.dumps({"entityName": name, "facts": {"us-gaap": {"Revenues": {"units": {"USD": [
-        {"start": "2026-04-01", "end": "2026-06-30", "val": 1.0, "filed": newest_filed}]}}}}}))
+        {"start": "2026-04-01", "end": "2026-06-30", "val": 1.0, "filed": newest_filed, "form": "10-Q"},
+        *extra_rows]}}}}}))
     os.utime(p, (utc.timestamp(), utc.timestamp()))
     return p
 
@@ -238,6 +239,19 @@ def test_a_raw_fetched_after_the_filing_but_without_it_is_refetched(tmp_path):
     fd = _fd_filed(tmp_path, sess, filed)
     assert fd._raw_fresh("0009999999", refetch_if_fetched_by=filed, symbol="MINI")["entityName"] == "NEW"
     assert sess.calls == 1 and fd.filing_refetches == ["MINI"]
+
+
+def test_a_newer_non_periodic_fact_does_not_mask_a_missing_10q(tmp_path):
+    # #495 review: a 424B5 (debt issuance) indexed after a delayed 10-Q must not read as "the file contains the filing"
+    now = datetime.now(UTC)
+    filed = (now - timedelta(days=2)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    later = (now - timedelta(days=1)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    _raw_with_filed(tmp_path, now - timedelta(hours=12), "2026-08-06",
+                    extra_rows=[{"start": "2026-07-01", "end": "2026-09-30", "val": 2.0, "filed": later, "form": "424B5"}])
+    sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
+    fd = _fd_filed(tmp_path, sess, filed)
+    assert fd._raw_fresh("0009999999", refetch_if_fetched_by=filed, symbol="MINI")["entityName"] == "NEW"
+    assert sess.calls == 1
 
 
 def test_a_raw_that_contains_the_filing_is_left_alone(tmp_path):
