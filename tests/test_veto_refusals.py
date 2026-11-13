@@ -68,3 +68,12 @@ def test_the_veto_is_recorded_and_logged(convexity_db, monkeypatch, caplog):
     assert row["decision"] == "veto-eligibility" and "refused RDW270521P00006000: spread 67%>25%" in row["reasons"]
     assert any(r.getMessage().startswith("Eligibility veto RDW: no_eligible_contract_beyond_min_moneyness; refused ")
                for r in caplog.records)
+
+
+def test_a_tenor_veto_names_only_contracts_the_side_guard_and_floor_would_keep():
+    # #496 review: an ITM or below-floor refusal would have been vetoed anyway, so it is not named
+    chain = [_p(12.0, 2.0, 3.0), _p(9.0, 1.0, 1.6), _p(6.0, 0.40, 0.80)]   # ITM, 10% OTM, 29% OTM: all too wide
+    s, why = select_structure(chain, direction="bearish", as_of=AS_OF, underlying_price=8.40, underlying_symbol="RDW",
+                              tenor_min_days=180, tenor_max_days=365, target_moneyness=0.25, eligibility=_elig,
+                              require_otm_side=True, min_otm_moneyness=0.15)
+    assert s is None and why == ("no_eligible_contract_in_tenor_window", "refused RDW270521P00006000: spread 67%>25%")
