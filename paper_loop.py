@@ -405,6 +405,8 @@ def _process_theme(
     )
     if structure is None:
         result.vetoed += 1
+        if len(sreasons) > 1:   # #494: say which contracts were refused and why (a carry veto at 10:00 ET was opaque)
+            log.info("Eligibility veto %s%s: %s", theme.symbol, " (carry attempt)" if walk else "", "; ".join(sreasons))
         state.record_convexity_eval(
             conn, run_id=run_id, as_of=as_of_iso, theme=theme.name, symbol=theme.symbol,
             direction=theme.direction, eligible=False, decision="veto-eligibility",

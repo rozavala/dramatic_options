@@ -39,7 +39,7 @@ def test_the_titn_1918_shape_fails_closed_instead_of_buying_near_money():
     s, why = _select(chain, spot=23.36, floor=0.0)
     assert s.contract.symbol == "XC25.0"                                            # the defect, floor off
     s, why = _select(chain, spot=23.36)
-    assert s is None and why == ("no_eligible_contract_beyond_min_moneyness",)
+    assert s is None and why == ("no_eligible_contract_beyond_min_moneyness", "refused XC30.0: spread 67%>25%")  # #494
 
 
 def test_when_the_far_wing_is_eligible_it_is_chosen_as_before():
