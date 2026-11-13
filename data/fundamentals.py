@@ -63,6 +63,19 @@ def extract_quarterly_revenue(facts_json: dict) -> list[dict[str, Any]]:
     return sorted(best.values(), key=lambda r: r["end"])
 
 
+def _newest_filed(facts_json: dict | None) -> str | None:
+    """The newest ``filed`` date (YYYY-MM-DD, ET as SEC dates it) of any fact in a companyfacts payload; None if none."""
+    newest = None
+    for tax in ((facts_json or {}).get("facts") or {}).values():
+        for concept in (tax or {}).values():
+            for unit_rows in ((concept or {}).get("units") or {}).values():
+                for row in unit_rows or ():
+                    filed = str(row.get("filed") or "")[:10]
+                    if filed and (newest is None or filed > newest):
+                        newest = filed
+    return newest
+
+
 def _ttm_at(points: list[dict[str, Any]], anchor_end: str) -> float | None:
     """Sum of the 4 quarterly values ending at or before ``anchor_end`` (need exactly 4,
     CONSECUTIVE). The consecutiveness guard (§9 corpus build): without it a systematically
@@ -224,7 +237,13 @@ class FundamentalsData:
             fresh_enough = (self.max_raw_age_days is None or age_days <= self.max_raw_age_days)
             if refetch_if_fetched_by is not None and fresh_enough and (symbol or cik) not in self.filing_refetches:
                 fetched_et = datetime.fromtimestamp(path.stat().st_mtime, UTC).astimezone(_ET).date().isoformat()
-                fresh_enough = fetched_et > refetch_if_fetched_by
+                # #492: a download made after the filing can still predate SEC indexing it into companyfacts (CEG:
+                # fetched 11-10 after its 11-09 10-Q, newest fact filed 08-06). So also refetch while the file does not
+                # yet CONTAIN the filing, for as long as the filing is recent; after that the age policy refetches anyway.
+                missing = (_newest_filed(stale) or "") < refetch_if_fetched_by
+                recent = (datetime.now(UTC).astimezone(_ET).date()
+                          - datetime.fromisoformat(refetch_if_fetched_by).date()).days <= (self.max_raw_age_days or 7)
+                fresh_enough = fetched_et > refetch_if_fetched_by and not (missing and recent)
                 if not fresh_enough and not force_refresh:
                     self.filing_refetches.append(symbol or cik)
             if stale is not None and fresh_enough and not force_refresh:
