@@ -8,8 +8,19 @@ and the replay harness use ``FixedClock``.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Protocol, runtime_checkable
+from zoneinfo import ZoneInfo
+
+ET = ZoneInfo("America/New_York")
+
+
+def et_date(now: datetime) -> date:
+    """The US-Eastern calendar date of ``now`` (a naive ``now`` is read as UTC, as ``Clock`` promises).
+
+    Every schedule-anchored date decision (expiry, DTE, the daily page debounce) uses this, never ``now.date()``:
+    ``LiveClock.now()`` is UTC, whose date is already tomorrow after 19:00 ET (20:00 ET under EDT) (#480)."""
+    return (now if now.tzinfo is not None else now.replace(tzinfo=UTC)).astimezone(ET).date()
 
 
 @runtime_checkable
