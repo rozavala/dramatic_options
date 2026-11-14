@@ -41,9 +41,8 @@ The header's absence is itself a signal.
   - **Backfill and `include=false` (RDW):** decided at #456's look.
   - **The remaining #476 drafts, in priority order:** (1) #456, the cheaper arm; (2) #455 and #462; (3) #464, option B;
     later #453, #460, #457, #459 and #461.
+  - **PROD promoted, inert:** #491 (`29a86e4`, 2026-11-12 05:50 UTC), verified read-only on 2026-11-14 (board below).
   - **Authorized but not done:**
-    - PROD promotion of main, inert (`FORWARD_ENABLED=false`). The PAPER contradiction was resolved by a read-only
-      check on 2026-11-12, so the promotion is pending its PR;
     - an inert arming PR, a draft only;
     - a 1-week paper rehearsal on a **separate paper account**.
   - **#469 deferred.**
@@ -263,10 +262,12 @@ The header's absence is itself a signal.
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
 
 ## Board & book
-- Box: DEV = main `2d3a85a` (#435, deployed 11-08 01:02 UTC; **rebooted 2026-11-07 19:24 UTC** after the operator's
-  apt upgrade); **PROD = `a7548e8` (#392, promoted 2026-10-30 04:21 UTC; 31 merges / 24 PRs behind main on 11-08, incl.
-  the profit program #411–#415 and the 15% floor #425; rebooted 2026-11-07 19:39 UTC)**, inert: timers disabled, `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`
-  (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
+- Box: DEV = main `a6dbf81` (#499, deployed 2026-11-14 01:17 UTC; **rebooted 2026-11-07 19:24 UTC** after the
+  operator's apt upgrade); **PROD = `29a86e4` (#491, promoted 2026-11-12 05:50 UTC; 5 PRs behind main on 11-14:
+  #495–#499), verified read-only 2026-11-14 01:12 UTC** (ssh with the operator's go): HEAD
+  `29a86e4`, clean tree, 0 `dramatic-options-*` timers loaded, 0 failed units, units on `-m orchestrator`,
+  `trading-bot` active, `/api/version` env `prod`; inert: `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`,
+  `FORWARD_ENABLED=false` (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
   (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD. PROD's journal is readable by the review user from 2026-11-03 (`systemd-journal`). PROD's first #392 deploy failed at `git fetch` (a stale `origin/claude` tracking ref blocked `claude/*` branches); pruned with the operator's go, deploy re-run green.
 - Apps:
   - DEV: `https://all-options-dev.tail57521e.ts.net:8602`
