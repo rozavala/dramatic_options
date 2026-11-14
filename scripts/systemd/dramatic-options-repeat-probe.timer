@@ -1,0 +1,18 @@
+# Dramatic Options — #456 repeat-read probe timer. TEMPLATE (no placeholders; installed + enabled by deploy.sh only
+# where FORWARD_ENABLED=true, like the other timers; PROD stays installed-but-disabled).
+#
+# Mon..Fri 16:10 ET: after the 15:45 ET L1 (which measured ~7 min on 11-13; its TimeoutStartSec is 30 min, and the
+# service's After= holds the probe until a still-running L1 exits). Fires daily all year; the probe refuses quietly
+# (one INFO line, exit 0) while council.repeat_probe.enabled is false, before the 2026-12-07 segment start, and once
+# the 10-session segment is complete. Persistent=true: a run missed while the box was down fires on boot; it probes
+# only if that ET day's L1 council exists and has finished, else it refuses quietly.
+[Unit]
+Description=Dramatic Options council repeat-read probe timer (Mon..Fri 16:10 ET, after the L1)
+
+[Timer]
+OnCalendar=Mon..Fri 16:10 America/New_York
+Persistent=true
+Unit=dramatic-options-repeat-probe.service
+
+[Install]
+WantedBy=timers.target

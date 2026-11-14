@@ -185,3 +185,33 @@ def test_deploy_fails_at_the_end_when_a_unit_is_stale():
     text = DEPLOY.read_text()
     tail = text[text.index("# STEP 9"):]
     assert 'if [ -n "$UNITS_FAILED" ]' in tail and "exit 1" in tail.split("Deployment finished successfully")[0]
+
+
+# ── #456 repeat-read probe unit (measurement only, after the L1) ────────────────────────────────────────────────────
+def test_repeat_probe_unit_shape():
+    cp = _parse(SYSTEMD / "dramatic-options-repeat-probe.service")
+    assert cp["Service"]["Type"] == "oneshot"
+    assert cp["Unit"]["OnFailure"] == "dramatic-options-notify@%n.service"
+    assert cp["Service"]["EnvironmentFile"] == "__REPO_ROOT__/.env"
+    assert cp["Service"]["ExecStart"] == "__REPO_ROOT__/venv/bin/python -u -m orchestrator --repeat-probe"
+    assert "dramatic-options-l1.service" in cp["Unit"]["After"].split()
+    assert int(cp["Service"]["TimeoutStartSec"]) >= 1800
+    text = (SYSTEMD / "dramatic-options-repeat-probe.service").read_text()
+    assert "__USER__" in text and "__GROUP__" in text
+
+
+def test_repeat_probe_timer_runs_weekdays_after_the_l1():
+    cp = _parse(SYSTEMD / "dramatic-options-repeat-probe.timer")
+    assert cp["Timer"]["OnCalendar"] == "Mon..Fri 16:10 America/New_York"
+    l1 = _parse(SYSTEMD / "dramatic-options-l1.timer")["Timer"]["OnCalendar"]
+    assert l1 == "Mon..Fri 15:45 America/New_York"   # the probe's 16:10 is after it
+    assert cp["Timer"]["Unit"] == "dramatic-options-repeat-probe.service"
+    assert cp["Install"]["WantedBy"] == "timers.target"
+
+
+def test_repeat_probe_is_armed_stopped_and_verified_by_deploy():
+    deploy = DEPLOY.read_text()
+    timers = re.search(r"^TIMERS=\((.*?)\)", deploy, re.M).group(1)
+    services = re.search(r"^SERVICES=\((.*?)\)", deploy, re.M).group(1)
+    assert '"${SERVICE_PREFIX}-repeat-probe.timer"' in timers
+    assert '"${SERVICE_PREFIX}-repeat-probe.service"' in services

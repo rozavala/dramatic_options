@@ -1,0 +1,33 @@
+# Dramatic Options — #456 council repeat-read probe, Arm A (PREREG_COUNCIL_GATE_SEPARATION §10.12;
+# records/2026-11-14_council_repeat_probe_armA_PREREG.md). MEASUREMENT ONLY: re-asks the strategist k=5 times per
+# name on tonight's captured packs; writes council_repeat_reads/_sessions, never the council of record; never trades.
+# TEMPLATE: deploy.sh renders __REPO_ROOT__ / __USER__ / __GROUP__ at install time. Never loaded raw.
+#
+# Type=oneshot fired by dramatic-options-repeat-probe.timer (Mon..Fri 16:10 ET). A SEPARATE unit, never inside the L1
+# process: 10 names x k calls is several minutes, and a stalled probe call must never time out the L1 or fire the
+# L1's OnFailure page. After= the L1: if the L1 is still running when this timer fires, systemd holds this start until
+# the L1's oneshot exits; the probe ALSO checks in-process that today's L1 has exited (council/repeat_probe.py
+# l1_finished) and refuses otherwise.
+#
+# While council.repeat_probe.enabled is false (the shipped default) every run is one INFO line and exit 0 — no DB
+# write, no LLM call, no page. Every other refusal (before the segment, segment complete/stopped, caps, the page
+# rule) is also exit 0 with a log line. Only an unexpected error exits non-zero → OnFailure page.
+[Unit]
+Description=Dramatic Options council repeat-read probe (#456, measurement only, after the L1)
+After=network-online.target dramatic-options-l1.service
+Wants=network-online.target
+OnFailure=dramatic-options-notify@%n.service
+
+[Service]
+Type=oneshot
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__REPO_ROOT__
+EnvironmentFile=__REPO_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
+# Hang ceiling: a healthy session is ~50 strategist calls (~10 names x k=5; the L1's whole 3-role council for ~10
+# names measured 6m47s on 11-13); 3600s clears a slow night with retries while SIGTERMing (→ page) a wedged provider.
+# The probe's own CostLedger caps spend independently ($1.50/session, $15/segment).
+TimeoutStartSec=3600
+# Started as `-m orchestrator`, never `orchestrator.py` (the neighbour's `pkill -9 -f orchestrator.py`, 2026-10-15).
+ExecStart=__REPO_ROOT__/venv/bin/python -u -m orchestrator --repeat-probe

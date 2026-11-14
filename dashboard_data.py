@@ -2098,8 +2098,9 @@ SPEND_PAGE_FRACTION = 0.8  # the orchestrator pages at 80% of a provider's month
 
 def spend_panel(conn, config: dict, *, now: datetime | None = None) -> dict:
     """Month-to-date COUNCIL spend per provider against ``council.monthly_spend_page_usd`` (the tripwire that
-    would have surfaced the 2026-08-26 cap exhaustion days early) + the all-time ledger. Council-scope only,
-    stated honestly: a shared key's external usage is invisible here (``state.provider_month_spend``)."""
+    would have surfaced the 2026-08-26 cap exhaustion days early) + the all-time ledger. MTD includes the #456
+    repeat-read probe's spend (``state.provider_month_spend``); the all-time ledger is the council's only. Our side
+    only, stated honestly: a shared key's external usage is invisible here."""
     now = now or datetime.now(UTC)
     council = (config or {}).get("council", {}) or {}
     caps = council.get("monthly_spend_page_usd", {}) or {}
