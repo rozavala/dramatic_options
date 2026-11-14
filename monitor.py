@@ -21,7 +21,7 @@ import sentinel_scoring
 import state
 import verticals
 from broker import make_client_order_id
-from clock import Clock
+from clock import Clock, et_date
 from convexity_data import QuoteProvider
 from council import scoring
 from options_tradability import parse_osi
@@ -183,7 +183,7 @@ def monitor_positions(
     min_close_bid = float(exits.get("min_close_bid", 0.05))
     conv_map = config.get("council", {}).get("conviction_to_prob")
     now = clock.now()
-    today = now.date()
+    today = et_date(now)  # the ET trading date, not the UTC date (#480)
     as_of_iso = now.isoformat()
     res = MonitorResult()
     real_submit = broker is not None and not dry_run and not mark_only

@@ -4,7 +4,7 @@ Inert when off; when on: the net debit is sized, one atomic multi-leg order, bot
 spread expiry, multi-leg close, and the same rule in the shadow / 3A / 3B books."""
 
 import copy
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
 import pytest
@@ -174,7 +174,8 @@ def test_monitor_marks_takes_profit_and_expires_the_spread(convexity_db, monkeyp
                               config=_on())
     assert convexity_db.execute("SELECT mark FROM convexity_positions").fetchone()["mark"] == pytest.approx(8.2)
     # the spread worth 10× its 8.20 debit = 82 > its 50 width: unreachable; at expiry it books the spread intrinsic
-    monitor.monitor_positions(conn=convexity_db, clock=FixedClock(datetime.combine(EXP, datetime.min.time(), UTC)),
+    # 16:30 ET on the expiry date (#480: 00:00 UTC on it is still the evening before in New York)
+    monitor.monitor_positions(conn=convexity_db, clock=FixedClock(datetime.combine(EXP, time(21, 30), UTC)),
                               quote_provider=p, config=_on(), underlying_price_of=lambda s: 160.0)
     r = convexity_db.execute("SELECT * FROM convexity_positions").fetchone()
     assert r["status"] == "closed" and r["exit_reason"] == "expiry"
