@@ -450,8 +450,12 @@ def test_the_11th_session_is_refused(convexity_db):
 def test_a_session_with_no_counted_repeat_does_not_count(convexity_db):
     cfg = _config(probe={**PROBE, "k": 1})
     _l1(convexity_db, "2026-12-07", config=cfg, cands=CANDS[:1])
-    assert _probe(convexity_db, "2026-12-07", config=cfg, understudy_at={0}).status == "done"
+    o = _probe(convexity_db, "2026-12-07", config=cfg, understudy_at={0})
+    assert o.status == "done"
     assert rp.counted_sessions(convexity_db) == []
+    # the session row agrees with the report: a name with no COUNTED repeat is not "probed" (#456 review S2)
+    assert o.names_probed == 0 and o.repeats == 1
+    assert convexity_db.execute("SELECT names_probed FROM council_repeat_sessions").fetchone()[0] == 0
 
 
 def test_model_mix_change_stops_the_segment_for_good(convexity_db):
@@ -626,4 +630,6 @@ def test_shipped_config_is_off_with_the_pinned_values():
     assert (s["k"], s["sessions"], s["segment_start_et"], s["cap_session_usd"], s["cap_total_usd"],
             s["page_refusal_fraction"]) == (5, 10, "2026-12-07", 1.5, 15.0, 0.8)
     assert "§10.12" in cfg["repeat_probe"]["_comment"] and "2026-11-14" in cfg["repeat_probe"]["_comment"]
-    assert cfg["monthly_spend_page_usd"]["anthropic"] == 10.0   # the $20 December raise rides the 12-07 switch-on edit
+    # Deliberate pin, not a date bomb: the 12-07 switch-on is a dated edit (§10.12) that sets enabled → true and the
+    # anthropic page → 20.0, and it updates this test in the same PR. Until then the shipped config must stay off.
+    assert cfg["monthly_spend_page_usd"]["anthropic"] == 10.0

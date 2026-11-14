@@ -215,3 +215,22 @@ def test_repeat_probe_is_armed_stopped_and_verified_by_deploy():
     services = re.search(r"^SERVICES=\((.*?)\)", deploy, re.M).group(1)
     assert '"${SERVICE_PREFIX}-repeat-probe.timer"' in timers
     assert '"${SERVICE_PREFIX}-repeat-probe.service"' in services
+
+
+def test_apply_timers_arms_every_installable_timer_when_one_is_missing():
+    """#456 review B1: `systemctl enable --now a b c` is all-or-nothing, so one timer whose unit file sudo-rs could
+    not install left EVERY timer unarmed, in the rollback too (it reuses the same TIMERS array). Timers are now
+    enabled one per call: a missing unit fails only itself and the rest re-arm."""
+    import subprocess
+
+    # A fake systemctl that, like systemd, refuses the WHOLE enable when any listed unit file is missing.
+    fake = ('sudo() { [ "$1" = "-n" ] && shift; if [ "$1" = systemctl ] && [ "$2" = enable ]; then shift 3; '
+            'for u in "$@"; do [ "$u" = missing.timer ] && return 1; done; '
+            'for u in "$@"; do echo "ARMED $u"; done; return 0; fi; return 0; }\n'
+            'forward_enabled() { echo true; }\n')
+    script = ('set -e\nTIMERS=("a.timer" "missing.timer" "b.timer")\n' + fake + _deploy_function("apply_timers") +
+              "apply_timers\n")
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30)
+    assert out.returncode == 0, out.stderr
+    assert "ARMED a.timer" in out.stdout and "ARMED b.timer" in out.stdout, out.stdout
+    assert "WARNING: enable --now missing.timer failed" in out.stdout

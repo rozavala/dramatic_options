@@ -169,7 +169,12 @@ install_units() {
 apply_timers() {
     if [ "$(forward_enabled)" = "true" ]; then
         echo "  FORWARD_ENABLED=true → enabling timers (this env trades)."
-        sudo systemctl enable --now "${TIMERS[@]}" || echo "  WARNING: enable --now failed (verified in STEP 8)"
+        # One timer per call (#456 review): `enable --now` of a list is all-or-nothing, so one missing unit file
+        # (e.g. a new unit sudo-rs could not install) would leave EVERY timer unarmed, in the rollback too.
+        local t
+        for t in "${TIMERS[@]}"; do
+            sudo systemctl enable --now "$t" || echo "  WARNING: enable --now $t failed (verified in STEP 8)"
+        done
     else
         echo "  FORWARD_ENABLED=false → timers installed-but-inert (no trading on this env)."
         sudo systemctl disable --now "${TIMERS[@]}" 2>/dev/null || true

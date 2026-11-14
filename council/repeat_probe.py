@@ -398,7 +398,6 @@ def run_probe(conn: sqlite3.Connection, *, config: dict, clock, router_factory: 
                 _write_read(conn, session_id=session_id, run_id=run_id, n=n, idx=idx, resp=None, sraw=None,
                             conviction=None, flagged=None, excluded="provider_error", now=clock.now())
                 excluded["provider_error"] += 1
-                probed.add(n.proposal_id)
                 o.repeats += 1
                 o.status, o.reason = "stopped_provider_error", str(e)
                 break
@@ -411,7 +410,8 @@ def run_probe(conn: sqlite3.Connection, *, config: dict, clock, router_factory: 
             _write_read(conn, session_id=session_id, run_id=run_id, n=n, idx=idx, resp=resp, sraw=sraw,
                         conviction=normalize_conviction(sconf), flagged=sfr.flagged, excluded=reason,
                         now=clock.now())
-            probed.add(n.proposal_id)
+            if not reason:  # "probed" = at least one COUNTED repeat, the report's definition (#456 review S2)
+                probed.add(n.proposal_id)
             o.repeats += 1
     o.names_probed = len(probed)
     o.excluded = dict(excluded)
