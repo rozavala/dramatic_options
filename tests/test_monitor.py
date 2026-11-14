@@ -395,6 +395,10 @@ def test_the_retry_sells_only_the_remainder_and_the_sentinel_scores_the_whole_be
 
 # ── #473: a refused single-leg close pages once per position per ET day ─────────────────────────────
 
+def _pushover_down():
+    raise RuntimeError("pushover down")
+
+
 def _refused_close_setup(conn, monkeypatch):
     import notify
     from broker import Fill
@@ -443,6 +447,31 @@ def test_a_second_refusal_the_same_day_does_not_page_and_the_next_day_pages_agai
     assert len(broker.sells) == 4
     assert [t for t, _ in pages] == ["CLOSE REFUSED", "CLOSE REFUSED"]
     assert _row(convexity_db, pid, "status")["status"] == "open"
+
+
+@pytest.mark.parametrize("fail", [lambda: False, _pushover_down], ids=["returns_false", "raises"])
+def test_an_undelivered_page_is_not_stamped_and_the_next_tick_retries_it(convexity_db, monkeypatch, fail):
+    # #479: the stamp was written BEFORE the send, whose False return was ignored — a one-tick Pushover failure
+    # silenced the page for the rest of the ET day. Now only a delivered page is stamped.
+    import json
+
+    import notify
+    pid, qp, broker, _, _ = _refused_close_setup(convexity_db, monkeypatch)
+    calls = []
+
+    def send(t, m, priority=0):
+        calls.append(t)
+        return fail() if len(calls) == 1 else True
+
+    monkeypatch.setattr(notify, "send", send)
+    _tick(convexity_db, CLOCK, qp, broker)                                         # Pushover fails
+    rat = json.loads(_row(convexity_db, pid, "rationale")["rationale"] or "null") or {}
+    assert "CLOSE REFUSED" not in rat.get("paged", {}), "an undelivered page was stamped as sent"
+    _tick(convexity_db, FixedClock(NOW + timedelta(minutes=30)), qp, broker)       # the next L2: retried, delivered
+    _tick(convexity_db, FixedClock(NOW + timedelta(minutes=60)), qp, broker)       # stamped now: no third page
+    assert calls == ["CLOSE REFUSED", "CLOSE REFUSED"]
+    rat = json.loads(_row(convexity_db, pid, "rationale")["rationale"])
+    assert list(rat["paged"]) == ["CLOSE REFUSED"]
 
 
 def test_a_filled_or_resting_close_does_not_page(convexity_db, monkeypatch):
