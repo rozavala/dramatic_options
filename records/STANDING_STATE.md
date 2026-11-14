@@ -46,6 +46,16 @@ The header's absence is itself a signal.
     - an inert arming PR, a draft only;
     - a 1-week paper rehearsal on a **separate paper account**.
   - **#469 deferred.**
+- **Council repeat-read probe, Arm A (2026-11-14, operator word "Ok sure let's follow your recommendations"; #456;
+  PREREG_COUNCIL_GATE_SEPARATION §10.12; `records/2026-11-14_council_repeat_probe_armA_PREREG.md`):** measurement only.
+  - The strategist is re-asked 5× per name on the same night's pack and debate, by a separate unit after the L1.
+  - Segment: L1s Mon **2026-12-07 → Fri 12-18** (10 sessions), switched on at the 12-07 boundary. The code ships
+    before then, default-off (`council.repeat_probe`).
+  - Read 1: < 70% majority match among ≥ 5 floor-contact names ⇒ a dated look at a k-read entry rule. Read 2:
+    < 80% `include` majority match ⇒ a lone `include=false` read does not reverse an entry.
+  - The look after 12-18 settles the RDW backfill `include=false` question and carry confirmation.
+  - Caps $1.50 per session and $15 total; probe spend counts in the monthly page's MTD; the anthropic page is **$20
+    for December 2026** (back to $10 in January, a dated edit).
 - **Quote filter restatements, restate_v1 (adopted 2026-11-04, operator word "Adopt both the 15% floor and A+B+C at
   the 11-12 boundary"; #421; PREREG_FORWARD_CATALYST_GROUNDING §13; IN FORCE FROM THE FIRST L1 AFTER THE 2026-11-12 DEPLOY;
   operator 2026-11-12 "merge it": lands alone, ahead of the model refresh, which takes its own boundary):** council roles only. A: rendered signed 3-decimal figures pool their
@@ -260,6 +270,11 @@ The header's absence is itself a signal.
 - **~2026-12-19:** TITN's only in-window expiry (Jun-2027) drops under 180 days unless Sep-2027 lists (held #7 is
   Jun-27; exits unaffected).
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
+- **Before Sat 2026-12-05:** the #456 probe code merged default-off (§10.12), with the anthropic page at $20.
+- **Mon 2026-12-07:** boundary B; `council.repeat_probe` switched on with the first L1 (§10.12 segment, 10 sessions).
+- **Fri 2026-12-18:** the probe segment's 10th session → the §10.12 look (Read 1, Read 2, RDW `include=false`,
+  carry confirmation).
+- **January 2027 (first L1):** `council.monthly_spend_page_usd.anthropic` back to $10 (dated edit, §10.12).
 
 ## Board & book
 - Box: DEV = main `a6dbf81` (#499, deployed 2026-11-14 01:17 UTC; **rebooted 2026-11-07 19:24 UTC** after the

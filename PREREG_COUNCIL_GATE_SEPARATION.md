@@ -439,3 +439,29 @@ back to "not at inflection" on 10-29.
 - **The check on this decision:** PREREG_REJECTION_REASON_AUDIT (~February 2027) reads whether the timing test
   filters losers; §10.11 judgments are their own segment.
 
+### 10.12 Council repeat-read probe, Arm A (dated note, 2026-11-14, operator word)
+
+**Status: FROZEN 2026-11-14.** Operator's word on the decisions table: *"Ok sure let's follow your
+recommendations"* (#456; the 2026-11-12 word put "#456, the cheaper arm" first among the #476 drafts). The full
+pre-registration is `records/2026-11-14_council_repeat_probe_armA_PREREG.md`; this section is its index.
+
+- **What:** after each L1, a separate unit re-asks the **strategist only** k = 5 times per name on the same night's
+  captured `ContextPack`, the stored proposer and adversary outputs and the recorded presentation order, with the
+  record's post-processing (the same quote filter and the §10.7 coercion, via one shared helper). It measures the
+  strategist's run-to-run agreement with its own verdict of record, with evidence drift excluded.
+- **Segment:** the 10 L1 sessions Mon 2026-12-07 → Fri 2026-12-18 (boundary B, #470). It stops itself after 10, and
+  stops early on any `runs.model_mix` change. Nothing pools across a stamp.
+- **Read 1 (entry):** among floor-contact names (verdict of record ≥ MODERATE, or ≥ 1 of 5 repeats ≥ MODERATE), if
+  fewer than **70%** have a verdict of record (≥ floor yes/no) equal to the 5-repeat majority, a dated look at a
+  k-read entry rule is owed. It needs ≥ 5 floor-contact names, else "not evaluable" (a likely, pre-stated outcome).
+- **Read 2 (include):** over all probed name-sessions (≥ 30), if `include` of record equals the 5-repeat majority
+  less than **80%** of the time, a lone `include=false` read is not treated as reversing an entry.
+- **One look** after the segment reads both, with the persistence watch's trigger if it fires, and settles the RDW
+  backfill `include=false` question and whether a carry waits for the next L1's read.
+- **Cost:** about $0.92 per session (strategist $0.0182 per call, measured over 20 sessions). Probe caps are $1.50
+  per session and $15 for the segment, on the probe's own ledger. Probe spend counts in
+  `state.provider_month_spend`, and `council.monthly_spend_page_usd.anthropic` is $20 for December 2026.
+- **Never:** written to `council_proposals` or `council_agent_outputs`; used to select, size, hold or exit; scored
+  against prices or outcomes (guardrail 6); used to tune a prompt, the floor or the criteria; a training signal.
+- **Unchanged:** the verdict of record, the floor, the criteria, the prompts, the gates, sizing, `frame_version`
+  (the probe changes nothing the council sees).
