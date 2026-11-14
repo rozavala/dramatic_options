@@ -192,3 +192,26 @@ PR, behind the default-off flag, merged before the 12-07 boundary weekend:
 - tests with `FakeRouter`.
 
 `frame_version` does not move, because the probe changes nothing the council sees.
+
+## 10. Implementation notes (2026-11-14, from the code review; interpretations, no value changed)
+
+The code PR's fresh-context review ruled these readings of the frozen text conformant or acceptable. They are stated
+here so the look reads the segment the way the code counts it.
+- **A session counts toward the 10** when it has at least one counted repeat (not excluded). A night where every
+  repeat came from the understudy, failed to parse or hit a provider error does not count, so the segment can run a
+  session past 12-18. The first counted session anchors `model_mix`.
+- **"Probed name"** means at least one counted repeat, in both the session row and the report.
+- **Names skipped**, each counted by reason: a prompt-hash mismatch; a record answered by the understudy; a record
+  whose strategist output failed to parse; missing stored inputs or order; an undecodable pack. None has a verdict of
+  the probed model to agree with.
+- **Same model, pinned prompt:** the probe refuses a session when the configured strategist provider/model or the
+  STRATEGIST system-prompt hash differs from that night's `model_mix` (a deploy between the L1 and the probe).
+- **A provider error** (after retries and the understudy) is recorded as an excluded row and stops that session.
+- **Caps** use the council's `CostLedger` semantics, so a session can overshoot its cap by at most one call (~$0.02).
+  The page-refusal estimate is k × tonight's recorded strategist costs for the names to be probed. With no
+  `monthly_spend_page_usd` entry for the strategist's provider, the probe refuses.
+- **The probe pages** the existing "Council spend tripwire" when its own spend carries month-to-date across 80% of the
+  page line; otherwise a probe-caused crossing would never page (the L1's crossing debounce would skip it).
+- **Statistics:** majority is strict (a tie, possible only after an exclusion, is a non-match, and ties are reported);
+  Fleiss' kappa is the variable-rater form among the repeats only (the verdict of record is not a rater), over subjects
+  with at least two counted repeats.
