@@ -1,10 +1,14 @@
-# PREREG DRAFT — Council repeat-read probe, Arm A only (#456; for PREREG_COUNCIL_GATE_SEPARATION §10.12)
+# PREREG — Council repeat-read probe, Arm A only (#456; PREREG_COUNCIL_GATE_SEPARATION §10.12)
 
-**Status: DRAFT, NOT FROZEN.** Nothing reads this file and no code exists for it. It revises the 2026-11-10 draft
-(`records/2026-11-10_council_repeat_probe_PREREG_DRAFT.md`, draft PR #476) after the operator's 2026-11-12 word put
-"#456, the cheaper arm" first among the #476 drafts (`records/2026-11-12_operator_decisions_roadmap.md`). Values
-marked **[PIN]** are proposals; §9 lists the decisions. On the word, it is appended to
-`PREREG_COUNCIL_GATE_SEPARATION.md` as **§10.12** and indexed in `records/STANDING_STATE.md`.
+**Status: FROZEN 2026-11-14 (operator word).** The operator's word on the §9 decisions, 2026-11-14: *"Ok sure
+let's follow your recommendations"*. Every **[PIN]** below takes the value §9 recommends: Arm A, k = 5, the
+12-07 → 12-18 segment, the default-off capture switched on at 12-07, a separate unit after the L1, a shared coercion
+helper, both pre-stated reads as written, caps of $1.50 per session and $15 total with probe spend counted in the
+monthly page's MTD, the anthropic page at $20 for December, and one look that also settles the RDW `include=false`
+question and carry confirmation. It revises the 2026-11-10 draft (`records/2026-11-10_council_repeat_probe_PREREG_DRAFT.md`,
+draft PR #476) after the operator's 2026-11-12 word put "#456, the cheaper arm" first
+(`records/2026-11-12_operator_decisions_roadmap.md`). The governing text is `PREREG_COUNCIL_GATE_SEPARATION.md`
+§10.12, which points here; this file holds the detail.
 
 **Measurement only.** The verdict of record, the floor, the criteria, the prompts, the gates, sizing and every entry
 stay exactly as they are. Probe reads are never written to `council_proposals` or `council_agent_outputs`.
@@ -163,7 +167,7 @@ MODERATE. Read 1 majority match is 40–80%, or not evaluable. Read 2 `include` 
 - Any comparison with prices or outcomes (guardrail 6).
 - Surfacing names.
 
-## 9. Decisions for the operator
+## 9. Decisions (adopted 2026-11-14: every recommendation)
 
 | # | Decision | Recommendation |
 |---|---|---|
@@ -177,7 +181,7 @@ MODERATE. Read 1 majority match is 40–80%, or not evaluable. Read 2 `include` 
 | 8 | Caps $1.50 per session and $15 total; probe spend counted in MTD; anthropic page $20 for December | As drafted |
 | 9 | The look also decides the RDW `include=false` question and carry confirmation | Yes |
 
-**After the word:** this file becomes §10.12 and gets a STANDING_STATE entry. The code follows as one full-ceremony
+**Next:** the code follows as one full-ceremony
 PR, behind the default-off flag, merged before the 12-07 boundary weekend:
 - the capture;
 - the probe unit and timer;
