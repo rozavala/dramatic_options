@@ -51,15 +51,14 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import nyse_calendar
+from clock import et_date  # one ET-date rule for the monitor, the null books and this check (#480)
 
 log = logging.getLogger("venue_check")
 
-ET = ZoneInfo("America/New_York")
 
 # The draft's window: within 5 NYSE trading days of expiry a difference pages at priority 1.
 PRIORITY_TRADING_DAYS = 5
@@ -146,13 +145,6 @@ class CheckResult:
 
 
 # ── time (ET dates, NYSE sessions) ───────────────────────────────────────────────────────────────────────────────
-def et_date(now: datetime) -> date:
-    """The ET calendar date of ``now`` (a naive ``now`` is read as UTC, as ``clock.Clock`` promises)."""
-    from datetime import UTC
-
-    return (now if now.tzinfo is not None else now.replace(tzinfo=UTC)).astimezone(ET).date()
-
-
 def trading_days_between(a: date, b: date) -> int:
     """NYSE trading days ``d`` with ``a < d <= b``; 0 when ``b <= a``."""
     n, d = 0, a
