@@ -1,0 +1,33 @@
+# Dramatic Options — the post-L1 measurement unit: every pass that runs after the L1 has finished, in one process
+# (`--post-l1`, post_l1.py). Today: the #456 council repeat-read probe (PREREG_COUNCIL_GATE_SEPARATION §10.12) and,
+# where shipped, the #464 held-name reads (§10.13). The two share this ONE unit (so the sudoers lines are added once).
+# MEASUREMENT ONLY: the passes write their own tables, never the council of record; nothing here trades.
+# TEMPLATE: deploy.sh renders __REPO_ROOT__ / __USER__ / __GROUP__ at install time. Never loaded raw.
+#
+# Type=oneshot fired by dramatic-options-post-l1.timer (Mon..Fri 16:10 ET). A SEPARATE unit, never inside the L1
+# process: a stalled measurement call must never time out the L1 or fire the L1's OnFailure page. After= the L1: if
+# the L1 is still running when this timer fires, systemd holds this start until the L1's oneshot exits; each pass
+# ALSO checks in-process that today's L1 has exited (council/repeat_probe.py l1_finished) and refuses otherwise.
+#
+# Passes are independent (one raising never stops the next). Refusals (disabled, before a segment, caps, the page
+# rule, L1 not finished) are log lines and exit 0; the disabled repeat probe is one INFO line with no DB write.
+# Exit 1 only if a pass raised → OnFailure page.
+[Unit]
+Description=Dramatic Options post-L1 measurement passes (#456 repeat probe, #464 held reads; never trades)
+After=network-online.target dramatic-options-l1.service
+Wants=network-online.target
+OnFailure=dramatic-options-notify@%n.service
+
+[Service]
+Type=oneshot
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__REPO_ROOT__
+EnvironmentFile=__REPO_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
+# Hang ceiling: the repeat probe is ~50 strategist calls (~10 names x k=5; the L1's whole 3-role council for ~10
+# names measured 6m47s on 11-13), the held pass one full debate per held name; 3600s clears a slow night with retries
+# while SIGTERMing (→ page) a wedged provider. Each pass's own CostLedger caps its spend independently.
+TimeoutStartSec=3600
+# Started as `-m orchestrator`, never `orchestrator.py` (the neighbour's `pkill -9 -f orchestrator.py`, 2026-10-15).
+ExecStart=__REPO_ROOT__/venv/bin/python -u -m orchestrator --post-l1

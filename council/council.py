@@ -127,11 +127,13 @@ def propose(
     catalysts=None,
     demo: bool = False,
     rng=None,
+    repeat_capture: dict | None = None,
 ) -> list[CouncilProposal]:
     """Run the council over ``candidates`` (a list of ``themes.Theme``). Returns ALL proposals.
 
     The cost ledger lives on ``router.ledger`` (the caller reports it). Raises nothing — every
     failure mode is handled fail-closed (KILL / budget → empty; per-candidate error → dropped).
+    ``repeat_capture`` (#456; None = off) is handed to ``run_candidate`` unchanged.
     """
     # 1. KILL switch FIRST — never spend on the council when halted.
     if kill_switch_active():
@@ -165,7 +167,7 @@ def propose(
         if analyst is not None and not demo:
             coverage.append((candidate.symbol, pack.analyst_count))
         try:
-            proposals.append(run_candidate(candidate, pack, router, rng=rng))
+            proposals.append(run_candidate(candidate, pack, router, rng=rng, repeat_capture=repeat_capture))
         except BudgetExceeded as e:
             # Over-budget → fail closed to ZERO proposals for the whole cycle (no entries).
             log.warning("Council over budget (%s) — proposing NOTHING this cycle (fail-closed).", e)
