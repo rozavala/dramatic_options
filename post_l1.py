@@ -26,8 +26,14 @@ def _repeat_probe(config: dict) -> object:
     return run_live(config)
 
 
-# Order matters only for the log: the §10.12 probe first, then the §10.13 held pass (when present).
-PASSES: list[Pass] = [("repeat_probe", _repeat_probe)]
+def _held_reads(config: dict) -> object:
+    from council.held_reads import run_live
+
+    return run_live(config)
+
+
+# Order matters only for the log: the §10.12 probe first, then the §10.13 held pass.
+PASSES: list[Pass] = [("repeat_probe", _repeat_probe), ("held_reads", _held_reads)]
 
 
 def run(config: dict, passes: list[Pass] | None = None) -> int:

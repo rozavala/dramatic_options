@@ -58,6 +58,7 @@ def convexity_db(tmp_path):
     _apply_migration(conn, "0020_agent_flag_details.py")
     _apply_migration(conn, "0021_vertical_legs.py")
     _apply_migration(conn, "0022_council_repeat_probe.py")
+    _apply_migration(conn, "0023_held_reads.py")
     try:
         yield conn
     finally:
