@@ -113,6 +113,7 @@ def select_structure(
     underlying_symbol: str | None = None,
     require_otm_side: bool = False,
     min_otm_moneyness: float = 0.0,
+    max_otm_moneyness: float | None = None,
 ) -> tuple[Structure | None, tuple[str, ...]]:
     """Pick the defined-risk long option closest to the target OTM strike within the tenor
     window, among eligible contracts. Returns (Structure, ()) or (None, reasons).
@@ -125,6 +126,20 @@ def select_structure(
     only candidates at least this far out of the money (achieved |strike − spot| / spot, on the thesis side), and fail
     closed when none is. The frame is far-OTM; a fallback to a near-money strike (TITN C25 at 7% on 2026-11-03) is a
     different payoff shape, not a nearer approximation of the target.
+
+    ``max_otm_moneyness`` (#504; callers pass ``convexity_gate.max_otm_moneyness``, default None/0 = no ceiling,
+    byte-identical): the mirror of the floor — keep only candidates at MOST this far out of the money (the same achieved
+    thesis-side measure and the same ``SPREAD_LIMIT_EPS`` tolerance, so exactly the ceiling is admitted), and fail
+    closed with ``no_eligible_contract_within_max_moneyness`` when none is. A sparse chain's "nearest eligible" can
+    otherwise land far from the frame (KLAR C25 at 81.2% on the W46 probe). The choice among admitted contracts stays
+    nearest-to-target.
+
+    Veto precedence (first that empties the set wins, so ``reasons[0]`` names the first binding constraint):
+    tenor/eligibility (``no_eligible_contract_in_tenor_window``) → side guard (``no_otm_eligible_…``) → floor
+    (``no_eligible_contract_beyond_min_moneyness``) → ceiling (``no_eligible_contract_within_max_moneyness``). So the
+    ceiling reason means: eligible, right-side, at-or-beyond-the-floor contracts existed, and all were beyond the ceiling.
+    Each veto appends the #494 refusal detail (eligibility-refused contracts the side guard, floor AND ceiling would
+    have kept).
 
     ``underlying_symbol`` (pass it everywhere a symbol is known): contracts whose OCC root ≠
     the underlying ticker are EXCLUDED — adjusted classes carry non-standard deliverables (the
@@ -172,10 +187,17 @@ def select_structure(
     def beyond_floor(con: Contract) -> bool:
         return min_otm_moneyness <= 0 or _otm_by(con, kind, underlying_price) >= min_otm_moneyness - SPREAD_LIMIT_EPS
 
+    ceiling = float(max_otm_moneyness) if max_otm_moneyness and max_otm_moneyness > 0 else None
+
+    def within_ceiling(con: Contract) -> bool:
+        return ceiling is None or _otm_by(con, kind, underlying_price) <= ceiling + SPREAD_LIMIT_EPS
+
     def refusals() -> tuple[str, ...]:
-        """#494: on a veto, the (up to 3) eligibility-refused contracts nearest the target that the side guard and the
-        floor would have kept, with their reasons. Appended after the reason code, so ``reasons[0]`` stays the code."""
-        pool = sorted((t for t in refused if (not require_otm_side or otm_side(t[0])) and beyond_floor(t[0])),
+        """#494: on a veto, the (up to 3) eligibility-refused contracts nearest the target that the side guard, the
+        floor and the ceiling would have kept, with their reasons. Appended after the reason code, so ``reasons[0]``
+        stays the code."""
+        pool = sorted((t for t in refused if (not require_otm_side or otm_side(t[0])) and beyond_floor(t[0])
+                       and within_ceiling(t[0])),
                       key=lambda t: rank(t[0], t[1]))[:3]
         return tuple(f"refused {t[0].symbol}: {', '.join(t[2])}" for t in pool)
 
@@ -196,6 +218,11 @@ def select_structure(
         if not far:
             return None, ("no_eligible_contract_beyond_min_moneyness",) + refusals()
         cands = far
+    if ceiling is not None:
+        near = [(c, d) for (c, d) in cands if within_ceiling(c)]
+        if not near:
+            return None, ("no_eligible_contract_within_max_moneyness",) + refusals()
+        cands = near
 
     c, dte = min(cands, key=lambda t: rank(*t))
     m = mid_price(c)
@@ -207,7 +234,8 @@ def select_structure(
     # contract never lists itself). Under the side guard a wrong-side refusal could never have been chosen: leave it out.
     nearer = sorted((t for t in refused if rank(t[0], t[1]) <= chosen and (not require_otm_side or otm_side(t[0]))
                      and (min_otm_moneyness <= 0
-                          or _otm_by(t[0], kind, underlying_price) >= min_otm_moneyness - SPREAD_LIMIT_EPS)),
+                          or _otm_by(t[0], kind, underlying_price) >= min_otm_moneyness - SPREAD_LIMIT_EPS)
+                     and within_ceiling(t[0])),
                     key=lambda t: rank(t[0], t[1]))[:3]
     return Structure(direction, kind, c, dte, moneyness, m, m,
                      refused_nearer=tuple((r[0].symbol, r[2]) for r in nearer)), ()

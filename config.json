@@ -110,6 +110,8 @@
     "otm_side_guard": true,
     "_comment_min_otm_moneyness": "#416 (operator word 2026-11-04, \"Adopt both the 15% floor and A+B+C at the 11-12 boundary\"; PREREG_THEMATIC_CONVEXITY amendment 2026-11-04): the selector admits only contracts at least 15% out of the money (achieved, thesis side) and fails closed otherwise, on every book and gate path. Found at L1 #1918: the nearest-eligible fallback put TITN at 7% OTM. Moves frame_version.",
     "min_otm_moneyness": 0.15,
+    "_comment_max_otm_moneyness": "#504 (operator word 2026-11-16, \"merge and let's use your calls on the other pending ones\", adopting the 40% ceiling; PREREG_THEMATIC_CONVEXITY maximum-moneyness amendment): the mirror of the 15% floor. The selector admits only contracts at most 40% out of the money (achieved, thesis side) and fails closed (no_eligible_contract_within_max_moneyness) otherwise, on every book, gate and sweep path; the choice among admitted contracts stays nearest to target_moneyness. Found on the W46 Sunday probe (KLAR C25 at 81.2%) and the IRDM C75 at 46.7% held in the shadow and 3A books. Lands at boundary B, Mon 2026-12-07. Moves frame_version. Open positions are unaffected (exits never read the entry band). Survivor cards keep their own 15-35% band.",
+    "max_otm_moneyness": 0.40,
     "skew_abs_max_volpts": 100,
     "iv_rv_sanity_max": 5.0,
     "iv_floor_annualized": 0.03,
