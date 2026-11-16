@@ -9,9 +9,14 @@ the §10.12 repeat probe) runs the full debate ONCE for every real position with
 - the candidate is built from the position's OWN lineage: the entry proposal's sentinel row via
   ``sentinels.discovered_to_theme`` (active or dormant — rendered as-is, no "dormant" label), or, for a hand-seed, its
   ``themes.json`` entry by (symbol, direction), active or not;
-- its markers are refreshed exactly as the L1 does (``marker_refresh.refresh_candidates``);
+- its markers are refreshed by the L1's own ``orchestrator._refresh_council_markers`` (``run_id=None``: no run note);
 - the pack is ``council.council.council_pack`` — the one construction the L1's ``propose`` uses — with the same
-  news / fundamentals / analyst / catalyst providers (``orchestrator._build_council_io``) and the L1 council's as_of;
+  news / fundamentals / analyst / catalyst providers (``orchestrator._build_council_io``) and the L1 council's as_of.
+  The providers are built with a clock whose ``now()`` IS that as_of, so every provider's fetch_end equals the pack's
+  as_of. (The analyst meter stamps its snapshot at fetch_end and reads at ``min(as_of, fetch_end)``: built at the
+  pass's own 16:10 time it would find nothing at the 15:45 as_of and render "coverage unknown", breaking
+  ``under_narrated`` comparability. So the analyst count is a ~16:10 pull labelled with the L1's as_of — a
+  ~25-minute label on a count that changes weekly.)
 - ``council.debate.run_candidate`` runs once, on this pass's OWN router + ``CostLedger`` (``cap_pass_usd``).
 
 **The pack never says the name is held**: nothing about the position (entry, mark, P&L, DTE) is passed to the pack
@@ -22,10 +27,17 @@ MEASUREMENT ONLY (§5): writes ``held_reads`` and nothing else — never ``counc
 ``council_agent_outputs``; never triggers or delays an exit, add, re-strike or carry; never vetoes or sizes; never
 enters a council prompt; never feeds the backfill rank, the gates or the persistence watch.
 
-Refusals (log lines, return normally): KILL, disabled, no council of record today, today's L1 not finished (the
-§10.12 probe's ``l1_finished``), every tracked position already read for this run (one pass per L1 run: UNIQUE
-run_id × position). A cap hit stops the pass (that night's remaining reads are lost); a provider error drops that
-name only, like ``propose``. Segments split on ``runs.model_mix``, stored per row.
+Refusals (log lines, return normally), all checked BEFORE any client, provider or router is built (a KILL,
+holiday or missing-key night refuses quietly instead of paging): KILL, disabled, no council of record today (a day
+whose L1 wrote zero council proposals counts as none — held names go unread that night), today's L1 not finished
+(the §10.12 probe's ``l1_finished``), nothing to read (every tracked position already read for this run — one pass
+per L1 run, UNIQUE run_id × position — or without lineage). A cap hit stops the pass (that night's remaining reads
+are lost); a provider error drops that name with no row. Segments split on ``runs.model_mix``, stored per row.
+
+Side effects worth knowing: the pass refetches into the shared point-in-time cache for the held symbols (news,
+analyst, markers' bars, fundamentals), rewriting those payloads; harmless (the next L1 refetches). Fundamentals'
+filed-date PIT rule is day-granular, so a filing made between the L1 (15:45 ET) and this pass (~16:10 ET) could be
+visible to a held read though the L1 could not have had it — inherent to the record's rule.
 """
 
 from __future__ import annotations
@@ -112,9 +124,12 @@ def lineage_candidate(conn: sqlite3.Connection, pos: sqlite3.Row, themes_all: li
         if row is None:
             return "no_lineage"
         return sentinels.discovered_to_theme(row), "sentinel", str(row["status"])
-    for t in themes_all:
-        if t.symbol.upper() == sym and str(t.direction).lower() == direction:
-            return t, "hand-seed", "hand-seed"
+    matches = [t for t in themes_all if t.symbol.upper() == sym and str(t.direction).lower() == direction]
+    if len(matches) > 1:
+        log.warning("Held reads: %d themes.json entries match %s %s; reading the first (%s)", len(matches), sym,
+                    direction, matches[0].name)
+    if matches:
+        return matches[0], "hand-seed", "hand-seed"
     return "no_lineage"
 
 
@@ -170,12 +185,15 @@ def _write(conn, *, h: _Held, run_id: int, as_of: str, p, model_mix: str | None,
                      tuple(cols.values()))
 
 
-def run_pass(conn: sqlite3.Connection, *, config: dict, clock, router_factory: Callable, inputs: PackInputs,
+def run_pass(conn: sqlite3.Connection, *, config: dict, clock, router_factory: Callable,
+             inputs: Callable[[datetime], PackInputs],
              refresh: Callable[[list, datetime], list] = lambda cands, as_of: cands,
-             unit_state: Callable[[], tuple[str, str | None] | None] = read_unit_state,
+             unit_state: Callable[[], tuple[str, str | None] | None] | None = None,
              themes_path: str | None = None) -> HeldOutcome:
-    """One held pass for today's L1 (ET date). ``router_factory(config, ledger)`` builds the pass's OWN full-council
-    router; ``refresh(candidates, as_of)`` is the L1's marker refresh. Refusals return; unexpected errors raise."""
+    """One held pass for today's L1 (ET date). Every refusal is decided first; only then are ``inputs(as_of)`` (the
+    pack providers, built at the L1 council's as_of), ``refresh(candidates, as_of)`` (the L1's marker refresh) and
+    ``router_factory(config, ledger)`` (the pass's OWN full-council router) called. Refusals return; unexpected errors
+    raise."""
     from risk import kill_switch_active
 
     if kill_switch_active():
@@ -191,7 +209,7 @@ def run_pass(conn: sqlite3.Connection, *, config: dict, clock, router_factory: C
     if run is None:
         return _refuse(f"no council of record for {today} ET")
     run_id = int(run["id"])
-    done, why = l1_finished(run["started_at"], unit_state())
+    done, why = l1_finished(run["started_at"], (unit_state or read_unit_state)())
     if not done:
         return _refuse(f"today's L1 (run #{run_id}) has not finished: {why}", level=logging.WARNING, run_id=run_id)
     as_of_iso = conn.execute("SELECT MAX(as_of) FROM council_proposals WHERE run_id = ?", (run_id,)).fetchone()[0]
@@ -223,6 +241,8 @@ def run_pass(conn: sqlite3.Connection, *, config: dict, clock, router_factory: C
         return _refuse(f"nothing to read for run #{run_id} (positions={len(positions)}, skipped={dict(skipped)})",
                        run_id=run_id, tracked=len(positions), skipped=dict(skipped))
 
+    # Only now build anything external: the providers at the L1's as_of, the marker refresh, the router.
+    deps = inputs(as_of)
     # The L1's marker refresh, on the held candidates (markers recomputed at as_of; hand-seeds pass through).
     refreshed = refresh([h.candidate for h in held], as_of)
     for h, c in zip(held, refreshed, strict=True):
@@ -235,8 +255,8 @@ def run_pass(conn: sqlite3.Connection, *, config: dict, clock, router_factory: C
     router = router_factory(config, CostLedger(cap_usd=float(s["cap_pass_usd"])))
     o = HeldOutcome(status="done", run_id=run_id, tracked=len(positions))
     for h in held:
-        pack = council_pack(h.candidate, config=config, as_of=as_of, news=inputs.news,
-                            fundamentals=inputs.fundamentals, analyst=inputs.analyst, catalysts=inputs.catalysts,
+        pack = council_pack(h.candidate, config=config, as_of=as_of, news=deps.news,
+                            fundamentals=deps.fundamentals, analyst=deps.analyst, catalysts=deps.catalysts,
                             register_theses=reg)
         try:
             p = run_candidate(h.candidate, pack, router)
@@ -267,55 +287,53 @@ def _live_router(config: dict, ledger: CostLedger):
     return build_router(config, config.get("llm_keys", {}), ledger=ledger)
 
 
-def run_live(config: dict) -> HeldOutcome:
-    """The ``post_l1`` pass against the live DB, with the L1's own data providers and marker refresh."""
+class _LiveDeps:
+    """The L1's external dependencies, built lazily — only once ``run_pass`` has decided to read."""
+
+    def __init__(self, config: dict, conn) -> None:
+        self.config, self.conn = config, conn
+        self._client = self._cache = None
+
+    def _ensure(self) -> None:
+        if self._client is None:
+            from config_loader import require_alpaca_credentials
+            from data.alpaca_client import AlpacaClient
+            from data.cache import PointInTimeCache
+
+            api_key, secret_key = require_alpaca_credentials(self.config)
+            self._client = AlpacaClient(api_key, secret_key, paper=self.config["alpaca"]["paper"])
+            self._cache = PointInTimeCache(self.config.get("cache", {}).get("dir", "data/cache"))
+
+    def inputs(self, as_of: datetime) -> PackInputs:
+        """The L1's providers, with fetch_end = the pack's as_of (a clock fixed at it); no router built."""
+        import orchestrator
+        from clock import FixedClock
+
+        self._ensure()
+        _none, news, fundamentals, analyst, catalysts = orchestrator._build_council_io(
+            self.config, demo=False, client=self._client, cache=self._cache, clock=FixedClock(as_of),
+            with_router=False)
+        return PackInputs(news, fundamentals, analyst, catalysts)
+
+    def refresh(self, cands: list, as_of: datetime) -> list:
+        import orchestrator
+
+        self._ensure()
+        return orchestrator._refresh_council_markers(self.conn, cands, config=self.config, client=self._client,
+                                                     cache=self._cache, as_of=as_of, run_id=None)
+
+
+def run_live(config: dict, *, clock=None) -> HeldOutcome:
+    """The ``post_l1`` pass against the live DB, with the L1's own data providers and marker refresh. ``clock``
+    (tests) defaults to the wall clock; nothing external is built until every refusal has been checked."""
     if not bool(settings(config)["enabled"]):
         return _refuse("council.held_reads.enabled is false")
-    import orchestrator
     from clock import LiveClock
-    from config_loader import require_alpaca_credentials
-    from data.alpaca_client import AlpacaClient
-    from data.cache import PointInTimeCache
 
-    api_key, secret_key = require_alpaca_credentials(config)
-    client = AlpacaClient(api_key, secret_key, paper=config["alpaca"]["paper"])
-    clock = LiveClock(client)
-    cache = PointInTimeCache(config.get("cache", {}).get("dir", "data/cache"))
     conn = state.get_db(config)
     try:
-        def refresh(cands: list, as_of: datetime) -> list:
-            return refresh_markers_like_l1(conn, cands, config=config, client=client, cache=cache, as_of=as_of)
-
-        _router, news, fundamentals, analyst, catalysts = orchestrator._build_council_io(
-            config, demo=False, client=client, cache=cache, clock=clock)
-        return run_pass(conn, config=config, clock=clock, router_factory=_live_router,
-                        inputs=PackInputs(news, fundamentals, analyst, catalysts), refresh=refresh)
+        deps = _LiveDeps(config, conn)
+        return run_pass(conn, config=config, clock=clock or LiveClock(), router_factory=_live_router,
+                        inputs=deps.inputs, refresh=deps.refresh)
     finally:
         conn.close()
-
-
-def refresh_markers_like_l1(conn, candidates: list, *, config: dict, client, cache, as_of: datetime) -> list:
-    """``orchestrator._refresh_council_markers`` without its run-note writes (this pass never touches the L1's run
-    row): the same ``marker_refresh.refresh_candidates`` on the same market/benchmark inputs. Fail-soft like the L1:
-    any error → the persisted markers."""
-    import marker_refresh
-    import orchestrator
-
-    if marker_refresh.mode(config) == "off":
-        return candidates
-    try:
-        from data.market import MarketData, default_fetch_window
-        from feeds import to_equity_feed
-
-        fetch_start, _ = default_fetch_window(as_of)
-        market = MarketData(cache, client=client, fetch_start=fetch_start, fetch_end=as_of,
-                            feed=to_equity_feed(config["data_feed"]["equity_bars"]))
-        _, benchmark = orchestrator._scan_universe(config)
-        out, counts = marker_refresh.refresh_candidates(candidates, config=config, conn=conn, as_of=as_of,
-                                                        market=market, benchmark=benchmark)
-    except Exception as e:  # noqa: BLE001 — fail-soft: the persisted markers render, as at the L1
-        log.warning("Held reads: marker refresh skipped (non-fatal): %s", e)
-        return candidates
-    log.info("Held reads marker refresh: mode=%s refreshed=%d kept=%d", counts["mode"], counts["refreshed"],
-             counts["kept"])
-    return out

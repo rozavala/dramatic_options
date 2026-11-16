@@ -124,7 +124,7 @@ def _pass(conn, *, config, themes_file, unit=_EXITED, routers=None, refresh=None
         return r
 
     return hr.run_pass(conn, config=config, clock=FixedClock(datetime.fromisoformat(f"{DAY}T21:10:00+00:00")),
-                       router_factory=factory, inputs=hr.PackInputs(news=_News()),
+                       router_factory=factory, inputs=lambda as_of: hr.PackInputs(news=_News()),
                        refresh=refresh or (lambda cands, as_of: cands),
                        unit_state=lambda: ("inactive", f"{DAY} 20:52:00") if unit is _EXITED else unit,
                        themes_path=themes_file)
@@ -133,7 +133,8 @@ def _pass(conn, *, config, themes_file, unit=_EXITED, routers=None, refresh=None
 def _record_rows(conn):
     return {t: [tuple(r) for r in conn.execute(f"SELECT * FROM {t} ORDER BY id")]
             for t in ("council_proposals", "council_agent_outputs", "runs", "sentinel_candidates",
-                      "convexity_positions")}
+                      "convexity_positions", "council_repeat_packs", "council_repeat_reads",
+                      "council_repeat_sessions")}
 
 
 def test_tracked_set_dormant_lineage_hand_seed_and_no_lineage(convexity_db, themes_file):
@@ -304,3 +305,139 @@ def test_migration_is_idempotent(convexity_db):
 
     conftest._apply_migration(convexity_db, "0023_held_reads.py")
     assert convexity_db.execute("SELECT name FROM sqlite_master WHERE name='held_reads'").fetchone()
+
+
+# ── run_live: the real wiring, external clients faked ──────────────────────────────────────────────────────────
+
+class _Resp:
+    status_code = 200
+
+    def __init__(self, payload):
+        self._p = payload
+
+    def json(self):
+        return self._p
+
+
+class _AnalystSession:
+    """stockanalysis.com's __data.json shape: analystChart buckets summing to 7."""
+
+    calls: list = []
+
+    def get(self, url, **kw):
+        _AnalystSession.calls.append(url)
+        flat = [{"analystChart": 1}, {"strongBuy": 2, "buy": 3, "hold": 4, "sell": 5}, 2, 3, 1, 1]
+        return _Resp({"type": "data", "nodes": [{"type": "data", "data": flat}]})
+
+
+def _live_setup(convexity_db, tmp_path, monkeypatch, themes_file):
+    """run_live on the test DB with only the external edges faked: Alpaca client, the analyst HTTP session, the
+    LLM router. Returns (config, built routers)."""
+    import requests
+
+    import data.alpaca_client
+
+    _seed(convexity_db, status="dormant")
+    with convexity_db:   # only the sentinel position is held (its pack carries the analyst line)
+        convexity_db.execute("UPDATE convexity_positions SET status = 'closed' WHERE symbol != 'HSDB'")
+    cfg = _config()
+    cfg.update({"themes_path": themes_file, "cache": {"dir": str(tmp_path / "cache")},
+                "alpaca": {"api_key": "k", "secret_key": "s", "paper": True}, "data_feed": {"equity_bars": "iex"},
+                "llm_keys": {}})
+    built: list = []
+    monkeypatch.setattr(data.alpaca_client, "AlpacaClient", lambda *a, **k: object())
+    monkeypatch.setattr(requests, "Session", _AnalystSession)
+    monkeypatch.setattr("council.router.build_router",
+                        lambda c, keys, ledger=None: built.append(_Router(ledger)) or built[-1])
+
+    class _NoClose:
+        def __init__(self, c):
+            self._c = c
+
+        def __getattr__(self, k):
+            return getattr(self._c, k)
+
+        def close(self):
+            pass
+
+        def __enter__(self):
+            return self._c.__enter__()
+
+        def __exit__(self, *a):
+            return self._c.__exit__(*a)
+
+    monkeypatch.setattr(state, "get_db", lambda c: _NoClose(convexity_db))
+    monkeypatch.setattr(hr, "read_unit_state", lambda: ("inactive", f"{DAY} 20:52:00"))
+    return cfg, built
+
+
+def test_run_live_pack_carries_the_analyst_count(convexity_db, tmp_path, monkeypatch, themes_file):
+    """#507 blocker: the providers must be built at the L1 council's as_of. Built at the pass's own time (16:10 ET)
+    the analyst snapshot is stamped after the 15:45 as_of, the read finds nothing and the pack says "unknown"."""
+    cfg, built = _live_setup(convexity_db, tmp_path, monkeypatch, themes_file)
+    before = _record_rows(convexity_db)
+    o = hr.run_live(cfg, clock=FixedClock(datetime.fromisoformat(f"{DAY}T21:10:00+00:00")))
+    assert o.status == "done" and o.read == 1
+    pack = next(u for role, u in built[0].sent if role == "proposer")
+    assert "ANALYST_COVERAGE: 7 analyst(s) covering" in pack, pack
+    assert "ANALYST_COVERAGE: unknown" not in pack
+    assert built[0].ledger.cap_usd == pytest.approx(1.0) and len(built) == 1   # only the pass's own router
+    assert _record_rows(convexity_db) == before                                 # writes held_reads only
+    row = convexity_db.execute("SELECT * FROM held_reads").fetchone()
+    assert row["as_of"] == f"{DAY}T20:45:00+00:00" and row["lineage_status"] == "dormant"
+
+
+def test_run_live_refuses_before_building_anything(convexity_db, tmp_path, monkeypatch, themes_file):
+    cfg, built = _live_setup(convexity_db, tmp_path, monkeypatch, themes_file)
+    import data.alpaca_client
+
+    monkeypatch.setattr(data.alpaca_client, "AlpacaClient",
+                        lambda *a, **k: pytest.fail("Alpaca client built before the refusals"))
+    for clock_day, unit, why in (("2026-12-09", ("inactive", f"{DAY} 20:52:00"), "no council of record"),
+                                 (DAY, ("activating", f"{DAY} 20:45:00"), "has not finished")):
+        monkeypatch.setattr(hr, "read_unit_state", lambda u=unit: u)
+        o = hr.run_live(cfg, clock=FixedClock(datetime.fromisoformat(f"{clock_day}T21:10:00+00:00")))
+        assert o.status == "refused" and why in o.reason
+    monkeypatch.setenv("KILL", "1")
+    assert "KILL" in hr.run_live(cfg, clock=FixedClock(datetime.fromisoformat(f"{DAY}T21:10:00+00:00"))).reason
+    assert built == []
+
+
+def test_run_live_marker_refresh_is_the_l1_function_without_a_run_note(convexity_db, tmp_path, monkeypatch,
+                                                                        themes_file):
+    import orchestrator
+
+    cfg, built = _live_setup(convexity_db, tmp_path, monkeypatch, themes_file)
+    seen = []
+    real = orchestrator._refresh_council_markers
+
+    def spy(conn, cands, **kw):
+        seen.append(kw["run_id"])
+        return real(conn, cands, **kw)
+
+    monkeypatch.setattr(orchestrator, "_refresh_council_markers", spy)
+    notes = [r[0] for r in convexity_db.execute("SELECT note FROM runs ORDER BY id")]
+    hr.run_live({**cfg, "council": {**cfg["council"], "marker_refresh": "both"}},
+                clock=FixedClock(datetime.fromisoformat(f"{DAY}T21:10:00+00:00")))
+    assert seen == [None]
+    assert [r[0] for r in convexity_db.execute("SELECT note FROM runs ORDER BY id")] == notes
+
+
+def test_l1_marker_refresh_with_run_id_none_writes_no_note(convexity_db):
+    import orchestrator
+
+    rid = state.record_run(convexity_db, mode="PAPER", equity=1, note="n")
+    cfg = {"council": {"marker_refresh": "both"}, "data_feed": {"equity_bars": "iex"}}
+    out = orchestrator._refresh_council_markers(convexity_db, [], config=cfg, client=object(), cache=object(),
+                                                as_of=datetime(2026, 12, 8, tzinfo=UTC), run_id=None)
+    assert out == []
+    assert convexity_db.execute("SELECT note FROM runs WHERE id = ?", (rid,)).fetchone()[0] == "n"
+
+
+def test_hand_seed_with_two_matching_entries_warns(convexity_db, caplog):
+    _run, pos = _seed(convexity_db)
+    row = convexity_db.execute("SELECT * FROM convexity_positions WHERE id = ?", (pos["hand"],)).fetchone()
+    two = [Theme("first", "HSDA", "bullish", "t1"), Theme("second", "HSDA", "bullish", "t2")]
+    with caplog.at_level(logging.WARNING, logger="council.held_reads"):
+        got = hr.lineage_candidate(convexity_db, row, two)
+    assert got[0].name == "first" and any("2 themes.json entries match" in r.getMessage() for r in caplog.records)

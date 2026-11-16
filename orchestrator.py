@@ -348,17 +348,18 @@ def _newest_periodic_lookup(cache, edgar_client, now):
     return newest
 
 
-def _build_council_io(config: dict, *, demo: bool, client, cache, clock):
+def _build_council_io(config: dict, *, demo: bool, client, cache, clock, with_router: bool = True):
     """(router, news, fundamentals, analyst, catalysts) for the council. Demo → deterministic
     FakeRouter + synthetic packs (news/fundamentals/analyst/catalysts=None); live → the
     heterogeneous router + CURRENT-news grounding + the §9 evidence-grounding corpus + the §19
     analyst-coverage meter + the forward-catalyst channel (frozen prereg §4). Raises RouterError
-    (fail-closed) when a mapped provider has no key in live."""
+    (fail-closed) when a mapped provider has no key in live. ``with_router=False`` (the §10.13 held pass, which builds its
+    own capped router) returns None for the router and never builds one. The providers' fetch_end is ``clock.now()``."""
     council = config.get("council", {})
     cap = council.get("cost_cap_usd")
     if demo:
         return FakeRouter(cap_usd=float(cap) if cap is not None else None), None, None, None, None
-    router = build_router(config, config.get("llm_keys", {}))
+    router = build_router(config, config.get("llm_keys", {})) if with_router else None
     from datetime import timedelta
 
     import requests
@@ -478,9 +479,10 @@ def entries_allowed(*, forward_enabled: bool, market_open: bool, demo: bool) -> 
     return True, "ok"
 
 
-def _refresh_council_markers(conn, candidates: list, *, config: dict, client, cache, as_of, run_id) -> list:
+def _refresh_council_markers(conn, candidates: list, *, config: dict, client, cache, as_of, run_id: int | None) -> list:
     """council.marker_refresh (default off): recompute the sentinels' price markers for the council pack.
-    Off, demo (no client) or any setup error → the candidates unchanged; the counts ride the run note."""
+    Off, demo (no client) or any setup error → the candidates unchanged; the counts ride the run note.
+    ``run_id=None`` (the §10.13 held pass) writes no run note: that pass never touches the L1's runs row."""
     if marker_refresh.mode(config) == "off" or client is None or cache is None:
         return candidates
     try:
@@ -494,11 +496,13 @@ def _refresh_council_markers(conn, candidates: list, *, config: dict, client, ca
                                                         market=market, benchmark=benchmark)
     except Exception as e:  # noqa: BLE001 — fail-soft: the persisted markers render as before
         log.warning("marker refresh skipped (non-fatal): %s", e)
-        append_run_note(conn, run_id, f" · marker_refresh: error {type(e).__name__}")
+        if run_id is not None:
+            append_run_note(conn, run_id, f" · marker_refresh: error {type(e).__name__}")
         return candidates
     log.info("Marker refresh: mode=%s refreshed=%d kept=%d", counts["mode"], counts["refreshed"], counts["kept"])
-    append_run_note(conn, run_id, f" · marker_refresh: mode={counts['mode']} refreshed={counts['refreshed']} "
-                                  f"kept={counts['kept']}")
+    if run_id is not None:
+        append_run_note(conn, run_id, f" · marker_refresh: mode={counts['mode']} refreshed={counts['refreshed']} "
+                                      f"kept={counts['kept']}")
     return out
 
 
