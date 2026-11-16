@@ -58,7 +58,7 @@ The header's absence is itself a signal.
     evidence" principle to save at most one night of slots. Proposed instead: close #505 as a complexity-cut; the
     11-23 sweep corrects the slate from 11-24.
   - **The post-L1 unit:** the §10.12 probe and the §10.13 pass share one unit, `dramatic-options-post-l1`.
-  - **#504 (moneyness ceiling):** not decided; no recommendation was made.
+  - **#504 (moneyness ceiling):** decided later the same day: 40% at the 12-07 boundary (entry above).
 - **Council repeat-read probe, Arm A (2026-11-14, operator word "Ok sure let's follow your recommendations"; #456;
   PREREG_COUNCIL_GATE_SEPARATION §10.12; `records/2026-11-14_council_repeat_probe_armA_PREREG.md`):** measurement only.
   - The strategist is re-asked 5× per name on the same night's pack and debate, by a separate unit after the L1.
@@ -74,6 +74,11 @@ The header's absence is itself a signal.
   operator 2026-11-12 "merge it": lands alone, ahead of the model refresh, which takes its own boundary):** council roles only. A: rendered signed 3-decimal figures pool their
   percent form (−0.628 → 62.8). B: $B to 3 decimals. C: the bare year of a rendered date. D (rounding, bps) is not
   adopted. Stamp `quote_filter = musd_billions_v1+iso_dates_v1+restate_v1` from the first L1 after deploy.
+- **Maximum moneyness 40% (2026-11-16, operator word "merge and let's use your calls on the other pending ones"; #504; PREREG_THEMATIC_CONVEXITY
+  maximum-moneyness amendment):** `convexity_gate.max_otm_moneyness = 0.40`, the mirror of the 15% floor on every book,
+  gate and sweep path; fail closed (`no_eligible_contract_within_max_moneyness`). Lands at boundary B **Mon 2026-12-07**
+  (a `frame_version` move). Open positions unaffected. Found on the W46 probe (KLAR at 81.2%; IRDM at 46.7% in two null
+  books).
 - **Minimum moneyness 15% (2026-11-04, operator word "Adopt both the 15% floor and A+B+C at the 11-12 boundary";
   #416; PREREG_THEMATIC_CONVEXITY minimum-moneyness amendment + PREREG_FIXED_BASKET_NULL note; from the first L1 after
   deploy):** `convexity_gate.min_otm_moneyness = 0.15`. Every book and gate path admits only contracts ≥ 15% OTM
@@ -330,8 +335,8 @@ The header's absence is itself a signal.
   and T4 #465–#469 · the segment register #470.
   **Decided 2026-11-12:** #465 and #472 (the kill rule, implementation for 12-07) · #470 (boundary B) · #468, (2)
   and (4) only · #469, deferred.
-  **Filed 2026-11-16:** #504 (no moneyness ceiling on the selector; undecided) · #505 (the slate's date-aware
-  demotion; approved 11-16, withdrawn by CC: a false-demotion flaw).
+  **Filed 2026-11-16:** #504 (moneyness ceiling 40%, decided 11-16, code for 12-07) · #505 (closed 11-16 as a
+  complexity-cut) · #508 (held reads: the §3 timeline and the §4 scoring report, deferred from #507).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
   · #477 (null-book exits on closed-market ticks).
   **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467.
