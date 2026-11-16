@@ -16,7 +16,7 @@ import logging
 import random
 
 from council import agents
-from council.filters import apply_filter
+from council.filters import FilterResult, apply_filter
 from council.proposal import AgentOutput, CouncilProposal, normalize_conviction
 from themes import VALID_DIRECTIONS, Theme
 
@@ -64,11 +64,51 @@ def _neutral_proposal(candidate: Theme, pack, *, reason: str, agent_outputs, mod
     )
 
 
-def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None = None) -> CouncilProposal:
+def coerce_tri_criteria(sraw: dict, praw: dict, symbol: str) -> dict:
+    """CGS §10.7 deterministic enforcement: the single coercion point, shared by the council of record
+    (``run_candidate``) and the #456 repeat-read probe (PREREG_COUNCIL_GATE_SEPARATION §10.12) so both apply the
+    identical rule (a lock-step test pins it to the pre-extraction inline code). Mutates and returns ``sraw``.
+
+    Both raws are in scope, so the sanctioned strategist-or-proposer structural_vs_fad fallback applies, exactly as
+    the §10.8 preview computed tri. Comparison semantics verbatim: exact string equality + ``is True`` identity (an
+    explicit null/false is a deliberated NON-assertion → veto; an ABSENT key on an include row was already a
+    parse_error upstream). Conviction is preserved (Brier substrate); the veto is recorded DISTINCT from parse_error,
+    before AgentOutput captures sraw so it persists to council_agent_outputs.raw."""
+    sf_resolved = sraw.get("structural_vs_fad") or praw.get("structural_vs_fad")
+    tri_pass = (str(sf_resolved) == "structural"
+                and sraw.get("under_narrated") is True and sraw.get("at_inflection") is True)
+    if bool(sraw.get("include", False)) and not tri_pass:
+        sraw["include"] = False
+        sraw["criteria_veto"] = True
+        sraw["criteria_veto_reason"] = (
+            f"include=true but tri-criteria fail (s/f={sf_resolved} "
+            f"u_narr={sraw.get('under_narrated')} at_infl={sraw.get('at_inflection')})")
+        log.info("council criteria-veto %s: %s", symbol, sraw["criteria_veto_reason"])
+    return sraw
+
+
+def strategist_verdict(sraw: dict, praw: dict, pack, symbol: str) -> tuple[str, FilterResult]:
+    """The strategist's post-processing of record: the quote-authenticity filter over its summary + weakest point
+    (conviction dampened on a flag), then the §10.7 coercion. Returns ``(conviction, FilterResult)``; ``sraw`` is
+    coerced in place. Shared with the #456 repeat-read probe so a repeat is post-processed exactly like the record."""
+    sconf, sfr = apply_filter([str(sraw.get("summary", "")), str(sraw.get("weakest_point", ""))],
+                              pack, confidence=sraw.get("conviction"),
+                              accept_rendered_dates=True)
+    coerce_tri_criteria(sraw, praw, symbol)
+    return sconf, sfr
+
+
+def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None = None,
+                  repeat_capture: dict | None = None) -> CouncilProposal:
     """Run the three-role debate for one candidate. Returns a CouncilProposal (possibly NEUTRAL).
 
     May raise RouterError/BudgetExceeded from ``router.call`` — the caller (council.propose)
     handles those fail-closed.
+
+    ``repeat_capture`` (#456, ``council.repeat_probe.enabled``; None = off, byte-identical): a dict the caller owns.
+    For a candidate that reaches the strategist, ``repeat_capture[id(proposal)]`` receives the serialized pack + the
+    sha256 of the strategist's user text, for the caller to persist beside the proposal row. Fail-soft: a capture
+    error logs a WARNING and never touches the debate or the proposal.
     """
     rng = rng or random.Random()
     mix = _model_mix(router)
@@ -111,29 +151,12 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
     # 3. Strategist — synthesize (randomized for/against order), conviction-dampened.
     for_first = rng.random() < 0.5
     sys, user = agents.strategist_prompt(pack, praw, araw, for_first=for_first)
+    capture = _repeat_capture(pack, user, candidate.symbol) if repeat_capture is not None else None
     sresp = router.call(role="strategist", system=sys, user=user)
     sraw = _parsed("strategist", sresp, agents.parse_strategist, candidate.symbol)
-    sconf, sfr = apply_filter([str(sraw.get("summary", "")), str(sraw.get("weakest_point", ""))],
-                              pack, confidence=sraw.get("conviction"),
-                              accept_rendered_dates=True)
-
-    # CGS §10.7 deterministic enforcement — the single coercion point (the only layer with BOTH
-    # raws in scope, so the sanctioned strategist-or-proposer structural_vs_fad fallback applies,
-    # exactly as the §10.8 preview computed tri). Comparison semantics verbatim: exact string
-    # equality + `is True` identity (an explicit null/false is a deliberated NON-assertion → veto;
-    # an ABSENT key on an include row was already a parse_error upstream). Conviction is preserved
-    # (Brier substrate); the veto is recorded DISTINCT from parse_error, before AgentOutput
-    # captures sraw so it persists to council_agent_outputs.raw.
-    sf_resolved = sraw.get("structural_vs_fad") or praw.get("structural_vs_fad")
-    tri_pass = (str(sf_resolved) == "structural"
-                and sraw.get("under_narrated") is True and sraw.get("at_inflection") is True)
-    if bool(sraw.get("include", False)) and not tri_pass:
-        sraw["include"] = False
-        sraw["criteria_veto"] = True
-        sraw["criteria_veto_reason"] = (
-            f"include=true but tri-criteria fail (s/f={sf_resolved} "
-            f"u_narr={sraw.get('under_narrated')} at_infl={sraw.get('at_inflection')})")
-        log.info("council criteria-veto %s: %s", candidate.symbol, sraw["criteria_veto_reason"])
+    # The filter, then CGS §10.7 deterministic enforcement — the single coercion point (the only layer with BOTH
+    # raws in scope). Both live in strategist_verdict / coerce_tri_criteria, shared with the #456 probe.
+    sconf, sfr = strategist_verdict(sraw, praw, pack, candidate.symbol)
 
     strategist_ao = AgentOutput(
         "strategist", sresp.provider, sresp.model, sconf, str(sraw.get("direction", candidate.direction)),
@@ -146,7 +169,7 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
         direction = candidate.direction
     total_cost = presp.cost_usd + aresp.cost_usd + sresp.cost_usd
 
-    return CouncilProposal(
+    proposal = CouncilProposal(
         theme=str(sraw.get("theme", candidate.name)) or candidate.name,
         symbol=candidate.symbol,
         direction=direction,
@@ -176,3 +199,18 @@ def run_candidate(candidate: Theme, pack, router, *, rng: random.Random | None =
         at_inflection=sraw.get("at_inflection") if isinstance(sraw.get("at_inflection"), bool) else None,
         criteria_veto=bool(sraw.get("criteria_veto", False)),
     )
+    if capture is not None:
+        repeat_capture[id(proposal)] = capture
+    return proposal
+
+
+def _repeat_capture(pack, strategist_user: str, symbol: str) -> dict | None:
+    """The #456 capture for one candidate: the serialized pack (verified to round-trip) + the sha256 of the
+    strategist's user text. Never raises: any error is a WARNING and the candidate is simply not captured."""
+    try:
+        from council.repeat_capture import capture_record
+
+        return capture_record(pack, strategist_user)
+    except Exception as e:  # noqa: BLE001 — measurement capture must never touch the council of record
+        log.warning("repeat-probe capture failed for %s (non-fatal, not captured): %s", symbol, e)
+        return None
