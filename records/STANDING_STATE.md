@@ -52,10 +52,11 @@ The header's absence is itself a signal.
   - **Held-name tracking, Option B** (#464; §10.13; `records/2026-11-16_held_name_thesis_tracking_optionB_PREREG.md`):
     a post-L1 pass re-reads every held position nightly into `held_reads`; starts with the first L1 after its code
     merges; cap $1.00 per pass. Measurement only.
-  - **#505, the slate's date-aware demotion:** `state.unexpressible_symbols` also treats a structured row whose selected
-    wing expires under `convexity_gate.tenor_min_days` from today's ET date as unexpressible. Same rule
-    (`council.demote_unexpressible`, 2026-10-21), fresher evidence; to land before the Mon 11-23 expiry cliff
-    (off-cycle, boundary B's frame-conformance class).
+  - **#505, the slate's date-aware demotion: approved, then WITHDRAWN by CC before any code (2026-11-16).** The sweep
+    stores only the selected wing, not the name's other expiries, so the check would also demote names with another
+    in-window expiry (LMT Jun/Sep-27, NXE Aug-27 on 11-23). That breaks the 2026-10-21 ruling's "positive, fresh
+    evidence" principle to save at most one night of slots. Proposed instead: close #505 as a complexity-cut; the
+    11-23 sweep corrects the slate from 11-24.
   - **The post-L1 unit:** the §10.12 probe and the §10.13 pass share one unit, `dramatic-options-post-l1`.
   - **#504 (moneyness ceiling):** not decided; no recommendation was made.
 - **Council repeat-read probe, Arm A (2026-11-14, operator word "Ok sure let's follow your recommendations"; #456;
@@ -319,7 +320,7 @@ The header's absence is itself a signal.
   **Decided 2026-11-12:** #465 and #472 (the kill rule, implementation for 12-07) · #470 (boundary B) · #468, (2)
   and (4) only · #469, deferred.
   **Filed 2026-11-16:** #504 (no moneyness ceiling on the selector; undecided) · #505 (the slate's date-aware
-  demotion; decided 2026-11-16, for 11-23).
+  demotion; approved 11-16, withdrawn by CC: a false-demotion flaw).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
   · #473 (the live close ceiling) · #477 (null-book exits on closed-market ticks) · #479 (`_page_once` stamps
   before sending) · #480 (the monitor's "today" is the UTC date).
