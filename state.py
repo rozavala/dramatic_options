@@ -1112,18 +1112,60 @@ def council_parse_health(conn: sqlite3.Connection, run_id: int) -> dict:
 
 
 def provider_month_spend(conn: sqlite3.Connection, provider: str, *, now) -> float:
-    """Month-to-date COUNCIL LLM spend for one provider (``council_agent_outputs.cost_usd``
-    summed from the 1st of ``now``'s month, UTC). COUNCIL-SCOPE ONLY, stated honestly: a
-    shared API key's external usage is invisible here — the 2026-08-26 cap exhaustion hit
-    with our side at ~$1.9 MTD, so console-side spend alerts are the operator's lever for a
+    """Month-to-date OUR-SIDE LLM spend for one provider, summed from the 1st of ``now``'s month, UTC: the council's
+    ``council_agent_outputs.cost_usd`` plus the #456 repeat-read probe's ``council_repeat_reads.cost_usd`` (when that
+    table exists — migration 0022) plus the #464 held-name pass's per-role costs in ``held_reads`` (migration 0023),
+    so the monthly page and the probe's own refusal rule see both passes' spend (PREREG_COUNCIL_GATE_SEPARATION
+    §10.12 prereg §7, §10.13 prereg §2). Rows are attributed to the provider that actually answered.
+    OUR-SIDE ONLY, stated honestly: a shared API key's external usage is invisible here — the 2026-08-26 cap
+    exhaustion hit with our side at ~$1.9 MTD, so console-side spend alerts are the operator's lever for a
     shared key; this tripwire catches OUR-side runaway/creep days early instead of as a
     19:45 provider 400 (incident rec #1)."""
+    since = now.strftime("%Y-%m-01")
     row = conn.execute(
         "SELECT SUM(cost_usd) AS s FROM council_agent_outputs "
         "WHERE provider = ? AND created_at >= ?",
-        (provider, now.strftime("%Y-%m-01")),
+        (provider, since),
     ).fetchone()
-    return float(row["s"] or 0.0)
+    total = float(row["s"] or 0.0)
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='council_repeat_reads'").fetchone():
+        prow = conn.execute(
+            "SELECT SUM(cost_usd) AS s FROM council_repeat_reads WHERE provider = ? AND created_at >= ?",
+            (provider, since),
+        ).fetchone()
+        total += float(prow["s"] or 0.0)
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='held_reads'").fetchone():
+        hrow = conn.execute(
+            "SELECT SUM(CASE WHEN proposer_provider = ? THEN COALESCE(proposer_cost_usd, 0) ELSE 0 END"
+            " + CASE WHEN adversary_provider = ? THEN COALESCE(adversary_cost_usd, 0) ELSE 0 END"
+            " + CASE WHEN strategist_provider = ? THEN COALESCE(strategist_cost_usd, 0) ELSE 0 END) AS s"
+            " FROM held_reads WHERE created_at >= ?",
+            (provider, provider, provider, since),
+        ).fetchone()
+        total += float(hrow["s"] or 0.0)
+    return total
+
+
+def record_repeat_pack(conn: sqlite3.Connection, *, run_id: int | None, proposal_id: int, symbol: str,
+                       pack_json: str, prompt_sha256: str, created_at: datetime) -> int:
+    """Persist one #456 capture (migration 0022): the serialized ContextPack + the strategist-prompt sha256 for the
+    ``council_proposals`` row ``proposal_id``. Atomic. Called by ``council.wiring`` only while
+    ``council.repeat_probe.enabled``; the caller treats any error as a WARNING (fail-soft)."""
+    with conn:
+        cur = conn.execute(
+            "INSERT INTO council_repeat_packs (run_id, proposal_id, symbol, pack_json, prompt_sha256, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (run_id, proposal_id, symbol, pack_json, prompt_sha256, sql_utc(created_at)),
+        )
+    return int(cur.lastrowid)
+
+
+def sql_utc(ts: datetime) -> str:
+    """A datetime as SQLite's ``datetime('now')`` text (``YYYY-MM-DD HH:MM:SS``, UTC), so a row stamped from a clock
+    sorts and month-filters exactly like one stamped by SQLite. A naive datetime is taken as UTC."""
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
+    return ts.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def provider_run_spend(conn: sqlite3.Connection, run_id: int, provider: str) -> float:

@@ -19,6 +19,23 @@ from council.proposal import select_for_trade
 log = logging.getLogger("council.wiring")
 
 
+def repeat_probe_enabled(config: dict) -> bool:
+    """``council.repeat_probe.enabled`` (#456), default False."""
+    return bool(((config.get("council", {}) or {}).get("repeat_probe") or {}).get("enabled", False))
+
+
+def _persist_capture(conn, *, run_id, proposal_id: int, symbol: str, capture: dict, created_at) -> None:
+    """Write one #456 capture row. FAIL-SOFT: any error (no table, a locked DB) is a WARNING; the council of record
+    was already written and is never touched."""
+    try:
+        state.record_repeat_pack(conn, run_id=run_id, proposal_id=proposal_id, symbol=symbol,
+                                 pack_json=capture["pack_json"], prompt_sha256=capture["prompt_sha256"],
+                                 created_at=created_at)
+    except Exception as e:  # noqa: BLE001 — measurement capture must never touch the council of record
+        log.warning("repeat-probe capture not persisted for %s (proposal %s, non-fatal): %s",
+                    symbol, proposal_id, e)
+
+
 def council_to_themes(
     conn,
     *,
@@ -91,9 +108,13 @@ def council_to_themes(
     if held:   # backfill only: an unexpressible name takes a slot nothing expressible wanted
         room = max(int(council_cfg.get("max_candidates", 12)) - len(candidates), 0)
         candidates = list(candidates) + held[:room]
+    # #456 repeat-read probe capture (PREREG_COUNCIL_GATE_SEPARATION §10.12), default OFF: None ⇒ byte-identical.
+    # Collects {id(proposal): pack + strategist-prompt hash} for candidates that reach the strategist; persisted
+    # below beside each proposal row, fail-soft. Measurement only — nothing in the council or the loop reads it.
+    captures: dict | None = {} if repeat_probe_enabled(config) else None
     proposals = propose(candidates, router=router, config=config, clock=clock,
                         news=news, fundamentals=fundamentals, analyst=analyst,
-                        catalysts=catalysts, demo=demo, rng=rng)
+                        catalysts=catalysts, demo=demo, rng=rng, repeat_capture=captures)
     floor = config.get("council", {}).get("conviction_floor", "MODERATE")
     tradeable_ids = {id(p) for p in select_for_trade(proposals, floor=floor)}
     as_of_iso = clock.now().isoformat()
@@ -137,6 +158,9 @@ def council_to_themes(
                 raw=ao.raw, flagged_unsupported=ao.flagged_unsupported, cost_usd=ao.cost_usd,
                 flagged_details=ao.flagged_details,
             )
+        if captures and id(p) in captures:
+            _persist_capture(conn, run_id=run_id, proposal_id=proposal_id, symbol=p.symbol,
+                             capture=captures[id(p)], created_at=clock.now())
         if is_trade:
             themes.append(p.to_theme(proposal_id))
         else:
