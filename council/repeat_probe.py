@@ -1,8 +1,8 @@
 """#456 council repeat-read probe, Arm A (PREREG_COUNCIL_GATE_SEPARATION §10.12;
 records/2026-11-14_council_repeat_probe_armA_PREREG.md).
 
-After the L1 has finished, a SEPARATE process (``python -m orchestrator --repeat-probe``, the
-``dramatic-options-repeat-probe`` unit) re-asks the **strategist only** k times per name, on the same night's
+After the L1 has finished, a SEPARATE process (``python -m orchestrator --post-l1``, the
+``dramatic-options-post-l1`` unit shared with §10.13; ``--repeat-probe`` runs it alone) re-asks the **strategist only** k times per name, on the same night's
 captured ``ContextPack`` (``council_repeat_packs``), the stored proposer and adversary outputs
 (``council_agent_outputs.raw``) and the recorded presentation order (``council_proposals.rationale["order"]``), with
 the record's post-processing (``council.debate.strategist_verdict``: the same quote filter + the shared §10.7
@@ -451,26 +451,28 @@ def _live_router(config: dict, ledger: CostLedger):
     return build_router(config, config.get("llm_keys", {}), ledger=ledger)
 
 
-def main() -> int:
-    """``python -m orchestrator --repeat-probe``: one probe invocation against the live DB. Exit 0 for a probe that ran
-    or refused (refusals are log lines, never a page); 1 only on an unexpected error (the unit's OnFailure pages)."""
+def run_live(config: dict) -> ProbeOutcome:
+    """One probe invocation against the live DB — the ``post_l1`` pass. Refusals return normally; an unexpected error
+    RAISES (``post_l1`` logs it, runs the next pass anyway, and exits 1 so the unit's OnFailure pages)."""
     from clock import LiveClock
+
+    if not bool(settings(config)["enabled"]):    # the quiet path: no DB, no network
+        return _refuse("council.repeat_probe.enabled is false")
+    conn = state.get_db(config)
+    try:
+        return run_probe(conn, config=config, clock=LiveClock(), router_factory=_live_router)
+    finally:
+        conn.close()
+
+
+def main() -> int:
+    """``python -m orchestrator --repeat-probe``: the probe alone, by hand (the unit runs ``--post-l1``, which runs it
+    with every other post-L1 pass). Exit 0 for a probe that ran or refused; 1 on an unexpected error."""
     from config_loader import load_config
 
     try:
-        config = load_config()
-        if not bool(settings(config)["enabled"]):    # the quiet path: no DB, no network
-            _refuse("council.repeat_probe.enabled is false")
-            return 0
-        conn = state.get_db(config)
-    except Exception:  # noqa: BLE001 — the probe's own failure; the L1 is a different process
-        log.exception("Repeat probe failed before starting")
-        return 1
-    try:
-        run_probe(conn, config=config, clock=LiveClock(), router_factory=_live_router)
+        run_live(load_config())
         return 0
     except Exception:  # noqa: BLE001 — measurement only: report loudly, never retry or touch the record
         log.exception("Repeat probe failed")
         return 1
-    finally:
-        conn.close()

@@ -187,34 +187,36 @@ def test_deploy_fails_at_the_end_when_a_unit_is_stale():
     assert 'if [ -n "$UNITS_FAILED" ]' in tail and "exit 1" in tail.split("Deployment finished successfully")[0]
 
 
-# ── #456 repeat-read probe unit (measurement only, after the L1) ────────────────────────────────────────────────────
-def test_repeat_probe_unit_shape():
-    cp = _parse(SYSTEMD / "dramatic-options-repeat-probe.service")
+# ── the post-L1 measurement unit (#456 §10.12 probe + #464 §10.13 held reads; never trades) ────────────────────────────────────────────────────
+def test_post_l1_unit_shape():
+    cp = _parse(SYSTEMD / "dramatic-options-post-l1.service")
     assert cp["Service"]["Type"] == "oneshot"
     assert cp["Unit"]["OnFailure"] == "dramatic-options-notify@%n.service"
     assert cp["Service"]["EnvironmentFile"] == "__REPO_ROOT__/.env"
-    assert cp["Service"]["ExecStart"] == "__REPO_ROOT__/venv/bin/python -u -m orchestrator --repeat-probe"
+    assert cp["Service"]["ExecStart"] == "__REPO_ROOT__/venv/bin/python -u -m orchestrator --post-l1"
     assert "dramatic-options-l1.service" in cp["Unit"]["After"].split()
     assert int(cp["Service"]["TimeoutStartSec"]) >= 1800
-    text = (SYSTEMD / "dramatic-options-repeat-probe.service").read_text()
+    text = (SYSTEMD / "dramatic-options-post-l1.service").read_text()
     assert "__USER__" in text and "__GROUP__" in text
 
 
-def test_repeat_probe_timer_runs_weekdays_after_the_l1():
-    cp = _parse(SYSTEMD / "dramatic-options-repeat-probe.timer")
+def test_post_l1_timer_runs_weekdays_after_the_l1():
+    cp = _parse(SYSTEMD / "dramatic-options-post-l1.timer")
     assert cp["Timer"]["OnCalendar"] == "Mon..Fri 16:10 America/New_York"
     l1 = _parse(SYSTEMD / "dramatic-options-l1.timer")["Timer"]["OnCalendar"]
-    assert l1 == "Mon..Fri 15:45 America/New_York"   # the probe's 16:10 is after it
-    assert cp["Timer"]["Unit"] == "dramatic-options-repeat-probe.service"
+    assert l1 == "Mon..Fri 15:45 America/New_York"   # the post-L1 16:10 is after it
+    assert cp["Timer"]["Unit"] == "dramatic-options-post-l1.service"
     assert cp["Install"]["WantedBy"] == "timers.target"
 
 
-def test_repeat_probe_is_armed_stopped_and_verified_by_deploy():
+def test_post_l1_is_armed_stopped_and_verified_by_deploy():
+    assert not list(SYSTEMD.glob("*repeat-probe*")), "renamed to post-l1 (one unit for §10.12 + §10.13)"
     deploy = DEPLOY.read_text()
+    assert "repeat-probe" not in deploy
     timers = re.search(r"^TIMERS=\((.*?)\)", deploy, re.M).group(1)
     services = re.search(r"^SERVICES=\((.*?)\)", deploy, re.M).group(1)
-    assert '"${SERVICE_PREFIX}-repeat-probe.timer"' in timers
-    assert '"${SERVICE_PREFIX}-repeat-probe.service"' in services
+    assert '"${SERVICE_PREFIX}-post-l1.timer"' in timers
+    assert '"${SERVICE_PREFIX}-post-l1.service"' in services
 
 
 def test_apply_timers_arms_every_installable_timer_when_one_is_missing():

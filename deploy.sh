@@ -8,7 +8,7 @@ set -e
 #   • dramatic-options-l0.{service,timer}  — weekly Sun 08:00 ET discovery scan (--discover, no trading)
 #   • dramatic-options-l1.{service,timer}  — daily 15:45 ET full cycle (council + entries + monitor)
 #   • dramatic-options-l2.{service,timer}  — ~30min intraday monitor (--monitor, no council/LLM)
-#   • dramatic-options-repeat-probe.{service,timer} — weekdays 16:10 ET #456 strategist re-reads (measurement only)
+#   • dramatic-options-post-l1.{service,timer} — weekdays 16:10 ET post-L1 measurement (#456 repeat probe, #464 held reads)
 #   • dramatic-options-notify@.service     — OnFailure Pushover pager (instanced per failed unit)
 #
 # This script: stop timers/in-flight cycle -> rotate logs -> deps -> migrations
@@ -37,9 +37,9 @@ ENV_NAME="${ENV_NAME:-DEV}"                       # DEV | PROD
 SERVICE_PREFIX="dramatic-options"
 SYSTEMD_SRC="scripts/systemd"                      # unit templates (rendered at install time)
 SYSTEMD_DST="/etc/systemd/system"
-# repeat-probe (#456): measurement only, after the L1; refuses quietly (exit 0) while council.repeat_probe is off.
-TIMERS=("${SERVICE_PREFIX}-l0.timer" "${SERVICE_PREFIX}-l1.timer" "${SERVICE_PREFIX}-l2.timer" "${SERVICE_PREFIX}-reach.timer" "${SERVICE_PREFIX}-repeat-probe.timer")
-SERVICES=("${SERVICE_PREFIX}-l0.service" "${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service" "${SERVICE_PREFIX}-reach.service" "${SERVICE_PREFIX}-repeat-probe.service")
+# post-l1 (#456 §10.12 + #464 §10.13): measurement only, after the L1; each pass refuses quietly (exit 0) when off.
+TIMERS=("${SERVICE_PREFIX}-l0.timer" "${SERVICE_PREFIX}-l1.timer" "${SERVICE_PREFIX}-l2.timer" "${SERVICE_PREFIX}-reach.timer" "${SERVICE_PREFIX}-post-l1.timer")
+SERVICES=("${SERVICE_PREFIX}-l0.service" "${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service" "${SERVICE_PREFIX}-reach.service" "${SERVICE_PREFIX}-post-l1.service")
 # The §5b observability dashboard — a LONG-RUNNING service (not a oneshot timer-fired one), armed separately
 # (apply_dashboard) and fail-soft: its failure never rolls back trading. install_units globs *.service so the
 # unit lands on both boxes automatically; only the arming differs by env.

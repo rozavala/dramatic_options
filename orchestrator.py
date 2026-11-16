@@ -3,7 +3,8 @@
     python orchestrator.py            # one cycle on themes.json (needs Alpaca creds)
     python orchestrator.py --demo     # one cycle offline on deterministic synthetic data
     python orchestrator.py --monitor  # mark + apply exits to open positions, NO new entries
-    python -m orchestrator --repeat-probe  # #456 measurement-only strategist re-reads after the L1 (never trades)
+    python -m orchestrator --post-l1   # the post-L1 measurement passes (§10.12, §10.13; never trades)
+    python -m orchestrator --repeat-probe  # the #456 repeat probe alone, by hand
     touch KILL && python orchestrator.py   # halts before any work
 
 A cycle is: reconcile pending real orders → mark open positions + fire deterministic exits
@@ -1322,10 +1323,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--demo", action="store_true", help="Offline run on deterministic synthetic data (no creds/network).")
     parser.add_argument("--monitor", action="store_true", help="Mark + apply exits to open positions only; no new entries.")
     parser.add_argument("--discover", action="store_true", help="L0 weekly sentinel discovery scan (no trading); surfaces candidates the council later judges.")
+    parser.add_argument("--post-l1", action="store_true",
+                        help="Every post-L1 measurement pass (§10.12 repeat probe, §10.13 held reads), each "
+                             "independent; exit 1 if any raised. Never trades.")
     parser.add_argument("--repeat-probe", action="store_true",
-                        help="#456 council repeat-read probe (measurement only; runs after the L1, refuses while "
-                             "council.repeat_probe.enabled is false). Never trades.")
+                        help="The #456 council repeat-read probe alone (by hand; the unit runs --post-l1). Never trades.")
     args = parser.parse_args(argv)
+    if args.post_l1:
+        import post_l1
+
+        return post_l1.main()
     if args.repeat_probe:
         from council.repeat_probe import main as repeat_probe_main
 

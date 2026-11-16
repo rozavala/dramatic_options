@@ -23,8 +23,8 @@ code **and re-syncs the unit files** (not just `git reset`).
 | `dramatic-options-l0.{service,timer}` | `Sun 08:00 ET`, `Persistent=true` | one **discovery** scan: `--discover` — surfaces sentinels for the next L1 council; **never trades / no broker** |
 | `dramatic-options-l1.{service,timer}` | `Mon..Fri 15:45 ET`, `Persistent=true` | one **full** cycle: monitor → council → gates → entries |
 | `dramatic-options-l2.{service,timer}` | `Mon..Fri 09..16:00/30 ET`, `Persistent=false` | `--monitor` only: mark-to-market + deterministic exits (**no council → no LLM spend**) |
-| `dramatic-options-repeat-probe.{service,timer}` | `Mon..Fri 16:10 ET`, `Persistent=true`, `After=` the L1 | `--repeat-probe`: the #456 strategist re-reads (**measurement only, never trades**); refuses with one INFO line while `council.repeat_probe.enabled` is false. Not on the dashboard's job list: its surfaces are journald (`journalctl -u dramatic-options-repeat-probe`), its own `OnFailure` page and `scripts/probe_repeat_report.py`. DEV's sudo-rs needs the two exact `NOPASSWD: /usr/bin/tee /etc/systemd/system/dramatic-options-repeat-probe.{service,timer}` rules before the deploy that adds it (#313) |
-| `dramatic-options-notify@.service` | `OnFailure=` of L0/L1/L2/repeat-probe | Pushover page for a unit that exited **non-zero** |
+| `dramatic-options-post-l1.{service,timer}` | `Mon..Fri 16:10 ET`, `Persistent=true`, `After=` the L1 | `--post-l1`: every post-L1 measurement pass, each independent (the #456 §10.12 repeat probe; the #464 §10.13 held reads) — **measurement only, never trades**; exit 1 only if a pass raised. The repeat probe refuses with one INFO line while `council.repeat_probe.enabled` is false (`--repeat-probe` runs it alone by hand). Not on the dashboard's job list: its surfaces are journald (`journalctl -u dramatic-options-post-l1`), its own `OnFailure` page and `scripts/probe_repeat_report.py`. DEV's sudo-rs needs the two exact rules `NOPASSWD: /usr/bin/tee /etc/systemd/system/dramatic-options-post-l1.service` and `NOPASSWD: /usr/bin/tee /etc/systemd/system/dramatic-options-post-l1.timer` before the deploy that adds it (#313) |
+| `dramatic-options-notify@.service` | `OnFailure=` of L0/L1/L2/post-l1 | Pushover page for a unit that exited **non-zero** |
 
 The units under `scripts/systemd/` are **templates** (`__REPO_ROOT__`/`__USER__`/`__GROUP__`)
 rendered by `deploy.sh` at install time, so the same tracked files are correct on DEV
@@ -120,7 +120,7 @@ is tested against (`dashboard_web/api/test_snapshot_parity.py`) and can still be
 | `.github/workflows/deploy.yml` | CI/CD trigger: `main`→DEV, `production`→PROD (runs `./deploy.sh`) |
 | `deploy.sh` | lifecycle: verify-gated install + timer arming, with rollback that re-syncs units |
 | `scripts/verify_deploy.sh` | health gate (disk, imports, critical files, **live-checkout `.env`**) |
-| `scripts/systemd/*.{service,timer}` | unit templates (L0, L1, L2, reach, repeat-probe, notify@, web) rendered at install |
+| `scripts/systemd/*.{service,timer}` | unit templates (L0, L1, L2, reach, post-l1, notify@, web) rendered at install |
 | `scripts/dashboard_web_run.sh` | web dashboard launch wrapper — binds 127.0.0.1:8602 (behind `tailscale serve`) |
 | `requirements-dashboard.txt` | dashboard-only deps (streamlit); installed by deploy STEP 3, not in CI's base job |
 | `notify.py` | Pushover sender (in-app + `--systemd-failure` for `OnFailure`) |
