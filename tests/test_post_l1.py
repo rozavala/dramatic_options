@@ -28,8 +28,8 @@ def test_all_passes_returning_exit_zero():
     assert ran == [{"x": 1}, {"x": 1}]
 
 
-def test_the_repeat_probe_is_the_first_registered_pass():
-    assert post_l1.PASSES[0][0] == "repeat_probe"
+def test_the_repeat_probe_runs_first_then_the_held_pass():
+    assert [name for name, _fn in post_l1.PASSES] == ["repeat_probe", "held_reads"]
 
 
 def test_post_l1_flag_dispatches_and_a_disabled_probe_is_quiet(monkeypatch, caplog):

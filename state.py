@@ -1114,8 +1114,9 @@ def council_parse_health(conn: sqlite3.Connection, run_id: int) -> dict:
 def provider_month_spend(conn: sqlite3.Connection, provider: str, *, now) -> float:
     """Month-to-date OUR-SIDE LLM spend for one provider, summed from the 1st of ``now``'s month, UTC: the council's
     ``council_agent_outputs.cost_usd`` plus the #456 repeat-read probe's ``council_repeat_reads.cost_usd`` (when that
-    table exists — migration 0022), so the monthly page and the probe's own refusal rule see the probe's spend
-    (PREREG_COUNCIL_GATE_SEPARATION §10.12, prereg §7). Rows are attributed to the provider that actually answered.
+    table exists — migration 0022) plus the #464 held-name pass's per-role costs in ``held_reads`` (migration 0023),
+    so the monthly page and the probe's own refusal rule see both passes' spend (PREREG_COUNCIL_GATE_SEPARATION
+    §10.12 prereg §7, §10.13 prereg §2). Rows are attributed to the provider that actually answered.
     OUR-SIDE ONLY, stated honestly: a shared API key's external usage is invisible here — the 2026-08-26 cap
     exhaustion hit with our side at ~$1.9 MTD, so console-side spend alerts are the operator's lever for a
     shared key; this tripwire catches OUR-side runaway/creep days early instead of as a
@@ -1133,6 +1134,15 @@ def provider_month_spend(conn: sqlite3.Connection, provider: str, *, now) -> flo
             (provider, since),
         ).fetchone()
         total += float(prow["s"] or 0.0)
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='held_reads'").fetchone():
+        hrow = conn.execute(
+            "SELECT SUM(CASE WHEN proposer_provider = ? THEN COALESCE(proposer_cost_usd, 0) ELSE 0 END"
+            " + CASE WHEN adversary_provider = ? THEN COALESCE(adversary_cost_usd, 0) ELSE 0 END"
+            " + CASE WHEN strategist_provider = ? THEN COALESCE(strategist_cost_usd, 0) ELSE 0 END) AS s"
+            " FROM held_reads WHERE created_at >= ?",
+            (provider, provider, provider, since),
+        ).fetchone()
+        total += float(hrow["s"] or 0.0)
     return total
 
 
