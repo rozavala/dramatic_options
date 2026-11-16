@@ -46,6 +46,18 @@ The header's absence is itself a signal.
     - an inert arming PR, a draft only;
     - a 1-week paper rehearsal on a **separate paper account**.
   - **#469 deferred.**
+- **Operator word 2026-11-16 ("Sure, let's keep moving with your recommendations"):**
+  - **Floor-drought look, decided in advance: A** (PREREG_COUNCIL_GATE_SEPARATION §10.11a). §10.11 unchanged; a second
+    10-session drought after 12-18 triggers another look. `records/2026-11-16_floor_drought_look_decision.md`.
+  - **Held-name tracking, Option B** (#464; §10.13; `records/2026-11-16_held_name_thesis_tracking_optionB_PREREG.md`):
+    a post-L1 pass re-reads every held position nightly into `held_reads`; starts with the first L1 after its code
+    merges; cap $1.00 per pass. Measurement only.
+  - **#505, the slate's date-aware demotion:** `state.unexpressible_symbols` also treats a structured row whose selected
+    wing expires under `convexity_gate.tenor_min_days` from today's ET date as unexpressible. Same rule
+    (`council.demote_unexpressible`, 2026-10-21), fresher evidence; to land before the Mon 11-23 expiry cliff
+    (off-cycle, boundary B's frame-conformance class).
+  - **The post-L1 unit:** the §10.12 probe and the §10.13 pass share one unit, `dramatic-options-post-l1`.
+  - **#504 (moneyness ceiling):** not decided; no recommendation was made.
 - **Council repeat-read probe, Arm A (2026-11-14, operator word "Ok sure let's follow your recommendations"; #456;
   PREREG_COUNCIL_GATE_SEPARATION §10.12; `records/2026-11-14_council_repeat_probe_armA_PREREG.md`):** measurement only.
   - The strategist is re-asked 5× per name on the same night's pack and debate, by a separate unit after the L1.
@@ -306,6 +318,8 @@ The header's absence is itself a signal.
   and T4 #465–#469 · the segment register #470.
   **Decided 2026-11-12:** #465 and #472 (the kill rule, implementation for 12-07) · #470 (boundary B) · #468, (2)
   and (4) only · #469, deferred.
+  **Filed 2026-11-16:** #504 (no moneyness ceiling on the selector; undecided) · #505 (the slate's date-aware
+  demotion; decided 2026-11-16, for 11-23).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
   · #473 (the live close ceiling) · #477 (null-book exits on closed-market ticks) · #479 (`_page_once` stamps
   before sending) · #480 (the monitor's "today" is the UTC date).

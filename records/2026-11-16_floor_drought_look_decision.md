@@ -1,6 +1,6 @@
-# 2026-11-16 — The §10.11 floor-drought look: evidence and options (DRAFT, for the operator)
+# 2026-11-16 — The §10.11 floor-drought look: evidence and the decision (option A, decided in advance)
 
-**Status: DRAFT. Nothing here is in force.** PREREG_COUNCIL_GATE_SEPARATION §10.11 pinned: *"If zero names reach the
+**Status: DECIDED 2026-11-16 (operator word "Sure, let's keep moving with your recommendations"): option A**, decided in advance of the look. If the 11-16 and 11-17 L1s also have no verdict at the floor, the look owed after 11-17 is this decision: §10.11 is unchanged, the drought is recorded as upstream, and a second 10-session drought after 12-18 triggers another look. If either night reaches the floor, the clock resets and the decision stands for the next drought. PREREG_COUNCIL_GATE_SEPARATION §10.11 pinned: *"If zero names reach the
 floor for 10 consecutive sessions, an operator look is owed (the wording may be too tight; nothing reverts
 automatically)."* The clock was **8 of 10 at L1 #2055 (11-13)**; the last above-floor verdict was #1918 (FLNC,
 11-03). If the Mon 11-16 and Tue 11-17 L1s also have none, the look is owed after 11-17. This draft prepares it so
@@ -60,7 +60,6 @@ the decision is not made cold. If either night reaches the floor, the clock rese
 The floor (MODERATE), criteria (1)–(2), the tri-criteria `include` rule, the gates, sizing, the risk frame. Nothing
 reverts automatically (§10.11).
 
-## 4. Decision for the operator (only if the clock reaches 10 on 11-17)
+## 4. Decision
 
-A, B or C. CC recommends **A**, with the second-drought pin. The record is then a dated §10.11 note and a STANDING_STATE
-entry, with no code change.
+**A**, with the second-drought pin (operator word 2026-11-16). Recorded as a dated note under §10.11 and a STANDING_STATE entry. No code change.

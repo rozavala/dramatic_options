@@ -1,9 +1,6 @@
-# PREREG DRAFT — Held-name thesis tracking, Option B (#464; for PREREG_COUNCIL_GATE_SEPARATION §10.13)
+# PREREG — Held-name thesis tracking, Option B (#464; PREREG_COUNCIL_GATE_SEPARATION §10.13)
 
-**Status: DRAFT, NOT FROZEN.** It narrows the 2026-11-10 draft (`records/2026-11-10_held_name_thesis_tracking_DRAFT.md`,
-draft PR #476) to **Option B**, as the operator's 2026-11-12 word ranked it ("(3) #464, option B";
-`records/2026-11-12_operator_decisions_roadmap.md`). Values marked **[PIN]** are proposals; §8 lists the decisions.
-On the word it becomes §10.13 and gets a STANDING_STATE entry; the code follows default-off.
+**Status: FROZEN 2026-11-16 (operator word "Sure, let's keep moving with your recommendations").** Every [PIN] takes the §8 recommendation: run Option B; start with the first L1 after the code merges; a separate post-L1 unit (shared with the §10.12 probe: `dramatic-options-post-l1`); cap $1.00 per pass with spend counted in MTD; dormant packs rendered as-is with the lineage status stored; scoring §4 as drafted; the prohibition §5 as written. It narrows the 2026-11-10 draft (`records/2026-11-10_held_name_thesis_tracking_DRAFT.md`, draft PR #476) to Option B, as the operator's 2026-11-12 word ranked it. §10.13 indexes this file.
 
 **Measurement only.** No held read may change an entry, a veto, a size, an exit, an add, a re-strike, a carry, the
 backfill rank, the persistence watch or any verdict of record. Guardrail 6 holds: reads are scored forward at each
@@ -85,7 +82,7 @@ Option A is dropped (operator: option B). The "start after the ~11-12 refresh" i
 own segment" (the refresh now rides 12-07 at the earliest, and held names are going unread now). Cost re-measured.
 The process follows §10.12's separate-unit pattern instead of running inside the L1.
 
-## 8. Decisions for the operator
+## 8. Decisions (adopted 2026-11-16: every recommendation)
 
 | # | Decision | Recommendation |
 |---|---|---|
