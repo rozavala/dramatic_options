@@ -465,3 +465,31 @@ pre-registration is `records/2026-11-14_council_repeat_probe_armA_PREREG.md`; th
   against prices or outcomes (guardrail 6); used to tune a prompt, the floor or the criteria; a training signal.
 - **Unchanged:** the verdict of record, the floor, the criteria, the prompts, the gates, sizing, `frame_version`
   (the probe changes nothing the council sees).
+
+#### 10.11a The floor-drought look, decided in advance (dated note, 2026-11-16, operator word)
+
+Operator's word: *Sure, let's keep moving with your recommendations*. The §10.11 drought clock was 8 of 10 at L1 #2055 (11-13). Decision **A**, recorded
+before the look falls due: §10.11 stays as written. Over 95 strategist reads (11-03 → 11-13), criterion (3) alone
+blocked 17 (13 bear theses on names whose own filings still grow, the reading §10.11 intends), under-narrated failed 67, and
+the 9 all-pass reads were FLNC/TITN at LOW. The drought is upstream (slate breadth, coverage, conviction), not (3)'s
+wording. **Pinned:** a second run of 10 sessions with no verdict at the floor, after 2026-12-18, triggers another look,
+read with the §10.12 results. Evidence and options: `records/2026-11-16_floor_drought_look_decision.md`.
+
+### 10.13 Held-name thesis tracking, Option B (dated note, 2026-11-16, operator word)
+
+**Status: FROZEN 2026-11-16.** Operator's word: *Sure, let's keep moving with your recommendations* (#464; the 2026-11-12 word ranked option B). Full
+pre-registration: `records/2026-11-16_held_name_thesis_tracking_optionB_PREREG.md`; this section is its index.
+
+- **What:** after each L1, a separate pass runs the full debate once for every open or closing real position with a
+  proposal, on the pack the L1 would build from the position's own lineage (active or dormant; rendered as-is), and
+  stores it in `held_reads`. Never `council_proposals` or `council_agent_outputs`.
+- **Why:** held names cannot re-surface (`orchestrator.py:606` excludes them from the scan), so their lineages go
+  dormant and the council stops reading them. PL has had no read since 2026-07-17.
+- **Start:** the first L1 after the code merges; its own segment, split on any `runs.model_mix` change.
+- **Cost:** about $0.024 per name; cap $1.00 per pass on its own ledger; spend counted in the monthly page's MTD.
+- **Scoring:** at close, the last 3 held reads (intact = at least 2 at or above the floor; a backfill origin uses
+  `include = true` at LOW or higher) against the realized multiple (≥ 1.0 vs < 1.0), counts only, no rate before 20
+  closes with 3 reads.
+- **Never** (until a separately pre-registered rule): trigger or delay an exit, add, re-strike or carry; veto or size;
+  enter any council prompt; feed the backfill rank, the gates or the persistence watch. The pack never says the name
+  is held.
