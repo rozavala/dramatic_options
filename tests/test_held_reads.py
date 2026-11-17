@@ -91,14 +91,16 @@ def _seed(conn, *, status="dormant"):
     p_hand = state.record_council_proposal(conn, run_id=old_run, as_of="2026-10-02T20:45:00+00:00", theme="h",
                                            symbol="HSDA", direction="bullish", conviction="MODERATE")
     pos = {}
-    for name, sym, d, pid, st, entry, mark in (("sent", "HSDB", "bearish", p_sent, "open", 1.00, 2.50),
-                                               ("hand", "HSDA", "bullish", p_hand, "closing", 4.00, 1.00),
-                                               ("nolin", "HSDC", "bullish", None, "open", 2.00, 2.00),
-                                               ("closed", "HSDD", "bullish", p_hand, "closed", 2.00, 2.00)):
+    # The journal's real units (#511): entry_premium_per_contract is DOLLARS per contract (100 × the per-share
+    # premium); mark is the per-SHARE option price. So entry 100.0 with mark 2.50 is a 2.5× position.
+    for name, sym, d, pid, st, entry, mark in (("sent", "HSDB", "bearish", p_sent, "open", 100.0, 2.50),
+                                               ("hand", "HSDA", "bullish", p_hand, "closing", 400.0, 1.00),
+                                               ("nolin", "HSDC", "bullish", None, "open", 200.0, 2.00),
+                                               ("closed", "HSDD", "bullish", p_hand, "closed", 200.0, 2.00)):
         pos[name] = state.record_convexity_position(
             conn, run_id=old_run, opened_at="2026-10-03", theme="t", symbol=sym, direction=d, structure_kind="C",
             contract_symbol=f"{sym}270521C00010000", expiry="2027-05-21", strike=10.0, dte=230, moneyness=0.25,
-            contracts=1, entry_premium_per_contract=entry, total_premium=entry * 100, status=st, proposal_id=pid)
+            contracts=1, entry_premium_per_contract=entry, total_premium=entry, status=st, proposal_id=pid)
         with conn:
             conn.execute("UPDATE convexity_positions SET mark = ? WHERE id = ?", (mark, pos[name]))
     run = state.record_run(conn, mode="PAPER", equity=1)

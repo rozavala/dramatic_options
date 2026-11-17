@@ -143,7 +143,9 @@ def _role(p, role: str):
 def _mark_multiple(pos) -> float | None:
     try:
         entry, mark = float(pos["entry_premium_per_contract"]), pos["mark"]
-        return float(mark) / entry if mark is not None and entry > 0 else None
+        # mark is the per-SHARE option price; entry_premium_per_contract is dollars per contract (#511: the ×100,
+        # as dashboard_data's multiples and the monitor's realized multiple use it).
+        return float(mark) * 100.0 / entry if mark is not None and entry > 0 else None
     except (TypeError, ValueError):
         return None
 
