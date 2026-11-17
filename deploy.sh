@@ -74,10 +74,14 @@ wait_clear_of_ticks() {
         if [ -z "$busy" ]; then
             now_s=$(date +%s)
             for t in "${TIMERS[@]}"; do
-                v=$(systemctl show -p NextElapseUSecRealtime --value "$t" 2>/dev/null)
-                case "$v" in ""|n/a|0) continue ;; esac   # inert env (PROD) / timer not scheduled
-                next_s=$(date -d "$v" +%s 2>/dev/null) || continue
-                if (( next_s >= now_s && next_s - now_s <= 60 )); then busy="$t fires in $(( next_s - now_s ))s"; break; fi
+                # Unix timestamps (@<epoch>): no locale/TZ parsing. A failed read is reported and skipped, never a
+                # silent set -e abort; the is-active check above still guards a running unit.
+                v=$(systemctl show --timestamp=unix -p NextElapseUSecRealtime --value "$t" 2>/dev/null) \
+                    || { echo "deploy: could not read $t's next run — not waiting on it"; continue; }
+                case "$v" in @[0-9]*) next_s=${v#@} ;; *) continue ;; esac   # empty / n/a: inert env (PROD), unscheduled
+                # Symmetric window: systemd may dispatch up to AccuracySec (1 min) AFTER the scheduled instant, so a
+                # tick that is due but not yet dispatched is as dangerous as one about to be (#516 review).
+                if (( next_s - now_s >= -60 && next_s - now_s <= 60 )); then busy="$t fires at @$next_s (now @$now_s)"; break; fi
             done
         fi
         if [ -z "$busy" ]; then return 0; fi

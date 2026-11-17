@@ -20,12 +20,19 @@ def _epoch(s: str) -> int:
     return int(datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC).timestamp())
 
 
+def _unix(v: str) -> str:
+    """What ``systemctl show --timestamp=unix`` prints: ``@<epoch>``; empty / ``n/a`` pass through (inert timers)."""
+    if v in ("", "n/a") or v.startswith("@") or v == "FAIL":
+        return v
+    return "@" + str(_epoch(v.removeprefix("Tue ").removesuffix(" UTC")))
+
+
 def _run(*, now: str, next_elapse: dict[str, str], active_until_sleep: dict[str, int] | None = None,
          always_active: str | None = None) -> tuple[str, int]:
     """Run the real guard. ``active_until_sleep[unit] = n``: the unit reports active until n sleeps have happened.
     Each fake sleep advances the fake clock by 45 s. Returns (stdout, sleeps)."""
     active_until_sleep = active_until_sleep or {}
-    nexts = "\n".join(f'    {t}) echo "{v}" ;;' for t, v in next_elapse.items())
+    nexts = "\n".join(f'    {t}) echo "{_unix(v)}" ;;' for t, v in next_elapse.items())
     actives = "\n".join(f'    {u}) [ "$SLEEPS" -lt {n} ] && {{ echo active; return 0; }} ;;'
                         for u, n in active_until_sleep.items())
     always = f'    {always_active}) echo activating; return 0 ;;' if always_active else ""
@@ -46,10 +53,10 @@ systemctl() {{
     echo inactive; return 3
   fi
   if [ "$1" = show ]; then
-    case "$5" in
+    case "$6" in
 {nexts}
       *) echo "" ;;
-    esac
+    esac | {{ read -r out; [ "$out" = FAIL ] && return 1; echo "$out"; }}
   fi
 }}
 """ + _deploy_function("wait_clear_of_ticks") + 'wait_clear_of_ticks\necho "SLEEPS=$SLEEPS"\n'
@@ -64,8 +71,8 @@ def test_the_winter_l1_is_guarded():
     out, sleeps = _run(now="2026-11-17 20:44:30",
                        next_elapse={"dramatic-options-l1.timer": "Tue 2026-11-17 20:45:00 UTC",
                                     "dramatic-options-post-l1.timer": "Tue 2026-11-17 21:10:00 UTC"})
-    assert "dramatic-options-l1.timer fires in 30s" in out
-    assert sleeps == 1        # 45 s later the tick has passed and nothing runs → clear
+    assert "dramatic-options-l1.timer fires at @" in out
+    assert sleeps == 3        # 20:44:30 → 20:46:45: the tick is held through its 60 s dispatch allowance (AccuracySec)
 
 
 def test_a_running_l1_holds_the_deploy_until_it_exits():
@@ -78,9 +85,9 @@ def test_a_running_l1_holds_the_deploy_until_it_exits():
 
 def test_the_post_l1_and_the_late_l2_ticks_are_guarded():
     out, _ = _run(now="2026-11-17 21:09:30", next_elapse={"dramatic-options-post-l1.timer": "Tue 2026-11-17 21:10:00 UTC"})
-    assert "dramatic-options-post-l1.timer fires in 30s" in out
+    assert "dramatic-options-post-l1.timer fires at @" in out
     out, _ = _run(now="2026-11-17 21:29:40", next_elapse={"dramatic-options-l2.timer": "Tue 2026-11-17 21:30:00 UTC"})
-    assert "dramatic-options-l2.timer fires in 20s" in out
+    assert "dramatic-options-l2.timer fires at @" in out
 
 
 def test_clear_when_nothing_runs_and_no_timer_is_near_or_scheduled():
@@ -102,3 +109,16 @@ def test_no_hardcoded_schedule_remains():
     assert '"${SERVICES[@]}"' in fn and '"${TIMERS[@]}"' in fn
     text = DEPLOY.read_text()
     assert text.index("SERVICES=(") < text.index("\nwait_clear_of_ticks\n")   # the arrays exist when the guard runs
+
+
+def test_a_due_but_undispatched_tick_still_holds_the_deploy():
+    # #516 review: systemd may dispatch up to AccuracySec (1 min) after the scheduled instant; 30 s past 20:45 with the
+    # L1 not yet active is still dangerous.
+    out, sleeps = _run(now="2026-11-17 20:45:30", next_elapse={"dramatic-options-l1.timer": "Tue 2026-11-17 20:45:00 UTC"})
+    assert "dramatic-options-l1.timer fires at @" in out and sleeps == 1
+
+
+def test_a_failed_timer_read_is_reported_not_a_silent_abort():
+    # set -e: a non-zero `systemctl show` used to abort the whole deploy with no message (#516 review).
+    out, sleeps = _run(now="2026-11-17 03:00:00", next_elapse={"dramatic-options-l1.timer": "FAIL"})
+    assert "could not read dramatic-options-l1.timer" in out and sleeps == 0
