@@ -55,6 +55,8 @@ The header's absence is itself a signal.
   - **Held-name tracking, Option B** (#464; §10.13; `records/2026-11-16_held_name_thesis_tracking_optionB_PREREG.md`):
     a post-L1 pass re-reads every held position nightly into `held_reads`; starts with the first L1 after its code
     merges; cap $1.00 per pass. Measurement only.
+    **Scoring pin (2026-11-17, operator word "Merge and on 508 let's follow your suggestion"; #508):** a `dropped` read is excluded from "the last 3"; the last 3
+    non-dropped reads decide, and drops are counted beside the table.
   - **#505, the slate's date-aware demotion: approved, then WITHDRAWN by CC before any code (2026-11-16).** The sweep
     stores only the selected wing, not the name's other expiries, so the check would also demote names with another
     in-window expiry (LMT Jun/Sep-27, NXE Aug-27 on 11-23). That breaks the 2026-10-21 ruling's "positive, fresh
