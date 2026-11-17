@@ -22,10 +22,12 @@ that differs from the newest banner is a FINDING unless STANDING_STATE records a
    and Book lines and the direction-coherence note.
    `systemctl --failed`; `journalctl -u dramatic-options-l2 --since "$(date -u +%F) 13:00" --no-pager -q | grep -c
    'mark budget exhausted'`; any `status=9/KILL` on dramatic-options-* units today is a finding.
-   **The previous post-L1 run** (`dramatic-options-post-l1`, ~25 min after the L1, so it finishes AFTER this grade
-   and tonight's run is graded tomorrow): `journalctl -u dramatic-options-post-l1 -n 40 --no-pager -q` → the unit
-   result, the `Held reads run #N` line (read N of M, skipped, cost vs the $1.00 cap) and the `Repeat probe` line;
-   read-only `SELECT COUNT(*) FROM held_reads WHERE run_id = N`. A failed run, a held-reads refusal on a day with a
+   **The most recent completed post-L1 run** (`dramatic-options-post-l1`, ~25 min after the L1: in winter it finishes
+   after this grade, so it is the previous night's; in summer it may be tonight's — say which):
+   `journalctl -u dramatic-options-post-l1 -n 40 --no-pager -q` → the unit result, the `Held reads run #N` line (read N
+   of M, skipped, cost vs the $1.00 cap) and the `Repeat probe` line; read-only `SELECT symbol, lineage_status,
+   conviction, include, structural_vs_fad, under_narrated, at_inflection, dropped, mark_multiple FROM held_reads WHERE
+   run_id = N`. A failed run, a held-reads refusal on a day with a
    council of record, or a row count that differs from "read N" is a finding; the probe's "not run — disabled"
    before 2026-12-07 is expected (§10.12). Report each held name's read (conviction, include, the three criteria)
    as information only: §10.13 forbids acting on it.
