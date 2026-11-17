@@ -16,10 +16,13 @@ The header's absence is itself a signal.
     - **R2:** the 10% book is premium committed at any moment.
     - **Effect of a trip:** it halts the real book and the council, and **the null books keep booking**. KILL still
       halts all. Release is by a payoff or a mark recovery.
-    - **Code:** lands before 12-25, as worded; CC recommends the 12-07 boundary weekend. Thresholds are unchanged,
-      and so is `frame_version`.
+    - **Code: merged 2026-11-12** (#487: the dry leg, the cumulative drawdown leg, null books keep booking; #489:
+      L0 scans on a trip, the re-anchor keys). Thresholds are unchanged, and so is `frame_version`. Live readout at
+      merge: drawdown 1.8%, dry since 2026-07-01, binds 2027-04-01. (Corrected 2026-11-17, #515: this line said the
+      code would land by 12-25.)
     - **Second word 2026-11-12 ("accept all"):** L0 keeps scanning on a trip (framer included). The re-anchor keys
-      (`dry_clock_reanchored_on`, `drawdown_reanchored_on`) are to be built; each is a frame boundary.
+      (`dry_clock_reanchored_on`, `drawdown_reanchored_on`) are built (#489) and written only on the operator's word;
+      each is a frame boundary.
   - **Scheduled record boundary B** (#470): record-segmenting changes (a `frame_version`, prompt-hash, model or
     `model_mix` move) land on **the first Monday L1 of each month**, deployed the weekend before its Sunday L0.
     - **Next:** Mon **2026-12-07**.
