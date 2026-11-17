@@ -342,6 +342,7 @@ The header's absence is itself a signal.
   and (4) only · #469, deferred.
   **Filed 2026-11-16:** #504 (moneyness ceiling 40%, decided 11-16, code for 12-07) · #505 (closed 11-16 as a
   complexity-cut) · #508 (held reads: the §3 timeline and the §4 scoring report, deferred from #507).
+  **Filed 2026-11-17:** #515 (the boundary-B 12-07 checklist: #510, the §10.12 switch-on #519, the model refresh).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
   · #477 (null-book exits on closed-market ticks).
   **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467.
