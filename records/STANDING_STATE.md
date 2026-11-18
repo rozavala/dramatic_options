@@ -49,6 +49,20 @@ The header's absence is itself a signal.
     - an inert arming PR, a draft only;
     - a 1-week paper rehearsal on a **separate paper account**.
   - **#469 deferred.**
+- **Operator word 2026-11-18, second ("merge and follow your suggestions on the rest"):**
+  - **#455 frozen as `PREREG_CHEAP_THEN_REPRICED.md`** (with #453's shared-data rows folded in), every §11
+    recommendation adopted: the nightly term record gains `rv63`/`rv21` and quotes for the tracked contracts (the
+    selected wings plus every open position's contract; no new fetch, no migration, inside the sink's try/except so it
+    can never change the gate read); universe cohort only; rows from the first sweep after the capture deploys (wings
+    over 40% OTM excluded); primary outcome the mid multiple; splits E1 (cheapest `iv_rv` tercile) primary, E2 (RV63 >
+    1.2 among passes) secondary, E3 counts only; horizons 21/42/63 sessions; guard ≥ 20 rows and ≥ 8 names; derived at
+    read time, no ledger file. Telemetry: no stamp, so neither boundary B nor the 12-07 → 12-18 freeze holds it.
+  - **#462 frozen as `PREREG_CONVEXITY_REGIME_SERIES.md`**, every §11 recommendation adopted: the series of record is a
+    270-day constant-maturity IV ÷ RV252 from the term record (frame-independent), population R frozen at 49 names,
+    derived at read time, first percentile ~2027-04-27; built with #455's capture as one telemetry PR. The
+    `market_context` mislabel is a separate small fix (#529).
+  - **#457 (gate graduation) moves to the first #455 outcome read, ~2027-01-17** (no #455 outcome can exist by 12-18;
+    the 12-18 look gets #455 exposure counts only).
 - **Operator word 2026-11-18 ("Aligned with your suggestions"), on CC's recommendations for the open decisions:**
   - **#471 — held names leave the backfill pool** (PREREG_THEMATIC_CONVEXITY backfill conformance note). Boundary B, 12-07.
   - **#477 — the null books skip profit-take and time-stop on closed-market ticks**, as the real book does since #451
@@ -362,6 +376,7 @@ The header's absence is itself a signal.
   **Filed 2026-11-16:** #504 (moneyness ceiling 40%, decided 11-16, code for 12-07) · #505 (closed 11-16 as a
   complexity-cut) · #508 (held reads: the §3 timeline and the §4 scoring report, deferred from #507).
   **Filed 2026-11-17:** #515 (the boundary-B 12-07 checklist: #510, the §10.12 switch-on #519, the model refresh).
+  **Filed 2026-11-18:** #529 (dashboard `market_context` relabel; #462 decision 7).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
   · #477 (null-book exits on closed-market ticks).
   **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467.
