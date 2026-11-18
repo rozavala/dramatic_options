@@ -1,10 +1,6 @@
-# PREREG DRAFT — Market-wide convexity regime series: definitions (#462, X2 step 1)
+# PREREG — Market-wide convexity regime series: definitions (#462, X2 step 1)
 
-**Status: DRAFT — NOT FROZEN. Nothing here is in force.** Written 2026-11-18 on the operator's word of 2026-11-18
-(STANDING_STATE, "Operator word 2026-11-18": "draft … #462 (the regime series) now"). It revises
-`records/2026-11-10_convexity_regime_series_DRAFT.md` (draft PR #476). Every code claim was checked on `main` at
-`f36f9b5`, and every count was read from the live DB (`?mode=ro`) and the live cache, read-only, on 2026-11-18.
-**Numbers marked [PIN] are proposals.** Merging this file ratifies nothing.
+**Status: FROZEN 2026-11-18 (operator word "merge and follow your suggestions on the rest").** Every [PIN] takes the §11 recommendation. It was drafted on the operator's earlier word of 2026-11-18 and reviewed in PR #528 (every headline number reproduced read-only); the draft's history is in git. Every code claim was checked on `main` at `f36f9b5`, and every count was read from the live DB opened `?mode=ro` on 2026-11-18.
 
 **Measurement only.** Step 1 is a series and a dashboard card. Nothing here changes an entry, a veto, a size, an exit,
 the backfill quota or a council input. Nothing is rendered into a prompt. Step 2 (a pacing rule on the backfill quota)
@@ -206,7 +202,7 @@ no key to a frame-hashed block and moves no stamp.
 - **25% OTM is approximate.** The term record's "25% OTM" is the listed strike nearest 25% OTM; on sparse far
   expiries it can be several points away.
 
-## §11 Decisions for the operator
+## §11 Decisions (adopted 2026-11-18: every recommendation)
 
 | # | Decision | Recommendation |
 |---|---|---|
