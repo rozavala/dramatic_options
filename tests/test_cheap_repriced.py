@@ -171,3 +171,53 @@ def test_report_reads_the_db_and_the_cache(convexity_db, tmp_path):
     rep = cr.report(conn, PointInTimeCache(tmp_path / "c", offline=True),
                     {"universe": {"themes": {"x": ["FCX"]}}}, as_of=date(2026, 11, 23))
     assert rep["status"] == "no outcome rows yet"
+
+
+# ── #531 review: the cohort at t is the sweep's own population; the pinned first read per horizon ──────────────────
+
+def test_the_cohort_at_t_is_the_sweeps_population_not_todays_config(convexity_db, tmp_path):
+    """F1 (§4.2, §10): a later universe edit must not re-cut a past unit date. The report reads the names the sweep
+    covered at t; config.universe is not consulted."""
+    import state
+
+    conn = convexity_db
+    rid = state.record_run(conn, mode="PAPER", equity=None, note="t")
+    sess = _sessions(30)
+    cache = PointInTimeCache(tmp_path / "c")
+    names = ["AAA", "BBB", "CCC"]
+    for s, ivrv in zip(names, (0.8, 0.9, 1.1), strict=True):
+        wing = _occ(s, "C", 125.0)
+        recs = []
+        for d in sess:
+            state.record_gate_dualread(conn, run_id=rid, as_of=f"{d}T20:45:00+00:00", symbol=s, feed="opra",
+                                       source="sweep", structured=True, iv_rv=ivrv, otm_skew=1.0, cheap=True,
+                                       wing=wing, note=None)
+            recs.append({"ts": f"{d}T20:45:00+00:00", "spot": 100.0, "rv": 0.5, "rv63": 0.5,
+                         "quotes": {wing: [0.9, 1.1, 0.4]}})
+        cache.write("iv_term_snapshot", s, recs, coverage_from=datetime(2026, 11, 1, tzinfo=UTC),
+                    coverage_through=datetime(2027, 1, 30, tzinfo=UTC))
+    ro = PointInTimeCache(tmp_path / "c", offline=True)
+    as_of = date.fromisoformat(sess[-1])
+    full = cr.report(conn, ro, {"universe": {"themes": {"x": names}}}, as_of=as_of)
+    edited = cr.report(conn, ro, {"universe": {"themes": {"x": ["AAA", "BBB"]}}}, as_of=as_of)   # CCC removed later
+    none = cr.report(conn, ro, {}, as_of=as_of)
+    assert full == edited == none
+    assert full["rows"] == 3 * len(cr.unit_dates(sess)) and full["names"] == 3
+
+
+def test_no_contrast_before_the_pinned_first_read_even_with_a_passing_guard():
+    """F2 (§7): one pinned first read per horizon. With a 2026-11-23 first row the dates are the prereg's own."""
+    assert cr.first_reads(D0.isoformat()) == {21: "2027-01-17", 42: "2027-02-21", 63: "2027-03-21"}
+    names = [f"N{i:02d}" for i in range(60)]
+    sweeps, terms, _ = _world(names, iv_rv_of=lambda s: int(s[1:]) / 100.0,
+                              mult_of=lambda s: 2.0 if int(s[1:]) < 20 else 1.0)
+    rows, _ = cr.build_rows(sweeps, terms, names)
+    before = cr.report_from(rows, {}, as_of=date(2027, 1, 16))["E1_cheapest_tercile_vs_rest"][21]
+    assert before["guard"] == "pinned first read 2027-01-17" and "o1_mid_multiple" not in before
+    assert before["n"][0] >= 20                                   # the guard alone would have passed
+    on = cr.report_from(rows, {}, as_of=date(2027, 1, 17))
+    assert "guard" not in on["E1_cheapest_tercile_vs_rest"][21]
+    assert on["E1_cheapest_tercile_vs_rest"][21]["o1_mid_multiple"]["median"] is not None    # the contrast prints
+    assert on["E1_cheapest_tercile_vs_rest"][42]["guard"] == "pinned first read 2027-02-21"   # each horizon its own
+    assert on["E2_rv252_dependent_vs_rest_among_cheap"][42]["guard"] == "pinned first read 2027-02-21"
+    assert "pinned first reads (h: date): {21: '2027-01-17'" in cr.render(on)

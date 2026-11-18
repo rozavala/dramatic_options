@@ -115,7 +115,8 @@ def tracked_contracts(conn, *, as_of: date, sessions: int = UNIT_WING_SESSIONS) 
     - the contract (and a vertical's short leg) of every open/closing position on the name in the real, shadow and
       fixed-basket (3A/3B) books. The shares book holds no option.
 
-    Read-only, one pass over ``gate_dualread`` and the three position tables per sweep. The caller runs it inside the
+    Read-only, one pass over ``gate_dualread`` and the three position tables per sweep (the prereg's "four" books:
+    ``fixed_basket_positions`` holds both 3A and 3B; the shares book has no option). The caller runs it inside the
     term sink's try/except: an error here only drops the ``quotes`` field."""
     day = as_of.isoformat()
     dates = [r[0] for r in conn.execute(

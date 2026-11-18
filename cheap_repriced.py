@@ -6,7 +6,9 @@ No ledger file and no writer (§4.3): the unit rows are derived on every read fr
 ``quotes`` field (the §4.1 capture) carries the same contract's bid / ask / IV night after night.
 
 - **Unit:** one row per universe name per ISO week; the unit date is that week's first sweep date. Exposure is that
-  date's last OPRA sweep row (structured, with an ``iv_rv``). Only unit dates on or after the first night the capture
+  date's last OPRA sweep row (structured, with an ``iv_rv``). **The cohort at t is the sweep's own population at t**
+  (every name with an OPRA ``source='sweep'`` row that date — the nightly sweep covers the scan universe, no benchmark,
+  no skip), never today's config, so a later universe edit cannot re-cut a past date's terciles (§4.2, §10). Only unit dates on or after the first night the capture
   is live (a term record with ``quotes``) give rows (§4.2 first row).
 - **Excluded from every read:** a wing more than 40% OTM at t (from the OCC strike and the record's spot), and a row
   with no term record at t. Each counted.
@@ -17,6 +19,10 @@ No ledger file and no writer (§4.3): the unit rows are derived on every read fr
   rows excluded, and with them set to 0), the realizable multiple ``bid(t+h) / ask(t)`` beside it, O2 the same
   contract's IV change (vol points), O3 the underlying's directional return from the stored spots (a missing spot at
   t+h resolves at the last earlier record), O4 Δ``iv_rv`` of the name; ``paid`` = O1 ≥ 2.0, ``repriced`` = O2 ≥ +3.0.
+- **One pinned first read per horizon (§7):** the fourth unit week after the first row (the first NYSE session of the
+  ISO week three weeks after the first unit date's), plus h NYSE sessions, then the Sunday after that date. Before it a
+  contrast prints counts only (``pinned first read <date>``), whatever its n; E1 is not read earlier than E2. For a
+  first row on Mon 2026-11-23 this gives 2027-01-17 / 02-21 / 03-21, the prereg's dates.
 - **Inference (§7):** difference in medians with a name-blocked bootstrap 95% CI (resample names, 2,000 iterations,
   seed 0), the Mann–Whitney U beside it labelled "rows overlap; not independent"; binary companions with the same CI
   and the two-proportion z. A side of a split prints only with ≥ 20 matured rows and ≥ 8 distinct names (``n<20``).
@@ -45,6 +51,7 @@ MAX_OTM = 0.40
 PAID, REPRICED = 2.0, 3.0
 BOOT_ITERS, BOOT_SEED = 2000, 0
 GUARD = "n<20"
+FIRST_READ_UNIT_WEEK = 4   # §7: the first read is set by E2's ~four unit weeks
 _ET = ZoneInfo("America/New_York")
 
 
@@ -108,8 +115,31 @@ def _mid(q) -> float | None:
 
 
 # ── the unit rows ────────────────────────────────────────────────────────────────────────────────────────────────
-def build_rows(sweeps: dict[str, dict[str, dict]], terms: dict[str, dict[str, dict]], cohort, *,
+def first_reads(first_unit: str) -> dict[int, str]:
+    """§7: per horizon, the Sunday after the date the fourth unit week matures at h NYSE sessions. The fourth unit week
+    is the first NYSE session of the ISO week three weeks after ``first_unit``'s (NYSE calendar, "assuming no skipped
+    sweep", as the prereg computes its dates)."""
+    from datetime import timedelta
+
+    from nyse_calendar import is_trading_day
+
+    d0 = date.fromisoformat(first_unit)
+    monday = d0 - timedelta(days=d0.weekday()) + timedelta(weeks=FIRST_READ_UNIT_WEEK - 1)
+    unit4 = next(monday + timedelta(days=i) for i in range(7) if is_trading_day(monday + timedelta(days=i)))
+    out: dict[int, str] = {}
+    for h in HORIZONS:
+        d, n = unit4, 0
+        while n < h:
+            d += timedelta(days=1)
+            if is_trading_day(d):
+                n += 1
+        out[h] = (d + timedelta(days=(6 - d.weekday()) or 7)).isoformat()   # the Sunday AFTER the maturity date
+    return out
+
+
+def build_rows(sweeps: dict[str, dict[str, dict]], terms: dict[str, dict[str, dict]], cohort=None, *,
                iv_rv_max: float = 1.2) -> tuple[list[dict], Counter]:
+    """The unit rows. The cohort at each t is ``sweeps[t]``'s own names; ``cohort`` (tests only) narrows it further."""
     excluded: Counter = Counter()
     sessions = sorted(sweeps)
     pos = {d: i for i, d in enumerate(sessions)}
@@ -117,11 +147,11 @@ def build_rows(sweeps: dict[str, dict[str, dict]], terms: dict[str, dict[str, di
     if not live:
         return [], excluded
     start = live[0]
-    cohort = {s.upper() for s in cohort}
+    only = None if cohort is None else {s.upper() for s in cohort}
     rows: list[dict] = []
     for t in (d for d in unit_dates(sessions) if d >= start):
-        today = [(s, r) for s, r in sweeps[t].items() if s in cohort and r["structured"] and r["iv_rv"] is not None
-                 and r["wing"]]
+        today = [(s, r) for s, r in sweeps[t].items() if (only is None or s in only) and r["structured"]
+                 and r["iv_rv"] is not None and r["wing"]]
         kept = []
         for sym, r in today:
             rec_t = terms.get(sym, {}).get(t)
@@ -230,13 +260,18 @@ def _passes(rows, h) -> bool:
     return len(m) >= MIN_ROWS and len({r["symbol"] for r in m}) >= MIN_NAMES
 
 
-def contrast(a_rows: list[dict], b_rows: list[dict], h: int) -> dict:
-    """One split at one horizon. Aggregates only."""
+def contrast(a_rows: list[dict], b_rows: list[dict], h: int, *, first_read: str | None = None,
+             as_of: date | None = None) -> dict:
+    """One split at one horizon. Aggregates only. Before the horizon's pinned first read (``first_read``) it returns
+    counts only, whatever the guard says."""
     ma = [r for r in a_rows if r["outcomes"][h] is not None]
     mb = [r for r in b_rows if r["outcomes"][h] is not None]
     out: dict = {"n": [len(ma), len(mb)], "names": [len({r["symbol"] for r in ma}), len({r["symbol"] for r in mb})],
                  "unquoted": [sum(1 for r in ma if r["outcomes"][h]["unquoted"]),
                               sum(1 for r in mb if r["outcomes"][h]["unquoted"])]}
+    if first_read is not None and as_of is not None and as_of.isoformat() < first_read:
+        out["guard"] = f"pinned first read {first_read}"
+        return out
     if not (_passes(a_rows, h) and _passes(b_rows, h)):
         out["guard"] = GUARD
         return out
@@ -279,6 +314,7 @@ def report_from(rows: list[dict], excluded: Counter, *, as_of: date) -> dict:
     e2a = [r for r in e2_ok if r["dependent"]]
     e2b = [r for r in e2_ok if not r["dependent"]]
     notcheap = [r for r in rows if not r["cheap"]]
+    fr = first_reads(min(r["t"] for r in rows))
     e3 = {}
     for h in HORIZONS:
         mc = sum(1 for r in cheap if r["outcomes"][h] is not None)
@@ -288,8 +324,10 @@ def report_from(rows: list[dict], excluded: Counter, *, as_of: date) -> dict:
         "as_of": as_of.isoformat(), "status": "ok", "rows": len(rows), "unit_dates": len({r["t"] for r in rows}),
         "names": len({r["symbol"] for r in rows}), "excluded": dict(excluded),
         "by_frame_version": dict(Counter(str(r["frame_version"]) for r in rows)),
-        "E1_cheapest_tercile_vs_rest": {h: contrast(e1a, e1b, h) for h in HORIZONS},
-        "E2_rv252_dependent_vs_rest_among_cheap": {h: contrast(e2a, e2b, h) for h in HORIZONS},
+        "first_read": fr,
+        "E1_cheapest_tercile_vs_rest": {h: contrast(e1a, e1b, h, first_read=fr[h], as_of=as_of) for h in HORIZONS},
+        "E2_rv252_dependent_vs_rest_among_cheap": {h: contrast(e2a, e2b, h, first_read=fr[h], as_of=as_of)
+                                                   for h in HORIZONS},
         "E2_no_rv63": len(cheap) - len(e2_ok),
         "E3_cheap_vs_not_cheap_counts": e3,
         "E3_never_filled_by": None if any(v["filled"] for v in e3.values()) else as_of.isoformat(),
@@ -299,11 +337,10 @@ def report_from(rows: list[dict], excluded: Counter, *, as_of: date) -> dict:
 
 def report(conn: sqlite3.Connection, cache, config: dict, *, as_of: date) -> dict:
     gate = config.get("convexity_gate", {}) or {}
-    uni = (config.get("universe", {}) or {}).get("themes", {}) or {}
-    cohort = sorted({str(s).upper() for k, v in uni.items() if not str(k).startswith("_") for s in v})
     sweeps = sweep_rows(conn, upto=as_of)
-    terms = load_terms(cache, cohort, upto=as_of)
-    rows, excluded = build_rows(sweeps, terms, cohort, iv_rv_max=float(gate.get("iv_rv_max", 1.2)))
+    names = sorted({s for day in sweeps.values() for s in day})   # the sweep's own populations, not today's config
+    terms = load_terms(cache, names, upto=as_of)
+    rows, excluded = build_rows(sweeps, terms, iv_rv_max=float(gate.get("iv_rv_max", 1.2)))
     return report_from(rows, excluded, as_of=as_of)
 
 
@@ -312,6 +349,7 @@ def render(rep: dict) -> str:
     if rep["status"] != "ok":
         lines.append(f"{rep['status']} (excluded: {rep['excluded'] or 'none'})")
         return "\n".join(lines)
+    lines.append(f"pinned first reads (h: date): {rep['first_read']}")
     lines.append(f"rows {rep['rows']} over {rep['unit_dates']} unit date(s), {rep['names']} names; excluded "
                  f"{rep['excluded'] or 'none'}; frame_version {rep['by_frame_version']}")
     for title, key in (("E1 cheapest iv_rv tercile vs rest", "E1_cheapest_tercile_vs_rest"),
