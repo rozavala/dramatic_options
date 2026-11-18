@@ -175,6 +175,16 @@ def council_to_themes(
     if backfill.settings(config) is not None and conn is not None:
         try:
             dropped = [p for p in proposals if id(p) in dropped_ids]
+            # #471 (PREREG_THEMATIC_CONVEXITY backfill conformance note, 2026-11-18): a name the real book already
+            # holds — open, closing, pending (the gate's ``skip-already-open`` set) or carried (a live carry intent) —
+            # leaves the pool BEFORE ranking, so it can't spend a candidate place and then be skipped at the gate.
+            # Quota, ranking and gates unchanged. An error here raises into the fail-closed except below.
+            held = {str(s).upper() for s in state.entry_blocked_symbols(conn)} | {
+                str(r["symbol"]).upper() for r in state.carried_convexity_positions(conn)}
+            excluded = sorted({str(p.symbol).upper() for p in dropped if str(p.symbol).upper() in held})
+            if excluded:
+                dropped = [p for p in dropped if str(p.symbol).upper() not in held]
+                log.info("Backfill: %d held name(s) removed from the pool before ranking: %s", len(excluded), excluded)
             cheap = state.gate_cheap_reads(conn, now=clock.now(),
                                            max_age_td=int(council_cfg.get("cheap_reserve_staleness_td", 5)))
             picks, why = backfill.select(conn, config, dropped=dropped, cheap_reads=cheap, now=clock.now())

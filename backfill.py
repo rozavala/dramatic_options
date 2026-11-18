@@ -18,6 +18,8 @@ from datetime import datetime, timedelta
 log = logging.getLogger("backfill")
 
 ORIGIN = "backfill"
+# runs.model_mix["backfill"] while the backfill is on: the pool rule's version (#471: held names leave the pool).
+STAMP = "held_excluded_v1"
 _RANK = {"NEUTRAL": 0, "LOW": 1, "MODERATE": 2, "HIGH": 3, "EXTREME": 4}
 _HOLDING = ("open", "closing", "closed", "pending", "carried")
 
