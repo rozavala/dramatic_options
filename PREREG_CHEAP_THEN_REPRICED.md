@@ -1,12 +1,6 @@
-# PREREG DRAFT — Cheap-then-repriced ledger (#455), with the #453 layer scoreboard as its reporting layer
+# PREREG — Cheap-then-repriced ledger (#455), with the #453 layer scoreboard as its reporting layer
 
-**Status: DRAFT — NOT FROZEN. Nothing here is in force.** Written 2026-11-18 on the operator's word of 2026-11-18
-(STANDING_STATE, "Operator word 2026-11-18": "draft #455 (cheap-then-repriced, with #453's scoreboard folded in) …
-now"). It revises `records/2026-11-10_cheap_then_repriced_PREREG_DRAFT.md` and folds in the shared-data part of
-`records/2026-11-10_layer_scoreboard_PREREG_DRAFT.md` (both on draft PR #476). Every code claim was checked on `main`
-at `f36f9b5`, and every count below was read from the live DB opened `?mode=ro` and the live cache read-only on
-2026-11-18. **Numbers marked [PIN] are proposals.** The operator decides whether to freeze this text as
-`PREREG_CHEAP_THEN_REPRICED.md`, and decides each [PIN]. Merging this file ratifies nothing.
+**Status: FROZEN 2026-11-18 (operator word "merge and follow your suggestions on the rest").** Every [PIN] takes the §11 recommendation. It was drafted on the operator's earlier word of 2026-11-18 and reviewed in PR #528 (every headline number reproduced read-only); the draft's history is in git. Every code claim was checked on `main` at `f36f9b5`, and every count was read from the live DB opened `?mode=ro` on 2026-11-18.
 
 **Measurement only.** No output reaches discovery, the council, the gate, sizing, an exit or a prompt. The report has no
 write path into `config.convexity_gate`. A gate change on this evidence is #457's own pre-registration (S1).
@@ -287,7 +281,7 @@ Each row is printed only where the data is shared with §4.1.
   - choosing rows, names or dates by outcome;
   - re-cutting terciles or E2 after the first row.
 
-## §11 Decisions for the operator
+## §11 Decisions (adopted 2026-11-18: every recommendation)
 
 | # | Decision | Recommendation |
 |---|---|---|

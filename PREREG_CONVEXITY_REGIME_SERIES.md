@@ -1,10 +1,6 @@
-# PREREG DRAFT — Market-wide convexity regime series: definitions (#462, X2 step 1)
+# PREREG — Market-wide convexity regime series: definitions (#462, X2 step 1)
 
-**Status: DRAFT — NOT FROZEN. Nothing here is in force.** Written 2026-11-18 on the operator's word of 2026-11-18
-(STANDING_STATE, "Operator word 2026-11-18": "draft … #462 (the regime series) now"). It revises
-`records/2026-11-10_convexity_regime_series_DRAFT.md` (draft PR #476). Every code claim was checked on `main` at
-`f36f9b5`, and every count was read from the live DB (`?mode=ro`) and the live cache, read-only, on 2026-11-18.
-**Numbers marked [PIN] are proposals.** Merging this file ratifies nothing.
+**Status: FROZEN 2026-11-18 (operator word "merge and follow your suggestions on the rest").** Every [PIN] takes the §11 recommendation. It was drafted on the operator's earlier word of 2026-11-18 and reviewed in PR #528 (every headline number reproduced read-only); the draft's history is in git. Every code claim was checked on `main` at `f36f9b5`, and every count was read from the live DB opened `?mode=ro` on 2026-11-18.
 
 **Measurement only.** Step 1 is a series and a dashboard card. Nothing here changes an entry, a veto, a size, an exit,
 the backfill quota or a council input. Nothing is rendered into a prompt. Step 2 (a pacing rule on the backfill quota)
@@ -206,7 +202,7 @@ no key to a frame-hashed block and moves no stamp.
 - **25% OTM is approximate.** The term record's "25% OTM" is the listed strike nearest 25% OTM; on sparse far
   expiries it can be several points away.
 
-## §11 Decisions for the operator
+## §11 Decisions (adopted 2026-11-18: every recommendation)
 
 | # | Decision | Recommendation |
 |---|---|---|
@@ -234,3 +230,12 @@ UNVERIFIED:
 - The term-record files read with `json.load`. Per date it counted records, `rv` present, the 270-day bracket, an
   expiry in 180–365 days, and both 25%-OTM IVs there. No IV value was aggregated.
 - The seven cliff names' latest term records: their listed expiries of 150 days or more (expiry dates only).
+
+## Blindness note (dated 2026-11-18, recorded before this file merged)
+
+§5 pins that nobody inspects the rebuilt series before the pins merge. During the capture build (#455/#462, branch
+`feat/455-462-term-capture`), the builder smoke-tested `scripts/probe_regime_series.py` read-only against the live DB
+once, and the latest night's S1/S2/S4/S5 levels printed into that build session, **before this PR (#530) merged**.
+The pins were already written and frozen by the operator's word (2026-11-18). No value was written anywhere (no commit,
+test, record or message), the main session never saw them, and nothing was changed after that run. The levels are
+descriptive only and no rule reads them. Recorded for honesty; no effect on any pin.
