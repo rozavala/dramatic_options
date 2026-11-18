@@ -1,8 +1,9 @@
 """Venue-vs-journal expiry check (#444, option (a) of records/2026-11-10_expiry_exercise_audit_DRAFT.md).
 
 The broker auto-exercises an in-the-money long option at expiry by default (the draft's F1). Five code paths can
-leave a real contract at the venue while the journal shows it closed: the unsellable in-DB close, the closed-market
-in-DB close (removed by #451), expiry booked at intrinsic on the expiry date's first tick, expiry while closing, and
+leave a real contract at the venue while the journal shows it closed: the unsellable in-DB close (removed by
+PREREG_REAL_MONEY_BROKER §3c, #444: the row now stays open as ``orphaned``; a ``*_unsellable`` row booked before it is
+still read as an orphan by design below), the closed-market in-DB close (removed by #451), expiry booked at intrinsic on the expiry date's first tick, expiry while closing, and
 a close that never fills. The journal models no exercise, so a held contract that finishes in the money becomes
 stock nothing in the book knows about. This check sees that divergence before expiry, and pages it.
 
