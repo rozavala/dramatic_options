@@ -49,6 +49,24 @@ The header's absence is itself a signal.
     - an inert arming PR, a draft only;
     - a 1-week paper rehearsal on a **separate paper account**.
   - **#469 deferred.**
+- **Operator word 2026-11-18 ("Aligned with your suggestions"), on CC's recommendations for the open decisions:**
+  - **#471 — held names leave the backfill pool** (PREREG_THEMATIC_CONVEXITY backfill conformance note). Boundary B, 12-07.
+  - **#477 — the null books skip profit-take and time-stop on closed-market ticks**, as the real book does since #451
+    (PREREG_FIXED_BASKET_NULL conformance note; a `model_mix` stamp). Boundary B, 12-07.
+  - **#444 — an unsellable real position stays open, tagged `orphaned`** (PREREG_REAL_MONEY_BROKER §3c), re-tried each
+    open tick, settled through the venue-checked expiry path. Boundary B, 12-07. The broker's auto-exercise policy is
+    to be confirmed from its docs before T4.
+  - **Rehearsal:** #466 (exit drill) and #463 (spread round-trip) run on the separate rehearsal paper account, not the DEV
+    paper book; #467's live smoke stays deferred until arming. **Waiting on the operator to create the rehearsal paper
+    account and its Pushover app token.**
+  - **Roadmap order:** draft #455 (cheap-then-repriced, with #453's scoreboard folded in) and #462 (the regime series)
+    now; #457 (gate graduation) is decided after the §10.12 look (12-18) with #455 data; #459, #460 and #461 deferred.
+  - **#470's segment register** (decided 2026-11-12) is built now.
+  - **Sequencing for boundary B (from the #525–#527 review):** the §10.12 probe stops its segment for good on ANY
+    `runs.model_mix` change after its first session. #525 adds `model_mix.backfill` and #526 adds `model_mix.null_exits`,
+    so both must be **deployed and stamping before the Mon 12-07 L1** (merge on 12-05/06, as planned). **Stamp freeze
+    12-07 → 12-18:** nothing that adds, removes or changes a `model_mix` key lands during the probe segment, and the
+    backfill block is not toggled (it gates #525's key).
 - **Operator word 2026-11-16 ("Sure, let's keep moving with your recommendations"):**
   - **Floor-drought look, decided in advance: A** (PREREG_COUNCIL_GATE_SEPARATION §10.11a). §10.11 unchanged; a second
     10-session drought after 12-18 triggers another look. **Applied 2026-11-17** (the clock hit 10/10 at L1 #2090). `records/2026-11-16_floor_drought_look_decision.md`.
@@ -307,12 +325,13 @@ The header's absence is itself a signal.
 - **January 2027 (first L1):** `council.monthly_spend_page_usd.anthropic` back to $10 (dated edit, §10.12).
 
 ## Board & book
-- Box: DEV = main `de34b1d` (#501, app restarted 2026-11-14 23:51 UTC; **rebooted 2026-11-07 19:24 UTC** after the
-  operator's apt upgrade; **reboot-required since 2026-11-13 06:48 UTC, libc6**); **PROD = `29a86e4` (#491, promoted
-  2026-11-12 05:50 UTC; 7 PRs behind main on 11-15: code #495–#498, records #499–#501; reboot-required since 11-13
-  06:18 UTC, libc6), verified read-only 2026-11-14 01:12 UTC and again by W46 (11-15)** (ssh with the operator's go): HEAD
-  `29a86e4`, clean tree, 0 `dramatic-options-*` timers loaded, 0 failed units, units on `-m orchestrator`,
-  `trading-bot` active, `/api/version` env `prod`; inert: `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`,
+- Box: DEV = main `f36f9b5` (#520, deployed 2026-11-18 03:35 UTC; **rebooted 2026-11-07 19:24 UTC** after the
+  operator's apt upgrade; **reboot-required since 2026-11-13 06:48 UTC, libc6**: hygiene only, no trading process is on
+  the old libc, so a reboot waits for a quiet weekend); **PROD = `d276bf1` (#521, promoted 2026-11-18 05:32 UTC = main
+  `f36f9b5`, #495–#520; reboot-required since 11-13 06:18 UTC, libc6), verified read-only 2026-11-18 ~05:35 UTC**
+  (ssh with the operator's go): HEAD `d276bf1`, clean tree, 0 `dramatic-options-*` timers loaded (l0/l1/l2/reach/post-l1
+  all inactive), 0 failed units, units on `-m orchestrator` (post-l1 `--post-l1`), `trading-bot` active, `/api/version`
+  env `prod` at `d276bf1`; inert: `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`,
   `FORWARD_ENABLED=false` (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
   (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD. PROD's journal is readable by the review user from 2026-11-03 (`systemd-journal`). PROD's first #392 deploy failed at `git fetch` (a stale `origin/claude` tracking ref blocked `claude/*` branches); pruned with the operator's go, deploy re-run green.
 - Apps:
