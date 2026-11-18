@@ -62,6 +62,11 @@ The header's absence is itself a signal.
   - **Roadmap order:** draft #455 (cheap-then-repriced, with #453's scoreboard folded in) and #462 (the regime series)
     now; #457 (gate graduation) is decided after the §10.12 look (12-18) with #455 data; #459, #460 and #461 deferred.
   - **#470's segment register** (decided 2026-11-12) is built now.
+  - **Sequencing for boundary B (from the #525–#527 review):** the §10.12 probe stops its segment for good on ANY
+    `runs.model_mix` change after its first session. #525 adds `model_mix.backfill` and #526 adds `model_mix.null_exits`,
+    so both must be **deployed and stamping before the Mon 12-07 L1** (merge on 12-05/06, as planned). **Stamp freeze
+    12-07 → 12-18:** nothing that adds, removes or changes a `model_mix` key lands during the probe segment, and the
+    backfill block is not toggled (it gates #525's key).
 - **Operator word 2026-11-16 ("Sure, let's keep moving with your recommendations"):**
   - **Floor-drought look, decided in advance: A** (PREREG_COUNCIL_GATE_SEPARATION §10.11a). §10.11 unchanged; a second
     10-session drought after 12-18 triggers another look. **Applied 2026-11-17** (the clock hit 10/10 at L1 #2090). `records/2026-11-16_floor_drought_look_decision.md`.
