@@ -150,7 +150,32 @@ export interface Snapshot {
   falsifiers?: FalsifierPanel;      // D3b (2026-11-03): the forward falsifier-accuracy ledger
   capex_cycle?: CapexCyclePanel;    // D5 step 1 (2026-11-03): per-cluster TTM capex YoY + acceleration
   attention?: AttentionPanel;       // D6 step 1 (2026-11-03): analyst-coverage history + ~90-day trend
+  held_reads?: HeldReadsPanel;      // §10.13 §3 (#508): per-position held-read timeline — measurement only
   _fatal?: string;
+}
+
+// held_reads_panel (§10.13 §3, #508): per open/closing real position, the entry verdict, every held read, the of-record
+// seatings after entry, the falsifier-ledger reads and the current mark multiple. Display only — never acted on.
+export interface HeldVerdict {
+  conviction: string | null; include: boolean | null;
+  structural: boolean | null; under_narrated: boolean | null; at_inflection: boolean | null;
+}
+export interface HeldEntry extends HeldVerdict { proposal_id: number; run_id: number | null; day: string | null; status: string | null; source: string }
+export interface HeldReadRow extends HeldVerdict {
+  run_id: number | null; day: string | null; dropped: string | null; lineage_status: string | null;
+  mark_multiple: number | null; mark_corrected: boolean;
+}
+export interface HeldFalsifierRow {
+  read_at: string | null; spec_id: string | null; metric: string | null; value: string | number | null;
+  threshold: string | number | null; period_end: string | null; fired: boolean | null;
+}
+export interface HeldPosition {
+  position_id: number; symbol: string; direction: string; status: string; opened_day: string | null;
+  origin: string | null; mark_multiple: number | null; entry: HeldEntry | null;
+  reads: HeldReadRow[]; seatings: HeldEntry[]; falsifiers: HeldFalsifierRow[];
+}
+export interface HeldReadsPanel {
+  note: string; held_reads_table: boolean; falsifier_status: string; mark_fix_note: string; positions: HeldPosition[];
 }
 
 // why_no_entry_panel (#351): one row per judged name of the latest council session, anchored on the same run as
@@ -444,6 +469,7 @@ export interface ViewModel {
   staleness: StalenessVM | null;       // names judged on an older quarter than their latest filed report
   telemetry: TelemetryVM;              // 2026-11-03 profit-program telemetry (D0 / D4 / D3b), display only
   whyNoEntry: WhyNoEntryVM;            // #351 — per-name why-no-entry table + expressible / last above-floor / last order tiles
+  heldReads: HeldReadsVM;             // §10.13 §3 (#508) — per-position held-read timeline, measurement only
   wingMismatch: string[];             // latest dual-read session's wing-mismatch names (boundary class)
   dataAccrual: DataAccrualVM;         // chain-snapshot store, with the honesty flag
   booksOpen: BooksOpenVM;             // open counts across the five books
@@ -520,4 +546,20 @@ export interface TelemetryVM {
     rows: { cluster: string; n: string; ttm: string; yoy: string; accel: string; phase: string }[] } | null;
   attention: { status: string; note: string;
     rows: { symbol: string; count: string; change: string; label: string; asOf: string }[] } | null;
+}
+
+// §10.13 §3 view model: neutral text only. Pinned: no trend, no "thesis broken" badge, no colour keyed to exit.
+export interface HeldLineVM {
+  kind: "entry" | "held read" | "seating" | "falsifier";
+  day: string; runId: number | null; label: string;   // label = source / lineage note
+  conviction: string; include: string; criteria: string; // criteria as "s T · u F · i —"
+  note: string;                                       // dropped reason, mark multiple, falsifier detail
+}
+export interface HeldPositionVM {
+  id: number; symbol: string; dir: string; status: string; origin: string | null; opened: string;
+  mark: string; lines: HeldLineVM[];
+}
+export interface HeldReadsVM {
+  unavailable: boolean; note: string; noTable: boolean; falsifierStatus: string; markFixNote: string;
+  positions: HeldPositionVM[];
 }
