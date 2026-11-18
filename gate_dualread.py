@@ -104,6 +104,49 @@ def record_arm(conn, *, run_id, as_of_iso: str, symbol: str, feed: str, source: 
     )
 
 
+UNIT_WING_SESSIONS = 70   # PREREG_CHEAP_THEN_REPRICED §4.1 [PIN]: unit-date wings tracked for 70 sweep sessions
+
+
+def tracked_contracts(conn, *, as_of: date, sessions: int = UNIT_WING_SESSIONS) -> dict[str, set[str]]:
+    """The #455 tracked set per symbol, minus tonight's wing (added per name after its gate read):
+
+    - the wing the OPRA sweep selected on each UNIT DATE (an ISO week's first sweep date) among the last ``sessions``
+      sweep sessions, tonight included (so the ``sessions - 1`` sweep dates before ``as_of``);
+    - the contract (and a vertical's short leg) of every open/closing position on the name in the real, shadow and
+      fixed-basket (3A/3B) books. The shares book holds no option.
+
+    Read-only, one pass over ``gate_dualread`` and the three position tables per sweep. The caller runs it inside the
+    term sink's try/except: an error here only drops the ``quotes`` field."""
+    day = as_of.isoformat()
+    dates = [r[0] for r in conn.execute(
+        "SELECT DISTINCT substr(evaluated_at, 1, 10) AS d FROM gate_dualread WHERE feed = 'opra' AND source = 'sweep' "
+        "AND substr(evaluated_at, 1, 10) < ? ORDER BY d", (day,))]
+    weeks: dict[tuple[int, int], str] = {}
+    for d in dates:   # the unit date of a week is its FIRST sweep date, over the whole history (not the window)
+        weeks.setdefault(date.fromisoformat(d).isocalendar()[:2], d)
+    window = set(dates[-(sessions - 1):]) if sessions > 1 else set()
+    unit_dates = sorted(d for d in weeks.values() if d in window)
+    out: dict[str, set[str]] = {}
+    if unit_dates:
+        marks = ",".join("?" for _ in unit_dates)
+        last: dict[tuple[str, str], str | None] = {}
+        for r in conn.execute(
+                f"SELECT substr(evaluated_at, 1, 10) AS d, upper(symbol), structured, wing FROM gate_dualread "
+                f"WHERE feed = 'opra' AND source = 'sweep' AND substr(evaluated_at, 1, 10) IN ({marks}) ORDER BY id",
+                unit_dates):
+            last[(r[0], r[1])] = r[3] if r[2] and r[3] else None   # the LAST sweep row of the date wins
+        for (_d, sym), wing in last.items():
+            if wing:
+                out.setdefault(sym, set()).add(str(wing))
+    for table in ("convexity_positions", "shadow_positions", "fixed_basket_positions"):
+        for r in conn.execute(f"SELECT upper(symbol), contract_symbol, short_contract_symbol FROM {table} "
+                              f"WHERE status IN ('open', 'closing')"):
+            for occ in (r[1], r[2]):
+                if occ:
+                    out.setdefault(r[0], set()).add(str(occ))
+    return out
+
+
 def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, provider_shadow,
                    market_closes, gate: dict, eligibility, skip: set[str] | None = None,
                    term_cache=None) -> dict:
@@ -111,7 +154,16 @@ def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, pr
     the closes for RV; ``skip`` = names already dual-read inline this run. Returns counts.
 
     ``term_cache`` (D4, 2026-11-03): when given, the OPRA arm's chain is summarized into the compact
-    ``iv_term_snapshot`` record (iv_history.py) for every swept name. Fail-soft; counted as ``term_ok``."""
+    ``iv_term_snapshot`` record (iv_history.py) for every swept name. Fail-soft; counted as ``term_ok``.
+
+    #455/#462 capture (PREREG_CHEAP_THEN_REPRICED §4.1): the record also carries ``rv63`` / ``rv21`` (on the same
+    closes the sweep already holds) and ``quotes`` for the tracked contracts (tonight's selected wing, the unit-date
+    wings of the last 70 sessions, every open/closing book contract on the name), read from the SAME chain the OPRA
+    arm fetched — no extra fetch. The chain sink now only KEEPS the chain; the record is built and persisted after
+    both arms of the name have been read and recorded, so tonight's wing is known. Every step of it (the tracked-set
+    read, the rv computation, the quote lookup, the write) sits inside one try/except: an error leaves the record
+    without the failing new field (or, at worst, unwritten for that name) and can never change, delay or skip a gate
+    read or a ``gate_dualread`` row."""
     sweep_as_of = date.fromisoformat(str(as_of_iso)[:10])  # the cycle's clock anchors the tenor read
     from convexity_gate import realized_vol
 
@@ -120,6 +172,8 @@ def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, pr
     if term_cache is not None:
         counts["term_ok"] = 0
     rv_window = int(gate.get("rv_window_days", 252))
+    tracked: dict | None = None    # the #455 tracked set: read once per sweep, lazily, inside the term try/except
+    tracked_failed = False
     for sym in symbols:
         sym = sym.upper()
         if sym in skip:
@@ -142,14 +196,11 @@ def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, pr
                        source="sweep", error=classify_error_note(e))
             continue
         sink = None
+        kept: dict = {}
         if term_cache is not None:
-            def sink(chain, _sym=sym, _spot=spot, _rv=rv):
-                import iv_history
-
-                as_of_dt = datetime.fromisoformat(str(as_of_iso))
-                iv_history.persist_term_record(
-                    term_cache, iv_history.term_record(_sym, chain, spot=_spot, rv=_rv, as_of_dt=as_of_dt), as_of_dt)
-                counts["term_ok"] += 1
+            def sink(chain, _kept=kept):
+                _kept["chain"] = chain       # keep only; the record is built after the gate reads (below)
+        opra_row: dict | None = None
         for feed, prov, ok_key in (("opra", provider_record, "record_ok"),
                                    ("indicative", provider_shadow, "shadow_ok")):
             try:
@@ -158,10 +209,47 @@ def sweep_universe(conn, *, run_id, as_of_iso: str, symbols, provider_record, pr
                                        chain_sink=(sink if feed == "opra" else None))
                 record_arm(conn, run_id=run_id, as_of_iso=as_of_iso, symbol=sym, feed=feed,
                            source="sweep", row=row)
+                if feed == "opra":
+                    opra_row = row
                 if row.get("structured"):
                     counts[ok_key] += 1
             except Exception as e:  # noqa: BLE001
                 counts["errors"] += 1
                 record_arm(conn, run_id=run_id, as_of_iso=as_of_iso, symbol=sym, feed=feed,
                            source="sweep", error=classify_error_note(e))
+        if term_cache is not None and "chain" in kept:
+            # The term record, after both arms of this name are read and recorded. EVERYTHING here is inside this
+            # try/except (PREREG_CHEAP_THEN_REPRICED §4.1 build requirement): it cannot reach a gate read or a row.
+            try:
+                import iv_history
+
+                extras: dict = {}
+                try:
+                    extras["rv63"] = realized_vol(closes, window=63)
+                    extras["rv21"] = realized_vol(closes, window=21)
+                except Exception as e:  # noqa: BLE001 — the record keeps its old fields
+                    log.warning("term capture: rv63/rv21 failed for %s (non-fatal): %s", sym, e)
+                    extras = {}
+                try:
+                    if tracked is None and not tracked_failed:
+                        try:
+                            tracked = tracked_contracts(conn, as_of=sweep_as_of)
+                        except Exception as e:  # noqa: BLE001 — logged once; no quotes field tonight
+                            tracked_failed = True
+                            log.warning("term capture: tracked-set read failed (no quotes tonight): %s", e)
+                    if tracked is not None:
+                        want = set(tracked.get(sym, set()))
+                        if opra_row and opra_row.get("structured") and opra_row.get("wing"):
+                            want.add(str(opra_row["wing"]))
+                        extras["quotes"] = iv_history.tracked_quotes(kept["chain"], want)
+                except Exception as e:  # noqa: BLE001 — the record keeps its old fields
+                    log.warning("term capture: quotes failed for %s (non-fatal): %s", sym, e)
+                    extras.pop("quotes", None)
+                as_of_dt = datetime.fromisoformat(str(as_of_iso))
+                iv_history.persist_term_record(
+                    term_cache, iv_history.term_record(sym, kept["chain"], spot=spot, rv=rv, as_of_dt=as_of_dt,
+                                                       extras=extras), as_of_dt)
+                counts["term_ok"] += 1
+            except Exception as e:  # noqa: BLE001 — telemetry never touches the sweep
+                log.warning("term record failed for %s (non-fatal): %s", sym, e)
     return counts
