@@ -314,3 +314,12 @@ read**. To keep it honest, its forward *contrast* is pinned here **blind, before
 
 *Frozen 2026-06-03, before any forward results exist. Changes are documented, dated edits to this
 doc — never retroactive. — Dramatic Options*
+
+## Conformance note (2026-11-18, operator word "Aligned with your suggestions"; #477): null-book exits on closed-market ticks
+
+Since #451 (2026-11-10) the real book's monitor is mark-only on a closed-market tick: it marks and settles expiry, but
+defers a triggered profit-take or time-stop to the next open-market tick (nothing can be sold). The null books (shadow,
+3A, 3B and shares) still booked those exits at the closed-tick mark, so a null book could take a profit the real book
+could not. **Aligned:** on a closed-market tick the null books also mark and settle expiry but skip profit-take and
+time-stop, using the orchestrator's same `market_open` read (fail-closed: an error reads as closed). Lands at boundary
+B, **Mon 2026-12-07**, with a `runs.model_mix` stamp for the null-book exit rule. Positions already closed stay as booked.

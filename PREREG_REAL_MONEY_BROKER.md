@@ -138,3 +138,12 @@ a ceiling that blocks a 10× profit-take close is backwards." Drafted in `record
 - **No record segments:** `frame_version` does not move (`safety` is outside the hashed frame), and no live order
   has ever been placed.
 
+## §3c Amendment (2026-11-18, operator word "Aligned with your suggestions"; #444): an unsellable position stays open as "orphaned"
+
+When a real position's exit triggers but its bid is below `convexity_exits.min_close_bid` (no sale possible), the
+journal no longer books an in-DB close at the mark. The row stays **open**, tagged `orphaned` with the reason and the
+trigger, is re-tried on every open-market tick (a real sell the moment the bid allows), and settles at expiry through
+the venue-checked expiry path (#481 compares broker and journal before expiry). The journal never shows a position
+closed while the contract is still held at the broker. Also owed before T4: confirm the broker's auto-exercise policy
+for long options (thresholds; whether a do-not-exercise instruction exists) from its documentation. Lands at boundary
+B, **Mon 2026-12-07** (it changes when a real-book close is booked).

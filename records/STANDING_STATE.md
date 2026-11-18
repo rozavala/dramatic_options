@@ -49,6 +49,19 @@ The header's absence is itself a signal.
     - an inert arming PR, a draft only;
     - a 1-week paper rehearsal on a **separate paper account**.
   - **#469 deferred.**
+- **Operator word 2026-11-18 ("Aligned with your suggestions"), on CC's recommendations for the open decisions:**
+  - **#471 — held names leave the backfill pool** (PREREG_THEMATIC_CONVEXITY backfill conformance note). Boundary B, 12-07.
+  - **#477 — the null books skip profit-take and time-stop on closed-market ticks**, as the real book does since #451
+    (PREREG_FIXED_BASKET_NULL conformance note; a `model_mix` stamp). Boundary B, 12-07.
+  - **#444 — an unsellable real position stays open, tagged `orphaned`** (PREREG_REAL_MONEY_BROKER §3c), re-tried each
+    open tick, settled through the venue-checked expiry path. Boundary B, 12-07. The broker's auto-exercise policy is
+    to be confirmed from its docs before T4.
+  - **Rehearsal:** #466 (exit drill) and #463 (spread round-trip) run on the separate rehearsal paper account, not the DEV
+    paper book; #467's live smoke stays deferred until arming. **Waiting on the operator to create the rehearsal paper
+    account and its Pushover app token.**
+  - **Roadmap order:** draft #455 (cheap-then-repriced, with #453's scoreboard folded in) and #462 (the regime series)
+    now; #457 (gate graduation) is decided after the §10.12 look (12-18) with #455 data; #459, #460 and #461 deferred.
+  - **#470's segment register** (decided 2026-11-12) is built now.
 - **Operator word 2026-11-16 ("Sure, let's keep moving with your recommendations"):**
   - **Floor-drought look, decided in advance: A** (PREREG_COUNCIL_GATE_SEPARATION §10.11a). §10.11 unchanged; a second
     10-session drought after 12-18 triggers another look. **Applied 2026-11-17** (the clock hit 10/10 at L1 #2090). `records/2026-11-16_floor_drought_look_decision.md`.

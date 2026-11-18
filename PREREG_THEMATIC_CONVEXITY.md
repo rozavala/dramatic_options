@@ -288,6 +288,9 @@ This **widens** entries (more shots), so it is a riskier §5 edit than the clust
 that every frozen gate and cap still disposes, the path is capped at one per week, and it has a pre-stated
 stop. No edge claim.
 
+
+**Backfill conformance note (2026-11-18, operator word "Aligned with your suggestions"; #471):** a name the real book already holds (`state.entry_blocked_symbols`: open, closing, pending, carried) is removed from the backfill candidate pool **before** ranking, and the removals are logged. Before this, a held name could take one of the `candidates` places and then be skipped at the gate (`skip-already-open`), wasting the week's slot. The quota, `used_this_week`, the ranking and the gates are unchanged. Lands at boundary B, **Mon 2026-12-07** (a change to what reaches the gates, recorded with the boundary's segment).
+
 **Amendment 2026-11-03b — wide debit call verticals for over-cap names (operator word 2026-11-03; draft D3;
 calibration v2 Rule V: CANDIDATE, `records/2026-11-03_calibration_v2_finding.md`).** *Written before the
 order-path code.* Nine names (NVDA, LHX, LMT, CEG, NOC, ETN, VRT, PWR, GEV on the 11-01 read) cannot take one
