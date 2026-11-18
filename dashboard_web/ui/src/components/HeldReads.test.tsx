@@ -25,7 +25,7 @@ const panel = (over: Partial<HeldReadsPanel> = {}): HeldReadsPanel => ({
         dropped: "proposer abstained (NEUTRAL)", lineage_status: "dormant", mark_multiple: 1.776, mark_corrected: false },
     ],
     seatings: [{ proposal_id: 1400, run_id: 2055, day: "2026-11-13", conviction: "LOW", include: false, ...v, status: "dropped", source: "sentinel · fairness" }],
-    falsifiers: [{ read_at: "2026-11-10", spec_id: "f-grid", metric: "qtr_yoy", value: "0.12", threshold: "0.0", period_end: "2026-09-30", fired: false }],
+    falsifiers: [{ read_at: "2026-11-10", spec_id: "f-grid", direction: "bearish", metric: "qtr_yoy", value: "0.12", threshold: "0.0", period_end: "2026-09-30", fired: false }],
   }],
   ...over,
 });
@@ -45,6 +45,20 @@ describe("adapter · heldReads", () => {
     expect(p.lines[4].note).toBe("dropped: proposer abstained (NEUTRAL) · mark 1.78×");
     expect(p.lines[2].label).toBe("sentinel · fairness · dropped");
     expect(p.mark).toBe("1.78×");
+  });
+
+  it("shows the falsifier spec's direction and keeps a non-boolean structural call as —", () => {
+    const p = vmWith(panel()).heldReads.positions[0];
+    expect(p.lines.find((l) => l.kind === "falsifier")?.label).toBe("f-grid · bearish");
+    expect(p.earlier).toEqual([]);
+  });
+
+  it("lists the latest 10 held reads and counts the rest; counts earlier seatings", () => {
+    const base = panel().positions[0];
+    const reads = Array.from({ length: 12 }, (_, i) => ({ ...base.reads[0], run_id: 3000 + i, day: `2026-12-${String(i + 1).padStart(2, "0")}` }));
+    const p = vmWith(panel({ positions: [{ ...base, reads, seatings: [], falsifiers: [], seatings_earlier: 3 }] })).heldReads.positions[0];
+    expect(p.lines.filter((l) => l.kind === "held read").map((l) => l.runId)).toEqual(Array.from({ length: 10 }, (_, i) => 3002 + i));
+    expect(p.earlier).toEqual(["+2 earlier held reads (all are in the API and the §4 report)", "+3 earlier seatings"]);
   });
 
   it("degrades without throwing", () => {
@@ -70,6 +84,15 @@ describe("Book · held reads (desktop)", () => {
     for (const c of colours) expect(["rgb(44, 54, 69)", "rgb(106, 114, 128)"]).toContain(c);
     // no chip / badge / sparkline / svg inside the timeline
     expect(timeline.querySelector("svg, [class*=chip], [class*=badge], [data-level]")).toBeNull();
+  });
+
+  it("renders the +K earlier lines in the same neutral ink", () => {
+    const base = panel().positions[0];
+    const reads = Array.from({ length: 11 }, (_, i) => ({ ...base.reads[0], run_id: 3000 + i }));
+    render(<Book vm={vmWith(panel({ positions: [{ ...base, reads, seatings_earlier: 1 }] }))} />);
+    const lines = screen.getAllByTestId("held-earlier").map((e) => e.textContent);
+    expect(lines).toEqual(["+1 earlier held read (all are in the API and the §4 report)", "+1 earlier seating"]);
+    expect(screen.getByTestId("held-timeline").textContent).not.toMatch(FORBIDDEN);
   });
 
   it("explains an unavailable or empty panel", () => {

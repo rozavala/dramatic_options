@@ -3,6 +3,8 @@
 import type { HeldEntry, HeldLineVM, HeldReadsVM, HeldVerdict, Snapshot } from "./types";
 
 const DASH = "—";
+/** The UI lists the latest N held reads per position; the rest are counted ("+K earlier"), never silently dropped. */
+export const HELD_READS_SHOWN = 10;
 const tf = (v: boolean | null | undefined) => (v == null ? DASH : v ? "T" : "F");
 
 export function criteriaText(v: HeldVerdict): string {
@@ -29,7 +31,9 @@ export function buildHeldReads(P: Snapshot): HeldReadsVM {
     positions: (h.positions ?? []).map((p) => {
       const lines: HeldLineVM[] = [];
       if (p.entry) lines.push(verdictLine("entry", p.entry));
-      for (const r of p.reads ?? []) {
+      const allReads = p.reads ?? [];
+      const readsEarlier = Math.max(allReads.length - HELD_READS_SHOWN, 0);
+      for (const r of allReads.slice(readsEarlier)) {
         lines.push({
           kind: "held read", day: r.day ?? DASH, runId: r.run_id, label: r.lineage_status ? `lineage ${r.lineage_status}` : DASH,
           conviction: r.conviction ?? DASH, include: tf(r.include), criteria: criteriaText(r),
@@ -40,7 +44,8 @@ export function buildHeldReads(P: Snapshot): HeldReadsVM {
       for (const s of p.seatings ?? []) lines.push(verdictLine("seating", s));
       for (const f of p.falsifiers ?? []) {
         lines.push({
-          kind: "falsifier", day: f.read_at ?? DASH, runId: null, label: f.spec_id ?? DASH, conviction: DASH, include: DASH,
+          kind: "falsifier", day: f.read_at ?? DASH, runId: null,
+          label: `${f.spec_id ?? DASH}${f.direction ? ` · ${f.direction}` : ""}`, conviction: DASH, include: DASH,
           criteria: DASH,
           note: `${f.metric ?? "?"} ${f.value ?? "?"} vs ${f.threshold ?? "?"}${f.period_end ? ` (Q ${f.period_end})` : ""} · fired ${tf(f.fired)}`,
         });
@@ -50,6 +55,10 @@ export function buildHeldReads(P: Snapshot): HeldReadsVM {
       return {
         id: p.position_id, symbol: p.symbol, dir: p.direction, status: p.status, origin: p.origin,
         opened: p.opened_day ?? DASH, mark: mult(p.mark_multiple), lines,
+        earlier: [
+          readsEarlier ? `+${readsEarlier} earlier held read${readsEarlier === 1 ? "" : "s"} (all are in the API and the §4 report)` : "",
+          p.seatings_earlier ? `+${p.seatings_earlier} earlier seating${p.seatings_earlier === 1 ? "" : "s"}` : "",
+        ].filter(Boolean),
       };
     }),
   };

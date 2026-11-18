@@ -91,19 +91,55 @@ def test_segments_and_the_mixed_bin():
     assert rep["segments"]["mixed"]["n"] == 1 and rep["all"]["n"] == 3
 
 
-def test_no_rate_before_twenty_scored_closes():
-    def run(n):
-        pos = [_pos(i, pnl=50.0 if i % 2 else -50.0) for i in range(1, n + 1)]
-        reads = {i: [_r("HIGH" if i % 4 else "LOW", day=f"2026-12-0{d}") for d in (1, 2, 3)] for i in range(1, n + 1)}
-        return hr.report_from(pos, reads)["all"]
+def _many(n):
+    pos = [_pos(i, pnl=50.0 if i % 2 else -50.0) for i in range(1, n + 1)]
+    reads = {i: [_r("HIGH" if i % 4 else "LOW", day=f"2026-12-0{d}") for d in (1, 2, 3)] for i in range(1, n + 1)}
+    return hr.report_from(pos, reads)
 
-    t = run(19)
-    assert t["rates"] is None and t["rates_withheld"] == "rates withheld: 19/20"
-    t = run(20)
+
+def test_no_segment_rate_before_twenty_scored_closes():
+    seg = hr.segment_label(MIX_A)
+    t = _many(19)["segments"][seg]
+    assert t["n"] == 19 and t["rates"] is None and t["rates_withheld"] == "rates withheld: 19/20"
+    t = _many(20)["segments"][seg]
     assert t["rates_withheld"] is None
     ge1 = t["intact"]["ge1"] + t["broken"]["ge1"]
     assert t["rates"]["false_alarm_p_broken_given_ge1"] == pytest.approx(t["broken"]["ge1"] / ge1)
-    assert "rates withheld: 19/20" in hr.render({**hr.report_from([], {}), "all": run(19)})
+    assert "rates withheld: 19/20" in hr.render(_many(19))
+
+
+def test_the_all_table_is_counts_only_whatever_n():
+    """§10.13: segments are reported separately, so the pooled ALL table never prints a rate, even at n ≥ 20."""
+    for n in (5, 20, 40):
+        t = _many(n)["all"]
+        assert t["n"] == n and t["rates"] is None and t["rates_withheld"] == "counts only; rates are per segment"
+    text = hr.render(_many(40))
+    assert "ALL segments (counts only; rates are per segment)" in text
+    assert text.count("false-alarm") == 1          # the one segment's rate, never ALL's
+
+
+def test_a_read_stamped_exactly_at_the_close_is_excluded():
+    reads = [_r("LOW", day="2026-12-01"), _r("LOW", day="2026-12-02"), _r("HIGH", day="2026-12-03"),
+             {**_r("HIGH", day="2026-12-20"), "created_at": "2026-12-20 20:00:00"}]       # == closed_at (UTC)
+    c = hr.classify(_pos(closed_at="2026-12-20T20:00:00+00:00"), reads)
+    assert c["reads_used"] == [1201, 1202, 1203] and c["verdict"] == "broken"
+
+
+def test_input_order_does_not_matter():
+    reads = [_r("HIGH", day="2026-12-01"), _r("HIGH", day="2026-12-02"), _r("LOW", day="2026-12-03"),
+             _r("LOW", day="2026-12-04"), _r("NEUTRAL", day="2026-12-05", dropped="ungrounded", include=0)]
+    want = hr.classify(_pos(), reads)
+    assert want["reads_used"] == [1202, 1203, 1204] and want["verdict"] == "broken"
+    for shuffled in (reads[::-1], [reads[2], reads[4], reads[0], reads[3], reads[1]]):
+        assert hr.classify(_pos(), shuffled) == want
+
+
+def test_a_close_without_a_close_time_has_its_own_bin():
+    reads = [_r("HIGH", day=f"2026-12-0{d}") for d in (1, 2, 3)]
+    c = hr.classify(_pos(closed_at=None), reads)
+    assert c["bin"] == "no_close_time" and c["verdict"] is None
+    rep = hr.report_from([_pos(1, closed_at=None)], {1: reads})
+    assert len(rep["no_close_time"]) == 1 and rep["all"]["n"] == 0
 
 
 def test_report_from_the_db_and_the_cli_are_read_only(convexity_db, monkeypatch, capsys):
@@ -126,7 +162,8 @@ def test_report_from_the_db_and_the_cli_are_read_only(convexity_db, monkeypatch,
     rep = hr.report(conn)
     c = rep["closes"][0]
     assert c["backfill"] is True and c["verdict"] == "intact" and c["tenx"] is True    # 11× outcome
-    assert rep["all"]["intact"]["ge10x"] == 1 and rep["all"]["rates_withheld"] == "rates withheld: 1/20"
+    assert rep["all"]["intact"]["ge10x"] == 1 and rep["all"]["rates_withheld"] == "counts only; rates are per segment"
+    assert rep["segments"][hr.segment_label(MIX_A)]["rates_withheld"] == "rates withheld: 1/20"
 
     conn.commit()
     db = conn.execute("PRAGMA database_list").fetchone()["file"]

@@ -85,7 +85,9 @@ def test_panel_shape_and_contents(seeded, tmp_path):
     assert (r0["structural"], r0["under_narrated"], r0["at_inflection"], r0["include"]) == (True, True, False, False)
     assert [s["run_id"] for s in x["seatings"]] == [2055]
     assert x["seatings"][0]["source"] == "hand-seed · fairness"
-    assert x["falsifiers"] == [{"read_at": "2026-11-10", "spec_id": "f-grid", "metric": "qtr_yoy", "value": "0.12",
+    assert x["seatings_earlier"] == 0
+    assert x["falsifiers"] == [{"read_at": "2026-11-10", "spec_id": "f-grid", "direction": "bearish",
+                                "metric": "qtr_yoy", "value": "0.12",
                                 "threshold": "0.0", "period_end": "2026-09-30", "fired": False}]
 
 
@@ -120,3 +122,22 @@ def test_snapshot_carries_the_panel():
     assert "held_reads" in snapshot.PANEL_KEYS
     src = (Path(__file__).resolve().parents[1] / "dashboard_web" / "api" / "snapshot.py").read_text()
     assert '"held_reads": dd.safe(dd.held_reads_panel, conn)' in src
+
+
+def test_seatings_keep_the_latest_ten_and_count_the_rest(seeded, tmp_path):
+    conn, pid, *_ = seeded
+    with conn:
+        for i in range(12):
+            conn.execute("INSERT INTO runs (id, started_at, mode) VALUES (?, '2026-11-20 20:45:00', 'PAPER')", (3000 + i,))
+    for i in range(12):
+        _prop(conn, run_id=3000 + i, as_of=f"2026-11-{20 + i % 9:02d}T20:45:00+00:00")
+    x = dd.held_reads_panel(conn, ledger_path=tmp_path / "none.csv")["positions"][0]
+    assert len(x["seatings"]) == 10 and x["seatings_earlier"] == 3         # 13 after entry: the latest 10 kept
+    assert [s["run_id"] for s in x["seatings"]] == list(range(3002, 3012))
+    assert len(x["reads"]) == 2                                            # held reads are never trimmed here
+
+
+@pytest.mark.parametrize("raw, want", [("structural", True), ("fad", False), ("unclear", None), (None, None),
+                                       ("", None)])
+def test_structural_unclear_is_not_false(raw, want):
+    assert dd._criteria(raw, 1, 0) == {"structural": want, "under_narrated": True, "at_inflection": False}

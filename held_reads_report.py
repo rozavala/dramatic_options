@@ -12,9 +12,11 @@ For each CLOSED real position with held reads:
 - outcome: realized multiple ``(total_premium + realized_pnl) / total_premium`` ≥ 1.0 vs < 1.0, with ≥ 10× alongside.
 
 A 2 × 2 table of counts per ``model_mix`` segment (the per-row stamp). **A close whose last 3 reads span two segments
-goes in a "mixed" bin** (its own table), so no table pools across a stamp. **No rate prints for a table before it has
-20 scored closes** ("rates withheld: N/20"); the rate it will feed is the false-alarm rate P(broken | outcome ≥ 1.0)
-(Rule S). Counts only, measured at close; nothing here acts on any position (§5).
+goes in a "mixed" bin** (its own table), so no rate pools across a stamp. **No rate prints for a segment table before
+it has 20 scored closes** ("rates withheld: N/20"); the rate it will feed is the false-alarm rate P(broken | outcome ≥
+1.0) (Rule S). The ALL table pools every segment, so it is **counts only — never a rate, whatever n** (§10.13: segments
+are reported separately). A closed position with no ``closed_at`` cannot be cut at the close: it goes in its own
+``no_close_time`` bin instead of counting every read. Counts only, measured at close; nothing here acts on any position (§5).
 """
 
 from __future__ import annotations
@@ -26,6 +28,8 @@ from collections import Counter
 
 from council.proposal import passes_floor
 
+# Hard-coded on purpose: §4 of the frozen prereg defines "intact" against MODERATE (and LOW+include for backfill), so
+# the score must not move if council.conviction_floor is ever changed in config.json.
 FLOOR = "MODERATE"
 BACKFILL_FLOOR = "LOW"
 MIN_CLOSES = 20
@@ -60,9 +64,15 @@ def segment_label(model_mix: str | None) -> str:
 
 def classify(position: dict, reads: list[dict]) -> dict:
     """One close: ``{bin, verdict, multiple, tenx, dropped, segment, reads_used}``. ``reads`` are this position's held
-    reads, any order; only those created before ``closed_at`` count. ``bin`` is ``scored`` | ``lt3`` | ``no_outcome``."""
+    reads, any order (sorted here by created_at, then run_id); only those created STRICTLY before ``closed_at`` count.
+    ``bin`` is ``scored`` | ``lt3`` | ``no_outcome`` | ``no_close_time``."""
     closed = _parse(position.get("closed_at"))
-    before = sorted((r for r in reads if closed is None or (_parse(r.get("created_at")) or closed) < closed),
+    if closed is None:
+        return {"position_id": position.get("id"), "symbol": position.get("symbol"),
+                "direction": position.get("direction"), "bin": "no_close_time", "verdict": None, "segment": None,
+                "dropped": sum(1 for r in reads if r.get("dropped")), "non_dropped": None, "multiple": None,
+                "tenx": False, "reads_used": [], "backfill": bool(position.get("backfill"))}
+    before = sorted((r for r in reads if (_parse(r.get("created_at")) or closed) < closed),
                     key=lambda r: (str(r.get("created_at") or ""), int(r.get("run_id") or 0)))
     dropped = sum(1 for r in before if r.get("dropped"))
     kept = [r for r in before if not r.get("dropped")]
@@ -84,15 +94,19 @@ def classify(position: dict, reads: list[dict]) -> dict:
     return {**out, "bin": "scored"}
 
 
-def table(closes: list[dict]) -> dict:
-    """The 2 × 2 of scored closes + ≥10× alongside; rates only at ≥ MIN_CLOSES."""
+def table(closes: list[dict], *, rates: bool = True) -> dict:
+    """The 2 × 2 of scored closes + ≥10× alongside; rates only at ≥ MIN_CLOSES, and never when ``rates`` is False
+    (the ALL table, which pools across segments)."""
     cells = Counter((c["verdict"], "ge1" if c["multiple"] >= 1.0 else "lt1") for c in closes)
     tenx = Counter(c["verdict"] for c in closes if c["tenx"])
     n = len(closes)
     t = {"n": n,
          "intact": {"ge1": cells[("intact", "ge1")], "lt1": cells[("intact", "lt1")], "ge10x": tenx["intact"]},
          "broken": {"ge1": cells[("broken", "ge1")], "lt1": cells[("broken", "lt1")], "ge10x": tenx["broken"]}}
-    if n < MIN_CLOSES:
+    if not rates:
+        t["rates"] = None
+        t["rates_withheld"] = "counts only; rates are per segment"
+    elif n < MIN_CLOSES:
         t["rates"] = None
         t["rates_withheld"] = f"rates withheld: {n}/{MIN_CLOSES}"
     else:
@@ -111,15 +125,17 @@ def report_from(positions: list[dict], reads_by_position: dict[int, list[dict]])
     return {
         "closes_with_held_reads": len(closes),
         "segments": {s: table([c for c in scored if c["segment"] == s]) for s in segments},
-        "all": table(scored),
+        "all": table(scored, rates=False),
         "lt3": [c for c in closes if c["bin"] == "lt3"],
         "no_outcome": [c for c in closes if c["bin"] == "no_outcome"],
+        "no_close_time": [c for c in closes if c["bin"] == "no_close_time"],
         "dropped_reads": sum(c["dropped"] for c in closes),
         "closes": closes,
         "definitions": ("last 3 non-dropped held reads before closed_at; dropped reads excluded and counted (2026-11-17 "
                         "pin); intact = >=2 at or above MODERATE (backfill origin: include=true at >=LOW); outcome = "
                         "(total_premium + realized_pnl) / total_premium vs 1.0, >=10x alongside; a close whose last 3 "
-                        "span two model_mix segments is in the 'mixed' segment; no rate before 20 scored closes"),
+                        "span two model_mix segments is in the 'mixed' segment; no segment rate before 20 scored closes; the ALL "
+                        "table is counts only; a close without closed_at is in 'no_close_time'"),
     }
 
 
@@ -146,8 +162,9 @@ def render(rep: dict) -> str:
         return f"held reads report: {rep['error']}"
     lines = ["§10.13 held-name reads — §4 scoring (counts only; measurement only, never acted on)", "",
              f"closed real positions with held reads: {rep['closes_with_held_reads']}; dropped reads excluded: "
-             f"{rep['dropped_reads']}; < 3 reads bin: {len(rep['lt3'])}; no outcome: {len(rep['no_outcome'])}"]
-    blocks = [(f"segment {s}", t) for s, t in rep["segments"].items()] + [("ALL segments", rep["all"])]
+             f"{rep['dropped_reads']}; < 3 reads bin: {len(rep['lt3'])}; no outcome: {len(rep['no_outcome'])}; "
+             f"no close time: {len(rep['no_close_time'])}"]
+    blocks = [(f"segment {s}", t) for s, t in rep["segments"].items()] + [("ALL segments (counts only; rates are per segment)", rep["all"])]
     for title, t in blocks:
         lines += ["", f"{title} (n={t['n']})",
                   f"  {'':8} {'>=1.0x':>7} {'<1.0x':>7} {'>=10x':>7}",

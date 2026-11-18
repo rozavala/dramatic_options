@@ -22,6 +22,7 @@ export function HeldReadsTimeline({ h, runDates, compact }: { h: HeldReadsVM; ru
           <div className="font-mono" style={{ fontSize: 12.5, color: INK }}>
             <b style={{ fontWeight: 600 }}>{p.symbol}</b> <span style={{ color: MUTED }}>{p.dir} · #{p.id} · {p.status} · opened {p.opened}{p.origin ? ` · origin ${p.origin}` : ""} · mark ÷ entry now {p.mark}</span>
           </div>
+          {p.earlier.map((e) => <div key={e} data-testid="held-earlier" style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>{e}</div>)}
           {compact ? (
             <div style={{ marginTop: 4 }}>
               {p.lines.map((l, i) => (

@@ -166,13 +166,13 @@ export interface HeldReadRow extends HeldVerdict {
   mark_multiple: number | null; mark_corrected: boolean;
 }
 export interface HeldFalsifierRow {
-  read_at: string | null; spec_id: string | null; metric: string | null; value: string | number | null;
+  read_at: string | null; spec_id: string | null; direction?: string | null; metric: string | null; value: string | number | null;
   threshold: string | number | null; period_end: string | null; fired: boolean | null;
 }
 export interface HeldPosition {
   position_id: number; symbol: string; direction: string; status: string; opened_day: string | null;
   origin: string | null; mark_multiple: number | null; entry: HeldEntry | null;
-  reads: HeldReadRow[]; seatings: HeldEntry[]; falsifiers: HeldFalsifierRow[];
+  reads: HeldReadRow[]; seatings: HeldEntry[]; seatings_earlier?: number; falsifiers: HeldFalsifierRow[];
 }
 export interface HeldReadsPanel {
   note: string; held_reads_table: boolean; falsifier_status: string; mark_fix_note: string; positions: HeldPosition[];
@@ -558,6 +558,7 @@ export interface HeldLineVM {
 export interface HeldPositionVM {
   id: number; symbol: string; dir: string; status: string; origin: string | null; opened: string;
   mark: string; lines: HeldLineVM[];
+  earlier: string[];   // neutral "+K earlier …" lines for what the timeline does not list
 }
 export interface HeldReadsVM {
   unavailable: boolean; note: string; noTable: boolean; falsifierStatus: string; markFixNote: string;

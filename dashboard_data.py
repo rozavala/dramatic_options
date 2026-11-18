@@ -2256,6 +2256,7 @@ HELD_READS_NOTE = "measurement only — never acted on (§10.13)"
 # #511: held_reads rows written before the fix (the first post-L1 run, 2026-11-16, run #2073) stored mark_multiple
 # without the ×100 contract multiplier. The timeline shows them corrected (×100) and flags them.
 HELD_MARK_FIX_BEFORE = "2026-11-17"
+HELD_SEATINGS_SHOWN = 10   # the most recent N of-record seatings per position; the rest are counted ("+K earlier")
 
 
 def _tf(v) -> bool | None:
@@ -2267,8 +2268,15 @@ def _tf(v) -> bool | None:
     return bool(v)
 
 
+def _structural(v) -> bool | None:
+    """structural_vs_fad as True ("structural") / False ("fad") / None (absent, "unclear" or anything else — not a
+    False: the council did not call it a fad)."""
+    s = str(v).strip().lower() if v is not None else ""
+    return True if s == "structural" else False if s == "fad" else None
+
+
 def _criteria(structural_vs_fad, under_narrated, at_inflection) -> dict:
-    return {"structural": None if structural_vs_fad is None else str(structural_vs_fad) == "structural",
+    return {"structural": _structural(structural_vs_fad),
             "under_narrated": _tf(under_narrated), "at_inflection": _tf(at_inflection)}
 
 
@@ -2336,8 +2344,11 @@ def held_reads_panel(conn, *, ledger_path=None) -> dict:
             t = _parse_dt(s.get("as_of"))
             if opened is not None and t is not None and t > opened:
                 seatings.append(_proposal_verdict(s))
+        earlier = max(len(seatings) - HELD_SEATINGS_SHOWN, 0)
+        seatings = seatings[earlier:]
         sym = str(p["symbol"]).upper()
-        fals = [{"read_at": f.get("read_at"), "spec_id": f.get("spec_id"), "metric": f.get("metric"),
+        fals = [{"read_at": f.get("read_at"), "spec_id": f.get("spec_id"), "direction": f.get("direction") or None,
+                 "metric": f.get("metric"),
                  "value": f.get("value"), "threshold": f.get("threshold"), "period_end": f.get("period_end"),
                  "fired": _tf(f.get("fired"))}
                 for f in fals_rows if str(f.get("symbol", "")).upper() == sym]
@@ -2346,7 +2357,7 @@ def held_reads_panel(conn, *, ledger_path=None) -> dict:
             "opened_day": _et_date(p.get("opened_at")).isoformat() if _et_date(p.get("opened_at")) else None,
             "origin": _backfill._origin(p.get("rationale")), "mark_multiple": mult,
             "entry": _proposal_verdict(prop) if prop else None,
-            "reads": reads, "seatings": seatings, "falsifiers": fals})
+            "reads": reads, "seatings": seatings, "seatings_earlier": earlier, "falsifiers": fals})
     return {"note": HELD_READS_NOTE, "held_reads_table": has_table, "falsifier_status": fals_status,
             "mark_fix_note": f"held reads written before {HELD_MARK_FIX_BEFORE} stored the mark multiple 100x too "
                              "small (#511); shown corrected (x100) and flagged",
