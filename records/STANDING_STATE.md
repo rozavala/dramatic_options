@@ -51,7 +51,7 @@ The header's absence is itself a signal.
   - **#469 deferred.**
 - **Operator word 2026-11-16 ("Sure, let's keep moving with your recommendations"):**
   - **Floor-drought look, decided in advance: A** (PREREG_COUNCIL_GATE_SEPARATION §10.11a). §10.11 unchanged; a second
-    10-session drought after 12-18 triggers another look. `records/2026-11-16_floor_drought_look_decision.md`.
+    10-session drought after 12-18 triggers another look. **Applied 2026-11-17** (the clock hit 10/10 at L1 #2090). `records/2026-11-16_floor_drought_look_decision.md`.
   - **Held-name tracking, Option B** (#464; §10.13; `records/2026-11-16_held_name_thesis_tracking_optionB_PREREG.md`):
     a post-L1 pass re-reads every held position nightly into `held_reads`; starts with the first L1 after its code
     merges; cap $1.00 per pass. Measurement only.

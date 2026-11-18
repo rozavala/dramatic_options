@@ -60,6 +60,10 @@ the decision is not made cold. If either night reaches the floor, the clock rese
 The floor (MODERATE), criteria (1)–(2), the tri-criteria `include` rule, the gates, sizing, the risk frame. Nothing
 reverts automatically (§10.11).
 
+## 3a. Applied
+
+**Applied 2026-11-17:** the clock reached 10 of 10 at L1 #2090 (11-17; last above-floor #1918, 11-03), so the look fell due and decision A applied as pre-decided: §10.11 unchanged. The second-drought watch runs from the first L1 after 2026-12-18.
+
 ## 4. Decision
 
 **A**, with the second-drought pin (operator word 2026-11-16). Recorded as a dated note under §10.11 and a STANDING_STATE entry. No code change.

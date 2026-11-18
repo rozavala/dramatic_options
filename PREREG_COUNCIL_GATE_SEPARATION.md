@@ -474,6 +474,7 @@ blocked 17 (13 bear theses on names whose own filings still grow, the reading §
 the 9 all-pass reads were FLNC/TITN at LOW. The drought is upstream (slate breadth, coverage, conviction), not (3)'s
 wording. **Pinned:** a second run of 10 sessions with no verdict at the floor, after 2026-12-18, triggers another look,
 read with the §10.12 results. Evidence and options: `records/2026-11-16_floor_drought_look_decision.md`.
+**Applied 2026-11-17:** the clock reached 10 of 10 at L1 #2090 (11-17; last above-floor #1918, 11-03), so the look fell due and decision A applied as pre-decided: §10.11 unchanged. The second-drought watch runs from the first L1 after 2026-12-18.
 
 ### 10.13 Held-name thesis tracking, Option B (dated note, 2026-11-16, operator word)
 
