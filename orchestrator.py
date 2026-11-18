@@ -220,6 +220,10 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
         # a council role citing a date it was shown (e.g. the filing date) no longer dampens; an unshown date flags once.
         # Both are verdict-mapping changes, record-segmenting.
         mix["quote_filter"] = "musd_billions_v1+iso_dates_v1+restate_v1"   # restate_v1: #421 (decimal→%, 3-dp $B, bare years), from the 11-12 boundary
+        # #477 (PREREG_FIXED_BASKET_NULL conformance note 2026-11-18; boundary B): the null books (shadow, 3A, 3B) skip
+        # profit-take/time-stop on a mark-only (closed-market) tick, as the real book does since #451. Absent key = the
+        # pre-#477 rule (null-book exits booked at any tick's mark). Record-segmenting for the null-book exit records.
+        mix["null_exits"] = shadow_book.NULL_EXITS_STAMP
         if int(config.get("council", {}).get("cheap_reserve_slots", 0) or 0) > 0:
             # PREREG gate_cheap_reserve §6: judged-set composition change — record-segmenting from deploy.
             mix["union_rank"] = "cheap_reserve_v1"
@@ -954,14 +958,16 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
         # 1b. Brain-off NULL shadow book (T3 PR3b) — mark + exit the simulated control book alongside
         #     the real monitor, every cycle. FAIL-SOFT: a measurement-control bug must never halt the
         #     real trade cycle, and it never reaches the broker (shadow_book imports none).
+        #     #477: the null books take the real monitor's SAME mark_only (monitor_mode above, from the one
+        #     fail-closed market read), so a closed-market tick books no null-book profit-take/time-stop either.
         try:
             smr = shadow_book.mark_shadow_positions(
                 conn=conn, clock=clock, quote_provider=quote_provider, config=config,
-                underlying_price_of=provider.underlying_price,
+                underlying_price_of=provider.underlying_price, mark_only=mark_only,
             )
-            if smr.marked or smr.closed:
-                log.info("Shadow(null) monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d)",
-                         smr.marked, smr.closed, smr.expired, smr.profit_taken, smr.time_stopped)
+            if smr.marked or smr.closed or smr.deferred:
+                log.info("Shadow(null) monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) deferred=%d",
+                         smr.marked, smr.closed, smr.expired, smr.profit_taken, smr.time_stopped, smr.deferred)
         except Exception as e:  # noqa: BLE001 — fail-soft: the shadow control never breaks the cycle
             log.warning("shadow mark pass failed (non-fatal): %s", e)
             notify.send("Shadow book mark failed (non-fatal)", str(e))
@@ -972,11 +978,11 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             try:
                 fmr = fixed_basket.mark_fixed_basket_positions(
                     conn=conn, clock=clock, quote_provider=quote_provider, config=config,
-                    underlying_price_of=provider.underlying_price,
+                    underlying_price_of=provider.underlying_price, mark_only=mark_only,
                 )
-                if fmr.marked or fmr.closed:
-                    log.info("No-gate(3A) monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d)",
-                             fmr.marked, fmr.closed, fmr.expired, fmr.profit_taken, fmr.time_stopped)
+                if fmr.marked or fmr.closed or fmr.deferred:
+                    log.info("No-gate(3A) monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) deferred=%d",
+                             fmr.marked, fmr.closed, fmr.expired, fmr.profit_taken, fmr.time_stopped, fmr.deferred)
             except Exception as e:  # noqa: BLE001 — fail-soft: the gate null never breaks the cycle
                 log.warning("no-gate 3A mark pass failed (non-fatal): %s", e)
                 notify.send("Fixed-basket 3A mark failed (non-fatal)", str(e))

@@ -47,6 +47,10 @@ from themes import Theme, active_themes, load_themes
 
 log = logging.getLogger("shadow_book")
 
+# runs.model_mix["null_exits"] (#477): the null books' closed-tick exit rule — they follow the real monitor's #451
+# mark_only (mark + settle expiry; profit-take/time-stop wait for an open-market tick). Record-segmenting.
+NULL_EXITS_STAMP = "closed_tick_mark_only_v1"
+
 CONTRACT_MULTIPLIER = 100.0
 
 
@@ -72,6 +76,7 @@ class ShadowMonitorResult:
     profit_taken: int = 0
     time_stopped: int = 0
     unmarked: int = 0
+    deferred: int = 0   # #477: a triggered profit-take/time-stop left open on a mark-only (closed-market) tick
 
 
 def _origin_of(theme: Theme) -> str:
@@ -304,12 +309,18 @@ def _intrinsic_value(kind: str, strike: float, underlying_price: float | None) -
 
 def mark_shadow_positions(
     *, conn, clock: Clock, quote_provider: QuoteProvider, config: dict, underlying_price_of=None,
+    mark_only: bool = False,
 ) -> ShadowMonitorResult:
     """Mark + apply the SAME deterministic exits (profit-take / time-stop / expiry) to the shadow book.
 
     Always books in-DB at the mark/intrinsic — there is no broker (no real sell order, no proposal/
     sentinel resolution; those belong to the real book). Mirrors monitor.monitor_positions' exit rules
-    and reads the same ``convexity_exits`` thresholds, so exits cannot drift from the real book."""
+    and reads the same ``convexity_exits`` thresholds, so exits cannot drift from the real book.
+
+    ``mark_only`` (#477; PREREG_FIXED_BASKET_NULL conformance note 2026-11-18): the orchestrator passes the real
+    monitor's own #451 decision (``orchestrator.monitor_mode``: a closed or unconfirmed market outside DRY_RUN), so
+    the null book counts the same ticks as the real book — it marks and settles expiry, but a triggered profit-take
+    or time-stop is left open (counted as deferred) for the next open-market tick."""
     exits = config.get("convexity_exits", {})
     profit_mult = float(exits.get("profit_take_multiple", 10.0))
     time_stop_dte = int(exits.get("time_stop_dte", 21))
@@ -362,17 +373,31 @@ def mark_shadow_positions(
 
         # 3. Profit-take, then 4. time-stop — identical thresholds to the real monitor.
         if entry_pc > 0 and mid * CONTRACT_MULTIPLIER >= profit_mult * entry_pc:
+            if mark_only:
+                _defer(res, pos, f"profit_take_{profit_mult:g}x")
+                continue
             _close(conn, pid, exit_price=mid, entry_pc=entry_pc, contracts=contracts,
                    total_premium=total_premium, reason=f"profit_take_{profit_mult:g}x", as_of=as_of_iso)
             res.profit_taken += 1
             res.closed += 1
             continue
         if dte is not None and dte <= time_stop_dte:
+            if mark_only:
+                _defer(res, pos, f"time_stop_{time_stop_dte}dte")
+                continue
             _close(conn, pid, exit_price=mid, entry_pc=entry_pc, contracts=contracts,
                    total_premium=total_premium, reason=f"time_stop_{time_stop_dte}dte", as_of=as_of_iso)
             res.time_stopped += 1
             res.closed += 1
     return res
+
+
+def _defer(res, pos, reason: str) -> None:
+    """Mark-only (#477): a null-book exit that triggers on a closed-market tick waits for an open one, as the real
+    book's does (#451) — so the null books never book a closed-tick mark the real book could not sell at."""
+    res.deferred += 1
+    log.info("Shadow(null) exit deferred #%d %s (%s): market closed (mark-only) — left open",
+             int(pos["id"]), pos["contract_symbol"], reason)
 
 
 def _close(conn, pid, *, exit_price, entry_pc, contracts, total_premium, reason, as_of) -> None:
