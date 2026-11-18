@@ -51,10 +51,12 @@ The header's absence is itself a signal.
   - **#469 deferred.**
 - **Operator word 2026-11-16 ("Sure, let's keep moving with your recommendations"):**
   - **Floor-drought look, decided in advance: A** (PREREG_COUNCIL_GATE_SEPARATION §10.11a). §10.11 unchanged; a second
-    10-session drought after 12-18 triggers another look. `records/2026-11-16_floor_drought_look_decision.md`.
+    10-session drought after 12-18 triggers another look. **Applied 2026-11-17** (the clock hit 10/10 at L1 #2090). `records/2026-11-16_floor_drought_look_decision.md`.
   - **Held-name tracking, Option B** (#464; §10.13; `records/2026-11-16_held_name_thesis_tracking_optionB_PREREG.md`):
     a post-L1 pass re-reads every held position nightly into `held_reads`; starts with the first L1 after its code
     merges; cap $1.00 per pass. Measurement only.
+    **Scoring pin (2026-11-17, operator word "Merge and on 508 let's follow your suggestion"; #508):** a `dropped` read is excluded from "the last 3"; the last 3
+    non-dropped reads decide, and drops are counted beside the table.
   - **#505, the slate's date-aware demotion: approved, then WITHDRAWN by CC before any code (2026-11-16).** The sweep
     stores only the selected wing, not the name's other expiries, so the check would also demote names with another
     in-window expiry (LMT Jun/Sep-27, NXE Aug-27 on 11-23). That breaks the 2026-10-21 ruling's "positive, fresh
@@ -340,6 +342,7 @@ The header's absence is itself a signal.
   and (4) only · #469, deferred.
   **Filed 2026-11-16:** #504 (moneyness ceiling 40%, decided 11-16, code for 12-07) · #505 (closed 11-16 as a
   complexity-cut) · #508 (held reads: the §3 timeline and the §4 scoring report, deferred from #507).
+  **Filed 2026-11-17:** #515 (the boundary-B 12-07 checklist: #510, the §10.12 switch-on #519, the model refresh).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
   · #477 (null-book exits on closed-market ticks).
   **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467.
