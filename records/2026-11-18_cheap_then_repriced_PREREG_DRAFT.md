@@ -14,8 +14,8 @@ write path into `config.convexity_gate`. A gate change on this evidence is #457'
 ## §0 What changed since the 11-10 draft
 
 1. **The same-contract outcome cannot come from stored data, and now there is a measurement to show it.** The sweep
-   re-selects its wing as spot moves. The same OCC contract is selected again on 37% of next sessions, on 5% 21
-   sessions later, and on 0.4% 63 sessions later (§3.3). So the outcome needs an explicit capture: the quotes of the
+   re-selects its wing as spot moves. Where the name is structured on both nights, the same OCC contract is selected
+   again on 38% of next sessions, on 6.5% 21 sessions later, and on 0.4% 63 sessions later (§3.3). So the outcome needs an explicit capture: the quotes of the
    contracts already selected.
 2. **One capture serves #455, #453 and #462.** The nightly OPRA sweep already passes every universe name's full
    chain to `iv_history.term_record` (the `chain_sink`, from 2026-11-03). The proposal adds two fields to that record.
@@ -51,7 +51,7 @@ wing pays more over 21–63 sessions. It cannot attribute a payoff to a trend ch
 | RV63 and RV21 at t (the #454 split) | Not stored. `gate_audit` recomputes them from the bars cache, which misses non-sentinel names between Sunday L0 refreshes (#454 record, "From 11-09") | Needs capture (§4.1) |
 | Bid / ask of the selected wing at t | Nowhere. `Contract.bid/ask` exist in the sweep's chain and are dropped. `option_chain_snapshot` is entry-path only (7 names, 10 records, the last 11-13) and stores IV, not quotes | Needs capture |
 | The same contract's bid / ask / IV at t + h | Nowhere (§3.3) | Needs capture |
-| Wing IV per active sentinel | `cheapness_watch` (`wing_iv`, `atm_iv`, `rv`, `contract_symbol`; 38–40 names a night). Its wing follows the sentinel's direction and matched the sweep's wing in 115 of 241 same-run pairs since 11-05 | Not the gate-of-record wing |
+| Wing IV per active sentinel | `cheapness_watch` (`wing_iv`, `atm_iv`, `rv`, `contract_symbol`; 38–40 names a night). Its wing follows the sentinel's direction and matched the sweep's wing in 115 of the 241 same-run pairs since 11-05 where the watch selected a contract (`contract_symbol IS NOT NULL`, which is also every pair with a `wing_iv`); 115 of 340 pairs in all | Not the gate-of-record wing |
 | A held real position's nightly mark | `held_reads.mark_multiple` (§10.13), from 11-16 (8 rows) | Real book only |
 | Underlying closes | Alpaca bars and the PIT cache | Yes |
 
@@ -77,15 +77,18 @@ All from `gate_dualread` (the last OPRA sweep row per name per date), the term-r
 Since 10-01 (34 sessions): 39 not-cheap name-days from 5 names, one of them 25. **A gate-cheap vs not-cheap cell with
 ≥ 8 distinct names cannot fill under the current regime**, at any horizon.
 
-### 3.3 Wing persistence (the same OCC contract re-selected; pooled structured rows, 06-10 → 11-17)
+### 3.3 Wing persistence (the same OCC contract re-selected; pooled, 06-10 → 11-17)
 
-| Lag (sessions) | Pairs | Same wing |
-|---|---|---|
-| 1 | 3,965 | 37.3% |
-| 5 | 3,830 | 20.7% |
-| 21 | 3,232 | 5.2% |
-| 42 | 2,356 | 1.4% |
-| 63 | 1,614 | 0.4% |
+Primary: the name is structured at both t and t + lag. The note column keeps the looser denominator: structured at
+t, any row at t + lag, where an unstructured t + lag counts as not the same wing.
+
+| Lag (sessions) | Pairs, both structured | Same wing | Note: pairs, t structured only | Same wing |
+|---|---|---|---|---|
+| 1 | 3,872 | 38.2% | 3,965 | 37.3% |
+| 5 | 3,601 | 22.0% | 3,830 | 20.7% |
+| 21 | 2,583 | 6.5% | 3,232 | 5.2% |
+| 42 | 1,899 | 1.8% | 2,356 | 1.4% |
+| 63 | 1,443 | 0.4% | 1,614 | 0.4% |
 
 `select_structure` takes the strike nearest `spot × (1 ± 0.25)`, so a few percent of spot moves the strike. The
 VRT wing changed strike on 8 of 10 nights from 11-03 to 11-17. Distinct wings selected per name: median 7 (max 16)
@@ -136,10 +139,19 @@ known:
   - **Size:** at most 14 unit-date wings plus about 3 position contracts per name. About 49 × 17 ≈ 830 quotes a
     night, under 50 KB.
 
-The capture is telemetry: no stamp moves, so it is exempt from boundary B and can land on any day. It is fail-soft: a
-sink error never changes the gate read (the existing `chain_sink` contract). It is skipped in demo.
-**Cost:** no extra chain or bar fetch, no LLM call, no migration. It needs one read of `gate_dualread` and the
-four position tables before the sweep, to build the tracked set.
+The capture is telemetry: no stamp moves, so it is exempt from boundary B and can land on any day. It is skipped in
+demo. **Cost:** no extra chain or bar fetch, no LLM call, no migration. It needs one read of `gate_dualread` and the
+four position tables per sweep, to build the tracked set.
+
+**Build requirements (part of the pin):**
+- **Fail-soft, including the tracked-set build.** The tracked-set read (`gate_dualread` and the four position
+  tables, inside `sweep_universe`), the `rv63`/`rv21` computation and the record write all sit inside the same
+  `try/except` as today's sink. A read error, an empty result or a malformed row is logged and leaves the record
+  without the new fields. It can never change, delay or skip the gate read or the `gate_dualread` row.
+- **Write order.** Today the sink persists the term record before `select_structure` runs; the proposal persists it
+  after the OPRA arm's gate read. The build PR checks that no test or consumer depends on the old order (the
+  `iv_history` panel, `persist_term_record`'s same-day replace, the sweep's `term_ok` count, the `gate_dualread`
+  tests), and says so in its description.
 
 ### 4.2 Unit, cohort, first row
 - **Unit:** one row per universe name per ISO week. The unit date is that week's first council-L1 sweep (usually
@@ -211,6 +223,12 @@ Each h counts sweep sessions after t, read off the nightly capture. h = 42 is ad
   - The two-proportion z (`miss_baserate.two_proportion_z`) is printed with the same label.
 - **Small-n guard:** a cell needs ≥ 20 matured rows and ≥ 8 distinct names. Below that it prints `n<20` (the miss
   ledger's `MIN_CELL_N` wording), with no median and no rate.
+- **One first read per horizon, for every cell at once.**
+  - The first read is set by the slowest cell expected to fill, E2: about 5 rows a week against the 20-row guard,
+    so about four unit weeks. E1's cheapest tercile would pass the guard after about two weeks (≈ 11 rows a week),
+    but it is **not** read earlier. Each horizon then has one pinned look, and no cell runs on a schedule of its own.
+  - A cell still under the guard on that date prints `n<20`. Later prints add rows and are labelled re-prints of
+    the same pinned look, never new looks.
 - **Read dates.**
   - If rows start Mon 11-23: the fourth unit week (12-14) matures at h = 21 on 2027-01-14, at h = 42 on 02-16 and at
     h = 63 on 03-17 (NYSE calendar via `nyse_calendar`, assuming no skipped sweep).
@@ -290,7 +308,7 @@ from Python; the cache files were read with `json.load`.
 
 - **Rows.** `SELECT substr(evaluated_at,1,10), upper(symbol), structured, iv_rv, otm_skew, cheap, wing, run_id FROM
   gate_dualread WHERE feed='opra' AND source='sweep' ORDER BY id`, keeping the last row per name per date. Per-night
-  counts, wing persistence (same `wing` at date index i and i + lag) and the pooled Pearson r of `iv_rv` at i and
+  counts, wing persistence (same `wing` at date index i and i + lag; `structured = 1` at both, or at i only for the note column) and the pooled Pearson r of `iv_rv` at i and
   i + lag all come from these rows.
 - **Missing sweeps.** `nyse_calendar.is_trading_day` over 06-10 → 11-17, against the distinct sweep dates.
 - **The term records.** `data/cache/iv_term_snapshot/*.json`: records per date, `rv` present, bytes.

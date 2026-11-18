@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sqlite3
 from pathlib import Path
 
@@ -122,7 +123,30 @@ def test_the_sunday_review_runs_the_check():
     assert "scripts/ops/segment_register.py" in text and "--check" in text
 
 
-def test_the_committed_register_is_well_formed():
-    # Every row the register cites is in the `run #<id>` + backticked-stamp form the check reads.
-    text = (ROOT / "records/segment_register.md").read_text()
-    assert "run #1938" in text and "`frame_version`" in text and "`quote_filter`" in text
+def _register_rows(text: str) -> list[list[str]]:
+    """The cells of each data row of the register's main table (the one headed `| First run |`)."""
+    lines = text.splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("| First run |"))
+    rows = []
+    for ln in lines[start + 2:]:          # skip the header and the |---| separator
+        if not ln.startswith("|"):
+            break
+        rows.append([c.strip() for c in ln.strip().strip("|").split("|")])
+    return rows
+
+
+def test_the_committed_register_table_is_well_formed():
+    # The table the --check reads: 7 columns, `run #<id>` first, one backticked stamp, run order, no duplicates.
+    rows = _register_rows((ROOT / "records/segment_register.md").read_text())
+    assert len(rows) >= 52                # the 2026-11-18 back-fill (52 moves to run #2092); append-only, so it only grows
+    keys = []
+    for r in rows:
+        assert len(r) == 7, r
+        m = re.fullmatch(r"run #(\d+)", r[0])
+        stamp = re.fullmatch(r"`([a-z_]+)`", r[3])
+        assert m and stamp, r
+        keys.append((int(m.group(1)), stamp.group(1)))
+    assert [k[0] for k in keys] == sorted(k[0] for k in keys)
+    assert len(set(keys)) == len(keys)
+    stamps = {k[1] for k in keys}
+    assert {"frame_version", "data_feed", "discovery_funnel", "prompts", "quote_filter"} <= stamps

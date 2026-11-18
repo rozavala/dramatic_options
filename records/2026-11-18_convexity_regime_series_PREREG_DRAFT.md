@@ -144,7 +144,7 @@ STANDING_STATE expects about 28 structured names after Mon 11-23, which is 57% o
 - **History available:** the term record starts 2026-11-03. Rebuilding S1–S4 from 11-03 is mechanical: the
   definitions are applied as pinned, and nobody inspects the output before the pins merge.
   - Nothing older exists to rebuild.
-  - The 120th session from 11-03 is **2027-04-28** (NYSE calendar via `nyse_calendar`, assuming no skipped sweep;
+  - The 120th session, counting 11-03 as session 1, is **2027-04-27** (NYSE calendar via `nyse_calendar.is_trading_day`, assuming no skipped sweep;
     one skip in 111 so far).
 
 ## §6 Storage: derived at read time, no writer [PIN]
@@ -212,7 +212,7 @@ no key to a frame-hashed block and moves no stamp.
 |---|---|---|
 | 1 | Series of record: S1, constant-maturity 270-day IV ÷ RV252 from the term record, versus the gate's own `iv_rv`/share cheap (the 11-10 draft) | **S1.** It is frame-independent, so boundary B does not reset it; it covers 48 of 49 names against the gate's 33–36; and it is still blind |
 | 2 | Population: R frozen at adoption (49 names), live universe display-only; coverage guard 70% of R | **Adopt** |
-| 3 | Percentiles: in-segment, expanding to 250 then trailing; minimum 120 nights; segments only on R, `rv_window_days` or `TERM_VERSION` | **Adopt.** First percentile about 2027-04-28 |
+| 3 | Percentiles: in-segment, expanding to 250 then trailing; minimum 120 nights; segments only on R, `rv_window_days` or `TERM_VERSION` | **Adopt.** First percentile about 2027-04-27 |
 | 4 | Rebuild from the 11-03 term records, mechanically, before anyone reads a level | **Adopt.** Nothing older exists |
 | 5 | Storage: derived at read time with no writer, versus a nightly first-record-wins writer | **Read time.** One store fewer; the inputs are already persisted and atomic |
 | 6 | Index input (SPY's chain through the same `term_record`) | **No.** It is a new input, and index vol prices correlation, not single-name wings |
@@ -222,7 +222,7 @@ no key to a frame-hashed block and moves no stamp.
 
 UNVERIFIED:
 - That the 11-23 cliff names keep their 270-day bracket (§2.3: true on the 11-17 listings, unless a listing changes).
-- That the 120th session lands on 2027-04-28: it assumes no further skipped sweep.
+- That the 120th session lands on 2027-04-27: it assumes no further skipped sweep.
 - How often a manual same-day sweep re-run happens. None is visible in `gate_dualread`: no date has two sweep runs.
 
 **Read-only queries used:**
