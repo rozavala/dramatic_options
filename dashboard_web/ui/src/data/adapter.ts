@@ -12,6 +12,7 @@ import type {
   NextRunVM, NullStepVM, PositionRow, PositionVM, VerticalLegsVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
   OutsideFrameVM, Snapshot, SpendVM, TailFigure, TelemetryVM, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
 } from "./types";
+import { buildHeldReads } from "./heldReads";
 import { etDate, formatRunLabel } from "./runLabel";
 import { DD_WARN_DEFAULT, directionLabel, drawdownDisplay, levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
@@ -297,7 +298,7 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence], ["staleness", P.staleness],
       ["why_no_entry", P.why_no_entry],
       ["execution", P.execution], ["slippage", P.slippage], ["iv_history", P.iv_history], ["falsifiers", P.falsifiers],
-      ["capex_cycle", P.capex_cycle], ["attention", P.attention],
+      ["capex_cycle", P.capex_cycle], ["attention", P.attention], ["held_reads", P.held_reads],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
@@ -649,5 +650,6 @@ export function fromBackend(P: Snapshot): ViewModel {
     readiness,
     edgeAccrual: { n: edgeN, target: EDGE_TARGET }, phasePct, phaseSub,
     session, spend, canary, dircoherence, staleness, whyNoEntry, telemetry, wingMismatch, dataAccrual, booksOpen, firstEntry,
+    heldReads: buildHeldReads(P),
   };
 }

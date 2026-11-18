@@ -96,6 +96,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "falsifiers": dd.safe(dd.falsifier_panel, config),
             "capex_cycle": dd.safe(dd.capex_cycle_panel, cache_dir),
             "attention": dd.safe(dd.attention_panel, cache_dir),
+            "held_reads": dd.safe(dd.held_reads_panel, conn),   # §10.13 §3 timeline (#508); measurement only
         }
     finally:
         conn.close()

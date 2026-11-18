@@ -41,6 +41,7 @@ PANEL_KEYS: tuple[str, ...] = (
     "cost", "market_ctx", "dualread", "dualread_runtime", "cheapness", "null_attempts", "reserve",
     "curation", "data_gathered", "forward_catalysts", "session", "spend", "canary",
     "dircoherence", "staleness", "why_no_entry", "execution", "slippage", "iv_history", "falsifiers", "capex_cycle", "attention",
+    "held_reads",
 )
 
 
@@ -142,6 +143,7 @@ def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
             "falsifiers": dd.safe(dd.falsifier_panel, config),
             "capex_cycle": dd.safe(dd.capex_cycle_panel, cache_dir),
             "attention": dd.safe(dd.attention_panel, cache_dir),
+            "held_reads": dd.safe(dd.held_reads_panel, conn),   # §10.13 §3 timeline (#508); measurement only
         }
         # NOT a load_all panel (like system_status): run_id -> started_at for every run id a panel shows, so
         # the UI prints an ET date beside each one (issue #354). Read-only SELECT; fail-soft.
