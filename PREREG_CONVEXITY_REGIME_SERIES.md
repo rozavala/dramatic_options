@@ -230,3 +230,12 @@ UNVERIFIED:
 - The term-record files read with `json.load`. Per date it counted records, `rv` present, the 270-day bracket, an
   expiry in 180–365 days, and both 25%-OTM IVs there. No IV value was aggregated.
 - The seven cliff names' latest term records: their listed expiries of 150 days or more (expiry dates only).
+
+## Blindness note (dated 2026-11-18, recorded before this file merged)
+
+§5 pins that nobody inspects the rebuilt series before the pins merge. During the capture build (#455/#462, branch
+`feat/455-462-term-capture`), the builder smoke-tested `scripts/probe_regime_series.py` read-only against the live DB
+once, and the latest night's S1/S2/S4/S5 levels printed into that build session, **before this PR (#530) merged**.
+The pins were already written and frozen by the operator's word (2026-11-18). No value was written anywhere (no commit,
+test, record or message), the main session never saw them, and nothing was changed after that run. The levels are
+descriptive only and no rule reads them. Recorded for honesty; no effect on any pin.
