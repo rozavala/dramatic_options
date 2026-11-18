@@ -105,6 +105,29 @@ def compose_judged_set(candidates, *, max_candidates: int, reserve_k: int,
     return selected, selection, displaced
 
 
+def load_register_theses(config: dict) -> dict | None:
+    """Amendment A2: the operator's register theses, read once per cycle for display in sentinel packs only (None
+    unless council.register_thesis and council.pack_provenance are both on)."""
+    council = config.get("council", {})
+    if council.get("register_thesis", False) and council.get("pack_provenance", False):
+        import register_theses as _register_theses
+        return _register_theses.load()
+    return None
+
+
+def council_pack(candidate, *, config: dict, as_of, news, fundamentals, analyst, catalysts, register_theses):
+    """The council's ContextPack for one candidate — the ONE construction both the L1 council (``propose``) and the
+    §10.13 held-name pass use, so a held read sees exactly the pack an of-record read would."""
+    council = config.get("council", {})
+    return build_context_pack(candidate, news=news, as_of=as_of,
+                              lookback_days=int(council.get("news_lookback_days", 90)),
+                              fundamentals=fundamentals, analyst=analyst, catalysts=catalysts,
+                              sentinel_provenance=bool(council.get("pack_provenance", False)),
+                              sentinel_catalysts=bool((config.get("forward_catalysts") or {})
+                                                      .get("sentinel_scope", False)),
+                              register_theses=register_theses)
+
+
 def _error_proposal(candidate, *, reason: str, model_mix: dict) -> CouncilProposal:
     return CouncilProposal(
         theme=candidate.name, symbol=candidate.symbol, direction=candidate.direction,
@@ -127,11 +150,13 @@ def propose(
     catalysts=None,
     demo: bool = False,
     rng=None,
+    repeat_capture: dict | None = None,
 ) -> list[CouncilProposal]:
     """Run the council over ``candidates`` (a list of ``themes.Theme``). Returns ALL proposals.
 
     The cost ledger lives on ``router.ledger`` (the caller reports it). Raises nothing — every
     failure mode is handled fail-closed (KILL / budget → empty; per-candidate error → dropped).
+    ``repeat_capture`` (#456; None = off) is handed to ``run_candidate`` unchanged.
     """
     # 1. KILL switch FIRST — never spend on the council when halted.
     if kill_switch_active():
@@ -140,14 +165,9 @@ def propose(
 
     council = config.get("council", {})
     max_candidates = int(council.get("max_candidates", 12))
-    lookback = int(council.get("news_lookback_days", 90))
     as_of = clock.now()
 
-    # Amendment A2: the operator's register theses, read once per cycle for display in sentinel packs only.
-    reg_theses = None
-    if council.get("register_thesis", False) and council.get("pack_provenance", False):
-        import register_theses as _register_theses
-        reg_theses = _register_theses.load()
+    reg_theses = load_register_theses(config)
 
     proposals: list[CouncilProposal] = []
     coverage: list[tuple[str, int | None]] = []  # #337: the meter's per-name result, logged below
@@ -155,17 +175,13 @@ def propose(
         pack = (
             synthetic_context_pack(candidate, as_of=as_of)
             if demo
-            else build_context_pack(candidate, news=news, as_of=as_of, lookback_days=lookback,
-                                    fundamentals=fundamentals, analyst=analyst, catalysts=catalysts,
-                                    sentinel_provenance=bool(council.get("pack_provenance", False)),
-                                    sentinel_catalysts=bool((config.get("forward_catalysts") or {})
-                                                            .get("sentinel_scope", False)),
-                                    register_theses=reg_theses)
+            else council_pack(candidate, config=config, as_of=as_of, news=news, fundamentals=fundamentals,
+                              analyst=analyst, catalysts=catalysts, register_theses=reg_theses)
         )
         if analyst is not None and not demo:
             coverage.append((candidate.symbol, pack.analyst_count))
         try:
-            proposals.append(run_candidate(candidate, pack, router, rng=rng))
+            proposals.append(run_candidate(candidate, pack, router, rng=rng, repeat_capture=repeat_capture))
         except BudgetExceeded as e:
             # Over-budget → fail closed to ZERO proposals for the whole cycle (no entries).
             log.warning("Council over budget (%s) — proposing NOTHING this cycle (fail-closed).", e)

@@ -185,3 +185,54 @@ def test_deploy_fails_at_the_end_when_a_unit_is_stale():
     text = DEPLOY.read_text()
     tail = text[text.index("# STEP 9"):]
     assert 'if [ -n "$UNITS_FAILED" ]' in tail and "exit 1" in tail.split("Deployment finished successfully")[0]
+
+
+# ── the post-L1 measurement unit (#456 §10.12 probe + #464 §10.13 held reads; never trades) ────────────────────────────────────────────────────
+def test_post_l1_unit_shape():
+    cp = _parse(SYSTEMD / "dramatic-options-post-l1.service")
+    assert cp["Service"]["Type"] == "oneshot"
+    assert cp["Unit"]["OnFailure"] == "dramatic-options-notify@%n.service"
+    assert cp["Service"]["EnvironmentFile"] == "__REPO_ROOT__/.env"
+    assert cp["Service"]["ExecStart"] == "__REPO_ROOT__/venv/bin/python -u -m orchestrator --post-l1"
+    assert "dramatic-options-l1.service" in cp["Unit"]["After"].split()
+    assert int(cp["Service"]["TimeoutStartSec"]) >= 1800
+    text = (SYSTEMD / "dramatic-options-post-l1.service").read_text()
+    assert "__USER__" in text and "__GROUP__" in text
+
+
+def test_post_l1_timer_runs_weekdays_after_the_l1():
+    cp = _parse(SYSTEMD / "dramatic-options-post-l1.timer")
+    assert cp["Timer"]["OnCalendar"] == "Mon..Fri 16:10 America/New_York"
+    l1 = _parse(SYSTEMD / "dramatic-options-l1.timer")["Timer"]["OnCalendar"]
+    assert l1 == "Mon..Fri 15:45 America/New_York"   # the post-L1 16:10 is after it
+    assert cp["Timer"]["Unit"] == "dramatic-options-post-l1.service"
+    assert cp["Install"]["WantedBy"] == "timers.target"
+
+
+def test_post_l1_is_armed_stopped_and_verified_by_deploy():
+    assert not list(SYSTEMD.glob("*repeat-probe*")), "renamed to post-l1 (one unit for §10.12 + §10.13)"
+    deploy = DEPLOY.read_text()
+    assert "repeat-probe" not in deploy
+    timers = re.search(r"^TIMERS=\((.*?)\)", deploy, re.M).group(1)
+    services = re.search(r"^SERVICES=\((.*?)\)", deploy, re.M).group(1)
+    assert '"${SERVICE_PREFIX}-post-l1.timer"' in timers
+    assert '"${SERVICE_PREFIX}-post-l1.service"' in services
+
+
+def test_apply_timers_arms_every_installable_timer_when_one_is_missing():
+    """#456 review B1: `systemctl enable --now a b c` is all-or-nothing, so one timer whose unit file sudo-rs could
+    not install left EVERY timer unarmed, in the rollback too (it reuses the same TIMERS array). Timers are now
+    enabled one per call: a missing unit fails only itself and the rest re-arm."""
+    import subprocess
+
+    # A fake systemctl that, like systemd, refuses the WHOLE enable when any listed unit file is missing.
+    fake = ('sudo() { [ "$1" = "-n" ] && shift; if [ "$1" = systemctl ] && [ "$2" = enable ]; then shift 3; '
+            'for u in "$@"; do [ "$u" = missing.timer ] && return 1; done; '
+            'for u in "$@"; do echo "ARMED $u"; done; return 0; fi; return 0; }\n'
+            'forward_enabled() { echo true; }\n')
+    script = ('set -e\nTIMERS=("a.timer" "missing.timer" "b.timer")\n' + fake + _deploy_function("apply_timers") +
+              "apply_timers\n")
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30)
+    assert out.returncode == 0, out.stderr
+    assert "ARMED a.timer" in out.stdout and "ARMED b.timer" in out.stdout, out.stdout
+    assert "WARNING: enable --now missing.timer failed" in out.stdout

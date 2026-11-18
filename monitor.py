@@ -21,7 +21,7 @@ import sentinel_scoring
 import state
 import verticals
 from broker import make_client_order_id
-from clock import Clock
+from clock import Clock, et_date
 from convexity_data import QuoteProvider
 from council import scoring
 from options_tradability import parse_osi
@@ -183,7 +183,7 @@ def monitor_positions(
     min_close_bid = float(exits.get("min_close_bid", 0.05))
     conv_map = config.get("council", {}).get("conviction_to_prob")
     now = clock.now()
-    today = now.date()
+    today = et_date(now)  # the ET trading date, not the UTC date (#480)
     as_of_iso = now.isoformat()
     res = MonitorResult()
     real_submit = broker is not None and not dry_run and not mark_only
@@ -398,7 +398,9 @@ def _exit_vertical(
 
 def _page_once(conn, pos, today, title: str, message: str) -> None:
     """Page at most once per position per ET day for ``title`` (the L2 runs every 30 minutes). The stamp lives in
-    the position's rationale (``paged.<title>`` = the date). Never raises."""
+    the position's rationale (``paged.<title>`` = the date) and is written only after a DELIVERED send (#479):
+    ``notify.send`` returns False on a failed push and never raises, so stamping first lost a page to a one-tick
+    Pushover failure for the rest of the day; now the next tick retries it. Never raises."""
     import json
 
     try:
@@ -408,13 +410,15 @@ def _page_once(conn, pos, today, title: str, message: str) -> None:
         paged = rat.setdefault("paged", {})
         if paged.get(title) == str(today):
             return
+        import notify
+
+        if not notify.send(title, message, priority=1):
+            log.warning("page %r for #%s not delivered — retried next tick", title, pos["id"])
+            return
         paged[title] = str(today)
         with conn:
             conn.execute("UPDATE convexity_positions SET rationale = ? WHERE id = ?",
                          (json.dumps(rat, default=str), int(pos["id"])))
-        import notify
-
-        notify.send(title, message, priority=1)
     except Exception:  # noqa: BLE001 — paging never breaks the monitor
         log.warning("page %r failed to send", title)
 

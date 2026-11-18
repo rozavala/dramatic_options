@@ -217,15 +217,63 @@ def test_filing_trigger_fires_once_per_cycle_on_the_filing_day(tmp_path):
     assert sess.calls == 1 and fd.filing_refetches == ["MINI"]
 
 
-def test_filing_trigger_leaves_a_raw_fetched_after_the_filing(tmp_path):
-    # NEE's shape: companyfacts lacks the filing upstream; once the raw post-dates the filing it is not refetched
-    # again, so an upstream gap costs at most the one retry (age policy unchanged).
+def _raw_with_filed(tmp_path, utc: datetime, newest_filed: str, name="OLD", extra_rows=()):
+    import os
+    raw_dir = tmp_path / "xbrl_raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    p = raw_dir / "CIK0009999999.json"
+    p.write_text(json.dumps({"entityName": name, "facts": {"us-gaap": {"Revenues": {"units": {"USD": [
+        {"start": "2026-04-01", "end": "2026-06-30", "val": 1.0, "filed": newest_filed, "form": "10-Q"},
+        *extra_rows]}}}}}))
+    os.utime(p, (utc.timestamp(), utc.timestamp()))
+    return p
+
+
+def test_a_raw_fetched_after_the_filing_but_without_it_is_refetched(tmp_path):
+    # #492, CEG: fetched 11-10 (after its 11-09 10-Q) but SEC had not indexed it yet; the newest fact was filed 08-06.
+    # Judged on the download time, the file passed as fresh for ~7 days; judged on content it is refetched.
     now = datetime.now(UTC)
-    _raw_at(tmp_path, now - timedelta(days=2))
+    _raw_with_filed(tmp_path, now - timedelta(days=1), "2026-08-06")
+    filed = (now - timedelta(days=2)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
     sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
-    fd = _fd_filed(tmp_path, sess, (now - timedelta(days=4)).date().isoformat())
-    assert fd._raw_fresh("0009999999", refetch_if_fetched_by=fd._newest_periodic("MINI"))["entityName"] == "OLD"
+    fd = _fd_filed(tmp_path, sess, filed)
+    assert fd._raw_fresh("0009999999", refetch_if_fetched_by=filed, symbol="MINI")["entityName"] == "NEW"
+    assert sess.calls == 1 and fd.filing_refetches == ["MINI"]
+
+
+def test_a_newer_non_periodic_fact_does_not_mask_a_missing_10q(tmp_path):
+    # #495 review: a 424B5 (debt issuance) indexed after a delayed 10-Q must not read as "the file contains the filing"
+    now = datetime.now(UTC)
+    filed = (now - timedelta(days=2)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    later = (now - timedelta(days=1)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    _raw_with_filed(tmp_path, now - timedelta(hours=12), "2026-08-06",
+                    extra_rows=[{"start": "2026-07-01", "end": "2026-09-30", "val": 2.0, "filed": later, "form": "424B5"}])
+    sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
+    fd = _fd_filed(tmp_path, sess, filed)
+    assert fd._raw_fresh("0009999999", refetch_if_fetched_by=filed, symbol="MINI")["entityName"] == "NEW"
+    assert sess.calls == 1
+
+
+def test_a_raw_that_contains_the_filing_is_left_alone(tmp_path):
+    now = datetime.now(UTC)
+    filed = (now - timedelta(days=2)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    _raw_with_filed(tmp_path, now - timedelta(days=1), filed)
+    sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
+    fd = _fd_filed(tmp_path, sess, filed)
+    assert fd._raw_fresh("0009999999", refetch_if_fetched_by=filed, symbol="MINI")["entityName"] == "OLD"
     assert sess.calls == 0 and fd.filing_refetches == []
+
+
+def test_an_upstream_gap_stops_costing_retries_once_the_filing_is_old(tmp_path):
+    # NEE's shape (companyfacts never receives the 10-Q, #269/#493): while the filing is within the age window it is
+    # retried at most once per cycle; past the window only the age policy refetches.
+    now = datetime.now(UTC)
+    _raw_with_filed(tmp_path, now - timedelta(days=1), "2026-04-23")
+    old_filing = (now - timedelta(days=10)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    sess = _Sess(_Resp(200, '{"facts": {"us-gaap": {}}, "entityName": "NEW"}'))
+    fd = _fd_filed(tmp_path, sess, old_filing)
+    assert fd._raw_fresh("0009999999", refetch_if_fetched_by=old_filing, symbol="MINI")["entityName"] == "OLD"
+    assert sess.calls == 0
 
 
 def test_filing_trigger_is_fail_soft_and_off_by_default(tmp_path):

@@ -287,8 +287,8 @@ def page_held(conn, symbol: str, hits: list[Hit], *, as_of: datetime, notify_sen
 
     Debounce lives in the open position's rationale JSON, in the same ``paged`` dict ``monitor._page_once`` stamps
     (key ``listing_guard:<accession>``), so it needs no state file and dies with the position. The stamp is written
-    before the push, as ``monitor._page_once`` does, by design: a failed push is not retried rather than repeated
-    nightly. Only ``status='open'`` rows page: a ``closing`` row is already being sold, and ``pending`` / ``carried``
+    before the push by design (unlike ``monitor._page_once``, which since #479 stamps only a delivered page, because
+    its L2 retries every 30 minutes): for this nightly job a failed push is not retried rather than repeated nightly. Only ``status='open'`` rows page: a ``closing`` row is already being sold, and ``pending`` / ``carried``
     rows belong to the carry worker, which rewrites their rationale."""
     rows = conn.execute("SELECT id, rationale FROM convexity_positions WHERE status = 'open' AND symbol = ?",
                         (symbol,)).fetchall()

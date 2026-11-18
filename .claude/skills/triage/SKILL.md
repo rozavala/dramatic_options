@@ -119,11 +119,12 @@ dated STANDING_STATE / PREREG entry is PROTOCOL, highest severity.
 
 ## Step 2: Lane, journal, adapter and debug-chain sweep
 
-Fan out haiku subagents (one per category) over journald (`journalctl -u dramatic-options-{l0,l1,l2,reach,web}
+Fan out haiku subagents (one per category) over journald (`journalctl -u dramatic-options-{l0,l1,l2,post-l1,reach,web}
 --since …`), the DB, the dashboard payloads, and one read-only PROD ssh sweep.
 
 - **A. Lane health.** Each scheduled fire has a `runs` row (L1 weekdays; L2 every 30 min in RTH; L0 and reach on
-  Sunday); `systemctl --failed` empty on both hosts; every unit's `ExecStart` is `python -u -m orchestrator` (a
+  Sunday); the post-L1 unit (`dramatic-options-post-l1`, weekdays ~25 min after the L1: the §10.12 probe and the
+  §10.13 held reads) ran after each L1, with a `Held reads run #N … read N of M` line matching its `held_reads` rows; `systemctl --failed` empty on both hosts; every unit's `ExecStart` is `python -u -m orchestrator` (a
   `pkill -f orchestrator.py` from a sibling project once SIGKILLed our L2); no `status=9/KILL`; the scheduled-review
   log `~/.local/state/dramatic-options/cron.log` shows each grade/Sunday run with `rc=0` (or a deliberate "NOT RUN").
 - **B. Fail-soft adapters returning nothing** (the coverage-meter class: a dead endpoint looks like a quiet one).

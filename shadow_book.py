@@ -36,7 +36,7 @@ import clusters
 import restricted as restricted_list
 import state
 import verticals
-from clock import Clock
+from clock import Clock, et_date
 from convexity_data import ChainProvider, QuoteProvider
 from convexity_gate import is_cheap_convexity, realized_vol
 from convexity_sizing import convexity_position_size
@@ -314,7 +314,7 @@ def mark_shadow_positions(
     profit_mult = float(exits.get("profit_take_multiple", 10.0))
     time_stop_dte = int(exits.get("time_stop_dte", 21))
     now = clock.now()
-    today = now.date()
+    today = et_date(now)  # the ET trading date, not the UTC date (#480)
     as_of_iso = now.isoformat()
     res = ShadowMonitorResult()
 

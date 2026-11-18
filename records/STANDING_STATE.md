@@ -1,6 +1,6 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-11-08T15:30Z · supersedes: 2026-11-05T00:30Z · **Sunday W45** (`records/2026-11-08_sunday_w45.md`): **ATKR is delisted** (Atkore taken private: 25-NSE 10-19, 15-12G 10-29) and sat in the 50-name universe, held on every slate → **removed 2026-11-09** (operator word; `records/2026-11-09_atkr_removal.md`; universe 49) · the 09-27 five dormant as docketed; all 8 surfaced bearish (AG/HL back as BEARS; new UROY bear); active 38 · KMT pin #19 lapsed (retired; August Comtrade now $32.54/kg, so its fact changed anyway) · expressible 34 of 50 on the Sunday probe (35 nightly), the 15% floor took BWXT/KLAR/NOC; **the 11-23 cliff now costs 7 names (→ ~27)** · miss sweep #8 = the floor boundary · #434 → #435 (dual-read page judges the current session) and #431/#432/#433 since 11-05 · DEV + PROD rebooted 11-07 (operator apt upgrade) · 1 open issue (#421). On top of the 11-05 header (15% floor adopted, restate_v1 staged for ~11-12, the two-week look, backfill live, first carry fills).**
+**as_of: 2026-11-15T15:30Z · supersedes: 2026-11-08T15:30Z · **Sunday W46** (`records/2026-11-15_sunday_w46.md`): **the §10.11 floor-drought clock was 8 of 10 at 11-13 → the pinned operator look is owed after Tue 11-17 if Mon and Tue are 0 at the floor** · **TITN's lineage went dormant on TTL while TITN #7 is held** (the #464 gap; the slate will likely stop reading it) · L0 #2058 scanned 49, 6 re-surfaced (CDE/PAAS/STUB/FLY/KLAR bears, FRO bull), 0 new, 4 dormant (FCX/MOS/MRK/TITN); active 40 · RDW filled 11-13 as backfill #13 ($950) after a carry veto and a re-entry; first read include=false · expressible 35 of 49 on the Sunday probe; **the 11-23 cliff still costs 7 names (now BWXT/FLNC/FLY/KTOS/RDW/SMR/UEC → ~28)**; no Aug-2027 listing · miss sweep #9, the first like-for-like under the floor (universe 30/28, market 30/28) · no pin expired; EPA rule effective 11-16, no stay · **DEV + PROD both reboot-required since 11-13 (libc6)** · PROD `29a86e4`, 7 PRs behind. On top of the 11-12/11-14 rulings (kill rule, boundary B, the #456 probe Arm A).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -16,10 +16,13 @@ The header's absence is itself a signal.
     - **R2:** the 10% book is premium committed at any moment.
     - **Effect of a trip:** it halts the real book and the council, and **the null books keep booking**. KILL still
       halts all. Release is by a payoff or a mark recovery.
-    - **Code:** lands before 12-25, as worded; CC recommends the 12-07 boundary weekend. Thresholds are unchanged,
-      and so is `frame_version`.
+    - **Code: merged 2026-11-12** (#487: the dry leg, the cumulative drawdown leg, null books keep booking; #489:
+      L0 scans on a trip, the re-anchor keys). Thresholds are unchanged, and so is `frame_version`. Live readout at
+      merge: drawdown 1.8%, dry since 2026-07-01, binds 2027-04-01. (Corrected 2026-11-17, #515: this line said the
+      code would land by 12-25.)
     - **Second word 2026-11-12 ("accept all"):** L0 keeps scanning on a trip (framer included). The re-anchor keys
-      (`dry_clock_reanchored_on`, `drawdown_reanchored_on`) are to be built; each is a frame boundary.
+      (`dry_clock_reanchored_on`, `drawdown_reanchored_on`) are built (#489) and written only on the operator's word;
+      each is a frame boundary.
   - **Scheduled record boundary B** (#470): record-segmenting changes (a `frame_version`, prompt-hash, model or
     `model_mix` move) land on **the first Monday L1 of each month**, deployed the weekend before its Sunday L0.
     - **Next:** Mon **2026-12-07**.
@@ -41,17 +44,46 @@ The header's absence is itself a signal.
   - **Backfill and `include=false` (RDW):** decided at #456's look.
   - **The remaining #476 drafts, in priority order:** (1) #456, the cheaper arm; (2) #455 and #462; (3) #464, option B;
     later #453, #460, #457, #459 and #461.
+  - **PROD promoted, inert:** #491 (`29a86e4`, 2026-11-12 05:50 UTC), verified read-only on 2026-11-14 (board below).
   - **Authorized but not done:**
-    - PROD promotion of main, inert (`FORWARD_ENABLED=false`). The PAPER contradiction was resolved by a read-only
-      check on 2026-11-12, so the promotion is pending its PR;
     - an inert arming PR, a draft only;
     - a 1-week paper rehearsal on a **separate paper account**.
   - **#469 deferred.**
+- **Operator word 2026-11-16 ("Sure, let's keep moving with your recommendations"):**
+  - **Floor-drought look, decided in advance: A** (PREREG_COUNCIL_GATE_SEPARATION §10.11a). §10.11 unchanged; a second
+    10-session drought after 12-18 triggers another look. **Applied 2026-11-17** (the clock hit 10/10 at L1 #2090). `records/2026-11-16_floor_drought_look_decision.md`.
+  - **Held-name tracking, Option B** (#464; §10.13; `records/2026-11-16_held_name_thesis_tracking_optionB_PREREG.md`):
+    a post-L1 pass re-reads every held position nightly into `held_reads`; starts with the first L1 after its code
+    merges; cap $1.00 per pass. Measurement only.
+    **Scoring pin (2026-11-17, operator word "Merge and on 508 let's follow your suggestion"; #508):** a `dropped` read is excluded from "the last 3"; the last 3
+    non-dropped reads decide, and drops are counted beside the table.
+  - **#505, the slate's date-aware demotion: approved, then WITHDRAWN by CC before any code (2026-11-16).** The sweep
+    stores only the selected wing, not the name's other expiries, so the check would also demote names with another
+    in-window expiry (LMT Jun/Sep-27, NXE Aug-27 on 11-23). That breaks the 2026-10-21 ruling's "positive, fresh
+    evidence" principle to save at most one night of slots. Proposed instead: close #505 as a complexity-cut; the
+    11-23 sweep corrects the slate from 11-24.
+  - **The post-L1 unit:** the §10.12 probe and the §10.13 pass share one unit, `dramatic-options-post-l1`.
+  - **#504 (moneyness ceiling):** decided later the same day: 40% at the 12-07 boundary (entry above).
+- **Council repeat-read probe, Arm A (2026-11-14, operator word "Ok sure let's follow your recommendations"; #456;
+  PREREG_COUNCIL_GATE_SEPARATION §10.12; `records/2026-11-14_council_repeat_probe_armA_PREREG.md`):** measurement only.
+  - The strategist is re-asked 5× per name on the same night's pack and debate, by a separate unit after the L1.
+  - Segment: L1s Mon **2026-12-07 → Fri 12-18** (10 sessions), switched on at the 12-07 boundary. The code ships
+    before then, default-off (`council.repeat_probe`).
+  - Read 1: < 70% majority match among ≥ 5 floor-contact names ⇒ a dated look at a k-read entry rule. Read 2:
+    < 80% `include` majority match ⇒ a lone `include=false` read does not reverse an entry.
+  - The look after 12-18 settles the RDW backfill `include=false` question and carry confirmation.
+  - Caps $1.50 per session and $15 total; probe spend counts in the monthly page's MTD; the anthropic page is **$20
+    for December 2026** (back to $10 in January, a dated edit).
 - **Quote filter restatements, restate_v1 (adopted 2026-11-04, operator word "Adopt both the 15% floor and A+B+C at
   the 11-12 boundary"; #421; PREREG_FORWARD_CATALYST_GROUNDING §13; IN FORCE FROM THE FIRST L1 AFTER THE 2026-11-12 DEPLOY;
   operator 2026-11-12 "merge it": lands alone, ahead of the model refresh, which takes its own boundary):** council roles only. A: rendered signed 3-decimal figures pool their
   percent form (−0.628 → 62.8). B: $B to 3 decimals. C: the bare year of a rendered date. D (rounding, bps) is not
   adopted. Stamp `quote_filter = musd_billions_v1+iso_dates_v1+restate_v1` from the first L1 after deploy.
+- **Maximum moneyness 40% (2026-11-16, operator word "merge and let's use your calls on the other pending ones"; #504; PREREG_THEMATIC_CONVEXITY
+  maximum-moneyness amendment):** `convexity_gate.max_otm_moneyness = 0.40`, the mirror of the 15% floor on every book,
+  gate and sweep path; fail closed (`no_eligible_contract_within_max_moneyness`). Lands at boundary B **Mon 2026-12-07**
+  (a `frame_version` move). Open positions unaffected. Found on the W46 probe (KLAR at 81.2%; IRDM at 46.7% in two null
+  books).
 - **Minimum moneyness 15% (2026-11-04, operator word "Adopt both the 15% floor and A+B+C at the 11-12 boundary";
   #416; PREREG_THEMATIC_CONVEXITY minimum-moneyness amendment + PREREG_FIXED_BASKET_NULL note; from the first L1 after
   deploy):** `convexity_gate.min_otm_moneyness = 0.15`. Every book and gate path admits only contracts ≥ 15% OTM
@@ -248,25 +280,40 @@ The header's absence is itself a signal.
 - **2026-11-04: DONE**, the two-week look (`records/2026-11-04_council_two_week_look.md`); its persistence watch
   (amended 11-09: majority of the next 3 reads) is read when the 5th real entry is decided.
 - **Sun 2026-11-08: DONE** (W45): the 09-27 five went dormant (none re-surfaced); KMT pin #19 lapsed, not re-pinned.
-- **Owed (operator, from W45):** the thesis-as-direction class (MOS, KKR). ATKR's removal: **decided 2026-11-09**
-  (`records/2026-11-09_atkr_removal.md`, scan basket only; #437 files the empty-chain mislabel).
-- **~2026-11-10:** the backfill's weekly quota frees.
+- **Sun 2026-11-15: DONE** (W46): TITN's lineage dormant while held; FCX/MOS/MRK dormant; 6 re-surfaced, 0 new.
+- **Owed (operator):** the thesis-as-direction class (W45: MOS, KKR; W46: + the RDW adversary 11-09, the MOS and UEC
+  strategists 11-11/11-12); TITN's slate presence while held (W46 §0; #464); whether the EPA pins lapse 11-23; the
+  libc6 reboots on DEV and PROD. ATKR's removal: **decided 2026-11-09** (`records/2026-11-09_atkr_removal.md`).
+- **Tue 2026-11-17: the §10.11 floor-drought look** — the clock was 8 of 10 at #2055 (11-13); if the 11-16 and 11-17
+  L1s are 0 at the floor, the pinned operator look is owed ("the wording may be too tight; nothing reverts
+  automatically").
+- **~2026-11-19/20:** the backfill's weekly quota frees (RDW #9 entered 11-12).
 - **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
+- **Sun 2026-11-22:** the CEG and SMCI bullish lineages (rank slots) and the GEV/LHX/NOC/UEC/UUUU/VRT bearish ones go
+  dormant unless re-surfaced (last seen 10-11). **11-29:** NTSK and PWR (last seen 10-18).
 - **Mon 2026-11-23:** May-2027 drops under the gate's 180-day floor, on the first session after the November monthly
-  expires (Fri 11-20). Re-read on W45 (11-08): nine names select May-27 today; SMCI and LMT have Jun/Sep-27 wings;
-  **FLNC/FLY/LHX/RDW/TGB/UEC have only Jan-2028 after May, KTOS Dec-2027** → if no Aug-2027 quarterly lists, those
-  7 lose structure (KTOS to ~12-17, the rest to ~2027-01-21) and **expressible falls ~34 → ~27** (the old 39 → ~31
-  predates the 15% floor). Read which list Aug-2027, plus the nightly `record_ok`.
+  expires (Fri 11-20). Re-read on W46 (11-15): no Aug-2027 quarterly listed; **BWXT/FLNC/FLY/KTOS/RDW/SMR/UEC have
+  only Jan-2028 after May (KTOS Dec-2027)** → those 7 lose structure (KTOS to ~12-17) and **expressible falls ~35 →
+  ~28**. LMT (Jun/Sep-27) and NXE (Aug-27) keep a later wing; LHX and TGB already lost structure. The three EPA pins
+  expire the same day.
 - **2026-11-25:** the NRC DOE/DoW-design rule's effective date (reviewed, not pinned — 11-01 decision).
 - **~2026-12-19:** TITN's only in-window expiry (Jun-2027) drops under 180 days unless Sep-2027 lists (held #7 is
   Jun-27; exits unaffected).
 - **~early December:** NTSK's falsifier read (10-Q for the quarter ending 2026-10-31; revenue growth < +20%).
+- **Before Sat 2026-12-05:** the #456 probe code merged default-off (§10.12), with the anthropic page at $20.
+- **Mon 2026-12-07:** boundary B; `council.repeat_probe` switched on with the first L1 (§10.12 segment, 10 sessions).
+- **Fri 2026-12-18:** the probe segment's 10th session → the §10.12 look (Read 1, Read 2, RDW `include=false`,
+  carry confirmation).
+- **January 2027 (first L1):** `council.monthly_spend_page_usd.anthropic` back to $10 (dated edit, §10.12).
 
 ## Board & book
-- Box: DEV = main `2d3a85a` (#435, deployed 11-08 01:02 UTC; **rebooted 2026-11-07 19:24 UTC** after the operator's
-  apt upgrade); **PROD = `a7548e8` (#392, promoted 2026-10-30 04:21 UTC; 31 merges / 24 PRs behind main on 11-08, incl.
-  the profit program #411–#415 and the 15% floor #425; rebooted 2026-11-07 19:39 UTC)**, inert: timers disabled, `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`, `FORWARD_ENABLED=false`
-  (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
+- Box: DEV = main `de34b1d` (#501, app restarted 2026-11-14 23:51 UTC; **rebooted 2026-11-07 19:24 UTC** after the
+  operator's apt upgrade; **reboot-required since 2026-11-13 06:48 UTC, libc6**); **PROD = `29a86e4` (#491, promoted
+  2026-11-12 05:50 UTC; 7 PRs behind main on 11-15: code #495–#498, records #499–#501; reboot-required since 11-13
+  06:18 UTC, libc6), verified read-only 2026-11-14 01:12 UTC and again by W46 (11-15)** (ssh with the operator's go): HEAD
+  `29a86e4`, clean tree, 0 `dramatic-options-*` timers loaded, 0 failed units, units on `-m orchestrator`,
+  `trading-bot` active, `/api/version` env `prod`; inert: `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`,
+  `FORWARD_ENABLED=false` (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
   (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD. PROD's journal is readable by the review user from 2026-11-03 (`systemd-journal`). PROD's first #392 deploy failed at `git fetch` (a stale `origin/claude` tracking ref blocked `claude/*` branches); pruned with the operator's go, deploy re-run green.
 - Apps:
   - DEV: `https://all-options-dev.tail57521e.ts.net:8602`
@@ -276,13 +323,16 @@ The header's absence is itself a signal.
     cached read (verdict, heartbeats, KILL, drawdown vs halt, book, last council, T4 — under 5 KB, no positions).
 - Universe **49 names** from the first run after the 2026-11-09 removal (ATKR delisted 2026-10-19, Atkore taken
   private; `records/2026-11-09_atkr_removal.md`; it stays in the frozen `ai_capex_power` cluster for its open
-  null positions) · 16 clusters (book fills at most 5). Expressible 34 of 50 on the 11-08 Sunday probe (35 on #1969's `record_ok` and sweep #8; no
-  structure AMSC/ATKR/BWXT/CC/FRO/HBM/IRDM/KLAR/NNE/NOC/NXE/PL/SMR/STUB/UROY/UUUU — BWXT/KLAR/NOC on the 15% floor).
-  Active sentinel lineages 38 (11-08).
-- Book: real 3 open, $2,470 (marks at the 11-06 L2: PL 0.015, FLNC 1.35, TITN 2.105; unrealized ≈ −$474, DD ~5%): PL ($690), FLNC #6 10× `FLNC270521P00005000` @ 1.00 ($1,000, filled
-  11-04 via carry from #1918), TITN #7 3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry);
-  unrealized ≈ −$750, drawdown 8%. Null books accruing (shadow · 3A · 3B · shares; CF booked 11-04). **Last above-floor
-  conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816 (HL), both cancelled unfilled.
+  null positions) · 16 clusters (book fills at most 5). Expressible 35 of 49 on the 11-15 Sunday probe (33 on #2055's `record_ok`; sweep #9
+  30; no structure AMSC/CC/ERO/FRO/HBM/IRDM/LHX/NNE/NOC/PL/STUB/TGB/UROY/UUUU — ERO/LHX/NOC on the 15% floor).
+  Active sentinel lineages 40 (11-15).
+- Book: real 4 open, $3,420 (marks at the 11-13 21:30 L2; unrealized ≈ −$396, realized $0; kill-rule drawdown ~4%):
+  PL ($690; 0.015), FLNC #6 10× `FLNC270521P00005000` @ 1.00 ($1,000, filled 11-04 via carry from #1918; 1.505), TITN #7
+  3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry; 2.1795; **lineage dormant 11-15**), RDW #13
+  10× `RDW270521P00006000` @ 0.95 ($950, backfill, filled 11-13 18:00 UTC after the #8 carry veto and the #9 re-entry;
+  0.85). space_smallcap $1,640 of $2,000 (RDW bear + PL bull). Null books accruing (shadow · 3A · 3B · shares; 3B booked
+  LMT 11-15). **Last above-floor conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816
+  (HL), both cancelled unfilled.
 - Open issues: as of 2026-11-12; no count kept (#446): `gh issue list` is the source. The parser reads only this
   bullet's continuation lines, so they carry no sub-bullets.
   **Roadmap tracker #452 and its children:** measurement #453–#456 (#454's audit shipped in #474, the issue left
@@ -290,10 +340,14 @@ The header's absence is itself a signal.
   and T4 #465–#469 · the segment register #470.
   **Decided 2026-11-12:** #465 and #472 (the kill rule, implementation for 12-07) · #470 (boundary B) · #468, (2)
   and (4) only · #469, deferred.
+  **Filed 2026-11-16:** #504 (moneyness ceiling 40%, decided 11-16, code for 12-07) · #505 (closed 11-16 as a
+  complexity-cut) · #508 (held reads: the §3 timeline and the §4 scoring report, deferred from #507).
+  **Filed 2026-11-17:** #515 (the boundary-B 12-07 checklist: #510, the §10.12 switch-on #519, the model refresh).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
-  · #473 (the live close ceiling) · #477 (null-book exits on closed-market ticks) · #479 (`_page_once` stamps
-  before sending) · #480 (the monitor's "today" is the UTC date).
-  **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467, #473.
+  · #477 (null-book exits on closed-market ticks).
+  **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467.
+  **Closed 11-12 to 11-14:** #473 (11-12) · #492 by #495 · #494 by #496 · #479 by #498 · #480 by #497.
   **Closed 11-10 to 11-12:** #421 by #426 (restate_v1, 11-12) · #437 by #441 · #440 by #442 · #445 by #447 ·
   #446 by #448 · #449 by #450 · #451 by #478 · #458 by #475.
-- NVDA opra canary at or above 1.0 for 18 prints (11-06 1.1324) after eight below (low 0.9818).
+- NVDA opra canary at or above 1.0 for 23 prints (11-13 1.1915, the streak's high, 0.0085 under the 1.2 gate line)
+  after eight below (low 0.9818).

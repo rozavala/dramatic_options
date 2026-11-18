@@ -439,3 +439,60 @@ back to "not at inflection" on 10-29.
 - **The check on this decision:** PREREG_REJECTION_REASON_AUDIT (~February 2027) reads whether the timing test
   filters losers; §10.11 judgments are their own segment.
 
+### 10.12 Council repeat-read probe, Arm A (dated note, 2026-11-14, operator word)
+
+**Status: FROZEN 2026-11-14.** Operator's word on the decisions table: *"Ok sure let's follow your
+recommendations"* (#456; the 2026-11-12 word put "#456, the cheaper arm" first among the #476 drafts). The full
+pre-registration is `records/2026-11-14_council_repeat_probe_armA_PREREG.md`; this section is its index.
+
+- **What:** after each L1, a separate unit re-asks the **strategist only** k = 5 times per name on the same night's
+  captured `ContextPack`, the stored proposer and adversary outputs and the recorded presentation order, with the
+  record's post-processing (the same quote filter and the §10.7 coercion, via one shared helper). It measures the
+  strategist's run-to-run agreement with its own verdict of record, with evidence drift excluded.
+- **Segment:** the 10 L1 sessions Mon 2026-12-07 → Fri 2026-12-18 (boundary B, #470). It stops itself after 10, and
+  stops early on any `runs.model_mix` change. Nothing pools across a stamp.
+- **Read 1 (entry):** among floor-contact names (verdict of record ≥ MODERATE, or ≥ 1 of 5 repeats ≥ MODERATE), if
+  fewer than **70%** have a verdict of record (≥ floor yes/no) equal to the 5-repeat majority, a dated look at a
+  k-read entry rule is owed. It needs ≥ 5 floor-contact names, else "not evaluable" (a likely, pre-stated outcome).
+- **Read 2 (include):** over all probed name-sessions (≥ 30), if `include` of record equals the 5-repeat majority
+  less than **80%** of the time, a lone `include=false` read is not treated as reversing an entry.
+- **One look** after the segment reads both, with the persistence watch's trigger if it fires, and settles the RDW
+  backfill `include=false` question and whether a carry waits for the next L1's read.
+- **Cost:** about $0.92 per session (strategist $0.0182 per call, measured over 20 sessions). Probe caps are $1.50
+  per session and $15 for the segment, on the probe's own ledger. Probe spend counts in
+  `state.provider_month_spend`, and `council.monthly_spend_page_usd.anthropic` is $20 for December 2026.
+- **Never:** written to `council_proposals` or `council_agent_outputs`; used to select, size, hold or exit; scored
+  against prices or outcomes (guardrail 6); used to tune a prompt, the floor or the criteria; a training signal.
+- **Unchanged:** the verdict of record, the floor, the criteria, the prompts, the gates, sizing, `frame_version`
+  (the probe changes nothing the council sees).
+
+#### 10.11a The floor-drought look, decided in advance (dated note, 2026-11-16, operator word)
+
+Operator's word: *Sure, let's keep moving with your recommendations*. The §10.11 drought clock was 8 of 10 at L1 #2055 (11-13). Decision **A**, recorded
+before the look falls due: §10.11 stays as written. Over 95 strategist reads (11-03 → 11-13), criterion (3) alone
+blocked 17 (13 bear theses on names whose own filings still grow, the reading §10.11 intends), under-narrated failed 67, and
+the 9 all-pass reads were FLNC/TITN at LOW. The drought is upstream (slate breadth, coverage, conviction), not (3)'s
+wording. **Pinned:** a second run of 10 sessions with no verdict at the floor, after 2026-12-18, triggers another look,
+read with the §10.12 results. Evidence and options: `records/2026-11-16_floor_drought_look_decision.md`.
+**Applied 2026-11-17:** the clock reached 10 of 10 at L1 #2090 (11-17; last above-floor #1918, 11-03), so the look fell due and decision A applied as pre-decided: §10.11 unchanged. The second-drought watch runs from the first L1 after 2026-12-18.
+
+### 10.13 Held-name thesis tracking, Option B (dated note, 2026-11-16, operator word)
+
+**Status: FROZEN 2026-11-16.** Operator's word: *Sure, let's keep moving with your recommendations* (#464; the 2026-11-12 word ranked option B). Full
+pre-registration: `records/2026-11-16_held_name_thesis_tracking_optionB_PREREG.md`; this section is its index.
+
+- **What:** after each L1, a separate pass runs the full debate once for every open or closing real position with a
+  proposal, on the pack the L1 would build from the position's own lineage (active or dormant; rendered as-is), and
+  stores it in `held_reads`. Never `council_proposals` or `council_agent_outputs`.
+- **Why:** held names cannot re-surface (`orchestrator.py:606` excludes them from the scan), so their lineages go
+  dormant and the council stops reading them. PL has had no read since 2026-07-17.
+- **Start:** the first L1 after the code merges; its own segment, split on any `runs.model_mix` change.
+- **Cost:** about $0.024 per name; cap $1.00 per pass on its own ledger; spend counted in the monthly page's MTD.
+- **Scoring:** at close, the last 3 held reads (intact = at least 2 at or above the floor; a backfill origin uses
+  `include = true` at LOW or higher) against the realized multiple (≥ 1.0 vs < 1.0), counts only, no rate before 20
+  closes with 3 reads.
+  **Dropped reads (pinned 2026-11-17, operator word "Merge and on 508 let's follow your suggestion"; #508):** a NEUTRAL early exit is excluded; the last 3
+  **non-dropped** reads decide, and drops are counted beside the table.
+- **Never** (until a separately pre-registered rule): trigger or delay an exit, add, re-strike or carry; veto or size;
+  enter any council prompt; feed the backfill rank, the gates or the persistence watch. The pack never says the name
+  is held.

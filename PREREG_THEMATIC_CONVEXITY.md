@@ -144,6 +144,24 @@ among admitted contracts stays nearest-to-target.
 - **Unchanged:** `target_moneyness`, the tenor window, eligibility thresholds, the IV gate, sizing, the caps, the
   carry-over and the backfill rules.
 
+<!-- #504 maximum-moneyness amendment -->
+**Maximum-moneyness amendment (2026-11-16, operator word: "merge and let's use your calls on the other pending ones", adopting CC's recommendation on #504).** The
+selector also reads `config.json:convexity_gate.max_otm_moneyness = 0.40`: it admits only contracts at most **40% out
+of the money** (achieved, thesis side, the same measure as the floor) and fails closed with no structure
+(`no_eligible_contract_within_max_moneyness`) when none is eligible inside the 15–40% band. The target stays
+`target_moneyness = 0.25` and the choice among admitted contracts stays nearest-to-target.
+- **Why:** with a floor and no ceiling, "nearest eligible" on a sparse chain can land far from the frame: the W46
+  Sunday probe selected KLAR Jun-27 C25 at **81.2% OTM**, and IRDM C75 at 46.7% sits open in the shadow and 3A books
+  (opened 2026-07-07). The real book's highest entry is 30.7%. The 2026-11-04 amendment declined a ceiling because
+  nothing had entered above 35%; that is no longer true of the nulls. 40% (not the survivor cards' 35%) leaves room for
+  the ~38% picks a sparse chain gives (NTSK Sep-27 C30 at 37.9% on W46).
+- **Scope:** the same paths as the floor: real, shadow, 3A, 3B, shares, the gate dual-read record, the cheapness watch,
+  and the weekly sweeps (PREREG_MISS_BASERATE and the basket gate base-rate, by this same word, from the first Sunday
+  sweep after deploy). Survivor cards keep their own 15–35% band.
+- **Boundary:** boundary B, **Mon 2026-12-07** (code merged the weekend before). It moves `frame_version`.
+- **Open positions are unaffected:** exits never read the entry band (IRDM's null rows run to their own exits).
+
+
 
 **Data-provenance amendment (2026-06-08) — `equity_bars` IEX→SIP (the data-feed upgrade, PR1).** The
 gate's `RV_h` is computed from daily closes; PR1 moves those closes from the free **IEX** feed (~2–3% of
