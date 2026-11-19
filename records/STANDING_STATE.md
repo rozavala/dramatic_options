@@ -65,6 +65,9 @@ The header's absence is itself a signal.
     the 12-18 look gets #455 exposure counts only).
 - **Operator word 2026-11-18 ("Aligned with your suggestions"), on CC's recommendations for the open decisions:**
   - **#471 — held names leave the backfill pool** (PREREG_THEMATIC_CONVEXITY backfill conformance note). Boundary B, 12-07.
+  - **#537 (operator word 2026-11-19, "Sure go with your suggestion if that's better for profits and optimizing the system"): a profit-take needs a two-sided quote (`bid > 0`) in every
+    book** (PREREG_FIXED_BASKET_NULL note). It stops phantom 10× wins below #535's bound from entering the null books.
+    It rides #477's PR and its `null_exits` stamp at boundary B, 12-07.
   - **#477 — the null books skip profit-take and time-stop on closed-market ticks**, as the real book does since #451
     (PREREG_FIXED_BASKET_NULL conformance note; a `model_mix` stamp). Boundary B, 12-07.
   - **#444 — an unsellable real position stays open, tagged `orphaned`** (PREREG_REAL_MONEY_BROKER §3c), re-tried each

@@ -323,3 +323,13 @@ defers a triggered profit-take or time-stop to the next open-market tick (nothin
 could not. **Aligned:** on a closed-market tick the null books also mark and settle expiry but skip profit-take and
 time-stop, using the orchestrator's same `market_open` read (fail-closed: an error reads as closed). Lands at boundary
 B, **Mon 2026-12-07**, with a `runs.model_mix` stamp for the null-book exit rule. Positions already closed stay as booked.
+
+## Conformance note (2026-11-19, operator word "Sure go with your suggestion if that's better for profits and optimizing the system"; #537): a profit-take needs a two-sided quote
+
+After the 2026-11-18 incident (#533/#534), a profit-take in any book requires a two-sided quote (`bid > 0`) at the tick
+that triggers it. Without one, the trigger is not acted on that tick and is re-evaluated on the next. #535's no-arbitrage
+bound rejects only marks above what the option can be worth; a zero-bid quote whose mid lands between 10× entry and
+that bound would otherwise book a phantom 10× win in the null books, which book at the mark with no bid check. In the
+real book a zero-bid trigger was already unsellable (orphaned since #527); it now simply does not trigger. Thresholds,
+`min_close_bid`, the time-stop and expiry are unchanged. Lands with #477 at boundary B, **Mon 2026-12-07**, under the
+same `model_mix.null_exits` stamp (one null-book stamp move, not two), outside the §10.12 probe's 12-07 → 12-18 freeze.
