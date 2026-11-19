@@ -37,7 +37,7 @@ from clock import Clock, et_date
 from convexity_data import ChainProvider, QuoteProvider
 from convexity_sizing import convexity_position_size, equal_weight_contracts
 from discovery import compute_markers, direction_of
-from mark_bound import BoundedMarker
+from mark_bound import BoundedMarker, min_close_bid_of, sellable_bid
 from risk import kill_switch_active
 from sentinels import active_sentinel_candidates, union_candidates
 from shadow_book import tail_summary
@@ -74,6 +74,8 @@ class FixedBasketMonitorResult:
     profit_taken: int = 0
     time_stopped: int = 0
     unmarked: int = 0
+    deferred: int = 0   # #477: a triggered profit-take/time-stop left open on a mark-only (closed-market) tick
+    pt_unsellable_bid: int = 0   # #537: a profit-take triggered with its bid under min_close_bid, not acted on (open)
 
 
 def _origin_of(theme: Theme) -> str:
@@ -397,14 +399,23 @@ def _intrinsic_value(kind: str, strike: float, underlying_price: float | None) -
 
 def mark_fixed_basket_positions(
     *, conn, clock: Clock, quote_provider: QuoteProvider, config: dict, underlying_price_of=None,
-    book: str | None = None,
+    book: str | None = None, mark_only: bool = False,
 ) -> FixedBasketMonitorResult:
     """Mark + apply the SAME deterministic exits (profit-take / time-stop / expiry) as the real/shadow
     monitors (identical `convexity_exits` thresholds, so exits cannot drift). Always books in-DB at the
-    mark/intrinsic — there is no broker. `book=None` marks every no-gate book."""
+    mark/intrinsic — there is no broker. `book=None` marks every no-gate book.
+
+    ``mark_only`` (#477; PREREG_FIXED_BASKET_NULL conformance note 2026-11-18): the real monitor's own #451 decision,
+    passed by the orchestrator — on a closed-market tick 3A/3B mark and settle expiry, but a triggered profit-take or
+    time-stop is left open (counted as deferred) for the next open-market tick.
+
+    A profit-take needs a sellable bid (#537, ``mark_bound.sellable_bid``: bid ≥ ``convexity_exits.min_close_bid``):
+    one triggered on an unsellable quote is not booked that tick (counted ``pt_unsellable_bid``, row left open) — the
+    real book's own rule, so a null book never books a profit-take the real book could not sell."""
     exits = config.get("convexity_exits", {})
     profit_mult = float(exits.get("profit_take_multiple", 10.0))
     time_stop_dte = int(exits.get("time_stop_dte", 21))
+    min_close_bid = min_close_bid_of(config)
     now = clock.now()
     today = et_date(now)  # the ET trading date, not the UTC date (#480)
     as_of_iso = now.isoformat()
@@ -451,17 +462,34 @@ def mark_fixed_basket_positions(
         res.marked += 1
 
         if entry_pc > 0 and mid * CONTRACT_MULTIPLIER >= profit_mult * entry_pc:
+            # #537: an unsellable bid → not acted on this tick
+            if not sellable_bid(pos, quote_provider, book=f"3A/3B({pos['book']})", mid=mid, min_close_bid=min_close_bid):
+                res.pt_unsellable_bid += 1
+                continue
+            if mark_only:
+                _defer(res, pos, f"profit_take_{profit_mult:g}x")
+                continue
             _close(conn, pid, exit_price=mid, entry_pc=entry_pc, contracts=contracts,
                    total_premium=total_premium, reason=f"profit_take_{profit_mult:g}x", as_of=as_of_iso)
             res.profit_taken += 1
             res.closed += 1
             continue
         if dte is not None and dte <= time_stop_dte:
+            if mark_only:
+                _defer(res, pos, f"time_stop_{time_stop_dte}dte")
+                continue
             _close(conn, pid, exit_price=mid, entry_pc=entry_pc, contracts=contracts,
                    total_premium=total_premium, reason=f"time_stop_{time_stop_dte}dte", as_of=as_of_iso)
             res.time_stopped += 1
             res.closed += 1
     return res
+
+
+def _defer(res, pos, reason: str) -> None:
+    """Mark-only (#477): a 3A/3B exit that triggers on a closed-market tick waits for an open one (as #451)."""
+    res.deferred += 1
+    log.info("3A/3B(null) exit deferred #%d %s %s (%s): market closed (mark-only) — left open",
+             int(pos["id"]), pos["book"], pos["contract_symbol"], reason)
 
 
 def _close(conn, pid, *, exit_price, entry_pc, contracts, total_premium, reason, as_of) -> None:

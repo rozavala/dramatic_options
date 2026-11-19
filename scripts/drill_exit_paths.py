@@ -600,7 +600,7 @@ def _monitor(ctx, quotes, *, dry_run: bool, mark_only: bool):
     ctx.monitor_lines.append(
         f"marked={res.marked} closed={res.closed} closing={res.closing} profit_taken={res.profit_taken} "
         f"time_stopped={res.time_stopped} expired={res.expired} deferred={res.deferred} orphaned={res.orphaned} "
-        f"unmarked={res.unmarked} "
+        f"pt_unsellable_bid={res.pt_unsellable_bid} unmarked={res.unmarked} "
         f"realized=${res.realized_pnl:,.2f}")
     return res
 

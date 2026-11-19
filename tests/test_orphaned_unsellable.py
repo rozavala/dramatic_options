@@ -10,6 +10,8 @@ import json
 import logging
 from datetime import timedelta
 
+import pytest
+
 import notify
 import state
 from broker import Fill
@@ -67,14 +69,19 @@ def test_an_unsellable_time_stop_stays_open_tagged_orphaned(convexity_db, monkey
     assert [t for t, _ in pages] == [ORPHAN_PAGE]
 
 
-def test_an_unsellable_profit_take_with_no_bid_is_orphaned_too(convexity_db, monkeypatch):
-    _pages(monkeypatch)
+@pytest.mark.parametrize("bids", [{}, {"FCX261218C00080000": 0.0}, {"FCX261218C00080000": 0.04}],
+                         ids=["no-bid", "zero-bid", "sub-min-bid"])
+def test_a_profit_take_without_a_sellable_bid_is_not_triggered_so_not_orphaned(convexity_db, monkeypatch, bids):
+    # #537: a profit-take needs a sellable bid (≥ min_close_bid); without one it does not trigger at all — no orphan
+    # tag, no page, no sell. (Only the TIME-STOP is orphaned when unsellable, above.)
+    pages = _pages(monkeypatch)
     pid = _open(convexity_db, contract="FCX261218C00080000", entry_pc=200.0)          # far expiry
-    qp = StaticQuoteProvider({"FCX261218C00080000": 9.0}, bids={})                  # $900 ≥ 4× $200; no bid
-    res = _tick(convexity_db, qp, _FakeBroker())
-    assert _row(convexity_db, pid, "status")["status"] == "open" and res.orphaned == 1 and res.profit_taken == 0
-    tag = _rat(convexity_db, pid)["orphaned"]
-    assert tag["trigger"] == "profit_take_4x" and tag["reason"].startswith("bid none")
+    qp = StaticQuoteProvider({"FCX261218C00080000": 9.0}, bids=bids)                # $900 ≥ 4× $200
+    broker = _FakeBroker()
+    res = _tick(convexity_db, qp, broker)
+    assert _row(convexity_db, pid, "status")["status"] == "open" and broker.sells == [] and pages == []
+    assert (res.pt_unsellable_bid, res.orphaned, res.profit_taken) == (1, 0, 0)
+    assert "orphaned" not in _rat(convexity_db, pid)
 
 
 def test_each_tick_retries_logs_and_keeps_the_first_date_paging_once(convexity_db, monkeypatch):
