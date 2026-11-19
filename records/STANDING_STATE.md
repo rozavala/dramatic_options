@@ -72,7 +72,13 @@ The header's absence is itself a signal.
     **Landed OFF-CYCLE (operator word 2026-11-19, "Sure"; boundary B's money-safety class):** on 2026-11-18 a junk
     opening quote marked real-book #13 (RDW $6 put) at 10.10, and the old unsellable path booked a phantom +$9,150
     in-DB close while the broker still held the contracts (#533 mark bound; #534 journal repair). #527 carries no
-    `model_mix` stamp, so the 12-07 → 12-18 probe freeze is unaffected. The broker's auto-exercise policy is
+    `model_mix` stamp, so the 12-07 → 12-18 probe freeze is unaffected.
+    **The journal repair (#534, migration 0024; operator word 2026-11-19, "Sure"):** deployed after #527 and #533's mark
+    bound (#535) were live. It reopens real-book #13 (RDW270521P00006000; the broker held all 10 throughout) and clears
+    the phantom resolution of proposal #1342 and sentinel #26, each guarded on its exact phantom state. **Permanent
+    gaps:** the 11-18 post-L1 held reads (run #2106) have no RDW row, and #13 carried no live mark from 11-18 14:30
+    until its first L2 after the repair. The persistence watch's RDW #13 verdict (decided reversed, backfill, beside the
+    count) is unaffected. Follow-up #537: a junk quote below the bound (operator decision). The broker's auto-exercise policy is
     to be confirmed from its docs before T4.
   - **Rehearsal:** #466 (exit drill) and #463 (spread round-trip) run on the separate rehearsal paper account, not the DEV
     paper book; #467's live smoke stays deferred until arming. **Waiting on the operator to create the rehearsal paper
@@ -381,6 +387,8 @@ The header's absence is itself a signal.
   complexity-cut) · #508 (held reads: the §3 timeline and the §4 scoring report, deferred from #507).
   **Filed 2026-11-17:** #515 (the boundary-B 12-07 checklist: #510, the §10.12 switch-on #519, the model refresh).
   **Filed 2026-11-18:** #529 (dashboard `market_context` relabel; #462 decision 7).
+  **Filed 2026-11-18/19:** #532 (#455 re-print label, before 2027-01-17) · #533 (mark bound; fixed #535) · #534 (the
+  RDW #13 journal repair) · #537 (a junk quote below the bound; operator decision).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
   · #477 (null-book exits on closed-market ticks).
   **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467.
