@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { Curation } from "../components/Curation";
+import { HeldReadsCard } from "../components/HeldReads";
 import { Reach } from "../components/Reach";
 import { Sparkline } from "../components/Sparkline";
 import { Banner, Chip, Skeleton, StaleChip } from "../components/primitives";
@@ -437,6 +438,7 @@ function MBook({ vm }: { vm: ViewModel }) {
           </div>
         ))}
       </div>
+      <HeldReadsCard vm={vm} compact />
     </>
   );
 }

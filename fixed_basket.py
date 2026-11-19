@@ -37,6 +37,7 @@ from clock import Clock, et_date
 from convexity_data import ChainProvider, QuoteProvider
 from convexity_sizing import convexity_position_size, equal_weight_contracts
 from discovery import compute_markers, direction_of
+from mark_bound import BoundedMarker
 from risk import kill_switch_active
 from sentinels import active_sentinel_candidates, union_candidates
 from shadow_book import tail_summary
@@ -413,6 +414,7 @@ def mark_fixed_basket_positions(
     today = et_date(now)  # the ET trading date, not the UTC date (#480)
     as_of_iso = now.isoformat()
     res = FixedBasketMonitorResult()
+    marker = BoundedMarker(quote_provider, underlying_price_of, book=f"3A/3B({book or 'all'})")   # #533
 
     for pos in state.open_fixed_basket_positions(conn, book):
         pid = int(pos["id"])
@@ -440,8 +442,7 @@ def mark_fixed_basket_positions(
             continue
 
         try:
-            mid = (verticals.position_mid(pos, quote_provider) if verticals.is_vertical(pos)
-                   else quote_provider.option_mid(pos["contract_symbol"]))
+            mid = marker.mark(pos)   # rejected above its no-arbitrage bound (#533)
         except Exception as e:  # noqa: BLE001 — per-POSITION fail-soft: one unquotable row (the
             # 2026-07-06 CDE2 adjusted-class defect) must not abort the pass tail or page every L2.
             log.warning("3A/3B mark failed for %s (%s): %s", pos["symbol"],

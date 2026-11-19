@@ -40,6 +40,7 @@ from clock import Clock, et_date
 from convexity_data import ChainProvider, QuoteProvider
 from convexity_gate import is_cheap_convexity, realized_vol
 from convexity_sizing import convexity_position_size
+from mark_bound import BoundedMarker
 from risk import kill_switch_active
 from sentinels import active_sentinel_candidates, union_candidates
 from structure import contract_eligible, select_structure
@@ -328,6 +329,7 @@ def mark_shadow_positions(
     today = et_date(now)  # the ET trading date, not the UTC date (#480)
     as_of_iso = now.isoformat()
     res = ShadowMonitorResult()
+    marker = BoundedMarker(quote_provider, underlying_price_of, book="shadow")   # #533: no mark above its bound
 
     for pos in state.open_shadow_positions(conn):
         pid = int(pos["id"])
@@ -355,10 +357,9 @@ def mark_shadow_positions(
             res.closed += 1
             continue
 
-        # 2. Mark to current mid.
+        # 2. Mark to current mid, rejected above its no-arbitrage bound (#533).
         try:
-            mid = (verticals.position_mid(pos, quote_provider) if verticals.is_vertical(pos)
-                   else quote_provider.option_mid(pos["contract_symbol"]))
+            mid = marker.mark(pos)
         except Exception as e:  # noqa: BLE001 — per-POSITION fail-soft (the 2026-07-06 CDE2
             # lesson): one unquotable row must not abort the pass tail or page every cycle.
             log.warning("shadow mark failed for %s (%s): %s", pos["symbol"],
