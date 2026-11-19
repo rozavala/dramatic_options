@@ -72,7 +72,13 @@ The header's absence is itself a signal.
     **Landed OFF-CYCLE (operator word 2026-11-19, "Sure"; boundary B's money-safety class):** on 2026-11-18 a junk
     opening quote marked real-book #13 (RDW $6 put) at 10.10, and the old unsellable path booked a phantom +$9,150
     in-DB close while the broker still held the contracts (#533 mark bound; #534 journal repair). #527 carries no
-    `model_mix` stamp, so the 12-07 → 12-18 probe freeze is unaffected. The broker's auto-exercise policy is
+    `model_mix` stamp, so the 12-07 → 12-18 probe freeze is unaffected.
+    **The journal repair (#534, migration 0024; operator word 2026-11-19, "Sure"):** deployed after #527 and #533's mark
+    bound (#535) were live. It reopens real-book #13 (RDW270521P00006000; the broker held all 10 throughout) and clears
+    the phantom resolution of proposal #1342 and sentinel #26, each guarded on its exact phantom state. **Permanent
+    gaps:** the 11-18 post-L1 held reads (run #2106) have no RDW row, and #13 carried no live mark from 11-18 14:30
+    until its first L2 after the repair. The persistence watch's RDW #13 verdict (decided reversed, backfill, beside the
+    count) is unaffected. Follow-up #537: a junk quote below the bound (operator decision). The broker's auto-exercise policy is
     to be confirmed from its docs before T4.
   - **Rehearsal:** #466 (exit drill) and #463 (spread round-trip) run on the separate rehearsal paper account, not the DEV
     paper book; #467's live smoke stays deferred until arming. **Waiting on the operator to create the rehearsal paper
