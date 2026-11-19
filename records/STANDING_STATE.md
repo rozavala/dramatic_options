@@ -387,6 +387,8 @@ The header's absence is itself a signal.
   complexity-cut) · #508 (held reads: the §3 timeline and the §4 scoring report, deferred from #507).
   **Filed 2026-11-17:** #515 (the boundary-B 12-07 checklist: #510, the §10.12 switch-on #519, the model refresh).
   **Filed 2026-11-18:** #529 (dashboard `market_context` relabel; #462 decision 7).
+  **Filed 2026-11-18/19:** #532 (#455 re-print label, before 2027-01-17) · #533 (mark bound; fixed #535) · #534 (the
+  RDW #13 journal repair) · #537 (a junk quote below the bound; operator decision).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
   · #477 (null-book exits on closed-market ticks).
   **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467.
