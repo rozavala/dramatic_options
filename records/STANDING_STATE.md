@@ -68,7 +68,11 @@ The header's absence is itself a signal.
   - **#477 — the null books skip profit-take and time-stop on closed-market ticks**, as the real book does since #451
     (PREREG_FIXED_BASKET_NULL conformance note; a `model_mix` stamp). Boundary B, 12-07.
   - **#444 — an unsellable real position stays open, tagged `orphaned`** (PREREG_REAL_MONEY_BROKER §3c), re-tried each
-    open tick, settled through the venue-checked expiry path. Boundary B, 12-07. The broker's auto-exercise policy is
+    open tick, settled through the venue-checked expiry path. Boundary B, 12-07.
+    **Landed OFF-CYCLE (operator word 2026-11-19, "Sure"; boundary B's money-safety class):** on 2026-11-18 a junk
+    opening quote marked real-book #13 (RDW $6 put) at 10.10, and the old unsellable path booked a phantom +$9,150
+    in-DB close while the broker still held the contracts (#533 mark bound; #534 journal repair). #527 carries no
+    `model_mix` stamp, so the 12-07 → 12-18 probe freeze is unaffected. The broker's auto-exercise policy is
     to be confirmed from its docs before T4.
   - **Rehearsal:** #466 (exit drill) and #463 (spread round-trip) run on the separate rehearsal paper account, not the DEV
     paper book; #467's live smoke stays deferred until arming. **Waiting on the operator to create the rehearsal paper
