@@ -67,14 +67,27 @@ def test_an_unsellable_time_stop_stays_open_tagged_orphaned(convexity_db, monkey
     assert [t for t, _ in pages] == [ORPHAN_PAGE]
 
 
-def test_an_unsellable_profit_take_with_no_bid_is_orphaned_too(convexity_db, monkeypatch):
+def test_an_unsellable_profit_take_with_a_sub_min_bid_is_orphaned_too(convexity_db, monkeypatch):
+    # A two-sided quote (bid > 0, #537) whose bid is still below min_close_bid: the profit-take triggers, cannot sell.
     _pages(monkeypatch)
     pid = _open(convexity_db, contract="FCX261218C00080000", entry_pc=200.0)          # far expiry
-    qp = StaticQuoteProvider({"FCX261218C00080000": 9.0}, bids={})                  # $900 ≥ 4× $200; no bid
+    qp = StaticQuoteProvider({"FCX261218C00080000": 9.0}, bids={"FCX261218C00080000": 0.01})   # $900 ≥ 4× $200
     res = _tick(convexity_db, qp, _FakeBroker())
     assert _row(convexity_db, pid, "status")["status"] == "open" and res.orphaned == 1 and res.profit_taken == 0
     tag = _rat(convexity_db, pid)["orphaned"]
-    assert tag["trigger"] == "profit_take_4x" and tag["reason"].startswith("bid none")
+    assert tag["trigger"] == "profit_take_4x" and tag["reason"].startswith("bid 0.01")
+
+
+def test_a_profit_take_with_no_bid_is_not_triggered_so_not_orphaned(convexity_db, monkeypatch):
+    # #537: a one-sided quote (no bid) does not trigger the profit-take at all — no orphan tag, no page, no sell.
+    pages = _pages(monkeypatch)
+    pid = _open(convexity_db, contract="FCX261218C00080000", entry_pc=200.0)          # far expiry
+    qp = StaticQuoteProvider({"FCX261218C00080000": 9.0}, bids={})                  # $900 ≥ 4× $200; no bid
+    broker = _FakeBroker()
+    res = _tick(convexity_db, qp, broker)
+    assert _row(convexity_db, pid, "status")["status"] == "open" and broker.sells == [] and pages == []
+    assert (res.pt_one_sided, res.orphaned, res.profit_taken) == (1, 0, 0)
+    assert "orphaned" not in _rat(convexity_db, pid)
 
 
 def test_each_tick_retries_logs_and_keeps_the_first_date_paging_once(convexity_db, monkeypatch):

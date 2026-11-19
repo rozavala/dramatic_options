@@ -40,7 +40,7 @@ from clock import Clock, et_date
 from convexity_data import ChainProvider, QuoteProvider
 from convexity_gate import is_cheap_convexity, realized_vol
 from convexity_sizing import convexity_position_size
-from mark_bound import BoundedMarker
+from mark_bound import BoundedMarker, two_sided
 from risk import kill_switch_active
 from sentinels import active_sentinel_candidates, union_candidates
 from structure import contract_eligible, select_structure
@@ -48,9 +48,11 @@ from themes import Theme, active_themes, load_themes
 
 log = logging.getLogger("shadow_book")
 
-# runs.model_mix["null_exits"] (#477): the null books' closed-tick exit rule — they follow the real monitor's #451
-# mark_only (mark + settle expiry; profit-take/time-stop wait for an open-market tick). Record-segmenting.
-NULL_EXITS_STAMP = "closed_tick_mark_only_v1"
+# runs.model_mix["null_exits"]: the null books' exit-execution rules, record-segmenting. closed_tick_mark_only_v1
+# (#477): they follow the real monitor's #451 mark_only (mark + settle expiry; profit-take/time-stop wait for an
+# open-market tick). two_sided_pt_v1 (#537): a profit-take needs a two-sided quote (bid > 0) at its triggering tick,
+# in every book. Both land together at boundary B (2026-12-07) as one stamp move.
+NULL_EXITS_STAMP = "closed_tick_mark_only_v1+two_sided_pt_v1"
 
 CONTRACT_MULTIPLIER = 100.0
 
@@ -78,6 +80,7 @@ class ShadowMonitorResult:
     time_stopped: int = 0
     unmarked: int = 0
     deferred: int = 0   # #477: a triggered profit-take/time-stop left open on a mark-only (closed-market) tick
+    pt_one_sided: int = 0   # #537: a profit-take triggered on a quote with no bid, not acted on (left open)
 
 
 def _origin_of(theme: Theme) -> str:
@@ -321,7 +324,10 @@ def mark_shadow_positions(
     ``mark_only`` (#477; PREREG_FIXED_BASKET_NULL conformance note 2026-11-18): the orchestrator passes the real
     monitor's own #451 decision (``orchestrator.monitor_mode``: a closed or unconfirmed market outside DRY_RUN), so
     the null book counts the same ticks as the real book — it marks and settles expiry, but a triggered profit-take
-    or time-stop is left open (counted as deferred) for the next open-market tick."""
+    or time-stop is left open (counted as deferred) for the next open-market tick.
+
+    A profit-take needs a two-sided quote (#537, ``mark_bound.two_sided``: bid > 0): one triggered on a zero-bid quote
+    is not booked that tick (counted ``pt_one_sided``, row left open) — the real book's own rule."""
     exits = config.get("convexity_exits", {})
     profit_mult = float(exits.get("profit_take_multiple", 10.0))
     time_stop_dte = int(exits.get("time_stop_dte", 21))
@@ -374,6 +380,9 @@ def mark_shadow_positions(
 
         # 3. Profit-take, then 4. time-stop — identical thresholds to the real monitor.
         if entry_pc > 0 and mid * CONTRACT_MULTIPLIER >= profit_mult * entry_pc:
+            if not two_sided(pos, quote_provider, book="shadow", mid=mid):   # #537: one-sided → not acted on
+                res.pt_one_sided += 1
+                continue
             if mark_only:
                 _defer(res, pos, f"profit_take_{profit_mult:g}x")
                 continue
