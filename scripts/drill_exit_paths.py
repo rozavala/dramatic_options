@@ -33,8 +33,10 @@ Safety (all fail-closed; each refusal exits 2 and places nothing):
 Paths (``--path``) and steps (``--step open|tick|observe|flatten``):
   profit-take    profit_take_multiple 0.01 → SELL_TO_CLOSE at the bid → reconcile to closed.
   time-stop      the real time_stop_dte (21) on a ≤7-DTE contract → SELL_TO_CLOSE → closed.
-  unsellable     min_close_bid above any bid → the in-DB ``_unsellable`` close, nothing sent; observe shows the venue
-                 still holds the contract (#444's shape). Then ``flatten`` it, or let it ride to expiry and observe.
+  unsellable     min_close_bid above any bid → the triggered time-stop has no sellable bid: the row stays OPEN, tagged
+                 ``orphaned`` (PREREG_REAL_MONEY_BROKER §3c, #444), nothing sent; observe shows venue = journal. Once
+                 the row is orphaned, the next tick runs at the REAL min_close_bid, so it sells through the normal
+                 path (§3c's "a real sell the moment the bid allows").
   resting-close  the first tick's sell limit is the ask × ``--rest-markup`` so it rests through the session close;
                  the next session's tick reconciles the expired order (reopen) and re-sells at the bid. A 1-lot
                  cannot partly fill, so this exercises only the expired-UNFILLED reopen, not #449's partial branch.
@@ -77,9 +79,10 @@ BAC) will usually return "NO qualifying ..."; then pick another name, or widen w
   drill --path time-stop   --db $D/time-stop.db   --step tick --send $R
   drill --path time-stop   --db $D/time-stop.db   --step observe $R
   drill --path unsellable  --db $D/unsellable.db  --step open --pick --symbol SOFI --send $R
-  drill --path unsellable  --db $D/unsellable.db  --step tick --send $R
-  drill --path unsellable  --db $D/unsellable.db  --step observe $R          # the venue still holds 1
-  drill --path unsellable  --db $D/unsellable.db  --step flatten --send $R
+  drill --path unsellable  --db $D/unsellable.db  --step tick --send $R      # orphaned: open, nothing sent
+  drill --path unsellable  --db $D/unsellable.db  --step observe $R          # venue 1 = journal 1 (open)
+  drill --path unsellable  --db $D/unsellable.db  --step tick --send $R      # the real min_close_bid: sold
+  drill --path unsellable  --db $D/unsellable.db  --step observe $R
   drill --path pre-market    --db $D/pre-market.db --step open --pick --symbol RIVN --send $R   # after next session
   drill --path resting-close --db $D/resting.db    --step open --pick --symbol MARA --send $R   # after next session
   drill --path resting-close --db $D/resting.db    --step tick --send $R                        # the close rests
@@ -157,7 +160,8 @@ PATHS: dict[str, PathSpec] = {
                             "profit-take → SELL_TO_CLOSE → reconcile"),
     "time-stop": PathSpec("ts", {"profit_take_multiple": NEVER}, "time-stop → SELL_TO_CLOSE → reconcile"),
     "unsellable": PathSpec("us", {"profit_take_multiple": NEVER, "min_close_bid": 1e6},
-                           "time-stop with the bid under min_close_bid → in-DB close, venue still holds it (#444)"),
+                           "time-stop with the bid under min_close_bid → the row stays open as orphaned, nothing "
+                           "sent (§3c, #444); the next tick, at the real min_close_bid, sells it"),
     "resting-close": PathSpec("rc", {"profit_take_multiple": NEVER},
                               "a SELL_TO_CLOSE left resting through the session close → the next session reconciles "
                               "the expired-UNFILLED order (reopen + re-sell); a 1-lot cannot exercise #449's "
@@ -562,6 +566,7 @@ def drill_config(base: dict, path: str) -> dict:
              "min_close_bid": float(real.get("min_close_bid", 0.05))}
     exits.update(PATHS[path].exits)
     cfg["convexity_exits"] = exits
+    cfg["_drill_real_min_close_bid"] = float(real.get("min_close_bid", 0.05))   # the unsellable path's second tick
     ex = cfg.setdefault("execution", {})
     ex["cancel_unfilled"] = False      # a resting drill entry is never cancelled at reconcile
     ex["carry_unfilled"] = False       # and never carried into the next session
@@ -594,7 +599,8 @@ def _monitor(ctx, quotes, *, dry_run: bool, mark_only: bool):
                                     dry_run=dry_run, mark_only=mark_only)
     ctx.monitor_lines.append(
         f"marked={res.marked} closed={res.closed} closing={res.closing} profit_taken={res.profit_taken} "
-        f"time_stopped={res.time_stopped} expired={res.expired} deferred={res.deferred} unmarked={res.unmarked} "
+        f"time_stopped={res.time_stopped} expired={res.expired} deferred={res.deferred} orphaned={res.orphaned} "
+        f"unmarked={res.unmarked} "
         f"realized=${res.realized_pnl:,.2f}")
     return res
 
@@ -608,6 +614,16 @@ def _record_intents(ctx, start: int) -> None:
                 "note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (at, it["side"], it["contract"], it["qty"], it["limit"], it["client_order_id"], it.get("order_id"),
                  it.get("note")))
+
+
+def _orphan_tag(row) -> dict | None:
+    """The row's §3c ``orphaned`` tag (#444), or None."""
+    try:
+        rat = json.loads(row["rationale"] or "{}")
+    except (TypeError, ValueError):
+        return None
+    tag = rat.get("orphaned") if isinstance(rat, dict) else None
+    return tag if isinstance(tag, dict) else None
 
 
 def _live_rows(ctx) -> list:
@@ -719,6 +735,12 @@ def step_tick(ctx) -> int:
     start = len(ctx.broker.intents)
     resting_first = (ctx.path == "resting-close" and meta_get(ctx.conn, "rest_submitted_at") is None
                      and any(s == "open" for s in before.values()))
+    orphaned_before = ctx.path == "unsellable" and any(_orphan_tag(r) for r in live)
+    if orphaned_before:   # §3c: the orphan is re-tried each open tick; at the real floor it is sellable again
+        ex = {**ctx.config["convexity_exits"], "min_close_bid": float(ctx.config["_drill_real_min_close_bid"])}
+        ctx.config = {**ctx.config, "convexity_exits": ex}
+        ctx.lines.append(f"unsellable: the row is already orphaned, so this tick runs at the real min_close_bid "
+                         f"{ex['min_close_bid']:g} (a real sell through the normal path)")
     try:
         n = monitor.reconcile_pending(conn=ctx.conn, broker=ctx.broker, clock=ctx.market.clock, config=ctx.config)
         if n:
@@ -760,7 +782,8 @@ def step_tick(ctx) -> int:
     elif not market_open and not expired_today:
         ctx.lines.append("market closed: mark-only, exits deferred; rerun in session")
         ctx.check(not sent, f"nothing was sent on a closed-market tick ({len(sent)} order(s))")
-    elif p in ("profit-take", "time-stop", "pre-market") or (p == "resting-close" and not resting_first):
+    elif (p in ("profit-take", "time-stop", "pre-market") or (p == "resting-close" and not resting_first)
+          or (p == "unsellable" and orphaned_before)):
         want = "profit_take_" if p == "profit-take" else "time_stop_"
         ctx.check(any(i["side"] == "sell" for i in sent) or st == "closing" or "reopen" in " ".join(ctx.logs),
                   f"a SELL_TO_CLOSE was submitted or is still working ({len(sent)} order(s) this tick)")
@@ -775,7 +798,11 @@ def step_tick(ctx) -> int:
         if st == "closing" and ctx.send:
             meta_set(ctx.conn, "rest_submitted_at", _now(ctx).isoformat())
     elif p == "unsellable":
-        ctx.check(st == "closed" and why.endswith("_unsellable"), f"the in-DB unsellable close (status {st}, {why!r})")
+        tag = _orphan_tag(row) or {}
+        ctx.check(st == "open" and not why, f"the row stays OPEN, nothing booked (status {st}, {why!r})")
+        ctx.check(str(tag.get("trigger", "")).startswith("time_stop_"),
+                  f"the row is tagged orphaned by the time-stop (tag {tag or None})")
+        ctx.check(res.orphaned >= 1, f"the monitor counted it orphaned (orphaned={res.orphaned})")
         ctx.check(not sent, f"nothing was sent ({len(sent)} order(s))")
     elif p in ("expiry-otm", "expiry-itm"):
         if expired_today:
@@ -797,8 +824,8 @@ def step_flatten(ctx) -> int:
         raise Refused("the journal still holds the drill position: exit it with --step tick, not flatten")
     reasons = [str(r["exit_reason"] or "") for r in rows]
     if not all(x.endswith("_unsellable") or x == "expiry" for x in reasons):
-        raise Refused(f"flatten sells only what an in-DB close left at the venue (exit_reason *_unsellable or "
-                      f"expiry); this row's is {reasons}")
+        raise Refused(f"flatten sells only what an in-DB close left at the venue (exit_reason expiry, or a pre-§3c "
+                      f"*_unsellable close); this row's is {reasons}")
     venue_qty = ctx.broker.venue_quantity(c)
     if venue_qty is None:
         raise Refused(f"the venue quantity of {c} is unreadable (fail-closed)")
@@ -886,9 +913,7 @@ def verdict(ctx, view: dict) -> str:
         return "UNKNOWN: the venue quantity is unreadable"
     notes: list[str] = []
     bad = v != j
-    if bad and ctx.path == "unsellable":
-        notes.append("expected: #444's shape, the journal closed in-DB while the venue holds the contract")
-    elif bad and any(r["status"] == "pending" for r in drill_rows(ctx.conn)):
+    if bad and any(r["status"] == "pending" for r in drill_rows(ctx.conn)):
         notes.append("the entry is still pending")
     elif bad and ctx.path.startswith("expiry"):
         notes.append("the journal booked the expiry; record when the venue settles it")

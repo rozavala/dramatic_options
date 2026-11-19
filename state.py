@@ -407,6 +407,32 @@ def begin_close_convexity_position(
         )
 
 
+def tag_orphaned_position(conn: sqlite3.Connection, position_id: int, *, trigger: str, reason: str, today: str,
+                          as_of: str) -> tuple[dict, dict]:
+    """Tag an OPEN real position ``orphaned`` (PREREG_REAL_MONEY_BROKER §3c, #444): its exit triggered but nothing can
+    be sold. Writes ``rationale.orphaned = {since, trigger, reason, last_at, ticks}`` — ``since`` (the first-orphaned
+    ET date) is kept from the first tag; the rest track the latest tick. Status, quantity and price are untouched
+    (the row stays open and committed). No schema change: the rationale JSON already carries per-row operational
+    stamps (``paged``, ``carry_intent``, ``partial_closes``). Returns ``(tag, paged)`` — the row's ``paged`` stamps,
+    so the caller can page once per position. Atomic."""
+    import json
+
+    with conn:
+        row = conn.execute("SELECT rationale FROM convexity_positions WHERE id = ?", (position_id,)).fetchone()
+        raw = row["rationale"] if row else None
+        rat = _json_or_none(raw)
+        if rat is None:   # empty / JSON null → {}; anything else non-dict is kept, never dropped
+            rat = {} if raw in (None, "", "null") else {"raw": raw}
+        prev = rat.get("orphaned") if isinstance(rat.get("orphaned"), dict) else {}
+        tag = {"since": prev.get("since") or today, "trigger": trigger, "reason": reason, "last_at": as_of,
+               "ticks": int(prev.get("ticks") or 0) + 1}
+        rat["orphaned"] = tag
+        conn.execute("UPDATE convexity_positions SET rationale = ? WHERE id = ?",
+                     (json.dumps(rat, default=str), position_id))
+    paged = rat.get("paged") if isinstance(rat.get("paged"), dict) else {}
+    return tag, paged
+
+
 def revert_closing_to_open(conn: sqlite3.Connection, position_id: int, *, reason: str) -> None:
     """A close order failed terminally → reopen so the monitor re-evaluates next cycle. Atomic.
 

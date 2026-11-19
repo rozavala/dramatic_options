@@ -121,6 +121,7 @@ class MonitorResult:
     profit_taken: int = 0
     time_stopped: int = 0
     deferred: int = 0         # mark-only (#451): a triggered exit left open for the next open-market tick
+    orphaned: int = 0         # §3c (#444): a triggered exit with no sellable bid, left OPEN and tagged orphaned
     unmarked: int = 0
     realized_pnl: float = 0.0
     notes: list[str] = field(default_factory=list)
@@ -168,15 +169,18 @@ def monitor_positions(
     Exits are **two-sided** when ``broker`` is supplied and ``dry_run`` is False (T2.5): a
     profit-take or time-stop on a **marketable** name transmits a real SELL_TO_CLOSE (booked at
     the *actual* fill on reconcile — an honest exit price, not the mid); an **un-sellable** far-OTM
-    (bid below ``min_close_bid``) books in-DB at mark, avoiding an open↔closing churn deadlock;
-    expiry books intrinsic. In DRY_RUN / sim (no broker) every exit books in-DB at mark, as before.
+    (bid below ``min_close_bid``) stays OPEN, tagged ``orphaned`` (PREREG_REAL_MONEY_BROKER §3c, #444): nothing
+    is sent and nothing is booked, every open-market tick re-evaluates it (a real sell once the bid allows), and
+    expiry settles it through the expiry branch (which the #481 venue check covers); the journal never shows a
+    position closed while the contract is still held at the broker. Expiry books intrinsic. In DRY_RUN / sim (no
+    broker) every exit books in-DB at mark, as before.
     ``underlying_price_of(symbol)`` is used at expiry (intrinsic) + to resolve time-stops.
 
     ``mark_only`` (#451; the orchestrator sets it on a closed-market tick outside DRY_RUN): mark every position and
     settle expiries at intrinsic, but transmit nothing and book no triggered profit-take or time-stop. Nothing was
     sold, so booking one would close the journal row while the contract stays at the broker. Each is logged as
     deferred and stays open; the next open-market tick re-evaluates it through the normal path (a real sell if it
-    still triggers and is sellable; the in-DB ``_unsellable`` close if its bid is below ``min_close_bid``).
+    still triggers and is sellable; left open as ``orphaned`` if its bid is below ``min_close_bid``).
     """
     exits = config.get("convexity_exits", {})
     profit_mult = float(exits.get("profit_take_multiple", 4.0))
@@ -279,7 +283,8 @@ def _exit_position(
     conn, pos, *, mid, entry_pc, contracts, reason, real_submit, broker, quote_provider,
     min_close_bid, today, as_of_iso, underlying_price_of, conv_map, res, counter,
 ) -> None:
-    """Exit a triggered position. Two-sided real submit when marketable; else book in-DB at mark.
+    """Exit a triggered position. Two-sided real submit when marketable; with no sellable bid, the row stays open
+    as ``orphaned`` (§3c, #444); in DRY_RUN / sim (``real_submit`` False), book in-DB at mark.
 
     ``counter`` is the trigger counter to bump ('profit_taken'/'time_stopped'). Realized P&L only
     accrues when the position is actually *booked closed* (an immediate fill, an in-DB book, or —
@@ -294,7 +299,11 @@ def _exit_position(
                           quote_provider=quote_provider, min_close_bid=min_close_bid, today=today,
                           as_of_iso=as_of_iso, underlying_price_of=underlying_price_of, conv_map=conv_map, res=res):
             return
-        reason = reason + "_unsellable"   # both legs near worthless: book at mark, as a single leg would
+        # both legs near worthless: orphaned, as a single leg would be
+        _orphan(conn, pos, trigger=reason, why=f"no sellable spread (long bid under min_close_bid {min_close_bid:g} "
+                                               "or no positive credit)",
+                mid=mid, today=today, as_of_iso=as_of_iso, res=res, counter=counter)
+        return
     elif real_submit:
         bid = quote_provider.option_bid(contract)
         if bid is not None and bid >= min_close_bid:
@@ -323,12 +332,16 @@ def _exit_position(
             res.realized_pnl += pnl
             log.info("SELL_TO_CLOSE FILLED #%d %s @ %.2f → P&L $%.0f", pid, contract, fill.price, pnl)
             return
-        # Non-marketable (worthless/illiquid) → book in-DB at mark, no churn (the `reason` prefix
-        # is preserved so the forward-scoring resolution still keys correctly).
-        reason = reason + "_unsellable"
+        # Non-marketable (worthless/illiquid): nothing can be sold, so nothing is booked (§3c, #444). Before it, this
+        # booked an in-DB close at the mark while the contract stayed at the broker.
+        _orphan(conn, pos, trigger=reason, why=f"bid {'none' if bid is None else f'{float(bid):.2f}'} below "
+                                               f"min_close_bid {min_close_bid:g}",
+                mid=mid, today=today, as_of_iso=as_of_iso, res=res, counter=counter)
+        return
 
-    # Nothing was transmitted on this path, so a failing price lookup leaves the row open for the next cycle rather
-    # than booking a close whose forward outcome could never be scored (#440 review).
+    # DRY_RUN / sim only from here (#444): nothing is ever sent on this path and no contract is held at a broker, so
+    # the in-DB close at the mark IS the simulated exit. A failing price lookup leaves the row open for the next cycle
+    # rather than booking a close whose forward outcome could never be scored (#440 review).
     try:
         up = underlying_price_of(pos["symbol"]) if underlying_price_of else None
     except Exception as e:  # noqa: BLE001 — per-POSITION
@@ -342,6 +355,29 @@ def _exit_position(
     res.closed += 1
     res.realized_pnl += pnl
     log.info("EXIT(in-DB) #%d %s @ %.2f (%s) → P&L $%.0f", pid, contract, mid, reason, pnl)
+
+
+ORPHAN_PAGE = "REAL POSITION ORPHANED (UNSELLABLE)"
+
+
+def _orphan(conn, pos, *, trigger, why, mid, today, as_of_iso, res, counter) -> None:
+    """PREREG_REAL_MONEY_BROKER §3c (#444): a triggered real exit with no sellable bid stays OPEN, tagged ``orphaned``
+    in its rationale (the trigger, the reason, the first-orphaned ET date). Nothing is sent and nothing is booked: the
+    row is re-evaluated every open-market tick through the normal path (a real sell the moment the bid allows) and
+    otherwise settles at expiry through the expiry branch. Logged every tick; paged once per position, the first
+    time (retried next tick until delivered), since the re-tries can last until expiry."""
+    pid = int(pos["id"])
+    setattr(res, counter, getattr(res, counter) - 1)    # nothing exited
+    res.orphaned += 1
+    tag, paged = state.tag_orphaned_position(conn, pid, trigger=trigger, reason=why, today=str(today),
+                                             as_of=as_of_iso)
+    log.info("EXIT UNSELLABLE #%d %s (%s): %s — left OPEN, orphaned since %s (mark %.2f); re-tried each open-market "
+             "tick, settles at expiry", pid, pos["contract_symbol"], trigger, why, tag["since"], float(mid))
+    if ORPHAN_PAGE not in paged:
+        _page_once(conn, pos, today, ORPHAN_PAGE,
+                   f"#{pid} {pos['symbol']} {int(pos['contracts'])}x {pos['contract_symbol']}: {trigger} triggered but "
+                   f"{why}. Nothing sent; the journal keeps it OPEN (orphaned) and re-tries each open-market tick; it "
+                   f"settles at expiry {pos['expiry']} through the venue-checked expiry path.")
 
 
 def _exit_vertical(
