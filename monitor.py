@@ -24,6 +24,7 @@ from broker import make_client_order_id
 from clock import Clock, et_date
 from convexity_data import QuoteProvider
 from council import scoring
+from mark_bound import BoundedMarker
 from options_tradability import parse_osi
 
 log = logging.getLogger("monitor")
@@ -187,6 +188,7 @@ def monitor_positions(
     as_of_iso = now.isoformat()
     res = MonitorResult()
     real_submit = broker is not None and not dry_run and not mark_only
+    marker = BoundedMarker(quote_provider, underlying_price_of, book="real")   # #533: no mark above its bound
 
     # 0. Reconcile in-flight SELL_TO_CLOSE orders first (fill → closed at the real fill, terminal →
     #    reopen, expiry-while-closing → cancel + intrinsic). Closing positions are NOT re-evaluated
@@ -224,10 +226,9 @@ def monitor_positions(
             log.info("EXPIRED #%d %s @ intrinsic %.2f → P&L $%.0f", pid, pos["contract_symbol"], intrinsic, pnl)
             continue
 
-        # 2. Mark to current mid (a vertical: long mid − short mid).
+        # 2. Mark to current mid (a vertical: long mid − short mid), rejected above its no-arbitrage bound (#533).
         try:
-            mid = (verticals.position_mid(pos, quote_provider) if verticals.is_vertical(pos)
-                   else quote_provider.option_mid(pos["contract_symbol"]))
+            mid = marker.mark(pos)
         except Exception as e:  # noqa: BLE001 — per-POSITION fail-soft (the 2026-07-06 CDE2
             # lesson, applied to the REAL book too): one unquotable row must not abort the
             # monitor pass over every other real position.
@@ -236,7 +237,7 @@ def monitor_positions(
             continue
         if mid is None:
             res.unmarked += 1
-            log.warning("no quote to mark #%d %s — left unmarked", pid, pos["contract_symbol"])
+            log.warning("no usable quote to mark #%d %s — left unmarked", pid, pos["contract_symbol"])
             continue
         state.mark_convexity_position(conn, pid, mark=mid, as_of=as_of_iso)
         res.marked += 1
