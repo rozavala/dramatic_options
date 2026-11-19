@@ -221,10 +221,10 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
         # Both are verdict-mapping changes, record-segmenting.
         mix["quote_filter"] = "musd_billions_v1+iso_dates_v1+restate_v1"   # restate_v1: #421 (decimal→%, 3-dp $B, bare years), from the 11-12 boundary
         # #477 (PREREG_FIXED_BASKET_NULL conformance note 2026-11-18; boundary B): the null books (shadow, 3A, 3B) skip
-        # profit-take/time-stop on a mark-only (closed-market) tick, as the real book does since #451. +two_sided_pt_v1
-        # (#537, conformance note 2026-11-19): a profit-take needs a two-sided quote (bid > 0) in every book. Absent key
-        # = the pre-#477 rules (null-book exits booked at any tick's mark, on any quote). Record-segmenting for the
-        # null-book exit records.
+        # profit-take/time-stop on a mark-only (closed-market) tick, as the real book does since #451. +sellable_bid_pt_v1
+        # (#537, conformance note 2026-11-19): a profit-take needs a sellable bid (≥ min_close_bid) in every book.
+        # Absent key = the pre-#477 rules (null-book exits booked at any tick's mark, on any quote). Record-segmenting
+        # for the null-book exit records.
         mix["null_exits"] = shadow_book.NULL_EXITS_STAMP
         if int(config.get("council", {}).get("cheap_reserve_slots", 0) or 0) > 0:
             # PREREG gate_cheap_reserve §6: judged-set composition change — record-segmenting from deploy.
@@ -952,10 +952,10 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             dry_run=monitor_dry_run, mark_only=mark_only,
         )
         log.info(
-            "Monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) deferred=%d orphaned=%d pt_one_sided=%d "
+            "Monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) deferred=%d orphaned=%d pt_unsellable_bid=%d "
             "unmarked=%d realized=$%.0f",
             mres.marked, mres.closed, mres.expired, mres.profit_taken, mres.time_stopped,
-            mres.deferred, mres.orphaned, mres.pt_one_sided, mres.unmarked, mres.realized_pnl,
+            mres.deferred, mres.orphaned, mres.pt_unsellable_bid, mres.unmarked, mres.realized_pnl,
         )
 
         # 1b. Brain-off NULL shadow book (T3 PR3b) — mark + exit the simulated control book alongside
@@ -968,10 +968,10 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                 conn=conn, clock=clock, quote_provider=quote_provider, config=config,
                 underlying_price_of=provider.underlying_price, mark_only=mark_only,
             )
-            if smr.marked or smr.closed or smr.deferred or smr.pt_one_sided:
+            if smr.marked or smr.closed or smr.deferred or smr.pt_unsellable_bid:
                 log.info("Shadow(null) monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) deferred=%d "
-                         "pt_one_sided=%d", smr.marked, smr.closed, smr.expired, smr.profit_taken, smr.time_stopped,
-                         smr.deferred, smr.pt_one_sided)
+                         "pt_unsellable_bid=%d", smr.marked, smr.closed, smr.expired, smr.profit_taken, smr.time_stopped,
+                         smr.deferred, smr.pt_unsellable_bid)
         except Exception as e:  # noqa: BLE001 — fail-soft: the shadow control never breaks the cycle
             log.warning("shadow mark pass failed (non-fatal): %s", e)
             notify.send("Shadow book mark failed (non-fatal)", str(e))
@@ -984,10 +984,10 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
                     conn=conn, clock=clock, quote_provider=quote_provider, config=config,
                     underlying_price_of=provider.underlying_price, mark_only=mark_only,
                 )
-                if fmr.marked or fmr.closed or fmr.deferred or fmr.pt_one_sided:
+                if fmr.marked or fmr.closed or fmr.deferred or fmr.pt_unsellable_bid:
                     log.info("No-gate(3A) monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) deferred=%d "
-                             "pt_one_sided=%d", fmr.marked, fmr.closed, fmr.expired, fmr.profit_taken,
-                             fmr.time_stopped, fmr.deferred, fmr.pt_one_sided)
+                             "pt_unsellable_bid=%d", fmr.marked, fmr.closed, fmr.expired, fmr.profit_taken,
+                             fmr.time_stopped, fmr.deferred, fmr.pt_unsellable_bid)
             except Exception as e:  # noqa: BLE001 — fail-soft: the gate null never breaks the cycle
                 log.warning("no-gate 3A mark pass failed (non-fatal): %s", e)
                 notify.send("Fixed-basket 3A mark failed (non-fatal)", str(e))

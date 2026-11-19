@@ -24,7 +24,7 @@ from broker import make_client_order_id
 from clock import Clock, et_date
 from convexity_data import QuoteProvider
 from council import scoring
-from mark_bound import BoundedMarker, two_sided
+from mark_bound import DEFAULT_MIN_CLOSE_BID, BoundedMarker, sellable_bid
 from options_tradability import parse_osi
 
 log = logging.getLogger("monitor")
@@ -122,7 +122,7 @@ class MonitorResult:
     time_stopped: int = 0
     deferred: int = 0         # mark-only (#451): a triggered exit left open for the next open-market tick
     orphaned: int = 0         # §3c (#444): a triggered exit with no sellable bid, left OPEN and tagged orphaned
-    pt_one_sided: int = 0     # #537: a profit-take triggered on a quote with no bid, not acted on (left open)
+    pt_unsellable_bid: int = 0   # #537: a profit-take triggered with its bid under min_close_bid, not acted on (open)
     unmarked: int = 0
     realized_pnl: float = 0.0
     notes: list[str] = field(default_factory=list)
@@ -183,14 +183,15 @@ def monitor_positions(
     deferred and stays open; the next open-market tick re-evaluates it through the normal path (a real sell if it
     still triggers and is sellable; left open as ``orphaned`` if its bid is below ``min_close_bid``).
 
-    A profit-take needs a two-sided quote (#537, ``mark_bound.two_sided``: bid > 0; a vertical's long leg): one that
-    triggers on a zero-bid quote is not acted on that tick (counted ``pt_one_sided``; no sell, no orphan tag) and is
-    re-evaluated next tick. It applies in every mode (real submit, DRY_RUN, mark-only) and in every null book.
+    A profit-take needs a sellable bid (#537, ``mark_bound.sellable_bid``: bid ≥ ``min_close_bid``; a vertical's long
+    leg): one that triggers on an unsellable quote is not acted on that tick (counted ``pt_unsellable_bid``; no sell,
+    no orphan tag) and is re-evaluated next tick. It applies in every mode (real submit, DRY_RUN, mark-only) and in
+    every null book. A triggered TIME-STOP with no sellable bid is still orphaned (§3c, #444).
     """
     exits = config.get("convexity_exits", {})
     profit_mult = float(exits.get("profit_take_multiple", 4.0))
     time_stop_dte = int(exits.get("time_stop_dte", 21))
-    min_close_bid = float(exits.get("min_close_bid", 0.05))
+    min_close_bid = float(exits.get("min_close_bid", DEFAULT_MIN_CLOSE_BID))
     conv_map = config.get("council", {}).get("conviction_to_prob")
     now = clock.now()
     today = et_date(now)  # the ET trading date, not the UTC date (#480)
@@ -251,12 +252,12 @@ def monitor_positions(
         state.mark_convexity_position(conn, pid, mark=mid, as_of=as_of_iso)
         res.marked += 1
 
-        # 3. Profit-take: mark ≥ profit_mult × entry (per-contract basis), on a two-sided quote (#537: bid > 0; a
-        #    vertical's long leg). A one-sided trigger is not acted on this tick — no sell, no orphan, and no
+        # 3. Profit-take: mark ≥ profit_mult × entry (per-contract basis), on a sellable bid (#537: bid ≥ min_close_bid;
+        #    a vertical's long leg). An unsellable trigger is not acted on this tick — no sell, no orphan, and no
         #    time-stop at its mark — and the next tick re-evaluates it.
         if entry_pc > 0 and mid * CONTRACT_MULTIPLIER >= profit_mult * entry_pc:
-            if not two_sided(pos, quote_provider, book="real", mid=mid):
-                res.pt_one_sided += 1
+            if not sellable_bid(pos, quote_provider, book="real", mid=mid, min_close_bid=min_close_bid):
+                res.pt_unsellable_bid += 1
                 continue
             if mark_only:
                 _defer(res, pos, f"profit_take_{profit_mult:g}x")

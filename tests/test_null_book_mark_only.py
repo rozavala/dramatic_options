@@ -158,4 +158,4 @@ def test_model_mix_stamps_the_null_book_exit_rule(convexity_db):
     run_id = state.record_run(convexity_db, mode="TEST", equity=None, note="t")
     orchestrator._stamp_council_health(convexity_db, run_id, {}, FakeRouter(), catalysts=None)
     mix = json.loads(convexity_db.execute("SELECT model_mix FROM runs WHERE id=?", (run_id,)).fetchone()["model_mix"])
-    assert mix["null_exits"] == "closed_tick_mark_only_v1+two_sided_pt_v1"
+    assert mix["null_exits"] == "closed_tick_mark_only_v1+sellable_bid_pt_v1"
