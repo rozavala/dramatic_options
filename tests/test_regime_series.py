@@ -52,6 +52,7 @@ def test_one_night_over_r_and_the_coverage_guard():
     assert s1["p50"] == pytest.approx(round(math.sqrt(59.4 / 270) / 0.5, 4))
     assert n["S3_skew_calls_vp"] == {"p50": pytest.approx(0.0), "n": 40}   # 38 at 0.0 vp, 2 at +3.0 vp
     assert n["S4_cm270_iv_over_rv63"]["n"] == 38
+    assert rs.night(recs) == rs.night(recs, population=rs.R)   # the series of record is R by default (#539 review)
     low = rs.night({s: recs[s] for s in rs.R[:34]})       # 34 of 49 = 69.4% < 70%
     assert low["coverage_low"] is True
 

@@ -169,7 +169,7 @@ export function RegimeSeriesCard({ t }: { t: TelemetryVM }) {
               S4 270-day IV median {g.s4.iv}, ÷ RV63 {g.s4.ivRv63}
             </div>
             <div style={{ fontSize: 11.5, color: GREY, marginTop: 8 }} data-testid="regime-display-only">
-              <div>Display only. S5, the gate&apos;s own IV/RV test over the same names: pass share {g.s5.passShare}, median IV/RV {g.s5.medianIvRv}, n {g.s5.n}, frame {g.s5.frame}.</div>
+              <div>Display only. S5, the gate&apos;s own cheapness test (IV/RV and wing skew) over the same names: pass share {g.s5.passShare}, median IV/RV {g.s5.medianIvRv}, n {g.s5.n}, frame {g.s5.frame}.</div>
               {g.live && (
                 <div>Display only. Live companion, the same S1 over today&apos;s {g.live.names} universe names: p25 / p50 / p75 {g.live.s1.p25} / {g.live.s1.p50} / {g.live.s1.p75}, n {g.live.s1.n}, coverage {g.live.coverage}.</div>
               )}

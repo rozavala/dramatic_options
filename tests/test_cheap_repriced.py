@@ -241,6 +241,6 @@ def test_a_print_after_the_pinned_first_read_is_labelled_a_reprint():
     assert after[key][21]["look"] == "re-print" and after["E2_rv252_dependent_vs_rest_among_cheap"][21]["look"] == "re-print"
     assert "look" not in after[key][42]
     out = cr.render(after)
-    assert "h=21 [re-print of the 2027-01-17 look]" in out
+    assert "h=21 [re-print of the 2027-01-17 look, by date]" in out
     assert "re-print" not in cr.render(pre) and "first read of the" not in cr.render(pre)
-    assert "h=21 [first read of the 2027-01-17 look]" in cr.render(on)
+    assert "h=21 [first read of the 2027-01-17 look, by date]" in cr.render(on)

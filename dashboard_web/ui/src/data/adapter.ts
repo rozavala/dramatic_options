@@ -189,7 +189,7 @@ function buildRegime(r: RegimeSeriesPanel): RegimeVM {
   const low = !!r.coverage_low;
   const min = Math.round(r.coverage_min * 100);
   const percentile = low ? "none (coverage low)"
-    : r.S1_percentile != null ? `${Math.round(r.S1_percentile * 100)}% of its own history`
+    : r.S1_percentile != null ? `${Math.round(r.S1_percentile * 100)}% of its own history at or below`
     : r.S1_accruing ? `accruing ${r.S1_accruing.k} of ${r.S1_accruing.of}` : DASH;
   const s5 = r.S5_display_only;
   const lv = r.live_companion_display_only;

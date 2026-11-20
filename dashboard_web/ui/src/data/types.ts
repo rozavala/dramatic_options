@@ -566,7 +566,7 @@ export interface TelemetryVM {
 export interface RegimeVM {
   status: string; ok: boolean; date: string; coverage: string; coverageLow: boolean; coverageNote: string;
   s1: { p25: string; p50: string; p75: string; n: number };
-  percentile: string;                                    // "73% of its own history" | "accruing 12 of 120" | "none: coverage low"
+  percentile: string;                                    // "73% of its own history at or below" | "accruing 12 of 120" | "none: coverage low"
   spark: { d: string; v: number; low: boolean }[];
   s2: string; s3: { calls: string; puts: string; putShare: string }; s4: { iv: string; ivRv63: string };
   s5: { passShare: string; medianIvRv: string; n: number; frame: string };

@@ -361,7 +361,7 @@ def render(rep: dict) -> str:
                        ("E2 RV252-dependent vs rest (gate-cheap rows)", "E2_rv252_dependent_vs_rest_among_cheap")):
         lines.append(f"\n{title}")
         for h, c in rep[key].items():
-            look = f" [{c['look']} of the {rep['first_read'][h]} look]" if "look" in c else ""
+            look = f" [{c['look']} of the {rep['first_read'][h]} look, by date]" if "look" in c else ""
             if "guard" in c:
                 lines.append(f"  h={h}: {c['guard']}{look} (n {c['n']}, names {c['names']})")
                 continue

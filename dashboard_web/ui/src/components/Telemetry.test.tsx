@@ -159,7 +159,7 @@ describe("regime series card (#462 §8)", () => {
 
   it("percentile live: prints the percentile once the history is long enough", () => {
     const t = buildTelemetry({ regime_series: { ...REGIME, S1_percentile: 0.7312, S1_accruing: null } } as unknown as Snapshot);
-    expect(t.regime?.percentile).toBe("73% of its own history");
+    expect(t.regime?.percentile).toBe("73% of its own history at or below");
   });
 
   it("coverage low: says so, prints no percentile, and greys the numbers", () => {
