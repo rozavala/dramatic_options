@@ -221,3 +221,26 @@ def test_no_contrast_before_the_pinned_first_read_even_with_a_passing_guard():
     assert on["E1_cheapest_tercile_vs_rest"][42]["guard"] == "pinned first read 2027-02-21"   # each horizon its own
     assert on["E2_rv252_dependent_vs_rest_among_cheap"][42]["guard"] == "pinned first read 2027-02-21"
     assert "pinned first reads (h: date): {21: '2027-01-17'" in cr.render(on)
+
+
+def test_a_print_after_the_pinned_first_read_is_labelled_a_reprint():
+    """#532 (§7): later prints are "re-prints of the same pinned look, never new looks". Before the pinned date the
+    contrast is counts-only and carries no look; on it, the first read; after it, a re-print, per horizon."""
+    names = [f"N{i:02d}" for i in range(60)]
+    sweeps, terms, _ = _world(names, iv_rv_of=lambda s: int(s[1:]) / 100.0,
+                              mult_of=lambda s: 2.0 if int(s[1:]) < 20 else 1.0)
+    rows, _ = cr.build_rows(sweeps, terms, names)
+    key = "E1_cheapest_tercile_vs_rest"
+    pre = cr.report_from(rows, {}, as_of=date(2027, 1, 16))
+    before = pre[key]
+    assert "look" not in before[21] and before[21]["guard"] == "pinned first read 2027-01-17"
+    on = cr.report_from(rows, {}, as_of=date(2027, 1, 17))
+    assert on[key][21]["look"] == "first read"
+    assert "look" not in on[key][42] and on[key][42]["guard"] == "pinned first read 2027-02-21"   # each horizon its own
+    after = cr.report_from(rows, {}, as_of=date(2027, 1, 24))
+    assert after[key][21]["look"] == "re-print" and after["E2_rv252_dependent_vs_rest_among_cheap"][21]["look"] == "re-print"
+    assert "look" not in after[key][42]
+    out = cr.render(after)
+    assert "h=21 [re-print of the 2027-01-17 look]" in out
+    assert "re-print" not in cr.render(pre) and "first read of the" not in cr.render(pre)
+    assert "h=21 [first read of the 2027-01-17 look]" in cr.render(on)

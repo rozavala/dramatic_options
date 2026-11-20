@@ -263,7 +263,8 @@ def _passes(rows, h) -> bool:
 def contrast(a_rows: list[dict], b_rows: list[dict], h: int, *, first_read: str | None = None,
              as_of: date | None = None) -> dict:
     """One split at one horizon. Aggregates only. Before the horizon's pinned first read (``first_read``) it returns
-    counts only, whatever the guard says."""
+    counts only, whatever the guard says. From that date on it carries ``look``: ``"first read"`` on the pinned date,
+    ``"re-print"`` after it (§7)."""
     ma = [r for r in a_rows if r["outcomes"][h] is not None]
     mb = [r for r in b_rows if r["outcomes"][h] is not None]
     out: dict = {"n": [len(ma), len(mb)], "names": [len({r["symbol"] for r in ma}), len({r["symbol"] for r in mb})],
@@ -272,6 +273,10 @@ def contrast(a_rows: list[dict], b_rows: list[dict], h: int, *, first_read: str 
     if first_read is not None and as_of is not None and as_of.isoformat() < first_read:
         out["guard"] = f"pinned first read {first_read}"
         return out
+    if first_read is not None and as_of is not None:
+        # §7: a print after the pinned first read is "labelled a re-print of the same pinned look, never a new look".
+        # The look is a function of the report date alone (no ledger, §4.3): the pinned date itself is the first read.
+        out["look"] = "first read" if as_of.isoformat() == first_read else "re-print"
     if not (_passes(a_rows, h) and _passes(b_rows, h)):
         out["guard"] = GUARD
         return out
@@ -356,11 +361,12 @@ def render(rep: dict) -> str:
                        ("E2 RV252-dependent vs rest (gate-cheap rows)", "E2_rv252_dependent_vs_rest_among_cheap")):
         lines.append(f"\n{title}")
         for h, c in rep[key].items():
+            look = f" [{c['look']} of the {rep['first_read'][h]} look]" if "look" in c else ""
             if "guard" in c:
-                lines.append(f"  h={h}: {c['guard']} (n {c['n']}, names {c['names']})")
+                lines.append(f"  h={h}: {c['guard']}{look} (n {c['n']}, names {c['names']})")
                 continue
             o1, o10 = c["o1_mid_multiple"], c["o1_unquoted_as_0"]
-            lines.append(f"  h={h}: n {c['n']} names {c['names']} unquoted {c['unquoted']}; O1 median "
+            lines.append(f"  h={h}{look}: n {c['n']} names {c['names']} unquoted {c['unquoted']}; O1 median "
                          f"{o1 and o1['median']} diff {o1 and o1['diff']} CI {o1 and o1['ci95_name_blocked']} "
                          f"(unquoted as 0: {o10 and o10['diff']}); realizable "
                          f"{c['realizable_multiple'] and c['realizable_multiple']['median']}; O2 diff "
