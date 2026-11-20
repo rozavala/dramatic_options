@@ -115,7 +115,7 @@ export interface Snapshot {
   sentinels: { active: SentinelRow[]; active_n: number; dormant: number };
   market_ctx: {
     open_positions: { symbol: string; contract: string; dte: number | null; moneyness: number | null; mark_over_entry: number | null; marked_at: string | null }[];
-    universe_iv_rv: { n: number; p50?: number }; universe_otm_skew: { n: number; p50?: number };
+    pooled_eval_iv_rv: { n: number; p50?: number }; pooled_eval_otm_skew: { n: number; p50?: number }; // pooled convexity_eval rows (#529), not the universe
   };
   data_gathered: {
     chain_snapshots: { symbols: number; latest: string | null; names?: string[] }; bar_coverage_symbols: number;
@@ -455,7 +455,7 @@ export interface ViewModel {
     gate: { ivTotal: number; ivReal: number; ivFail: number; elig: number };
     legs: { n: number; structural: number; underNarrated: number; atInflection: number } | null; // the §10.7 tri-criteria
   };
-  universe: { ivrv: string; skew: string; n: number };
+  pooledEval: { ivrv: string; skew: string; n: number }; // pooled convexity_eval rows since June (#529) — not the universe
   positions: PositionVM[]; openCount: number; openPrem2: string;
   sentinels: SentinelVM[]; sentinelSub: string;
   data: { label: string; value: string }[];

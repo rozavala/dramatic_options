@@ -638,7 +638,7 @@ export function fromBackend(P: Snapshot): ViewModel {
         ? { n: P.council_stage.legs.n_deliberated ?? 0, structural: P.council_stage.legs.structural ?? 0, underNarrated: P.council_stage.legs.under_narrated ?? 0, atInflection: P.council_stage.legs.at_inflection ?? 0 }
         : null,
     },
-    universe: { ivrv: String(mc.universe_iv_rv?.p50 ?? "—"), skew: String(mc.universe_otm_skew?.p50 ?? "—"), n: mc.universe_iv_rv?.n ?? 0 },
+    pooledEval: { ivrv: String(mc.pooled_eval_iv_rv?.p50 ?? "—"), skew: String(mc.pooled_eval_otm_skew?.p50 ?? "—"), n: mc.pooled_eval_iv_rv?.n ?? 0 },
     positions, openCount: (ps.real_open ?? []).length, openPrem2: fmt(rk.book?.open_premium),
     sentinels, sentinelSub: `${se.active_n ?? 0} active · ${se.dormant ?? 0} dormant.`,
     data: [
