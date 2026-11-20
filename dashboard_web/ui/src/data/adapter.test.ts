@@ -68,7 +68,7 @@ function synthetic(): Snapshot {
     sentinels: { active: [{ symbol: "ACME", basket: "ai_capex_power", structural_vs_fad: "structural", discovered_at: "2026-10-10T00:00:00+00:00" }], active_n: 1, dormant: 3 },
     market_ctx: {
       open_positions: [{ symbol: "ACME", contract: "ACME260116C00050000", dte: 248, moneyness: 0.25, mark_over_entry: 1.8, marked_at: "2026-10-14T16:00:00+00:00" }],
-      universe_iv_rv: { n: 54, p50: 1.11 }, universe_otm_skew: { n: 54, p50: 7.2 },
+      pooled_eval_iv_rv: { n: 54, p50: 1.11 }, pooled_eval_otm_skew: { n: 54, p50: 7.2 },
     },
     data_gathered: { chain_snapshots: { symbols: 58, latest: "2026-10-14T12:00:00+00:00" }, bar_coverage_symbols: 231 },
     t4: {
@@ -411,7 +411,8 @@ describe("fromBackend", () => {
 
   it("returns no view-model fields as undefined for the rendered surface", () => {
     expect(vm.data).toHaveLength(3);
-    expect(vm.universe.n).toBe(54);
+    expect(vm.pooledEval.n).toBe(54);
+    expect(vm.pooledEval.ivrv).toBe("1.11");
   });
 
   it("maps judged-set provenance (reserve vs rank), and renders OFF when the stamp is absent (C)", () => {

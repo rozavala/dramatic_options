@@ -93,6 +93,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "execution": dd.safe(dd.execution_panel, conn),
             "slippage": dd.safe(dd.slippage_panel, conn),
             "iv_history": dd.safe(dd.iv_history_panel, conn, cache_dir),
+            "regime_series": dd.safe(dd.regime_series_panel, conn, cache_dir, config),   # #462 §8; measurement only
             "falsifiers": dd.safe(dd.falsifier_panel, config),
             "capex_cycle": dd.safe(dd.capex_cycle_panel, cache_dir),
             "attention": dd.safe(dd.attention_panel, cache_dir),
@@ -396,10 +397,10 @@ def _render_market(snap) -> None:
         st.caption("No open positions.")
     c = st.columns(2)
     for col, key, label, helptext in (
-        (c[0], "universe_iv_rv", "IV / RV regime",
-         "ATM IV ÷ trailing realized vol across evaluated names. ≤1.2 is the gate's 'cheap'."),
-        (c[1], "universe_otm_skew", "OTM skew regime",
-         "OTM-wing minus ATM, in vol points, across evaluated names. ≤10 is the gate's 'cheap wing'."),
+        (c[0], "pooled_eval_iv_rv", "IV / RV, pooled gate evaluations",
+         "ATM IV ÷ trailing realized vol, pooled over every convexity_eval row since June. ≤1.2 is the gate's 'cheap'."),
+        (c[1], "pooled_eval_otm_skew", "OTM skew, pooled gate evaluations",
+         "OTM-wing minus ATM, in vol points, pooled over every convexity_eval row since June. ≤10 is the gate's 'cheap wing'."),
     ):
         d = mc[key]
         col.markdown(f"**{label}**")
@@ -408,7 +409,7 @@ def _render_market(snap) -> None:
             col.caption(f"p90 {d['p90']} · max {d['max']} · n={d['n']}")
         else:
             col.caption("accruing — no evaluated names yet")
-    st.caption("Current regime across the universe (a snapshot, not a 'cheap vs its own history' verdict). "
+    st.caption("Pooled over every gate evaluation since June (not the universe, not one night; not a 'cheap vs its own history' verdict). "
                "Distance-to-strike is deferred (a dormant name's cached spot lags).")
 
 
