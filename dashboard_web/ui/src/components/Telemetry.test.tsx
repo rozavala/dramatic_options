@@ -123,3 +123,85 @@ describe("net-of-slippage twin (#467)", () => {
     expect(screen.getByTestId("tel-slip").textContent).toContain("panel unavailable");
   });
 });
+
+// #462 §8: the regime series card. Synthetic values only; none is a live reading.
+const Q = (p25: number, p50: number, p75: number, n = 48) => ({ p25, p50, p75, n });
+const REGIME = {
+  status: "ok", as_of: "2026-11-20", R: 49, R_adopted: "2026-11-18", nights: 3, min_sessions: 120, coverage_min: 0.7, note: "internal",
+  date: "2026-11-05", segment: "R 2026-11-18 · rv252 · term v1", coverage: 0.9796, coverage_low: false,
+  S1: Q(0.71, 0.82, 0.93), S1_percentile: null, S1_accruing: { k: 3, of: 120 },
+  spark: [{ d: "2026-11-03", v: 0.8, low: false }, { d: "2026-11-04", v: 0.81, low: true }, { d: "2026-11-05", v: 0.82, low: false }],
+  S2_term_slope_vp_p50: 4.5, S3_skew_calls_vp_p50: 3.1, S3_skew_puts_vp_p50: 7.4, S3_put_side_share: 0.25,
+  S4_cm270_iv_p50: 0.512, S4_cm270_iv_over_rv63_p50: 0.97,
+  S5_display_only: { share_cheap: 0.4, median_iv_rv: 1.05, n: 30, frame_version: ["f1"] },
+  live_companion_display_only: { names: 47, coverage: 0.9574, coverage_low: false, S1: Q(0.7, 0.8, 0.9, 45) },
+};
+const REGIME_BANNED = /cheap|expensive|deploy|buy|sell|pac(e|ing)|signal/i;
+
+describe("regime series card (#462 §8)", () => {
+  it("accruing: shows S1 p25/p50/p75 with n, 'accruing k of 120', S2-S4 medians, S5 and the live companion labelled display-only", () => {
+    render(<Telemetry t={buildTelemetry({ regime_series: REGIME } as unknown as Snapshot)} />);
+    const card = screen.getByTestId("tel-regime").textContent ?? "";
+    expect(card).toContain("0.71 / 0.82 / 0.93 over 48 names");
+    expect(screen.getByTestId("regime-pctile").textContent).toContain("accruing 3 of 120");
+    expect(card).toContain("S2 term slope median 4.5 vp");
+    expect(card).toContain("calls 3.1 / puts 7.4 vp (put side 25%)");
+    expect(card).toContain("S4 270-day IV median 0.512, ÷ RV63 0.97");
+    const disp = screen.getByTestId("regime-display-only").textContent ?? "";
+    expect(disp).toContain("Display only. S5");
+    expect(disp).toContain("pass share 40%");
+    expect(disp).toContain("Display only. Live companion");
+    expect(disp).toContain("47 universe names");
+    expect(screen.getByTestId("regime-spark")).toBeTruthy();
+    expect(screen.getAllByTestId("regime-spark-low")).toHaveLength(1);          // the coverage-low night is a hollow grey mark
+    expect(screen.queryByTestId("regime-low")).toBeNull();
+  });
+
+  it("percentile live: prints the percentile once the history is long enough", () => {
+    const t = buildTelemetry({ regime_series: { ...REGIME, S1_percentile: 0.7312, S1_accruing: null } } as unknown as Snapshot);
+    expect(t.regime?.percentile).toBe("73% of its own history");
+  });
+
+  it("coverage low: says so, prints no percentile, and greys the numbers", () => {
+    const t = buildTelemetry({ regime_series: { ...REGIME, coverage: 0.4082, coverage_low: true, S1_accruing: null } } as unknown as Snapshot);
+    expect(t.regime?.percentile).toBe("none (coverage low)");
+    render(<Telemetry t={t} />);
+    expect(screen.getByTestId("regime-low").textContent).toContain("coverage low: under 70% of the 49 names");
+    expect(screen.getByTestId("regime-pctile").textContent).toContain("none (coverage low)");
+  });
+
+  it("no term record yet: honest unknown, no numbers; an errored panel reads unavailable", () => {
+    const none = { status: "no term records yet", as_of: "2026-11-20", R: 49, R_adopted: "2026-11-18", nights: 0, min_sessions: 120, coverage_min: 0.7, note: "" };
+    const { unmount } = render(<Telemetry t={buildTelemetry({ regime_series: none } as unknown as Snapshot)} />);
+    expect(screen.getByTestId("tel-regime").textContent).toContain("No term record yet");
+    expect(screen.queryByTestId("regime-pctile")).toBeNull();
+    unmount();
+    render(<Telemetry t={buildTelemetry({ regime_series: { error: "boom" } } as unknown as Snapshot)} />);
+    expect(screen.getByTestId("tel-regime").textContent).toContain("panel unavailable");
+  });
+
+  it("uses no verdict wording and no colour (neutral greys only) in any state", () => {
+    for (const rs of [REGIME, { ...REGIME, coverage_low: true }, { ...REGIME, S1_percentile: 0.05, S1_accruing: null }]) {
+      const { unmount, container } = render(<Telemetry t={buildTelemetry({ regime_series: rs } as unknown as Snapshot)} />);
+      const card = screen.getByTestId("tel-regime");
+      expect(card.textContent ?? "").not.toMatch(REGIME_BANNED);
+      // every colour on the card (inline style colours jsdom normalises to rgb(), plus svg stroke / fill) is a neutral
+      // slate grey: its channels sit within 30 of each other. A red, green or amber would not.
+      const seen: number[][] = [];
+      const take = (v: string | null) => {
+        const m = v?.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+        const rgb = v?.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        if (rgb) seen.push([+rgb[1], +rgb[2], +rgb[3]]);
+        else if (m) { const h = m[1].length === 3 ? m[1].replace(/./g, "$&$&") : m[1]; seen.push([0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16))); }
+      };
+      for (const el of [card, ...Array.from(card.querySelectorAll<HTMLElement>("*"))]) {
+        const st = getComputedStyle(el);
+        take(st.color); take(st.backgroundColor); take(el.getAttribute("stroke")); take(el.getAttribute("fill"));
+      }
+      expect(seen.length).toBeGreaterThan(3);
+      expect(seen.every((c) => Math.max(...c) - Math.min(...c) <= 30)).toBe(true);
+      expect(container.querySelector("[class*=green],[class*=red],[class*=amber]")).toBeNull();
+      unmount();
+    }
+  });
+});

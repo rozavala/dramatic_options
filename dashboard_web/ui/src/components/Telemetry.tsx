@@ -1,4 +1,4 @@
-import type { TelemetryVM } from "../data/types";
+import type { RegimeVM, TelemetryVM } from "../data/types";
 import { Card, Chip } from "./primitives";
 
 // 2026-11-03 profit-program telemetry (records/2026-11-03_profit_program_DRAFTS.md): D0 execution ledger,
@@ -124,6 +124,63 @@ export function IvHistoryCard({ t }: { t: TelemetryVM }) {
   );
 }
 
+// #462 §8: one card, measurement only. Neutral greys only (no colour scale, no level keyed to any action); S5 and the
+// live companion are greyed and labelled display-only. The server's own status text is never shown as a verdict.
+const GREY = "#8a93a1";
+
+function Spark({ pts }: { pts: RegimeVM["spark"] }) {
+  const W = 240, H = 36, pad = 3;
+  if (pts.length === 0) return null;
+  const vs = pts.map((p) => p.v);
+  const lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
+  const x = (i: number) => (pts.length === 1 ? W / 2 : pad + (i * (W - 2 * pad)) / (pts.length - 1));
+  const y = (v: number) => H - pad - ((v - lo) * (H - 2 * pad)) / span;
+  const kept = pts.map((p, i) => ({ ...p, i })).filter((p) => !p.low);
+  return (
+    <svg width={W} height={H} role="img" aria-label="S1 median by night" data-testid="regime-spark" style={{ display: "block" }}>
+      {kept.length > 1 && <polyline fill="none" stroke="#2c3645" strokeWidth={1.25} points={kept.map((p) => `${x(p.i)},${y(p.v)}`).join(" ")} />}
+      {kept.length === 1 && <circle cx={x(kept[0].i)} cy={y(kept[0].v)} r={2} fill="#2c3645" />}
+      {pts.filter((p) => p.low).map((p) => <circle key={p.d} data-testid="regime-spark-low" cx={x(pts.indexOf(p))} cy={y(p.v)} r={2.5} fill="none" stroke={GREY} />)}
+    </svg>
+  );
+}
+
+export function RegimeSeriesCard({ t }: { t: TelemetryVM }) {
+  const g = t.regime;
+  const body: React.CSSProperties = { fontSize: 12, color: g?.coverageLow ? GREY : "#2c3645", marginBottom: 6 };
+  return (
+    <Card style={{ padding: "18px 20px" }}>
+      <div data-testid="tel-regime">
+        <Head title="Convexity regime series (#462)"
+          sub={g ? "A 270-day read of option implied vol against realized vol across the frozen universe, kept nightly. Measurement only: it changes no entry, size, exit or quota."
+            : "panel unavailable"}
+          chip={<Chip level="mute">telemetry</Chip>} />
+        {g && !g.ok && <Empty>No term record yet ({g.status}).</Empty>}
+        {g && g.ok && (
+          <>
+            {g.coverageLow && <div style={{ fontSize: 12, color: "#2c3645", marginBottom: 6 }} data-testid="regime-low">{g.coverageNote}</div>}
+            <div style={body}>
+              Night of {g.date}: implied ÷ realized vol (S1), p25 / p50 / p75 {g.s1.p25} / {g.s1.p50} / {g.s1.p75} over {g.s1.n} names · coverage {g.coverage}
+            </div>
+            <div style={body} data-testid="regime-pctile">Percentile in its own history: {g.percentile}</div>
+            <div style={{ margin: "4px 0 8px" }}><Spark pts={g.spark} /></div>
+            <div style={body}>
+              S2 term slope median {g.s2} vp · S3 25%-OTM skew median, calls {g.s3.calls} / puts {g.s3.puts} vp (put side {g.s3.putShare}) ·
+              S4 270-day IV median {g.s4.iv}, ÷ RV63 {g.s4.ivRv63}
+            </div>
+            <div style={{ fontSize: 11.5, color: GREY, marginTop: 8 }} data-testid="regime-display-only">
+              <div>Display only. S5, the gate&apos;s own IV/RV test over the same names: pass share {g.s5.passShare}, median IV/RV {g.s5.medianIvRv}, n {g.s5.n}, frame {g.s5.frame}.</div>
+              {g.live && (
+                <div>Display only. Live companion, the same S1 over today&apos;s {g.live.names} universe names: p25 / p50 / p75 {g.live.s1.p25} / {g.live.s1.p50} / {g.live.s1.p75}, n {g.live.s1.n}, coverage {g.live.coverage}.</div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export function FalsifierCard({ t }: { t: TelemetryVM }) {
   const f = t.fals;
   return (
@@ -206,6 +263,7 @@ export function Telemetry({ t }: { t: TelemetryVM }) {
       <ExecutionCard t={t} />
       <SlippageCard t={t} />
       <IvHistoryCard t={t} />
+      <RegimeSeriesCard t={t} />
       <FalsifierCard t={t} />
       <CapexCycleCard t={t} />
       <AttentionCard t={t} />

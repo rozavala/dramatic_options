@@ -2231,6 +2231,16 @@ def iv_history_panel(conn, cache_dir: str | Path) -> dict:
     return iv_history.panel(conn, PointInTimeCache(cache_dir, offline=True))
 
 
+def regime_series_panel(conn, cache_dir: str | Path, config: dict, *, as_of=None) -> dict:
+    """#462 §8: the market-wide convexity regime series card. Read-only, no fetch, derived at read time from the nightly
+    term records (no writer). Measurement only: nothing here is read by a gate, a size, an exit or a quota."""
+    import regime_series
+    from data.cache import PointInTimeCache
+
+    day = as_of or datetime.now(_ET).date()
+    return regime_series.panel(conn, PointInTimeCache(cache_dir, offline=True), config, as_of=day)
+
+
 def falsifier_panel(config: dict) -> dict:
     """D3b: the forward falsifier-accuracy ledger (sealed reads + specs still waiting for their quarter)."""
     import falsifier_ledger

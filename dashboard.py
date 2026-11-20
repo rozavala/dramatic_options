@@ -93,6 +93,7 @@ def load_all(db_path: str, cache_dir: str, db_exists: bool, _nonce: int) -> dict
             "execution": dd.safe(dd.execution_panel, conn),
             "slippage": dd.safe(dd.slippage_panel, conn),
             "iv_history": dd.safe(dd.iv_history_panel, conn, cache_dir),
+            "regime_series": dd.safe(dd.regime_series_panel, conn, cache_dir, config),   # #462 §8; measurement only
             "falsifiers": dd.safe(dd.falsifier_panel, config),
             "capex_cycle": dd.safe(dd.capex_cycle_panel, cache_dir),
             "attention": dd.safe(dd.attention_panel, cache_dir),

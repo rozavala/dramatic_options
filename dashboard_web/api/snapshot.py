@@ -40,7 +40,7 @@ PANEL_KEYS: tuple[str, ...] = (
     "performance", "nulls", "attribution", "funnel", "council_stage", "gate_reasons", "cap_flow",
     "cost", "market_ctx", "dualread", "dualread_runtime", "cheapness", "null_attempts", "reserve",
     "curation", "data_gathered", "forward_catalysts", "session", "spend", "canary",
-    "dircoherence", "staleness", "why_no_entry", "execution", "slippage", "iv_history", "falsifiers", "capex_cycle", "attention",
+    "dircoherence", "staleness", "why_no_entry", "execution", "slippage", "iv_history", "regime_series", "falsifiers", "capex_cycle", "attention",
     "held_reads",
 )
 
@@ -140,6 +140,7 @@ def build_snapshot(db_path: str, cache_dir: str, db_exists: bool) -> dict:
             "execution": dd.safe(dd.execution_panel, conn),
             "slippage": dd.safe(dd.slippage_panel, conn),   # #467 step 3: the net-of-slippage twin (estimate)
             "iv_history": dd.safe(dd.iv_history_panel, conn, cache_dir),
+            "regime_series": dd.safe(dd.regime_series_panel, conn, cache_dir, config),   # #462 §8; measurement only
             "falsifiers": dd.safe(dd.falsifier_panel, config),
             "capex_cycle": dd.safe(dd.capex_cycle_panel, cache_dir),
             "attention": dd.safe(dd.attention_panel, cache_dir),
