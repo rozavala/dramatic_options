@@ -623,13 +623,12 @@ def test_migration_is_idempotent(convexity_db):
     assert {"council_repeat_packs", "council_repeat_reads", "council_repeat_sessions"} <= names
 
 
-def test_shipped_config_is_off_with_the_pinned_values():
+def test_shipped_config_is_on_from_the_boundary_with_the_pinned_values():
     cfg = json.loads((REPO / "config.json").read_text())["council"]
     s = rp.settings({"council": cfg})
-    assert s["enabled"] is False
+    assert s["enabled"] is True                       # switched on at the 2026-12-07 boundary (#515)
     assert (s["k"], s["sessions"], s["segment_start_et"], s["cap_session_usd"], s["cap_total_usd"],
             s["page_refusal_fraction"]) == (5, 10, "2026-12-07", 1.5, 15.0, 0.8)
     assert "§10.12" in cfg["repeat_probe"]["_comment"] and "2026-11-14" in cfg["repeat_probe"]["_comment"]
-    # Deliberate pin, not a date bomb: the 12-07 switch-on is a dated edit (§10.12) that sets enabled → true and the
-    # anthropic page → 20.0, and it updates this test in the same PR. Until then the shipped config must stay off.
-    assert cfg["monthly_spend_page_usd"]["anthropic"] == 10.0
+    # Deliberate pin: the December anthropic page is $20 (§10.12); the January edit back to $10 updates this test.
+    assert cfg["monthly_spend_page_usd"]["anthropic"] == 20.0

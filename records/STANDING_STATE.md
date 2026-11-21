@@ -120,6 +120,9 @@ The header's absence is itself a signal.
   - The look after 12-18 settles the RDW backfill `include=false` question and carry confirmation.
   - Caps $1.50 per session and $15 total; probe spend counts in the monthly page's MTD; the anthropic page is **$20
     for December 2026** (back to $10 in January, a dated edit).
+  - **Switched on for the 2026-12-07 boundary** (#515's switch-on PR, merged the weekend before):
+    `council.repeat_probe.enabled = true` and `monthly_spend_page_usd.anthropic = 20.0`. The L1 captures packs from
+    its first run after the deploy; the probe's segment starts at the Mon 12-07 L1.
 - **Quote filter restatements, restate_v1 (adopted 2026-11-04, operator word "Adopt both the 15% floor and A+B+C at
   the 11-12 boundary"; #421; PREREG_FORWARD_CATALYST_GROUNDING §13; IN FORCE FROM THE FIRST L1 AFTER THE 2026-11-12 DEPLOY;
   operator 2026-11-12 "merge it": lands alone, ahead of the model refresh, which takes its own boundary):** council roles only. A: rendered signed 3-decimal figures pool their
