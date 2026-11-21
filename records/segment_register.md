@@ -116,10 +116,15 @@ These segment a weekly sweep's own ledger, not `runs`. The script cannot see the
 ## Staged for boundary B, Mon 2026-12-07 (not yet in `runs`)
 
 Rows move into the table above, with their run ids, once the first run carrying them exists. Source: STANDING_STATE
-and #515, as of 2026-11-18.
-- `frame_version`: the 40% maximum moneyness (#504).
-- A `model_mix` key: the null books skip closed-market exits (#477).
-- The held-names-out-of-backfill change (#471). Whether it moves a stamp is UNVERIFIED until its PR exists.
+and #515, as of 2026-11-18; the stamps below were verified on the batch merge of #510/#519/#525/#526 with main
+`4fc9ab0` on 2026-11-21.
+- `frame_version`: `frame-880e893e1660` → `frame-a4f963302d10`, the 40% maximum moneyness (#504, PR #510). The only
+  frame move in the batch.
+- `model_mix` key `null_exits` = `closed_tick_mark_only_v1+sellable_bid_pt_v1` (PR #526): the null books skip
+  closed-market exits (#477), and a profit-take in every book needs a sellable bid ≥ `min_close_bid` (#537, operator
+  answer 2026-11-19).
+- `model_mix` key `backfill` = `held_excluded_v1` (PR #525): held names leave the backfill pool before ranking (#471).
 - The orphaned-position path (#444; PREREG_REAL_MONEY_BROKER §3c). It is execution only; no stamp move is expected.
 - `council.repeat_probe` switched on (§10.12). It is a post-L1 unit with its own segment, 12-07 → 12-18.
-- The model refresh, only if its PR and the price checks are ready.
+- The model refresh, only if its PR and the price checks are ready. It must land at the 12-07 L1 itself or after
+  12-18: any `model_mix` change inside 12-07 → 12-18 stops the §10.12 probe's segment for good.

@@ -122,8 +122,9 @@ def test_real_monitor_call_above_spot_is_rejected(convexity_db):
 
 def test_real_monitor_call_without_a_spot_keeps_todays_behaviour(convexity_db):
     # No underlying price → no bound is invented for a call: marked (and here profit-taken) exactly as before #533.
+    # (A two-sided quote: since #537 a zero-bid quote never triggers a profit-take, bound or no bound.)
     pid = _open_real(convexity_db, contract=RDW_CALL, kind="C", strike=10.0)
-    res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=_qp(0.0, 20.2, RDW_CALL), config=CONFIG)
+    res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=_qp(0.2, 20.0, RDW_CALL), config=CONFIG)
     assert res.marked == 1 and res.profit_taken == 1
     assert _real_row(convexity_db, pid)["status"] == "closed"
 

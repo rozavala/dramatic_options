@@ -17,6 +17,18 @@ taken from a quote provider and checked against the most the option can be worth
 A mark above its bound is **rejected**: ``BoundedMarker.mark`` returns None, so the caller counts the position
 unmarked, leaves its stored mark untouched and fires no exit on it this tick; a WARNING names the bid, ask and bound.
 Every book (the real monitor, the shadow null book, the 3A/3B no-gate books) marks through ``BoundedMarker``.
+
+**A profit-take needs a sellable bid** (#537; PREREG_FIXED_BASKET_NULL conformance note 2026-11-19, tightened the same
+day from bid > 0). The bound cannot catch a junk quote whose mid lands between 10× entry and the bound (a $0.30 call
+on a $50 stock quoted bid 0 / ask 10 marks 5.00, and bid 0.01 / ask 10 marks 5.005), and the null books book a
+profit-take at the mark. ``sellable_bid`` is the one test every book applies at the tick a profit-take triggers: the
+bid must be at least ``convexity_exits.min_close_bid`` (0.05), the real book's own sell floor — for a vertical, the
+LONG leg's bid (the leg whose value makes the spread's gain, and the leg ``monitor._exit_vertical`` tests against the
+same floor). Without one, the book does not act on the profit-take that tick (it re-evaluates next tick); so the real
+book no longer orphans a profit-take, and the null books never book one the real book could not sell. The mark,
+expiry and the time-stop rule (and its #444 orphan) are unchanged; the one tick where an unsellable quote triggers the
+profit-take, the book acts on nothing (as on a #451 deferral), so that quote's mark is never booked as a time-stop
+either.
 """
 
 from __future__ import annotations
@@ -101,6 +113,36 @@ class BoundedMarker:
         spot = float(p) if isinstance(p, int | float) and p > 0 else None
         self._spots[symbol] = spot
         return spot
+
+
+DEFAULT_MIN_CLOSE_BID = 0.05   # convexity_exits.min_close_bid's default, the same in every book (monitor.py's too)
+
+
+def min_close_bid_of(config: dict) -> float:
+    """The book's sell floor: ``convexity_exits.min_close_bid`` (default 0.05) — one read for every book."""
+    return float(config.get("convexity_exits", {}).get("min_close_bid", DEFAULT_MIN_CLOSE_BID))
+
+
+def sellable_bid(pos, quote_provider, *, book: str, mid: float, min_close_bid: float) -> bool:
+    """#537: True when the quote that triggered ``pos``'s profit-take has a sellable bid (≥ ``min_close_bid``), else
+    False (logged).
+
+    The bid read is the single leg's, or a vertical's long leg's. A missing bid, a bid under the floor or a failing bid
+    read is not sellable, so the profit-take waits (fail-closed: the rule only ever withholds an exit, never makes
+    one)."""
+    contract = pos["contract_symbol"]
+    try:
+        bid = quote_provider.option_bid(contract)
+    except Exception as e:  # noqa: BLE001 — a bid we cannot read is not a sellable bid
+        log.warning("%s bid read failed #%s %s: %s", book, pos["id"], contract, e)
+        bid = None
+    if bid is not None and float(bid) >= min_close_bid:
+        return True
+    leg = "long-leg " if verticals.is_vertical(pos) else ""
+    log.warning("%s profit-take NOT acted on #%s %s: mark %.2f triggered it but the %sbid %s is below min_close_bid "
+                "%g (unsellable quote, #537) — left open, re-evaluated next tick", book, pos["id"], contract,
+                float(mid), leg, _fmt(bid), min_close_bid)
+    return False
 
 
 def _fmt(x: float | None) -> str:
