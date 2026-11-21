@@ -59,19 +59,12 @@ LIVE_UNITS=("${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service")
 LIVE_FLAG=""                                       # " --live" only after resolve_live_flag says ARMED
 # shellcheck source=scripts/live_arming.sh
 . "$REPO_ROOT/scripts/live_arming.sh"
-# The arming guard, before the lock and before systemd is touched: when a marker exists, this deploy must have been
-# GIVEN the env it names. A bare `./deploy.sh` (ENV_NAME defaulting to DEV) on an armed PROD would otherwise
-# re-render L1/L2 without --live, fail the verify gate on the live pair, and roll back into units that cannot
-# manage live positions. Aborting here changes nothing on the box. With no marker this is a no-op.
-# live_strip_guard: nor may a deploy strip --live from installed L1/L2 while the .env keeps the timers firing (a
-# marker that turned bad, or was removed, with the .env still armed): that is a live book left unmanaged. The
-# documented disarm sets FORWARD_ENABLED=false first. With no --live installed (every box today) it is a no-op.
-if ! live_deploy_guard "$ENV_NAME_GIVEN" \
-        || ! live_strip_guard "$ENV_FILE" "$ENV_NAME" "$SYSTEMD_DST" "${LIVE_UNITS[@]}"; then
-    echo "!!! ===================================================== !!!"
-    echo "!!! DEPLOY ABORTED BEFORE ANY CHANGE: $LIVE_GUARD_REASON"
-    echo "!!! Nothing was changed. See DEPLOYMENT.md, \"Arming PROD (T4)\": the guards, and Disarm."
-    echo "!!! ===================================================== !!!"
+# The arming guards (#468), before the lock and before systemd is touched, in scripts/predeploy_guard.sh (the deploy
+# workflow runs the same script BEFORE it moves the checkout). It refuses when a marker exists and this deploy was
+# not GIVEN the env it names (a bare `./deploy.sh` defaults to DEV and would re-render an armed PROD's L1/L2 without
+# --live), and when installed L1/L2 carry --live that this deploy would strip while FORWARD_ENABLED keeps the timers
+# firing. Aborting here changes nothing on the box. With no marker and no --live installed it is a no-op.
+if ! ENV_NAME="$ENV_NAME_GIVEN" bash "$REPO_ROOT/scripts/predeploy_guard.sh" "$SYSTEMD_DST" "${LIVE_UNITS[@]}"; then
     exit 1
 fi
 

@@ -544,6 +544,7 @@ def run_deploy(tmp_path: Path, env: str, *, env_name: str | None, marker_content
     (repo / "deploy.sh").write_text(text)
     shutil.copytree(SYSTEMD, repo / "scripts" / "systemd")
     shutil.copy(VERIFY, repo / "scripts" / "verify_deploy.sh")
+    shutil.copy(REPO / "scripts" / "predeploy_guard.sh", repo / "scripts" / "predeploy_guard.sh")
     marker = etc / "live-armed"
     (repo / "scripts" / "live_arming.sh").write_text(_lib(marker, os.getuid()))
     if marker_content is not None:
@@ -861,3 +862,133 @@ def test_sandbox_a_live_l2_alone_also_blocks_stripping(tmp_path):
                                                  installed=before, marker_mode=0o664)
     assert code != 0 and calls == [] and inst == before
     assert f"the installed {L2} carry --live" in out
+
+
+# ── the predeploy guard in the deploy WORKFLOW (#541 final review): both guards run against the current checkout
+# BEFORE the workflow moves it. The workflow's real `run:` block is executed with stub ssh (runs the remote command
+# here) and stub git (logs), so the test exercises its actual quoting. ───────────────────────────────────────────
+WORKFLOW = REPO / ".github" / "workflows" / "deploy.yml"
+GUARD = REPO / "scripts" / "predeploy_guard.sh"
+
+
+def _workflow_run_block() -> str:
+    import yaml
+
+    wf = yaml.safe_load(WORKFLOW.read_text())
+    steps = [st for job in wf["jobs"].values() for st in job["steps"] if st.get("name") == "Deploy and Restart App"]
+    assert len(steps) == 1
+    return steps[0]["run"]
+
+
+def run_workflow_deploy(tmp_path: Path, *, env_name: str, with_guard: bool, marker_content: str | None = None,
+                        marker_mode: int = 0o644, installed: dict[str, str] | None = None, env: str = PROD_ENV):
+    """The workflow's deploy step against a fake live checkout → (exit code, output, git calls, deploy ran)."""
+    home, bindir, dst, etc = tmp_path / "home", tmp_path / "wfbin", tmp_path / "wfdst", tmp_path / "wfetc"
+    live = home / "dramatic_options"
+    for d in (live / "scripts", bindir, dst):
+        d.mkdir(parents=True)
+    etc.mkdir(mode=0o755)
+    (live / ".env").write_text(env)
+    (live / "deploy.sh").write_text('#!/bin/bash\necho "DEPLOY.SH RAN ENV_NAME=$ENV_NAME"\n')
+    (live / "deploy.sh").chmod(0o755)
+    marker = etc / "live-armed"
+    if marker_content is not None:
+        _write_marker(marker, marker_content, marker_mode)
+    if with_guard:
+        (live / "scripts" / "live_arming.sh").write_text(_lib(marker, os.getuid()))
+        g = GUARD.read_text()
+        assert g.count('PREDEPLOY_SYSTEMD_DST="/etc/systemd/system"') == 1
+        (live / "scripts" / "predeploy_guard.sh").write_text(
+            g.replace('PREDEPLOY_SYSTEMD_DST="/etc/systemd/system"', f'PREDEPLOY_SYSTEMD_DST="{dst}"'))
+    for name, content in (installed or {}).items():
+        (dst / name).write_text(content)
+    ref = "production" if env_name == "PROD" else "main"
+    stubs = {
+        "ssh": 'exec bash -c "${@: -1}"\n',
+        "git": f'echo "git $*" >> "{tmp_path}/git-calls"\ncase "$1" in branch) echo {ref} ;; esac\nexit 0\n',
+    }
+    for name, body in stubs.items():
+        (bindir / name).write_text("#!/bin/bash\n" + body)
+        (bindir / name).chmod(0o755)
+    block = _workflow_run_block()
+    for k, v in {"env.USER": "u", "env.HOST": "h", "github.ref_name": ref, "env.ENV_NAME": env_name}.items():
+        block = block.replace("${{ " + k + " }}", v)
+    assert "${{" not in block
+    r = subprocess.run(["bash", "-c", block], capture_output=True, text=True, timeout=60,
+                       env={**os.environ, "HOME": str(home), "PATH": f"{bindir}:{os.environ['PATH']}"})
+    gc = tmp_path / "git-calls"
+    return r.returncode, r.stdout + r.stderr, gc.read_text().splitlines() if gc.exists() else [], \
+        "DEPLOY.SH RAN" in r.stdout
+
+
+def test_workflow_skips_the_guard_on_a_pre_468_checkout(tmp_path):
+    # every box today: the deployed checkout has no guard → skipped, then the usual fetch/checkout/reset/deploy
+    code, out, git, ran = run_workflow_deploy(tmp_path, env_name="PROD", with_guard=False)
+    assert code == 0 and ran, out
+    assert "predeploy guard: none in this checkout (pre-#468); skipped" in out
+    assert "git fetch --prune" in git and "git reset --hard origin/production" in git
+
+
+def test_workflow_guard_passes_on_an_unarmed_box_and_the_deploy_proceeds(tmp_path):
+    code, out, git, ran = run_workflow_deploy(tmp_path, env_name="DEV", with_guard=True, env=DEV_ENV)
+    assert code == 0 and ran, out
+    assert "predeploy guard: passed" in out and "git reset --hard origin/main" in git
+
+
+@pytest.mark.parametrize("case", ["wrong-env", "bad-marker-on-live-units", "removed-marker-on-live-units"])
+def test_workflow_guard_refusal_fails_the_job_with_the_checkout_untouched(tmp_path, case):
+    kw: dict = {"env": ARMED_ENV}
+    if case == "wrong-env":
+        kw.update(env_name="DEV", marker_content="PROD\n")
+        why = "names 'PROD' but this deploy is ENV_NAME='DEV'"
+    else:
+        kw.update(env_name="PROD", installed=_armed_installed(tmp_path))
+        if case == "bad-marker-on-live-units":
+            kw.update(marker_content="PROD\n", marker_mode=0o664)
+            why = "group- or other-writable"
+        else:
+            why = "no marker"
+    code, out, git, ran = run_workflow_deploy(tmp_path, with_guard=True, **kw)
+    assert code != 0 and not ran
+    assert git == []                     # no self-heal, fetch, checkout or reset: the checkout never moved
+    assert "DEPLOY ABORTED BEFORE ANY CHANGE" in out and why in out
+    assert "Manual deploy: if you already moved this checkout" in out
+
+
+def test_workflow_runs_the_guard_before_anything_moves_the_checkout():
+    block = _workflow_run_block()
+    g = block.index("bash scripts/predeploy_guard.sh || exit 1")
+    for later in ("git checkout -- .", "git clean -fd", "git fetch --prune", "git checkout ${{ github.ref_name }}",
+                  "git reset --hard origin/", "./deploy.sh"):
+        assert g < block.index(later), later
+    assert block.index("cd ~/dramatic_options") < g
+    assert "'" not in block[block.index("predeploy guard: BEGIN"):block.index("predeploy guard: END")]
+
+
+def test_the_guard_defaults_match_deploy_sh():
+    g = GUARD.read_text()
+    assert 'PREDEPLOY_LIVE_UNITS=("dramatic-options-l1.service" "dramatic-options-l2.service")' in g
+    assert _deploy_line("LIVE_UNITS=(").strip() == (
+        'LIVE_UNITS=("${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service")')
+    assert 'SERVICE_PREFIX="dramatic-options"' in DEPLOY.read_text()
+    assert 'SYSTEMD_DST="/etc/systemd/system"' in DEPLOY.read_text()
+
+
+def test_deploy_sh_runs_the_same_guard_with_the_env_name_it_was_given():
+    text = DEPLOY.read_text()
+    call = 'ENV_NAME="$ENV_NAME_GIVEN" bash "$REPO_ROOT/scripts/predeploy_guard.sh" "$SYSTEMD_DST" "${LIVE_UNITS[@]}"'
+    assert call in text and text.index(call) < text.index('DEPLOY_LOCK="')
+
+
+def test_a_guard_without_its_helper_refuses(tmp_path):
+    (tmp_path / "scripts").mkdir()
+    shutil.copy(GUARD, tmp_path / "scripts" / "predeploy_guard.sh")
+    r = subprocess.run(["bash", str(tmp_path / "scripts" / "predeploy_guard.sh")], capture_output=True, text=True,
+                       timeout=30, env={**os.environ, "ENV_NAME": "PROD"})
+    assert r.returncode == 1 and "live_arming.sh is missing" in r.stdout
+
+
+def test_the_doc_tells_a_manual_deploy_to_guard_before_moving_the_checkout():
+    doc = (REPO / "DEPLOYMENT.md").read_text()
+    assert "ENV_NAME=PROD bash scripts/predeploy_guard.sh" in doc
+    assert "before the workflow moves the checkout" in doc

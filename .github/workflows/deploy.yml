@@ -87,6 +87,17 @@ jobs:
             # Navigate to the live checkout
             cd ~/dramatic_options &&
 
+            # T4 arming (#468) predeploy guard: BEGIN. The arming guards run against the CURRENT checkout, before the
+            # self-heal, fetch, checkout and reset below move it: on a refusal the job fails with the checkout
+            # untouched, so armed timers never run a new commit that skipped its deps, migrations and verify. A
+            # checkout older than #468 has no guard (every box before this merges); it is then skipped.
+            if [ -f scripts/predeploy_guard.sh ]; then
+              ENV_NAME=${{ env.ENV_NAME }} bash scripts/predeploy_guard.sh || exit 1
+            else
+              echo \"predeploy guard: none in this checkout (pre-#468); skipped\"
+            fi &&
+            # T4 arming (#468) predeploy guard: END
+
             # Self-heal: ensure we are on the branch being deployed
             CURRENT=\$(git branch --show-current)
             if [ \"\$CURRENT\" != \"${{ github.ref_name }}\" ]; then

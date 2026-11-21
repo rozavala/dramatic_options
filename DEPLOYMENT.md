@@ -126,6 +126,15 @@ order, and the KILL path holds a live order as `wrong_venue` instead of cancelli
   change, and names the reason. That covers a marker that turned bad (a `chmod`), a marker removed while the `.env`
   is still armed, and a jump straight from armed to the paper rehearsal. The documented disarm (below) sets
   `FORWARD_ENABLED=false` first, so it passes; to go from armed to a rehearsal, disarm first.
+- **The guards run before the checkout moves.** Both guards live in `scripts/predeploy_guard.sh`. The deploy
+  workflow runs it from the live checkout as it stands, before the workflow moves the checkout (its self-heal,
+  `git fetch`, `git checkout`, `git reset --hard`): a refusal fails the job with the checkout untouched, so the armed
+  timers keep running the code that was deployed with them, never a new commit that skipped its deps, migrations
+  and verify. A checkout older than #468 has no guard, and the workflow skips it. `deploy.sh` runs the same script
+  first. **A manual deploy** does the same by hand: `cd ~/dramatic_options && ENV_NAME=PROD bash scripts/predeploy_guard.sh`
+  before `git pull`, and only on `passed` pull and run `ENV_NAME=PROD ./deploy.sh`. If the checkout was already
+  moved and the deploy then aborts, the armed timers are running that commit without its deps, migrations or verify:
+  move the checkout back to the deployed commit until the guard passes.
 - **A rollback keeps the decision, by design.** The rollback re-renders through the same decision (marker + `.env`),
   so an armed box that fails its verify gate stays armed after the rollback: an L2 without `--live` could not
   reconcile or close a live position. It never arms an unarmed box.
