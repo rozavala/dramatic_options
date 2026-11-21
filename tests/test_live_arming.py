@@ -241,12 +241,12 @@ def _bad_marker(tmp_path: Path, kind: str) -> Path:
 
 _BAD_REASON = {   # each check is pinned by its own reason, so no check passes on another's back
     "wrong-env": "names 'DEV', not this env 'PROD'",
-    "empty": "does not contain exactly this env's name 'PROD'",
-    "two-lines": "names 'PRODPROD', not this env 'PROD'",
+    "empty": "is not exactly one line naming an env",
+    "two-lines": "is not exactly one line naming an env",
     "symlink": "is a symlink",
     "directory": "is not a regular file",
-    "group-writable": "is group- or other-writable (mode 664)",
-    "world-writable": "is group- or other-writable (mode 646)",
+    "group-writable": "live-armed is group- or other-writable (mode 664)",
+    "world-writable": "live-armed is group- or other-writable (mode 646)",
     "unreadable": "is unreadable",
 }
 
@@ -270,7 +270,8 @@ def test_a_marker_not_owned_by_root_renders_nothing(tmp_path):
     new, log = render_all(tmp_path, ARMED_ENV, marker=marker, owner_uid=None)   # the real uid-0 rule
     legacy, _ = render_all(tmp_path, ARMED_ENV, legacy=True)
     assert new == legacy
-    assert f"owned by uid {os.getuid()}, not uid 0" in log
+    # the directory is checked first, so the refusal names it (the file's own owner check is the same loop)
+    assert f"{tmp_path} is owned by uid {os.getuid()}, not uid 0" in log
 
 
 def test_the_marker_names_the_env_it_arms(tmp_path):
@@ -388,3 +389,118 @@ def test_verify_without_the_helper_keeps_the_paper_rule(tmp_path):
     r = subprocess.run(["bash", "scripts/verify_deploy.sh"], cwd=tmp_path / "repo", capture_output=True, text=True,
                        timeout=60, env={**os.environ, "ENV_NAME": "PROD", "HEALTH_URL": ""})
     assert r.returncode != 0 and "no Alpaca paper key pair" in r.stdout
+
+
+# ── review fixes (#541): one-line marker, its directory, PROD only, dotenv-subset flag reading, the deploy guard ──
+@pytest.mark.parametrize("content,armed", [
+    ("PROD", True), ("PROD\n", True), ("PROD\r\n", True), ("PROD  \t\n\n\n", True),
+    ("P\nR\nO\nD\n", False), ("PR OD\n", False), (" PROD\n", False), ("PROD\nx\n", False),
+    ("PROD\nPROD\n", False), ("\nPROD\n", False),
+])
+def test_the_marker_is_exactly_one_line(tmp_path, content, armed):
+    marker = _write_marker(tmp_path / "live-armed", content)
+    envf = tmp_path / "a.env"
+    envf.write_text(ARMED_ENV)
+    assert _check(tmp_path, marker, env_file=envf) == (("1" if armed else "0"), "1")
+
+
+@pytest.mark.parametrize("mode", [0o775, 0o757, 0o777])
+def test_a_writable_marker_directory_renders_nothing(tmp_path, mode):
+    d = tmp_path / "etc-dir"
+    d.mkdir()
+    marker = _write_marker(d / "live-armed")
+    d.chmod(mode)
+    new, log = render_all(tmp_path, ARMED_ENV, marker=marker)
+    legacy, _ = render_all(tmp_path, ARMED_ENV, legacy=True)
+    assert new == legacy
+    assert f"{d} is group- or other-writable (mode {mode:o})" in log
+
+
+def test_a_symlinked_marker_directory_renders_nothing(tmp_path):
+    real = tmp_path / "real-dir"
+    real.mkdir(mode=0o755)
+    _write_marker(real / "live-armed")
+    (tmp_path / "link-dir").symlink_to(real)
+    new, log = render_all(tmp_path, ARMED_ENV, marker=tmp_path / "link-dir" / "live-armed")
+    assert "--live" not in "".join(new.values()) and "directory" in log and "is a symlink" in log
+
+
+def test_a_valid_marker_in_a_safe_directory_arms(tmp_path):
+    d = tmp_path / "etc-dir"
+    d.mkdir(mode=0o755)
+    new, _ = render_all(tmp_path, ARMED_ENV, marker=_write_marker(d / "live-armed"))
+    assert _execstart(new[L1])[0].endswith(" --live")
+
+
+def test_only_prod_can_be_armed(tmp_path):
+    marker = _write_marker(tmp_path / "live-armed", "DEV\n")
+    new, log = render_all(tmp_path, ARMED_ENV, marker=marker, env_name="DEV")
+    legacy, _ = render_all(tmp_path, ARMED_ENV, env_name="DEV", legacy=True)
+    assert new == legacy
+    assert "only PROD can be armed" in log and "rendering NO --live" in log
+
+
+@pytest.mark.parametrize("line,armed", [
+    ("LIVE_TRADING_ENABLED=true", True),
+    ('LIVE_TRADING_ENABLED="true"', True),
+    ("LIVE_TRADING_ENABLED='true'", True),
+    ("LIVE_TRADING_ENABLED=  TRUE  ", True),
+    ("export LIVE_TRADING_ENABLED=true", True),
+    ("LIVE_TRADING_ENABLED=tr ue", False),
+    ('LIVE_TRADING_ENABLED=t"r"ue', False),
+    ("LIVE_TRADING_ENABLED=\"true'", False),
+    ('LIVE_TRADING_ENABLED=""true""', False),
+    ("LIVE_TRADING_ENABLED=true # armed", False),
+])
+def test_flag_values_are_read_as_a_subset_of_dotenv(tmp_path, line, armed):
+    marker = _write_marker(tmp_path / "live-armed")
+    envf = tmp_path / "a.env"
+    envf.write_text(ARMED_ENV.replace("LIVE_TRADING_ENABLED=true", line))
+    assert _check(tmp_path, marker, env_file=envf)[0] == ("1" if armed else "0")
+
+
+@pytest.mark.parametrize("line", ["PAPER=fal se", "PAPER='false\"", 'PAPER=f"alse'])
+def test_paper_values_are_read_as_a_subset_of_dotenv(tmp_path, line):
+    marker = _write_marker(tmp_path / "live-armed")
+    envf = tmp_path / "a.env"
+    envf.write_text(ARMED_ENV.replace("PAPER=false", line))
+    assert _check(tmp_path, marker, env_file=envf)[0] == "0"
+
+
+def test_an_export_line_with_another_value_is_a_conflict(tmp_path):
+    marker = _write_marker(tmp_path / "live-armed")
+    envf = tmp_path / "a.env"
+    envf.write_text(ARMED_ENV + "export LIVE_TRADING_ENABLED=false\n")
+    assert _check(tmp_path, marker, env_file=envf)[0] == "0"
+
+
+def _guard(tmp_path: Path, marker: Path, given: str) -> tuple[int, str]:
+    script = (_lib(marker, os.getuid()) + f'live_deploy_guard "{given}"; rc=$?\n'
+              'echo "RC=$rc REASON=$LIVE_GUARD_REASON"\n')
+    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30)
+    m = re.search(r"RC=(\d+) REASON=(.*)", r.stdout)
+    assert m, r.stdout + r.stderr
+    return int(m.group(1)), m.group(2)
+
+
+@pytest.mark.parametrize("given", ["", "DEV", "PROD"])
+def test_the_guard_passes_every_deploy_when_there_is_no_marker(tmp_path, given):
+    assert _guard(tmp_path, tmp_path / "no-marker", given) == (0, "")
+
+
+@pytest.mark.parametrize("content,given,ok,why", [
+    ("PROD\n", "PROD", True, ""),
+    ("PROD\n", "", False, "ENV_NAME was not given"),
+    ("PROD\n", "DEV", False, "names 'PROD' but this deploy is ENV_NAME='DEV'"),
+    ("P\nROD\n", "PROD", False, "cannot be read as one line"),
+    ("DEV\n", "PROD", False, "names 'DEV' but this deploy is ENV_NAME='PROD'"),
+])
+def test_the_guard_refuses_a_deploy_that_does_not_name_the_marker_env(tmp_path, content, given, ok, why):
+    rc, reason = _guard(tmp_path, _write_marker(tmp_path / "live-armed", content), given)
+    assert (rc == 0) is ok and why in reason
+
+
+@pytest.mark.skipif(os.getuid() == 0, reason="root reads a mode-000 file")
+def test_the_guard_refuses_an_unreadable_marker(tmp_path):
+    rc, reason = _guard(tmp_path, _write_marker(tmp_path / "live-armed", mode=0o000), "PROD")
+    assert rc == 1 and "cannot be read" in reason
