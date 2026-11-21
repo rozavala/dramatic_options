@@ -172,16 +172,20 @@ def test_closing_fill_books_actual_exit_price(convexity_db):
     assert row["realized_pnl"] == (8.5 * 100 - 200.0)  # honest fill, not the mid
 
 
-def test_unsellable_time_stop_books_in_db_no_churn(convexity_db):
+def test_unsellable_time_stop_stays_open_orphaned_no_churn(convexity_db):
+    # §3c (#444): no sale is possible, so nothing is sent AND nothing is booked; the row stays open, tagged orphaned
+    # (tests/test_orphaned_unsellable.py has the rest of the path).
     exp = (NOW.date() + timedelta(days=9)).isoformat()
     pid = _open(convexity_db, contract="FCX260610C00080000", entry_pc=500.0, expiry=exp)
     qp = StaticQuoteProvider({"FCX260610C00080000": 0.10}, bids={"FCX260610C00080000": 0.0})  # bid<floor
     broker = _FakeBroker()
     res = monitor_positions(conn=convexity_db, clock=CLOCK, quote_provider=qp, config=CONFIG,
                             broker=broker, dry_run=False)
-    assert res.time_stopped == 1 and res.closed == 1 and res.closing == 0 and broker.sells == []
-    row = _row(convexity_db, pid, "status, exit_reason")
-    assert row["status"] == "closed" and row["exit_reason"].startswith("time_stop") and "unsellable" in row["exit_reason"]
+    assert res.orphaned == 1 and res.time_stopped == 0 and res.closed == 0 and res.closing == 0
+    assert broker.sells == []
+    row = _row(convexity_db, pid, "status, exit_reason, rationale")
+    assert row["status"] == "open" and row["exit_reason"] is None
+    assert '"orphaned"' in row["rationale"]
 
 
 def test_closing_terminal_reopens_to_retry(convexity_db):

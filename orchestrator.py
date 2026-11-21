@@ -953,9 +953,10 @@ def run_once(cli_live: bool = False, demo: bool = False, monitor_only: bool = Fa
             dry_run=monitor_dry_run, mark_only=mark_only,
         )
         log.info(
-            "Monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) deferred=%d unmarked=%d realized=$%.0f",
+            "Monitor: marked=%d closed=%d (expiry=%d profit=%d time=%d) deferred=%d orphaned=%d unmarked=%d "
+            "realized=$%.0f",
             mres.marked, mres.closed, mres.expired, mres.profit_taken, mres.time_stopped,
-            mres.deferred, mres.unmarked, mres.realized_pnl,
+            mres.deferred, mres.orphaned, mres.unmarked, mres.realized_pnl,
         )
 
         # 1b. Brain-off NULL shadow book (T3 PR3b) — mark + exit the simulated control book alongside
