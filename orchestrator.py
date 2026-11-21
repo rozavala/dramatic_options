@@ -25,6 +25,7 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+import backfill
 import cheapness_watch
 import clusters
 import direction_coherence
@@ -237,6 +238,12 @@ def _stamp_council_health(conn, run_id: int, config: dict, router, catalysts=Non
             # Expressible-first slate (2026-10-21): no-structure sentinels only backfill — composition-only,
             # record-segmenting from the first L1 it is on.
             mix["union_rank"] = (mix.get("union_rank", "") + "+" if mix.get("union_rank") else "") + "expressible_v1"
+        if backfill.settings(config) is not None:
+            # #471 (PREREG_THEMATIC_CONVEXITY backfill conformance note, 2026-11-18; boundary B): held names leave the
+            # backfill pool before ranking — a change to what reaches the gates, record-segmenting from the first L1
+            # it is on. Absent key = the pre-#471 pool (held names could take a candidate place). Stamped while the
+            # backfill is configured on, like the union_rank keys.
+            mix["backfill"] = backfill.STAMP
         if (config.get("forward_catalysts", {}) or {}).get("enabled", False):
             # Channel prereg §4: pack-shape capability stamp — record-segmenting from deploy,
             # zero migration (stamped when the channel is CONFIGURED on, item count irrelevant;

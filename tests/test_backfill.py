@@ -182,6 +182,39 @@ def test_stop_rule_waits_for_enough_aged_entries(convexity_db):
     assert suspended is False and "7 of 8" in why
 
 
+# ── #471: a held name leaves the pool before ranking, so it can't spend a candidate place ─────────────────────
+
+def test_held_names_leave_the_pool_before_ranking(convexity_db, monkeypatch, caplog):
+    _no_kill(monkeypatch)
+    # Three held names (open, pending, carried) out-rank the unheld eligible name: HIGH vs LOW conviction.
+    for s in ("HLDA", "HLDB", "HLDC"):
+        monkeypatch.setitem(VERDICTS, s, ("HIGH", "structural", False))
+    monkeypatch.setitem(VERDICTS, "FREE", ("LOW", "structural", False))
+    _pos(convexity_db, "HLDA", NOW - timedelta(days=3))
+    _pos(convexity_db, "HLDB", NOW - timedelta(days=1), status="pending")
+    _pos(convexity_db, "HLDC", NOW - timedelta(days=1), status="carried")
+    with caplog.at_level("INFO", logger="council.wiring"):
+        themes, res = _l1(convexity_db, _cfg(), ["HLDA", "HLDB", "HLDC", "FREE"])
+    assert [(t.symbol, t.entry_origin) for t in themes] == [("FREE", "backfill")]
+    assert res.opened == 1 and _decisions(convexity_db)["FREE"] == "open"
+    prop = convexity_db.execute("SELECT rationale FROM council_proposals WHERE symbol='FREE'").fetchone()
+    assert json.loads(prop["rationale"])["backfill"] == {"rank": 1}
+    assert any("3 held name(s) removed from the pool" in r.getMessage() and "'HLDA', 'HLDB', 'HLDC'" in r.getMessage()
+               for r in caplog.records)
+    # The held names' proposals stay as dropped, never stamped as backfill candidates.
+    for s in ("HLDA", "HLDB", "HLDC"):
+        row = convexity_db.execute("SELECT status, rationale FROM council_proposals WHERE symbol=?", (s,)).fetchone()
+        assert row["status"] == "dropped" and "backfill" not in json.loads(row["rationale"] or "{}")
+
+
+def test_a_closed_name_stays_in_the_pool(convexity_db, monkeypatch):
+    _no_kill(monkeypatch)
+    monkeypatch.setitem(VERDICTS, "WASH", ("HIGH", "structural", False))
+    _pos(convexity_db, "WASH", NOW - timedelta(days=60), closed=NOW - timedelta(days=30))
+    themes, res = _l1(convexity_db, _cfg(), ["WASH"])
+    assert [t.symbol for t in themes] == ["WASH"] and res.opened == 1
+
+
 # ── #418: the council summary line counts a backfill pick once, not as both dropped and to-gates ──────────────
 
 def _council_line(caplog):
@@ -203,3 +236,14 @@ def test_the_council_line_is_unchanged_without_a_backfill(convexity_db, monkeypa
     with caplog.at_level("INFO", logger="council.wiring"):
         _l1(convexity_db, _cfg(on=False), ["FCX", "SYM01"])
     assert "backfilled" not in _council_line(caplog) and ", 2 dropped (" in _council_line(caplog)
+
+
+def test_the_backfill_stamp_rides_model_mix_only_while_on(convexity_db):
+    # #471: the pool rule is record-segmenting — runs.model_mix["backfill"] names it while the backfill is on.
+    import orchestrator
+
+    for cfg, want in ((_cfg(), "held_excluded_v1"), (_cfg(on=False), None)):
+        run_id = state.record_run(convexity_db, mode="TEST", equity=None, note="t")
+        orchestrator._stamp_council_health(convexity_db, run_id, cfg, FakeRouter(), catalysts=None)
+        mix = json.loads(convexity_db.execute("SELECT model_mix FROM runs WHERE id=?", (run_id,)).fetchone()["model_mix"])
+        assert mix.get("backfill") == want
