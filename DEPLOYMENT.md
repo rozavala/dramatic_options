@@ -98,18 +98,32 @@ on the box. No CI job, deploy, script or Claude Code session performs any of the
 it comes from a **marker** the operator creates as root, outside the repo and outside `.env`:
 
 ```
-/etc/dramatic-options/live-armed      one line: the env name the deploy runs as (PROD)
+/etc/dramatic-options/live-armed      exactly one line: PROD
 ```
 
 At every render (each deploy, and a rollback), `deploy.sh` (`resolve_live_flag`, via `scripts/live_arming.sh`)
 appends ` --live` to the `ExecStart` of **`dramatic-options-l1.service` and `dramatic-options-l2.service` only**
 (the two units that build a broker; the L2 needs it too, or it builds the paper broker, never reconciles a live
 order, and the KILL path holds a live order as `wrong_venue` instead of cancelling it). It does so only when
-**both** hold:
-- the marker is a regular file (not a symlink), owned by root, not group- or other-writable, readable, and its
-  content is exactly the deploy's `ENV_NAME`;
+**all** hold:
+- the deploy runs as `ENV_NAME=PROD` (no other env can be armed);
+- the marker is a regular file (not a symlink), owned by root, not group- or other-writable, readable, in a
+  directory that is root-owned, not a symlink and not group- or other-writable; it holds exactly one line (trailing
+  whitespace allowed) equal to `ENV_NAME`, and no further non-empty line;
 - the `.env` already says armed: `PAPER=false`, `LIVE_TRADING_ENABLED=true`, `FORWARD_ENABLED=true`, none assigned
-  twice with different values.
+  twice with different values (`export KEY=` lines count). A value is read with only surrounding whitespace and one
+  pair of matching quotes stripped, so `tr ue` or `t"r"ue` is never `true`.
+
+**Guards around an armed box.**
+- **The deploy must name the env.** When a marker exists, `deploy.sh` aborts before it takes the lock or touches
+  systemd unless it was given `ENV_NAME` equal to the marker's line. A bare `./deploy.sh` (which defaults to `DEV`)
+  on an armed PROD therefore changes nothing and says why, instead of re-rendering L1/L2 without `--live`.
+- **L1 and L2 move together.** Before enabling timers, the deploy checks that the *installed* L1 and L2 both carry
+  this deploy's decision (both `--live`, or neither). If a unit install failed and they disagree, it enables no
+  timer, disables them all, and the timer check then fails the deploy and rolls back.
+- **A rollback keeps the decision, by design.** The rollback re-renders through the same decision (marker + `.env`),
+  so an armed box that fails its verify gate stays armed after the rollback: an L2 without `--live` could not
+  reconcile or close a live position. It never arms an unarmed box.
 
 Anything else renders no `--live`. The deploy log says which, in one line; it prints `!!!` lines when armed and when
 the marker and the `.env` disagree (a marker on an unarmed env, armed flags with no marker, a malformed marker).
@@ -120,7 +134,7 @@ still refuses the legacy names; every other trading env keeps the paper-pair rul
 **Procedure** (mirrors the checklist's §4; `records/2026-11-10_t4_go_no_go_checklist_DRAFT.md`):
 1. All checklist rows PASS, and the operator's dated word is recorded (STANDING_STATE and a records note).
 2. Fund about $10,000 as a disjoint slice of the shared account (`records/2026-10-03_shared_account_capital.md`).
-3. PROD's DB: the real book starts **empty**, so the journal equals the venue. Archive any rehearsal DB.
+3. PROD's DB: the real book starts **empty**, so the journal equals the venue. Archive any rehearsal DB (as in step 8).
 4. PROD `.env` (operator edit): the live pair, no paper or legacy names; `PAPER=false`, `LIVE_TRADING_ENABLED=true`,
    `FORWARD_ENABLED=true`, the notional ceiling (`LIVE_MAX_ORDER_NOTIONAL` or `safety.live_max_order_notional`),
    and **`DRY_RUN=true`** for the first armed L1.
@@ -130,14 +144,51 @@ still refuses the legacy names; every other trading env keeps the paper-pair rul
    echo PROD | sudo tee /etc/dramatic-options/live-armed >/dev/null
    sudo chmod 0644 /etc/dramatic-options/live-armed
    ```
-6. Deploy (`production` push, or `cd ~/dramatic_options && ENV_NAME=PROD ./deploy.sh`). The log must show
+6. Deploy (`production` push, or `cd ~/dramatic_options && ENV_NAME=PROD ./deploy.sh`; without `ENV_NAME=PROD` the
+   deploy aborts before any change). The log must show
    `!!! LIVE ARMED on PROD`, `[verify] Alpaca: venue-named live pair present`, and the closing line
    `--live RENDERED (ARMED)`. Confirm on the box:
    `systemctl cat dramatic-options-l1.service dramatic-options-l2.service | grep ExecStart` (both end in `--live`).
 7. The first armed L1 runs with `DRY_RUN=true`: its log must show the banner `DRAMATIC OPTIONS — LIVE`, a `runs` row
    with mode `LIVE`, and "DRY_RUN (not sent) … [LIVE — REAL MONEY]" on every intended order; nothing reaches the venue.
-8. Flip `DRY_RUN=false` on the operator's word, on the morning of an ordinary session (not an expiry Friday). `.env`
-   is read every run, so no deploy is needed.
+   **But the DRY_RUN cycle writes to the real book:** a simulated fill is journalled `open`
+   (`paper_loop.py`: "a simulated/immediate fill is 'open'"), and its L2s may book simulated exits. Left in place,
+   those rows would make the journal differ from the venue, and the first transmitting L2 could send a
+   SELL_TO_CLOSE on the shared live account for a contract never bought.
+8. **Before the flip, archive the DB and start empty.** On the morning of the flip (an ordinary session, not an
+   expiry Friday), before the 15:45 ET L1, in this order:
+   1. Stop the timers and confirm no unit is running:
+      ```
+      cd ~/dramatic_options
+      sudo systemctl stop dramatic-options-{l0,l1,l2,reach,post-l1}.timer
+      systemctl is-active dramatic-options-{l1,l2,post-l1}.service   # every line must say inactive
+      ```
+   2. Archive the DB:
+      ```
+      mkdir -p data/archive
+      for f in data/dramatic_options.db data/dramatic_options.db-wal data/dramatic_options.db-shm; do
+        if [ -e "$f" ]; then mv "$f" "data/archive/$(basename "$f").dryrun-$(date +%F)"; fi; done
+      ```
+   3. The flip, on the operator's word: edit `.env` to `DRY_RUN=false`. `.env` is read every run, so no deploy is
+      needed.
+   4. The precheck. It must print `PASS` (exit 0):
+      ```
+      venv/bin/python - <<'EOF'
+      import pathlib, sqlite3, sys
+      db = pathlib.Path("data/dramatic_options.db")
+      if not db.exists():
+          print("PASS: no DB; the next run creates an empty book")
+          sys.exit(0)
+      rows = sqlite3.connect(f"file:{db}?mode=ro", uri=True).execute(
+          "SELECT status, COUNT(*) FROM convexity_positions GROUP BY status").fetchall()
+      print("PASS: convexity_positions is empty" if not rows else f"FAIL: rows by status {rows}")
+      sys.exit(1 if rows else 0)
+      EOF
+      ```
+      It refuses **any** row, not only `open`, `pending`, `carried` or `closing`: a simulated `closed` row would also
+      enter the realized multiples the T4 conditions read.
+   5. Only on `PASS`: `sudo systemctl start dramatic-options-{l0,l1,l2,reach,post-l1}.timer`. The next deploy's banner
+      reads `DRY_RUN=false: the live path is TRANSMITTING REAL-MONEY ORDERS`.
 
 **First-week watch** (daily; CC reads, the operator decides): every submit's log line carries `[LIVE — REAL
 MONEY]`; every buy shows its ceiling, reserve and venue-quantity read; each fill is compared with its limit
@@ -153,8 +204,9 @@ in a unit with the `.env` disarmed is inert: `live_allowed` re-reads both flags 
 **What the marker is, and is not.** It separates the third act from the `.env` edit and from anything a
 non-root process can do: the orchestrator, a review session or the deploy itself cannot create a root-owned file.
 It is not a privilege boundary against a user with broad sudo. PROD's deploy user has a wildcard
-`cp /tmp/* /etc/systemd/system/*` rule, which sudo's argument matching does not confine to that directory, and
-nothing in this repo uses it for the marker.
+`cp /tmp/* /etc/systemd/system/*` rule, which sudo's argument matching does not confine to that directory (so that
+user is effectively root-equivalent), and nothing in this repo uses it for the marker. Replacing the wildcard with
+exact per-unit rules is a T4 checklist item.
 
 ## Observability dashboard (read-only)
 

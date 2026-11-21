@@ -643,3 +643,67 @@ def test_the_armed_banner_states_the_real_dry_run(tmp_path, dry, expect):
     assert expect in log
     if dry != "true":
         assert "transmits nothing" not in log
+
+
+# ── DEPLOYMENT.md step 8 (#541 review M1): the DRY_RUN cycle's rows are archived before the flip, and the operator's
+# precheck refuses any row left in the real book. The snippets are run exactly as the doc prints them. ─────────────
+def _doc_block(opening: str, closing: str) -> str:
+    doc = (REPO / "DEPLOYMENT.md").read_text()
+    start = doc.index(opening) + len(opening)
+    body = doc[start:doc.index(closing, start)]
+    return "\n".join(ln[6:] if ln.startswith("      ") else ln for ln in body.splitlines()) + "\n"
+
+
+def _precheck(cwd: Path) -> subprocess.CompletedProcess:
+    import sys
+
+    script = _doc_block("venv/bin/python - <<'EOF'\n", "      EOF\n")
+    return subprocess.run([sys.executable, "-c", script], cwd=cwd, capture_output=True, text=True, timeout=30)
+
+
+def _real_book(tmp_path: Path, statuses: list[str]) -> Path:
+    import orchestrator
+    import state
+
+    (tmp_path / "data").mkdir(exist_ok=True)
+    conn = state.connect(tmp_path / "data" / "dramatic_options.db")
+    orchestrator._ensure_schema(conn)
+    for st in statuses:
+        conn.execute("INSERT INTO convexity_positions (opened_at, theme, symbol, direction, structure_kind, "
+                     "contract_symbol, contracts, entry_premium_per_contract, total_premium, status) "
+                     "VALUES ('2027-01-04', 't', 'X', 'long', 'single', 'X270115C00010000', 1, 10.0, 10.0, ?)", (st,))
+    conn.commit()
+    conn.close()
+    return tmp_path
+
+
+def test_the_precheck_passes_with_no_db(tmp_path):
+    r = _precheck(tmp_path)
+    assert r.returncode == 0 and r.stdout.startswith("PASS"), r.stdout + r.stderr
+
+
+def test_the_precheck_passes_on_an_empty_book(tmp_path):
+    r = _precheck(_real_book(tmp_path, []))
+    assert r.returncode == 0 and "PASS: convexity_positions is empty" in r.stdout, r.stdout + r.stderr
+
+
+@pytest.mark.parametrize("statuses", [["open"], ["pending"], ["carried"], ["closing"], ["closed"], ["open", "closed"]])
+def test_the_precheck_refuses_any_row_the_dry_run_cycle_left(tmp_path, statuses):
+    r = _precheck(_real_book(tmp_path, statuses))
+    assert r.returncode == 1 and r.stdout.startswith("FAIL"), r.stdout + r.stderr
+
+
+def test_the_archive_step_moves_the_db_aside_and_the_precheck_then_passes(tmp_path):
+    _real_book(tmp_path, ["open"])
+    archive = _doc_block("   2. Archive the DB:\n      ```\n", "      ```\n")
+    assert "mv " in archive and "rm " not in archive
+    r = subprocess.run(["bash", "-c", archive], cwd=tmp_path, capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    assert not (tmp_path / "data" / "dramatic_options.db").exists()
+    assert len(list((tmp_path / "data" / "archive").glob("dramatic_options.db.dryrun-*"))) == 1
+    assert _precheck(tmp_path).returncode == 0
+
+
+def test_the_doc_says_the_rollback_keeps_an_armed_box_armed():
+    doc = (REPO / "DEPLOYMENT.md").read_text()
+    assert "an armed box that fails its verify gate stays armed after the rollback" in doc
