@@ -118,7 +118,7 @@ for basket, members in baskets.items():
                                        # PREREG_UNIVERSE_CURATION §6 amendment (2026-10-25): the side guard
                                        require_otm_side=bool(gate.get("otm_side_guard", False)),
                                        # PREREG_UNIVERSE_CURATION §6 amendment (2026-11-05): the floor — the gate of record's 15% minimum moneyness (#425)
-                                       min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0))
+                                       min_otm_moneyness=float(gate.get("min_otm_moneyness", 0.0) or 0.0), max_otm_moneyness=float(gate.get("max_otm_moneyness", 0.0) or 0.0))
             if s is None:
                 agg["no_structure"] += 1
                 continue

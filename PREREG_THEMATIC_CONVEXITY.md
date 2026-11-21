@@ -160,6 +160,12 @@ of the money** (achieved, thesis side, the same measure as the floor) and fails 
   sweep after deploy). Survivor cards keep their own 15–35% band.
 - **Boundary:** boundary B, **Mon 2026-12-07** (code merged the weekend before). It moves `frame_version`.
 - **Open positions are unaffected:** exits never read the entry band (IRDM's null rows run to their own exits).
+- **Pending and carried intents are re-gated (stated 2026-11-16, from the code review):** a carry re-runs the
+  selector, so an L1 intent from Fri 12-04 that carries on Mon 12-07 at 10:00 ET is judged under the ceiling; a wing
+  beyond 40% vetoes (fail-closed). The real book's highest entry so far is 30.7%.
+- **Consequence for the slate, stated:** as with the floor, a name whose only eligible wings lie beyond 40% reads
+  `structured = 0` in the gate-of-record dual-read, so `unexpressible_symbols` demotes it in the council slate and
+  removes it from the cheap reserve (KLAR's shape on W46).
 
 
 
