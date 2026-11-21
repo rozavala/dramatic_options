@@ -46,8 +46,17 @@ The header's absence is itself a signal.
     later #453, #460, #457, #459 and #461.
   - **PROD promoted, inert:** #491 (`29a86e4`, 2026-11-12 05:50 UTC), verified read-only on 2026-11-14 (board below).
   - **Authorized but not done:**
-    - an inert arming PR, a draft only;
-    - a 1-week paper rehearsal on a **separate paper account**.
+    - an inert arming PR, a draft only: **drafted as #541 (2026-11-21)**. It uses a root-owned operator marker
+      (`/etc/dramatic-options/live-armed`, PROD only), and the deploy then renders `--live` into L1/L2 only if the
+      `.env` flags already say armed. CHECK 5 requires the live pair only when armed, and a predeploy guard runs in
+      the workflow before the checkout moves. Three fable/xhigh rounds, final APPROVE; with no marker the units are
+      byte-identical to main. **Stays a draft; no live arming.** The disarm returns PROD to the inert `.env`.
+    - a 1-week paper rehearsal on a **separate paper account**: **runbook drafted as #540 (2026-11-21)**,
+      `records/2026-11-21_prod_paper_rehearsal_runbook.md`, awaiting the operator's answers to its §14 (8
+      questions). CC recommends W48 (seed Fri 11-27, promote and arm Sat 11-28, run 11-29 → 12-04) if the second
+      paper account and its Pushover token exist by Wed 11-25; otherwise 12-13 → 12-18, inside the stamp freeze,
+      rather than the runbook's 12-06 fallback, which collides with the boundary weekend. The loop stays
+      `DRY_RUN=true`; #466/#463 run as out-of-band `--send` scripts on the rehearsal account.
   - **#469 deferred.**
 - **Operator word 2026-11-18, second ("merge and follow your suggestions on the rest"):**
   - **#455 frozen as `PREREG_CHEAP_THEN_REPRICED.md`** (with #453's shared-data rows folded in), every §11
@@ -327,6 +336,14 @@ The header's absence is itself a signal.
   (amended 11-09: majority of the next 3 reads) is read when the 5th real entry is decided.
 - **Sun 2026-11-08: DONE** (W45): the 09-27 five went dormant (none re-surfaced); KMT pin #19 lapsed, not re-pinned.
 - **Sun 2026-11-15: DONE** (W46): TITN's lineage dormant while held; FCX/MOS/MRK dormant; 6 re-surfaced, 0 new.
+- **By Wed 2026-11-25 (operator):** the rehearsal window and the other #540 §14 answers; for W48, the second paper
+  account and its Pushover app token. **If W48:** the seed copy on Fri 11-27 after the 16:30 ET tick needs no
+  `pending`/`carried`/`closing` row (SMCI #14 was `carried` on 11-21), and **this file must record PROD's armed timers
+  before the Sun 11-29 review**, or that review flags them.
+- **Week of 2026-11-30 (CC):** boundary-B prep: update #510/#519/#525/#526 onto main, one batch suite, delta reviews,
+  the #515 checklist (the model refresh rides only if ready). **12-05/06:** one merge table for the operator's word.
+- **Before T4 (operator):** #542, which replaces PROD's sudoers wildcard (`cp /tmp/* /etc/systemd/system/*`) with
+  exact per-unit rules.
 - **Owed (operator):** the thesis-as-direction class (W45: MOS, KKR; W46: + the RDW adversary 11-09, the MOS and UEC
   strategists 11-11/11-12); TITN's slate presence while held (W46 §0; #464); whether the EPA pins lapse 11-23; the
   libc6 reboots on DEV and PROD. ATKR's removal: **decided 2026-11-09** (`records/2026-11-09_atkr_removal.md`).
@@ -353,7 +370,7 @@ The header's absence is itself a signal.
 - **January 2027 (first L1):** `council.monthly_spend_page_usd.anthropic` back to $10 (dated edit, §10.12).
 
 ## Board & book
-- Box: DEV = main `f36f9b5` (#520, deployed 2026-11-18 03:35 UTC; **rebooted 2026-11-07 19:24 UTC** after the
+- Box: DEV = main `4fc9ab0` (#539, deployed 2026-11-20 ~02:05 UTC; before it `f36f9b5`, #520, 2026-11-18 03:35 UTC; **rebooted 2026-11-07 19:24 UTC** after the
   operator's apt upgrade; **reboot-required since 2026-11-13 06:48 UTC, libc6**: hygiene only, no trading process is on
   the old libc, so a reboot waits for a quiet weekend); **PROD = `d276bf1` (#521, promoted 2026-11-18 05:32 UTC = main
   `f36f9b5`, #495–#520; reboot-required since 11-13 06:18 UTC, libc6), verified read-only 2026-11-18 ~05:35 UTC**
@@ -393,6 +410,10 @@ The header's absence is itself a signal.
   **Filed 2026-11-18:** #529 (dashboard `market_context` relabel; #462 decision 7).
   **Filed 2026-11-18/19:** #532 (#455 re-print label, before 2027-01-17) · #533 (mark bound; fixed #535) · #534 (the
   RDW #13 journal repair) · #537 (a junk quote below the bound; operator decision).
+  **2026-11-20/21:** #529 and #532 closed by #539 (with #462's §8 regime card) · #464, #455 and #453 closed as
+  shipped · #444 got Alpaca's expiry policy from its docs (auto-exercise at ≥ $0.01 ITM; a sell-out in the last hour
+  without buying power or shares; DNE endpoint on expiration day) · **filed #542** (PROD sudoers wildcard, a T4 row) ·
+  drafts #540 (the rehearsal runbook) and #541 (inert arming).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
   · #477 (null-book exits on closed-market ticks).
   **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467.
