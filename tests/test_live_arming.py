@@ -872,12 +872,39 @@ GUARD = REPO / "scripts" / "predeploy_guard.sh"
 
 
 def _workflow_run_block() -> str:
-    import yaml
+    """The deploy step's `run: |` block, read as TEXT (no YAML library: CI's venv has none, and this coverage must
+    never skip). The step is found by its name; the block is every following line indented deeper than `run:`
+    (blank lines kept), de-indented by the first line's indentation, as a YAML literal block is."""
+    lines = WORKFLOW.read_text().splitlines()
+    named = [i for i, ln in enumerate(lines) if ln.strip() == "- name: Deploy and Restart App"]
+    assert len(named) == 1, "the deploy step moved or was renamed — update the extraction"
+    i = named[0] + 1
+    while lines[i].strip() != "run: |":
+        assert lines[i].startswith(" " * (len(lines[named[0]]) - len(lines[named[0]].lstrip()) + 2)), \
+            "no `run: |` in the deploy step"
+        i += 1
+    run_indent = len(lines[i]) - len(lines[i].lstrip())
+    body: list[str] = []
+    for ln in lines[i + 1:]:
+        if ln.strip() and len(ln) - len(ln.lstrip()) <= run_indent:
+            break
+        body.append(ln)
+    while body and not body[-1].strip():
+        body.pop()
+    first = next(ln for ln in body if ln.strip())
+    block_indent = len(first) - len(first.lstrip())
+    assert block_indent > run_indent
+    return "\n".join(ln[block_indent:] for ln in body) + "\n"
 
-    wf = yaml.safe_load(WORKFLOW.read_text())
-    steps = [st for job in wf["jobs"].values() for st in job["steps"] if st.get("name") == "Deploy and Restart App"]
-    assert len(steps) == 1
-    return steps[0]["run"]
+
+def test_the_workflow_extraction_finds_the_guard_and_the_deploy():
+    # a format change to deploy.yml must fail here, loudly, rather than let the workflow tests run on a wrong slice
+    block = _workflow_run_block()
+    assert block.startswith("ssh -o StrictHostKeyChecking=yes ")
+    assert block.count("predeploy guard: BEGIN") == 1 and block.count("predeploy guard: END") == 1
+    assert block.count("ENV_NAME=${{ env.ENV_NAME }} ./deploy.sh") == 1
+    assert block.rstrip().endswith("\"")   # the closing quote of the ssh command: the whole step was taken
+    assert "- name:" not in block
 
 
 def run_workflow_deploy(tmp_path: Path, *, env_name: str, with_guard: bool, marker_content: str | None = None,
