@@ -188,3 +188,25 @@ live_deploy_guard() {
     fi
     return 0
 }
+
+# live_strip_guard ENV_FILE ENV_NAME DST UNIT... — returns 1 (and sets LIVE_GUARD_REASON) when an INSTALLED live unit
+# carries --live, this deploy's decision is NOT armed, and the .env still runs the timers (FORWARD_ENABLED not
+# explicitly off). That deploy would strip --live from a live book's L1/L2 while their timers keep firing: a marker
+# that turned bad (a chmod), a marker removed with the .env still armed, or a jump straight from armed to the paper
+# rehearsal. The documented disarm sets FORWARD_ENABLED=false first (every timer is then disabled), so it passes.
+# With no --live installed (every unarmed box) this is a no-op.
+live_strip_guard() {
+    local env_file="$1" env_name="$2" dst="$3" u fwd live_units=""
+    shift 3
+    LIVE_GUARD_REASON=""
+    for u in "$@"; do
+        grep -qE '^ExecStart=.* --live$' "$dst/$u" 2>/dev/null && live_units="$live_units $u"
+    done
+    [ -z "$live_units" ] && return 0
+    live_arming_check "$env_file" "$env_name"
+    [ "$LIVE_ARMED" = "1" ] && return 0
+    fwd=$(_arming_env_value "$env_file" FORWARD_ENABLED)
+    case "$fwd" in ""|0|false|no|off) return 0 ;; esac
+    LIVE_GUARD_REASON="the installed$live_units carry --live but this deploy would not render it ($LIVE_ARMING_REASON), while FORWARD_ENABLED=$fwd keeps the timers firing; to disarm, set FORWARD_ENABLED=false first (DEPLOYMENT.md, Disarm)"
+    return 1
+}

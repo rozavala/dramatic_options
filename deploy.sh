@@ -63,10 +63,14 @@ LIVE_FLAG=""                                       # " --live" only after resolv
 # GIVEN the env it names. A bare `./deploy.sh` (ENV_NAME defaulting to DEV) on an armed PROD would otherwise
 # re-render L1/L2 without --live, fail the verify gate on the live pair, and roll back into units that cannot
 # manage live positions. Aborting here changes nothing on the box. With no marker this is a no-op.
-if ! live_deploy_guard "$ENV_NAME_GIVEN"; then
+# live_strip_guard: nor may a deploy strip --live from installed L1/L2 while the .env keeps the timers firing (a
+# marker that turned bad, or was removed, with the .env still armed): that is a live book left unmanaged. The
+# documented disarm sets FORWARD_ENABLED=false first. With no --live installed (every box today) it is a no-op.
+if ! live_deploy_guard "$ENV_NAME_GIVEN" \
+        || ! live_strip_guard "$ENV_FILE" "$ENV_NAME" "$SYSTEMD_DST" "${LIVE_UNITS[@]}"; then
     echo "!!! ===================================================== !!!"
     echo "!!! DEPLOY ABORTED BEFORE ANY CHANGE: $LIVE_GUARD_REASON"
-    echo "!!! Re-run naming the env the marker arms (ENV_NAME=PROD ./deploy.sh), or remove the marker first."
+    echo "!!! Nothing was changed. See DEPLOYMENT.md, \"Arming PROD (T4)\": the guards, and Disarm."
     echo "!!! ===================================================== !!!"
     exit 1
 fi
