@@ -10,8 +10,9 @@
 import type {
   AttemptsVM, BooksOpenVM, CanaryVM, DataAccrualVM, DirCoherenceItem, DirCoherenceItemVM, DirCoherenceVM, StalenessVM, DeliberationVM, DualReadRuntimeClassVM, DualReadRuntimeVM,
   NextRunVM, NullStepVM, PositionRow, PositionVM, VerticalLegsVM, CatalystVM, ProviderVM, ReserveSlotVM, ReserveVM, SentinelVM, SessionRowVM, SessionVM,
-  OutsideFrameVM, Snapshot, SpendVM, TailFigure, TelemetryVM, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
+  OutsideFrameVM, RegimeQuartiles, RegimeSeriesPanel, RegimeVM, Snapshot, SpendVM, TailFigure, TelemetryVM, ViewModel, WhyNoEntryRowVM, WhyNoEntryVM,
 } from "./types";
+import { buildHeldReads } from "./heldReads";
 import { etDate, formatRunLabel } from "./runLabel";
 import { DD_WARN_DEFAULT, directionLabel, drawdownDisplay, levelFromSystem, t4RowState, verdictDisplay } from "./status";
 
@@ -116,6 +117,7 @@ export function buildTelemetry(P: Snapshot): TelemetryVM {
   const fa = ok(P.falsifiers) ? P.falsifiers! : null;
   const cx = ok(P.capex_cycle) ? P.capex_cycle! : null;
   const at = ok(P.attention) ? P.attention! : null;
+  const rg = ok(P.regime_series) ? P.regime_series! : null;
   const sl = ok(P.slippage) ? P.slippage! : null;
   // #467: a conservative figure that can't be derived reads "unknown", never "—" and never the as-filled number.
   const UNKNOWN = "unknown";
@@ -170,12 +172,39 @@ export function buildTelemetry(P: Snapshot): TelemetryVM {
         yoy: pct(r.yoy), accel: r.accel == null ? DASH : `${r.accel > 0 ? "+" : ""}${Math.round(r.accel * 100)} pp`,
         phase: r.phase })),
     },
+    regime: rg && buildRegime(rg),
     attention: at && {
       status: at.status, note: at.note,
       rows: (at.rows ?? []).map((r) => ({ symbol: r.symbol, count: String(r.count),
         change: r.change == null ? DASH : `${r.change > 0 ? "+" : ""}${r.change} since ${r.then}`,
         label: r.label, asOf: r.as_of })),
     },
+  };
+}
+
+/** #462 §8: the regime series card. Honest unknown: no term record yet is `ok: false`; a null stat reads "—". */
+function buildRegime(r: RegimeSeriesPanel): RegimeVM {
+  const f = (v: number | null | undefined, d = 2) => (v == null ? DASH : Number(v).toFixed(d));
+  const q = (x: RegimeQuartiles | undefined) => ({ p25: f(x?.p25), p50: f(x?.p50), p75: f(x?.p75), n: x?.n ?? 0 });
+  const low = !!r.coverage_low;
+  const min = Math.round(r.coverage_min * 100);
+  const percentile = low ? "none (coverage low)"
+    : r.S1_percentile != null ? `${Math.round(r.S1_percentile * 100)}% of its own history at or below`
+    : r.S1_accruing ? `accruing ${r.S1_accruing.k} of ${r.S1_accruing.of}` : DASH;
+  const s5 = r.S5_display_only;
+  const lv = r.live_companion_display_only;
+  return {
+    status: r.status, ok: r.status === "ok", date: r.date ?? DASH,
+    coverage: r.coverage == null ? DASH : `${Math.round(r.coverage * 100)}%`, coverageLow: low,
+    coverageNote: low ? `coverage low: under ${min}% of the ${r.R} names have a 270-day bracket; shown greyed and left out of the percentile history` : "",
+    s1: q(r.S1), percentile, spark: r.spark ?? [],
+    s2: f(r.S2_term_slope_vp_p50, 1),
+    s3: { calls: f(r.S3_skew_calls_vp_p50, 1), puts: f(r.S3_skew_puts_vp_p50, 1),
+      putShare: r.S3_put_side_share == null ? DASH : `${Math.round(r.S3_put_side_share * 100)}%` },
+    s4: { iv: f(r.S4_cm270_iv_p50, 3), ivRv63: f(r.S4_cm270_iv_over_rv63_p50) },
+    s5: { passShare: s5?.share_cheap == null ? DASH : `${Math.round(s5.share_cheap * 100)}%`, medianIvRv: f(s5?.median_iv_rv),
+      n: s5?.n ?? 0, frame: (s5?.frame_version ?? []).join(", ") || DASH },
+    live: lv ? { names: lv.names, coverage: `${Math.round(lv.coverage * 100)}%`, s1: q(lv.S1) } : null,
   };
 }
 
@@ -296,8 +325,8 @@ export function fromBackend(P: Snapshot): ViewModel {
       ["data_gathered", P.data_gathered], ["cheapness", P.cheapness],
       ["session", P.session], ["spend", P.spend], ["canary", P.canary], ["dircoherence", P.dircoherence], ["staleness", P.staleness],
       ["why_no_entry", P.why_no_entry],
-      ["execution", P.execution], ["slippage", P.slippage], ["iv_history", P.iv_history], ["falsifiers", P.falsifiers],
-      ["capex_cycle", P.capex_cycle], ["attention", P.attention],
+      ["execution", P.execution], ["slippage", P.slippage], ["iv_history", P.iv_history], ["regime_series", P.regime_series], ["falsifiers", P.falsifiers],
+      ["capex_cycle", P.capex_cycle], ["attention", P.attention], ["held_reads", P.held_reads],
     ] as [string, unknown][]
   )
     .filter(([, p]) => panelError(p))
@@ -637,7 +666,7 @@ export function fromBackend(P: Snapshot): ViewModel {
         ? { n: P.council_stage.legs.n_deliberated ?? 0, structural: P.council_stage.legs.structural ?? 0, underNarrated: P.council_stage.legs.under_narrated ?? 0, atInflection: P.council_stage.legs.at_inflection ?? 0 }
         : null,
     },
-    universe: { ivrv: String(mc.universe_iv_rv?.p50 ?? "—"), skew: String(mc.universe_otm_skew?.p50 ?? "—"), n: mc.universe_iv_rv?.n ?? 0 },
+    pooledEval: { ivrv: String(mc.pooled_eval_iv_rv?.p50 ?? "—"), skew: String(mc.pooled_eval_otm_skew?.p50 ?? "—"), n: mc.pooled_eval_iv_rv?.n ?? 0 },
     positions, openCount: (ps.real_open ?? []).length, openPrem2: fmt(rk.book?.open_premium),
     sentinels, sentinelSub: `${se.active_n ?? 0} active · ${se.dormant ?? 0} dormant.`,
     data: [
@@ -649,5 +678,6 @@ export function fromBackend(P: Snapshot): ViewModel {
     readiness,
     edgeAccrual: { n: edgeN, target: EDGE_TARGET }, phasePct, phaseSub,
     session, spend, canary, dircoherence, staleness, whyNoEntry, telemetry, wingMismatch, dataAccrual, booksOpen, firstEntry,
+    heldReads: buildHeldReads(P),
   };
 }

@@ -63,6 +63,13 @@ fewer than 3 reads counted apart. **No rate prints until 20 closed positions wit
 is the false-alarm rate P(broken | outcome ≥ 1.0), the number a salvage exit depends on (Rule S,
 `records/2026-11-03_calibration_v2_finding.md`).
 
+**§4 note, pinned 2026-11-17 before any held read is scored (operator word "Merge and on 508 let's follow your suggestion"; #508):** a `dropped` held
+read (a NEUTRAL early exit: the proposer abstained, or the pack was ungrounded) is **excluded** from "the last 3
+reads". "Intact" or "broken" is decided on the last 3 **non-dropped** reads before `closed_at`. A close with fewer than
+3 goes in the "< 3 reads" bin, and the dropped reads are counted beside the table. Why: a drop is the debate declining
+to judge, not a verdict on the thesis; counting it as "broken" would inflate the false-alarm rate a salvage exit
+depends on (Rule S). This differs on purpose from the persistence watch, where an abstained read counts as below.
+
 ## 5. The pinned prohibition
 
 Until a separately pre-registered rule exists (after C1, and after §4's counts reach their minimum), no held read may

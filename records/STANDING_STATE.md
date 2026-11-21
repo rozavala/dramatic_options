@@ -16,10 +16,13 @@ The header's absence is itself a signal.
     - **R2:** the 10% book is premium committed at any moment.
     - **Effect of a trip:** it halts the real book and the council, and **the null books keep booking**. KILL still
       halts all. Release is by a payoff or a mark recovery.
-    - **Code:** lands before 12-25, as worded; CC recommends the 12-07 boundary weekend. Thresholds are unchanged,
-      and so is `frame_version`.
+    - **Code: merged 2026-11-12** (#487: the dry leg, the cumulative drawdown leg, null books keep booking; #489:
+      L0 scans on a trip, the re-anchor keys). Thresholds are unchanged, and so is `frame_version`. Live readout at
+      merge: drawdown 1.8%, dry since 2026-07-01, binds 2027-04-01. (Corrected 2026-11-17, #515: this line said the
+      code would land by 12-25.)
     - **Second word 2026-11-12 ("accept all"):** L0 keeps scanning on a trip (framer included). The re-anchor keys
-      (`dry_clock_reanchored_on`, `drawdown_reanchored_on`) are to be built; each is a frame boundary.
+      (`dry_clock_reanchored_on`, `drawdown_reanchored_on`) are built (#489) and written only on the operator's word;
+      each is a frame boundary.
   - **Scheduled record boundary B** (#470): record-segmenting changes (a `frame_version`, prompt-hash, model or
     `model_mix` move) land on **the first Monday L1 of each month**, deployed the weekend before its Sunday L0.
     - **Next:** Mon **2026-12-07**.
@@ -46,12 +49,60 @@ The header's absence is itself a signal.
     - an inert arming PR, a draft only;
     - a 1-week paper rehearsal on a **separate paper account**.
   - **#469 deferred.**
+- **Operator word 2026-11-18, second ("merge and follow your suggestions on the rest"):**
+  - **#455 frozen as `PREREG_CHEAP_THEN_REPRICED.md`** (with #453's shared-data rows folded in), every §11
+    recommendation adopted: the nightly term record gains `rv63`/`rv21` and quotes for the tracked contracts (the
+    selected wings plus every open position's contract; no new fetch, no migration, inside the sink's try/except so it
+    can never change the gate read); universe cohort only; rows from the first sweep after the capture deploys (wings
+    over 40% OTM excluded); primary outcome the mid multiple; splits E1 (cheapest `iv_rv` tercile) primary, E2 (RV63 >
+    1.2 among passes) secondary, E3 counts only; horizons 21/42/63 sessions; guard ≥ 20 rows and ≥ 8 names; derived at
+    read time, no ledger file. Telemetry: no stamp, so neither boundary B nor the 12-07 → 12-18 freeze holds it.
+  - **#462 frozen as `PREREG_CONVEXITY_REGIME_SERIES.md`**, every §11 recommendation adopted: the series of record is a
+    270-day constant-maturity IV ÷ RV252 from the term record (frame-independent), population R frozen at 49 names,
+    derived at read time, first percentile ~2027-04-27; built with #455's capture as one telemetry PR. The
+    `market_context` mislabel is a separate small fix (#529).
+  - **#457 (gate graduation) moves to the first #455 outcome read, ~2027-01-17** (no #455 outcome can exist by 12-18;
+    the 12-18 look gets #455 exposure counts only).
+- **Operator word 2026-11-18 ("Aligned with your suggestions"), on CC's recommendations for the open decisions:**
+  - **#471 — held names leave the backfill pool** (PREREG_THEMATIC_CONVEXITY backfill conformance note). Boundary B, 12-07.
+  - **#537 (operator word 2026-11-19, "Sure go with your suggestion…", tightened the same day: "Yes, use min_close_bid"):
+    a profit-take needs a sellable bid (`bid ≥ min_close_bid`, 0.05) in every book** (PREREG_FIXED_BASKET_NULL note):
+    the null books take only profits the real book could have sold; an unsellable trigger books no time-stop that tick
+    either and can ride to expiry at intrinsic. It rides #477's PR and its `null_exits` stamp at boundary B, 12-07.
+  - **#477 — the null books skip profit-take and time-stop on closed-market ticks**, as the real book does since #451
+    (PREREG_FIXED_BASKET_NULL conformance note; a `model_mix` stamp). Boundary B, 12-07.
+  - **#444 — an unsellable real position stays open, tagged `orphaned`** (PREREG_REAL_MONEY_BROKER §3c), re-tried each
+    open tick, settled through the venue-checked expiry path. Boundary B, 12-07.
+    **Landed OFF-CYCLE (operator word 2026-11-19, "Sure"; boundary B's money-safety class):** on 2026-11-18 a junk
+    opening quote marked real-book #13 (RDW $6 put) at 10.10, and the old unsellable path booked a phantom +$9,150
+    in-DB close while the broker still held the contracts (#533 mark bound; #534 journal repair). #527 carries no
+    `model_mix` stamp, so the 12-07 → 12-18 probe freeze is unaffected.
+    **The journal repair (#534, migration 0024; operator word 2026-11-19, "Sure"):** deployed after #527 and #533's mark
+    bound (#535) were live. It reopens real-book #13 (RDW270521P00006000; the broker held all 10 throughout) and clears
+    the phantom resolution of proposal #1342 and sentinel #26, each guarded on its exact phantom state. **Permanent
+    gaps:** the 11-18 post-L1 held reads (run #2106) have no RDW row, and #13 carried no live mark from 11-18 14:30
+    until its first L2 after the repair. The persistence watch's RDW #13 verdict (decided reversed, backfill, beside the
+    count) is unaffected. Follow-up #537: a junk quote below the bound (operator decision). The broker's auto-exercise policy is
+    to be confirmed from its docs before T4.
+  - **Rehearsal:** #466 (exit drill) and #463 (spread round-trip) run on the separate rehearsal paper account, not the DEV
+    paper book; #467's live smoke stays deferred until arming. **Waiting on the operator to create the rehearsal paper
+    account and its Pushover app token.**
+  - **Roadmap order:** draft #455 (cheap-then-repriced, with #453's scoreboard folded in) and #462 (the regime series)
+    now; #457 (gate graduation) is decided after the §10.12 look (12-18) with #455 data; #459, #460 and #461 deferred.
+  - **#470's segment register** (decided 2026-11-12) is built now.
+  - **Sequencing for boundary B (from the #525–#527 review):** the §10.12 probe stops its segment for good on ANY
+    `runs.model_mix` change after its first session. #525 adds `model_mix.backfill` and #526 adds `model_mix.null_exits`,
+    so both must be **deployed and stamping before the Mon 12-07 L1** (merge on 12-05/06, as planned). **Stamp freeze
+    12-07 → 12-18:** nothing that adds, removes or changes a `model_mix` key lands during the probe segment, and the
+    backfill block is not toggled (it gates #525's key).
 - **Operator word 2026-11-16 ("Sure, let's keep moving with your recommendations"):**
   - **Floor-drought look, decided in advance: A** (PREREG_COUNCIL_GATE_SEPARATION §10.11a). §10.11 unchanged; a second
-    10-session drought after 12-18 triggers another look. `records/2026-11-16_floor_drought_look_decision.md`.
+    10-session drought after 12-18 triggers another look. **Applied 2026-11-17** (the clock hit 10/10 at L1 #2090). `records/2026-11-16_floor_drought_look_decision.md`.
   - **Held-name tracking, Option B** (#464; §10.13; `records/2026-11-16_held_name_thesis_tracking_optionB_PREREG.md`):
     a post-L1 pass re-reads every held position nightly into `held_reads`; starts with the first L1 after its code
     merges; cap $1.00 per pass. Measurement only.
+    **Scoring pin (2026-11-17, operator word "Merge and on 508 let's follow your suggestion"; #508):** a `dropped` read is excluded from "the last 3"; the last 3
+    non-dropped reads decide, and drops are counted beside the table.
   - **#505, the slate's date-aware demotion: approved, then WITHDRAWN by CC before any code (2026-11-16).** The sweep
     stores only the selected wing, not the name's other expiries, so the check would also demote names with another
     in-window expiry (LMT Jun/Sep-27, NXE Aug-27 on 11-23). That breaks the 2026-10-21 ruling's "positive, fresh
@@ -302,12 +353,13 @@ The header's absence is itself a signal.
 - **January 2027 (first L1):** `council.monthly_spend_page_usd.anthropic` back to $10 (dated edit, §10.12).
 
 ## Board & book
-- Box: DEV = main `de34b1d` (#501, app restarted 2026-11-14 23:51 UTC; **rebooted 2026-11-07 19:24 UTC** after the
-  operator's apt upgrade; **reboot-required since 2026-11-13 06:48 UTC, libc6**); **PROD = `29a86e4` (#491, promoted
-  2026-11-12 05:50 UTC; 7 PRs behind main on 11-15: code #495–#498, records #499–#501; reboot-required since 11-13
-  06:18 UTC, libc6), verified read-only 2026-11-14 01:12 UTC and again by W46 (11-15)** (ssh with the operator's go): HEAD
-  `29a86e4`, clean tree, 0 `dramatic-options-*` timers loaded, 0 failed units, units on `-m orchestrator`,
-  `trading-bot` active, `/api/version` env `prod`; inert: `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`,
+- Box: DEV = main `f36f9b5` (#520, deployed 2026-11-18 03:35 UTC; **rebooted 2026-11-07 19:24 UTC** after the
+  operator's apt upgrade; **reboot-required since 2026-11-13 06:48 UTC, libc6**: hygiene only, no trading process is on
+  the old libc, so a reboot waits for a quiet weekend); **PROD = `d276bf1` (#521, promoted 2026-11-18 05:32 UTC = main
+  `f36f9b5`, #495–#520; reboot-required since 11-13 06:18 UTC, libc6), verified read-only 2026-11-18 ~05:35 UTC**
+  (ssh with the operator's go): HEAD `d276bf1`, clean tree, 0 `dramatic-options-*` timers loaded (l0/l1/l2/reach/post-l1
+  all inactive), 0 failed units, units on `-m orchestrator` (post-l1 `--post-l1`), `trading-bot` active, `/api/version`
+  env `prod` at `d276bf1`; inert: `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`,
   `FORWARD_ENABLED=false` (its `.env` carries `PAPER=false`; the triple gate stays shut on the other two). Rebooted 2026-10-18. Both healthy
   (0 failed units); units on `-m orchestrator` on both; Real Options `trading-bot` active on PROD. PROD's journal is readable by the review user from 2026-11-03 (`systemd-journal`). PROD's first #392 deploy failed at `git fetch` (a stale `origin/claude` tracking ref blocked `claude/*` branches); pruned with the operator's go, deploy re-run green.
 - Apps:
@@ -337,6 +389,10 @@ The header's absence is itself a signal.
   and (4) only · #469, deferred.
   **Filed 2026-11-16:** #504 (moneyness ceiling 40%, decided 11-16, code for 12-07) · #505 (closed 11-16 as a
   complexity-cut) · #508 (held reads: the §3 timeline and the §4 scoring report, deferred from #507).
+  **Filed 2026-11-17:** #515 (the boundary-B 12-07 checklist: #510, the §10.12 switch-on #519, the model refresh).
+  **Filed 2026-11-18:** #529 (dashboard `market_context` relabel; #462 decision 7).
+  **Filed 2026-11-18/19:** #532 (#455 re-print label, before 2027-01-17) · #533 (mark bound; fixed #535) · #534 (the
+  RDW #13 journal repair) · #537 (a junk quote below the bound; operator decision).
   **Defects:** #444 (the pre-T4 venue/journal audit; its first fix is #481) · #471 (held names take backfill slots)
   · #477 (null-book exits on closed-market ticks).
   **Partly shipped by the stopped session's wave 3 and left open on purpose:** #463, #466, #467.

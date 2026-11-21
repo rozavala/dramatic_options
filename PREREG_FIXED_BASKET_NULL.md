@@ -314,3 +314,27 @@ read**. To keep it honest, its forward *contrast* is pinned here **blind, before
 
 *Frozen 2026-06-03, before any forward results exist. Changes are documented, dated edits to this
 doc — never retroactive. — Dramatic Options*
+
+## Conformance note (2026-11-18, operator word "Aligned with your suggestions"; #477): null-book exits on closed-market ticks
+
+Since #451 (2026-11-10) the real book's monitor is mark-only on a closed-market tick: it marks and settles expiry, but
+defers a triggered profit-take or time-stop to the next open-market tick (nothing can be sold). The null books (shadow,
+3A, 3B and shares) still booked those exits at the closed-tick mark, so a null book could take a profit the real book
+could not. **Aligned:** on a closed-market tick the null books also mark and settle expiry but skip profit-take and
+time-stop, using the orchestrator's same `market_open` read (fail-closed: an error reads as closed). Lands at boundary
+B, **Mon 2026-12-07**, with a `runs.model_mix` stamp for the null-book exit rule. Positions already closed stay as booked.
+
+## Conformance note (2026-11-19, operator word "Sure go with your suggestion if that's better for profits and optimizing the system", tightened the same day by the operator's answer "Yes, use min_close_bid"; #537): a profit-take needs a sellable bid
+
+After the 2026-11-18 incident (#533/#534), a profit-take in any book requires a **sellable bid**: `bid ≥
+convexity_exits.min_close_bid` (0.05, the real book's own sell floor; no new number) at the tick that triggers it. For a
+vertical the long leg's bid is tested, as the real close already does. Without one, the trigger is not acted on that tick
+and is re-evaluated on the next. Why: #535's no-arbitrage bound rejects only marks above what the option can be worth; a
+junk quote whose mid lands between 10× entry and that bound (bid 0 or 0.01 against a wide ask) would otherwise book a
+phantom 10× win in the null books, which book at the mark. With this rule the null books take only profits the real book
+could actually have sold. In the real book such a trigger no longer orphans; it simply does not trigger (#527's orphan
+policy still applies to an unsellable time-stop). **On a tick where an unsellable quote triggers the profit-take, no
+time-stop is booked either** (booking it would put the same junk mark under another label); a row held that way rides
+to expiry and settles at intrinsic, never at the junk mark. Thresholds, `min_close_bid`, the time-stop rule and expiry
+are otherwise unchanged. Lands with #477 at boundary B, **Mon 2026-12-07**, under the same `model_mix.null_exits` stamp
+(one null-book stamp move), outside the §10.12 probe's 12-07 → 12-18 freeze.

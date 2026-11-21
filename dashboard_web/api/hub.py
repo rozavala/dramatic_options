@@ -65,10 +65,12 @@ JOBS: dict[str, str] = {
     "dramatic-options-l2": "l2",          # the intraday monitor's OWN runs, not the L1 ∪ L2 heartbeat (#376)
     "dramatic-options-l0": "discovery",   # Sun 08:00 ET
     "dramatic-options-reach": "reach",    # Sun 09:40 ET — a weekly document, not a journal row
+    "dramatic-options-post-l1": "post_l1",  # Mon–Fri 16:10 ET: the §10.12 probe + §10.13 held reads (#514)
 }
+_POST_L1_LAG = timedelta(minutes=45)      # post-L1 fires ~25 min after the 15:45 L1 slot; judge it 45 min later
 _REACH_STALE = timedelta(days=8)          # weekly + a day of slack (Persistent=false: a miss is not replayed)
 
-_PROPS = "Id,LoadState,ActiveState,NextElapseUSecRealtime,Result"
+_PROPS = "Id,LoadState,ActiveState,NextElapseUSecRealtime,LastTriggerUSec,Result"
 _LOOP_JOBS = ("dramatic-options-l1", "dramatic-options-l2")   # the trading loop: entries + marks/exits
 
 
@@ -95,6 +97,14 @@ def _read_units(*, run: Callable = subprocess.run) -> dict[str, dict[str, str]] 
         if props.get("Id"):
             by_unit[props["Id"]] = props
     return by_unit or None
+
+
+def _last_trigger(props: dict[str, str]) -> str | None:
+    """``LastTriggerUSec`` is ``Mon 2026-11-16 21:10:01 UTC`` (or empty / ``n/a`` when it never fired)."""
+    parts = props.get("LastTriggerUSec", "").split()
+    if len(parts) >= 3 and parts[-1] == "UTC":
+        return _iso(f"{parts[-3]} {parts[-2]}")
+    return None
 
 
 def _next_due(props: dict[str, str]) -> str | None:
@@ -151,10 +161,20 @@ def _loop_beats(conn, now: datetime | None = None) -> dict:
             "l2": {"at": iso(l2_last), "status": dd.l2_session_stale(iso(l2_last), now=now)}}
 
 
-def _job_last_ok(name: str, hdr: dict, records_dir: Path) -> tuple[str | None, bool | None]:
+def _job_last_ok(name: str, hdr: dict, records_dir: Path,
+                 units: dict | None = None) -> tuple[str | None, bool | None]:
     """``(last_ok, stale)`` for one job. ``stale`` is None when the source can't be read; a never-run job is
     ``(None, False)`` — nothing has gone quiet, it has not started."""
     key = JOBS[name]
+    if key == "post_l1":
+        # No journal heartbeat of its own: the timer's last trigger (a failed run shows through the service's
+        # Result in _job). Due on the L1's days, so the L1's market-aware rule judges it, shifted past its 16:10 fire.
+        if units is None or f"{name}.timer" not in units:
+            return None, None
+        last = _last_trigger(units[f"{name}.timer"])
+        if last is None:
+            return None, False
+        return last, dd.council_session_stale(last, now=datetime.now(UTC) - _POST_L1_LAG) == "STALE"
     if key == "reach":
         doc = newest_week_doc(records_dir / "cards")
         ts = doc.get("generated") or doc.get("mtime") if doc.get("available") else None
@@ -168,7 +188,7 @@ def _job_last_ok(name: str, hdr: dict, records_dir: Path) -> tuple[str | None, b
 
 
 def _job(name: str, hdr: dict, units: dict | None, records_dir: Path) -> dict:
-    last_ok, stale = _job_last_ok(name, hdr, records_dir)
+    last_ok, stale = _job_last_ok(name, hdr, records_dir, units)
     timer = (units or {}).get(f"{name}.timer")
     svc = (units or {}).get(f"{name}.service") or {}
     if timer is not None and timer.get("LoadState") == "not-found":

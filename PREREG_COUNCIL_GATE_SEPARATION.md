@@ -474,6 +474,7 @@ blocked 17 (13 bear theses on names whose own filings still grow, the reading §
 the 9 all-pass reads were FLNC/TITN at LOW. The drought is upstream (slate breadth, coverage, conviction), not (3)'s
 wording. **Pinned:** a second run of 10 sessions with no verdict at the floor, after 2026-12-18, triggers another look,
 read with the §10.12 results. Evidence and options: `records/2026-11-16_floor_drought_look_decision.md`.
+**Applied 2026-11-17:** the clock reached 10 of 10 at L1 #2090 (11-17; last above-floor #1918, 11-03), so the look fell due and decision A applied as pre-decided: §10.11 unchanged. The second-drought watch runs from the first L1 after 2026-12-18.
 
 ### 10.13 Held-name thesis tracking, Option B (dated note, 2026-11-16, operator word)
 
@@ -490,6 +491,8 @@ pre-registration: `records/2026-11-16_held_name_thesis_tracking_optionB_PREREG.m
 - **Scoring:** at close, the last 3 held reads (intact = at least 2 at or above the floor; a backfill origin uses
   `include = true` at LOW or higher) against the realized multiple (≥ 1.0 vs < 1.0), counts only, no rate before 20
   closes with 3 reads.
+  **Dropped reads (pinned 2026-11-17, operator word "Merge and on 508 let's follow your suggestion"; #508):** a NEUTRAL early exit is excluded; the last 3
+  **non-dropped** reads decide, and drops are counted beside the table.
 - **Never** (until a separately pre-registered rule): trigger or delay an exit, add, re-strike or carry; veto or size;
   enter any council prompt; feed the backfill rank, the gates or the persistence watch. The pack never says the name
   is held.
