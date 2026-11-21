@@ -90,6 +90,19 @@ _env_val() {      # value of a key in .env (empty if absent)
     grep -E "^[[:space:]]*$1[[:space:]]*=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"' \t\r"
 }
 
+# T4 arming (#468): which Alpaca pair a trading env must carry. The SAME decision deploy.sh renders `--live` from
+# (scripts/live_arming.sh: the operator's root-owned marker AND PAPER=false, LIVE_TRADING_ENABLED=true,
+# FORWARD_ENABLED=true). Armed → the LIVE pair; every other trading env → the paper pair, exactly as before. A missing
+# helper is "not armed" (the paper rule, which fails a live-keyed box loudly rather than passing it).
+_LIVE_ARMED=0
+_ARMING_HELPER="$(dirname "${BASH_SOURCE[0]}")/live_arming.sh"
+if [ -f "$_ARMING_HELPER" ]; then
+    # shellcheck source=scripts/live_arming.sh
+    . "$_ARMING_HELPER"
+    live_arming_check "$ENV_FILE" "${ENV_NAME:-}"
+    _LIVE_ARMED="$LIVE_ARMED"
+fi
+
 echo "  [verify] Checking live-checkout .env ($ENV_FILE)..."
 if [ "$(_env_truthy)" = "true" ]; then
     if [ ! -f "$ENV_FILE" ]; then
@@ -100,9 +113,19 @@ if [ "$(_env_truthy)" = "true" ]; then
         REQUIRED_KEYS=(GEMINI_API_KEY XAI_API_KEY \
             ANTHROPIC_API_KEY DRY_RUN FORWARD_ENABLED PUSHOVER_API_TOKEN PUSHOVER_USER_KEY)
         MISSING=0
-        # Alpaca keys (issue #279 item 6, STRICT): the venue-named PAPER pair, and NO legacy name (the
-        # loop refuses to start with one set). A trading env (FORWARD_ENABLED) is paper until T4.
-        _pk=$(_env_val ALPACA_PAPER_KEY_ID); _ps=$(_env_val ALPACA_PAPER_SECRET_KEY)
+        # Alpaca keys (issue #279 item 6, STRICT): the venue-named pair, and NO legacy name (the loop refuses to
+        # start with one set). A trading env is paper (the PAPER pair) unless it is ARMED (#468): then the LIVE pair,
+        # the one config_loader.alpaca_credentials hands the live venue. Names only — a value is never printed.
+        if [ "$_LIVE_ARMED" = "1" ]; then
+            _pair=live; _kvar=ALPACA_LIVE_KEY_ID; _svar=ALPACA_LIVE_SECRET_KEY
+            echo "  [verify] live arming: $LIVE_ARMING_REASON — requiring the LIVE key pair"
+        else
+            _pair=paper; _kvar=ALPACA_PAPER_KEY_ID; _svar=ALPACA_PAPER_SECRET_KEY
+            if [ "${LIVE_ARMING_LOUD:-0}" = "1" ]; then
+                echo "  [verify] live arming $LIVE_ARMING_REASON — not armed, so the paper pair is required"
+            fi
+        fi
+        _pk=$(_env_val "$_kvar"); _ps=$(_env_val "$_svar")
         _legacy=""
         for _lv in ALPACA_API_KEY ALPACA_SECRET_KEY ALPACA_PAPER; do
             grep -qE "^[[:space:]]*${_lv}[[:space:]]*=" "$ENV_FILE" 2>/dev/null && _legacy="$_legacy $_lv"
@@ -112,10 +135,10 @@ if [ "$(_env_truthy)" = "true" ]; then
             echo "$(date --iso=s) — FAIL: .env legacy Alpaca names:$_legacy" >> "$HEALTH_LOG"
             FAILED=1; MISSING=1
         elif [ -n "$_pk" ] && [ -n "$_ps" ] && [[ "$_pk" != your_* ]] && [[ "$_ps" != your_* ]]; then
-            echo "  [verify] Alpaca: venue-named paper pair present"
+            echo "  [verify] Alpaca: venue-named $_pair pair present"
         else
-            echo "  [verify] CRITICAL: no Alpaca paper key pair (ALPACA_PAPER_KEY_ID/ALPACA_PAPER_SECRET_KEY)"
-            echo "$(date --iso=s) — FAIL: .env Alpaca paper pair missing/placeholder" >> "$HEALTH_LOG"
+            echo "  [verify] CRITICAL: no Alpaca $_pair key pair ($_kvar/$_svar)"
+            echo "$(date --iso=s) — FAIL: .env Alpaca $_pair pair missing/placeholder" >> "$HEALTH_LOG"
             FAILED=1; MISSING=1
         fi
         for _k in "${REQUIRED_KEYS[@]}"; do

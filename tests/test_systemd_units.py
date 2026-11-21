@@ -158,7 +158,13 @@ def _run_install_units(tmp_path, *, sudo_ok: bool, allow: str = "cp") -> tuple[s
     ok_tee = 'command tee "$2"' if sudo_ok and allow == "tee" else "return 1"
     fake_sudo = ('sudo() { [ "$1" = "-n" ] && shift; case "$1" in cp) ' + ok_cp + ";; tee) " + ok_tee +
                  ";; *) return 0;; esac; }\n")
-    script = (f'set -e\nSYSTEMD_SRC="{src}"\nSYSTEMD_DST="{dst}"\nREPO_ROOT=/r\nENV_NAME=DEV\n' + fake_sudo +
+    # #468: install_units first decides --live (resolve_live_flag, the arming lib); no marker here → none rendered.
+    arming = (REPO / "scripts" / "live_arming.sh").read_text().replace(
+        'LIVE_MARKER="/etc/dramatic-options/live-armed"', f'LIVE_MARKER="{tmp_path}/no-marker"')
+    live_units = re.search(r"^LIVE_UNITS=\(.*$", DEPLOY.read_text(), re.M).group(0) + "\n"
+    script = (f'set -e\nSYSTEMD_SRC="{src}"\nSYSTEMD_DST="{dst}"\nREPO_ROOT=/r\nENV_NAME=DEV\n'
+              f'ENV_FILE="{tmp_path}/.env"\nSERVICE_PREFIX=dramatic-options\n' + arming + live_units + fake_sudo +
+              _deploy_function("resolve_live_flag") +
               _deploy_function("render_unit") + _deploy_function("install_units") +
               'install_units\necho "FAILED=[$UNITS_FAILED] CHANGED=$UNITS_CHANGED"\n')
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30)
@@ -230,8 +236,10 @@ def test_apply_timers_arms_every_installable_timer_when_one_is_missing():
             'for u in "$@"; do [ "$u" = missing.timer ] && return 1; done; '
             'for u in "$@"; do echo "ARMED $u"; done; return 0; fi; return 0; }\n'
             'forward_enabled() { echo true; }\n')
-    script = ('set -e\nTIMERS=("a.timer" "missing.timer" "b.timer")\n' + fake + _deploy_function("apply_timers") +
-              "apply_timers\n")
+    # #468: apply_timers first checks the installed L1/L2 agree with the --live decision (unarmed, none installed: ok)
+    script = ('set -e\nTIMERS=("a.timer" "missing.timer" "b.timer")\nLIVE_UNITS=(l1.service l2.service)\n'
+              'LIVE_FLAG=""\nSYSTEMD_DST=/nonexistent\n' + fake + _deploy_function("live_units_installed_as_decided") +
+              _deploy_function("apply_timers") + "apply_timers\n")
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30)
     assert out.returncode == 0, out.stderr
     assert "ARMED a.timer" in out.stdout and "ARMED b.timer" in out.stdout, out.stdout

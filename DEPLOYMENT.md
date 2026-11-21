@@ -71,7 +71,7 @@ trade on the loop at all" switch.
 |---|---|---|---|
 | `PAPER` | `true` | **`false`** (verified read-only 2026-11-12) | the venue: `true` = paper endpoint and the paper key pair; `false` = the live pair |
 | `LIVE_TRADING_ENABLED` | `false` | `false` | half of the live gate |
-| `--live` (CLI) | not passed | not passed | the other half — `live_allowed` needs all three |
+| `--live` (CLI) | not passed | not passed | the third key — `live_allowed` needs all three. Rendered into the L1/L2 units **only** by the operator's marker (see "Arming PROD (T4)"), never from `.env` |
 | `FORWARD_ENABLED` | **`true`** | **`false`** | this env runs the scheduled loop |
 
 PROD is inert by several independent margins until T4. Its `.env` was verified read-only on 2026-11-12 (names
@@ -86,6 +86,183 @@ A real-money broker path does exist in code: `AlpacaLiveBroker` (PREREG_REAL_MON
 the triple gate. A PROD paper rehearsal therefore needs its `.env` edited to `PAPER=true` with a **separate**
 paper pair (operator word 2026-11-12; `records/2026-11-12_operator_decisions_roadmap.md`). DEV runs `DRY_RUN=false`
 (real two-sided paper submit) for an honest forward record toward T4.
+
+## Arming PROD (T4) — operator-only
+
+**Not authorized.** The operator's word of 2026-11-12 is "No live arming"; this section is the procedure for when
+arming is worded, after every row of the T4 go/no-go checklist passes (#468). Every step is the operator's, by hand,
+on the box. No CI job, deploy, script or Claude Code session performs any of them.
+
+**How the third key gets into the units (#468).** `config_loader.live_allowed` needs `PAPER=false` **and**
+`LIVE_TRADING_ENABLED=true` (both `.env`) **and** `--live` on the command line. The `.env` cannot supply `--live`:
+it comes from a **marker** the operator creates as root, outside the repo and outside `.env`:
+
+```
+/etc/dramatic-options/live-armed      exactly one line: PROD
+```
+
+At every render (each deploy, and a rollback), `deploy.sh` (`resolve_live_flag`, via `scripts/live_arming.sh`)
+appends ` --live` to the `ExecStart` of **`dramatic-options-l1.service` and `dramatic-options-l2.service` only**
+(the two units that build a broker; the L2 needs it too, or it builds the paper broker, never reconciles a live
+order, and the KILL path holds a live order as `wrong_venue` instead of cancelling it). It does so only when
+**all** hold:
+- the deploy runs as `ENV_NAME=PROD` (no other env can be armed);
+- the marker is a regular file (not a symlink), owned by root, not group- or other-writable, readable, in a
+  directory that is root-owned, not a symlink and not group- or other-writable; it holds exactly one line (trailing
+  whitespace allowed) equal to `ENV_NAME`, and no further non-empty line;
+- the `.env` already says armed: `PAPER=false`, `LIVE_TRADING_ENABLED=true`, `FORWARD_ENABLED=true`, none assigned
+  twice with different values (`export KEY=` lines count). A value is read with only surrounding whitespace and one
+  pair of matching quotes stripped, so `tr ue` or `t"r"ue` is never `true`.
+
+**Guards around an armed box.**
+- **The deploy must name the env.** When a marker exists, `deploy.sh` aborts before it takes the lock or touches
+  systemd unless it was given `ENV_NAME` equal to the marker's line. A bare `./deploy.sh` (which defaults to `DEV`)
+  on an armed PROD therefore changes nothing and says why, instead of re-rendering L1/L2 without `--live`.
+- **L1 and L2 move together.** Before enabling timers, the deploy checks that the *installed* L1 and L2 both carry
+  this deploy's decision (both `--live`, or neither). If a unit install failed and they disagree, it enables no
+  timer, disables them all, and the timer check then fails the deploy and rolls back.
+- **No `--live` is stripped under running timers.** When the *installed* L1 or L2 carries `--live`, this deploy
+  would not render it, and the `.env` still has `FORWARD_ENABLED` on, the deploy aborts the same way, before any
+  change, and names the reason. That covers a marker that turned bad (a `chmod`), a marker removed while the `.env`
+  is still armed, and a jump straight from armed to the paper rehearsal. The documented disarm (below) sets
+  `FORWARD_ENABLED=false` first, so it passes; to go from armed to a rehearsal, disarm first.
+- **The guards run before the checkout moves.** Both guards live in `scripts/predeploy_guard.sh`. The deploy
+  workflow runs it from the live checkout as it stands, before the workflow moves the checkout (its self-heal,
+  `git fetch`, `git checkout`, `git reset --hard`): a refusal fails the job with the checkout untouched, so the armed
+  timers keep running the code that was deployed with them, never a new commit that skipped its deps, migrations
+  and verify. A checkout older than #468 has no guard, and the workflow skips it. `deploy.sh` runs the same script
+  first. **A manual deploy** does the same by hand: `cd ~/dramatic_options && ENV_NAME=PROD bash scripts/predeploy_guard.sh`
+  before `git pull`, and only on `passed` pull and run `ENV_NAME=PROD ./deploy.sh`. If the checkout was already
+  moved and the deploy then aborts, the armed timers are running that commit without its deps, migrations or verify:
+  move the checkout back to the deployed commit until the guard passes.
+- **A rollback keeps the decision, by design.** The rollback re-renders through the same decision (marker + `.env`),
+  so an armed box that fails its verify gate stays armed after the rollback: an L2 without `--live` could not
+  reconcile or close a live position. It never arms an unarmed box.
+
+Anything else renders no `--live`. The deploy log says which, in one line; it prints `!!!` lines when armed and when
+the marker and the `.env` disagree (a marker on an unarmed env, armed flags with no marker, a malformed marker).
+With no marker the rendered units are byte-identical to the pre-#468 ones. On an armed env, `verify_deploy.sh`
+CHECK 5 requires the **live** pair (`ALPACA_LIVE_KEY_ID`/`ALPACA_LIVE_SECRET_KEY`) instead of the paper pair, and
+still refuses the legacy names; every other trading env keeps the paper-pair rule.
+
+**Procedure** (mirrors the checklist's §4; `records/2026-11-10_t4_go_no_go_checklist_DRAFT.md`):
+1. All checklist rows PASS, and the operator's dated word is recorded (STANDING_STATE and a records note).
+2. Fund about $10,000 as a disjoint slice of the shared account (`records/2026-10-03_shared_account_capital.md`).
+3. PROD's DB: the real book starts **empty**, so the journal equals the venue. Archive any rehearsal DB with the
+   step 8.2 snippet, with `label=rehearsal` (timers stopped as in 8.1, inside the same hold).
+4. PROD `.env` (operator edit): the live pair, no paper or legacy names; `PAPER=false`, `LIVE_TRADING_ENABLED=true`,
+   `FORWARD_ENABLED=true`, the notional ceiling (`LIVE_MAX_ORDER_NOTIONAL` or `safety.live_max_order_notional`),
+   and **`DRY_RUN=true`** for the first armed L1.
+5. The marker:
+   ```
+   sudo install -d -m 0755 /etc/dramatic-options
+   echo PROD | sudo tee /etc/dramatic-options/live-armed >/dev/null
+   sudo chmod 0644 /etc/dramatic-options/live-armed
+   ```
+6. Deploy (`production` push, or `cd ~/dramatic_options && ENV_NAME=PROD ./deploy.sh`; without `ENV_NAME=PROD` the
+   deploy aborts before any change). The log must show
+   `!!! LIVE ARMED on PROD`, `[verify] Alpaca: venue-named live pair present`, and the closing line
+   `--live RENDERED (ARMED)`. Confirm on the box:
+   `systemctl cat dramatic-options-l1.service dramatic-options-l2.service | grep ExecStart` (both end in `--live`).
+7. The first armed L1 runs with `DRY_RUN=true`: its log must show the banner `DRAMATIC OPTIONS — LIVE`, a `runs` row
+   with mode `LIVE`, and "DRY_RUN (not sent) … [LIVE — REAL MONEY]" on every intended order; nothing reaches the venue.
+   **But the DRY_RUN cycle writes to the real book:** a simulated fill is journalled `open`
+   (`paper_loop.py`: "a simulated/immediate fill is 'open'"), and its L2s may book simulated exits. Left in place,
+   those rows would make the journal differ from the venue, and the first transmitting L2 could send a
+   SELL_TO_CLOSE on the shared live account for a contract never bought.
+8. **Before the flip, archive the DB and start empty.** On the morning of the flip (an ordinary session, not an
+   expiry Friday), before the 15:45 ET L1. **Hold `production` merges for the whole of step 8:** a `production` push
+   runs the deploy, whose `apply_timers` re-enables every timer (`FORWARD_ENABLED=true`) in the middle of it. In
+   this order:
+   1. Stop the timers and confirm no unit is running:
+      ```
+      cd ~/dramatic_options
+      sudo systemctl stop dramatic-options-{l0,l1,l2,reach,post-l1}.timer
+      systemctl is-active dramatic-options-{l1,l2,post-l1}.service   # every line must say inactive
+      ```
+   2. Archive the DB (keep the three files together, under their own names):
+      ```
+      label=dryrun
+      mkdir -p data/archive && d="data/archive/$(date +%F)-$label" && mkdir "$d" && {
+        sudo systemctl stop dramatic-options-web.service
+        for f in data/dramatic_options.db data/dramatic_options.db-wal data/dramatic_options.db-shm; do
+          if [ -e "$f" ]; then mv "$f" "$d/"; fi; done
+        sudo systemctl start dramatic-options-web.service
+        echo "ARCHIVED to $d"; } || echo "REFUSED: $d already exists or could not be created; nothing moved"
+      ```
+      SQLite pairs a DB with its `-wal`/`-shm` by name, so they move together into one dated directory and keep
+      their names (an un-checkpointed archive stays readable). An existing directory is refused, never merged. The
+      read-only web dashboard is stopped around the move and started again.
+   3. The precheck. It must print `PASS` (exit 0); anything else, `FAIL`, stops the procedure here:
+      ```
+      venv/bin/python - <<'EOF'
+      import pathlib, sqlite3, sys
+      db = pathlib.Path("data/dramatic_options.db")
+      if not db.exists():
+          print("PASS: no DB; the next run creates an empty book")
+          sys.exit(0)
+      try:
+          rows = sqlite3.connect(f"file:{db}?mode=ro", uri=True).execute(
+              "SELECT status, COUNT(*) FROM convexity_positions GROUP BY status").fetchall()
+      except sqlite3.Error as e:
+          print(f"FAIL: cannot read convexity_positions ({e})")
+          sys.exit(1)
+      print("PASS: convexity_positions is empty" if not rows else f"FAIL: rows by status {rows}")
+      sys.exit(1 if rows else 0)
+      EOF
+      ```
+      It refuses **any** row, not only `open`, `pending`, `carried` or `closing`: a simulated `closed` row would also
+      enter the realized multiples the T4 conditions read.
+   4. Only on `PASS`, the flip, on the operator's word: edit `.env` to `DRY_RUN=false`. `.env` is read every run, so
+      no deploy is needed.
+   5. `sudo systemctl start dramatic-options-{l0,l1,l2,reach,post-l1}.timer`, then lift the hold. The next deploy's
+      banner reads `DRY_RUN=false: the live path is TRANSMITTING REAL-MONEY ORDERS`.
+
+**First-week watch** (daily; CC reads, the operator decides): every submit's log line carries `[LIVE — REAL
+MONEY]`; every buy shows its ceiling, reserve and venue-quantity read; each fill is compared with its limit
+(slippage); pending orders reconcile at the next L2; the live account's positions are read by hand and compared
+with the journal (the loop never lists them, §3a.3); the kill-rule and drawdown state; the expected pages arrived.
+
+**Disarm** returns PROD to today's inert state. First decide what happens to the open live positions, because once
+the timers are off **no part of the system manages them**:
+- **Recommended: wind down under the armed L2, then disarm.** Under a hold on `production` merges (a deploy
+  re-enables every timer), stop new entries by disabling the L1 timer only:
+  `sudo systemctl disable --now dramatic-options-l1.timer`. The armed L2 keeps running the §6a exits (the
+  profit-take, the 21-DTE time-stop, expiry), so each position closes through the system and the journal stays equal
+  to the venue. Disarm once the step 8.3 query shows only `closed` rows. A position left `orphaned` (§3c: no sellable
+  bid) is still `open` and keeps the wind-down going. This can take as long as the latest position's time-stop.
+- **Emergency: KILL first.** `touch KILL` halts the L1 **and the L2**: `run_once` returns at the KILL check, before
+  the monitor, after cancelling resting **entries** (#389). From then on the open live positions are **not managed**:
+  no profit-take, no time-stop, no expiry handling, and a resting close is left as it is. The operator closes or
+  holds them in the broker's own UI, and the journal no longer equals the venue. No tool in this repo records a
+  manual close, so each one is written up by hand before any re-arm.
+
+Then, in this order:
+1. `touch KILL` (if not already). It stays in place until a re-arm is worded.
+2. The disarmed `.env`, exactly today's inert PROD (the live pair stays; no paper pair):
+   ```
+   PAPER=false
+   LIVE_TRADING_ENABLED=false
+   DRY_RUN=true
+   FORWARD_ENABLED=false
+   ```
+   `FORWARD_ENABLED=false` is what makes this a disarm. Left `true`, the next deploy would refuse to strip `--live`
+   (the guard above); and without that guard its CHECK 5 would demand the paper pair, fail, and roll back with every
+   timer enabled.
+3. Remove the marker: `sudo rm /etc/dramatic-options/live-armed`.
+4. Deploy with `ENV_NAME=PROD`. It renders L1/L2 without `--live`, disables every timer, and passes the verify gate
+   (an inert env skips the key check). Confirm: `systemctl list-timers 'dramatic-options-*'` lists none, and
+   `systemctl cat dramatic-options-l1.service dramatic-options-l2.service | grep ExecStart` shows no `--live`.
+
+A `--live` left in a unit with the `.env` disarmed is inert anyway: `live_allowed` re-reads both flags every run and
+logs "--live requested but gates not satisfied — continuing in PAPER mode".
+
+**What the marker is, and is not.** It separates the third act from the `.env` edit and from anything a
+non-root process can do: the orchestrator, a review session or the deploy itself cannot create a root-owned file.
+It is not a privilege boundary against a user with broad sudo. PROD's deploy user has a wildcard
+`cp /tmp/* /etc/systemd/system/*` rule, which sudo's argument matching does not confine to that directory (so that
+user is effectively root-equivalent), and nothing in this repo uses it for the marker. Replacing the wildcard with
+exact per-unit rules is a T4 checklist item.
 
 ## Observability dashboard (read-only)
 
@@ -120,6 +297,7 @@ is tested against (`dashboard_web/api/test_snapshot_parity.py`) and can still be
 | `.github/workflows/deploy.yml` | CI/CD trigger: `main`→DEV, `production`→PROD (runs `./deploy.sh`) |
 | `deploy.sh` | lifecycle: verify-gated install + timer arming, with rollback that re-syncs units |
 | `scripts/verify_deploy.sh` | health gate (disk, imports, critical files, **live-checkout `.env`**) |
+| `scripts/live_arming.sh` | #468: the arming decision (the operator's marker AND the `.env` armed), sourced by `deploy.sh` and `verify_deploy.sh` |
 | `scripts/systemd/*.{service,timer}` | unit templates (L0, L1, L2, reach, post-l1, notify@, web) rendered at install |
 | `scripts/dashboard_web_run.sh` | web dashboard launch wrapper — binds 127.0.0.1:8602 (behind `tailscale serve`) |
 | `requirements-dashboard.txt` | dashboard-only deps (streamlit); installed by deploy STEP 3, not in CI's base job |
@@ -136,6 +314,7 @@ is tested against (`dashboard_web/api/test_snapshot_parity.py`) and can still be
    ```
    ALPACA_PAPER_KEY_ID= ALPACA_PAPER_SECRET_KEY=   (legacy ALPACA_API_KEY/ALPACA_SECRET_KEY/ALPACA_PAPER are REFUSED — issue #279. **PROD** (verified 2026-11-12): no legacy names; it carries only the live pair ALPACA_LIVE_KEY_ID/ALPACA_LIVE_SECRET_KEY, shared with the other projects, finance#947 §5)
    PAPER=true  LIVE_TRADING_ENABLED=false  DRY_RUN=false  FORWARD_ENABLED=true
+   (an ARMED env — see "Arming PROD (T4)" — needs the live pair ALPACA_LIVE_KEY_ID/ALPACA_LIVE_SECRET_KEY instead)
    GEMINI_API_KEY=  XAI_API_KEY=  ANTHROPIC_API_KEY=
    PUSHOVER_API_TOKEN=  PUSHOVER_USER_KEY=
    ```

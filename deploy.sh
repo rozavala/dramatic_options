@@ -33,6 +33,7 @@ fi
 cd "$REPO_ROOT"
 
 # --- Configuration ----------------------------------------------------------
+ENV_NAME_GIVEN="${ENV_NAME:-}"                     # what the caller passed, before the default (#468 guard)
 ENV_NAME="${ENV_NAME:-DEV}"                       # DEV | PROD
 SERVICE_PREFIX="dramatic-options"
 SYSTEMD_SRC="scripts/systemd"                      # unit templates (rendered at install time)
@@ -49,6 +50,23 @@ ENV_FILE="$REPO_ROOT/.env"                         # the file systemd Environmen
 HEALTH_URL="${HEALTH_URL:-}"                       # EMPTY: the trading loop has no HTTP endpoint. (The §5b
                                                    # dashboard IS an HTTP server on 8601, deliberately kept OUT
                                                    # of the verify gate — its failure is fail-soft.)
+# T4 arming (#468): the units that place or manage orders, and so get `--live` when this box is armed. Only L1 and
+# L2 build a broker (orchestrator.run_once, and the KILL cancel inside it); L0 (--discover) and post-l1 (--post-l1)
+# return before --live is read and build only a data client, so they never get it. The decision itself
+# (live_arming_check: the operator's root-owned marker AND the .env already armed) lives in scripts/live_arming.sh,
+# shared with verify_deploy.sh. Sourced here, before anything changes: a missing helper aborts the deploy (set -e).
+LIVE_UNITS=("${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service")
+LIVE_FLAG=""                                       # " --live" only after resolve_live_flag says ARMED
+# shellcheck source=scripts/live_arming.sh
+. "$REPO_ROOT/scripts/live_arming.sh"
+# The arming guards (#468), before the lock and before systemd is touched, in scripts/predeploy_guard.sh (the deploy
+# workflow runs the same script BEFORE it moves the checkout). It refuses when a marker exists and this deploy was
+# not GIVEN the env it names (a bare `./deploy.sh` defaults to DEV and would re-render an armed PROD's L1/L2 without
+# --live), and when installed L1/L2 carry --live that this deploy would strip while FORWARD_ENABLED keeps the timers
+# firing. Aborting here changes nothing on the box. With no marker and no --live installed it is a no-op.
+if ! ENV_NAME="$ENV_NAME_GIVEN" bash "$REPO_ROOT/scripts/predeploy_guard.sh" "$SYSTEMD_DST" "${LIVE_UNITS[@]}"; then
+    exit 1
+fi
 
 # Prevent overlapping deploys
 DEPLOY_LOCK="/tmp/${SERVICE_PREFIX}-deploy.lock"
@@ -114,13 +132,55 @@ forward_enabled() {
     esac
 }
 
+# T4 arming (#468): decide, once per render pass, whether this box renders `--live` (LIVE_FLAG). Recomputed from the
+# marker and the .env on every install_units call, the rollback's included, so a rollback keeps an armed box armed
+# (an armed L2 without --live could not reconcile or close a live order) and never arms an unarmed one. Says so
+# LOUDLY in the deploy log when armed, and when the marker and the .env disagree (then it renders nothing).
+resolve_live_flag() {
+    live_arming_check "$ENV_FILE" "$ENV_NAME"
+    if [ "$LIVE_ARMED" = "1" ]; then
+        LIVE_FLAG=" --live"
+        echo "  !!! ================================================================== !!!"
+        echo "  !!! LIVE ARMED on $ENV_NAME: rendering --live into ${LIVE_UNITS[*]}"
+        echo "  !!! $LIVE_ARMING_REASON"
+        local dry
+        dry=$(_arming_env_value "$ENV_FILE" DRY_RUN)
+        case "$dry" in
+            1|true|yes|on) echo "  !!! DRY_RUN=$dry: the live path logs every order and transmits nothing" ;;
+            "")            echo "  !!! DRY_RUN is unset in .env: config.json safety.dry_run decides — check it" ;;
+            "<conflict>")  echo "  !!! DRY_RUN is assigned conflicting values in .env: treat this box as TRANSMITTING" ;;
+            *)             echo "  !!! DRY_RUN=$dry: the live path is TRANSMITTING REAL-MONEY ORDERS" ;;
+        esac
+        echo "  !!! ================================================================== !!!"
+    else
+        LIVE_FLAG=""
+        if [ "$LIVE_ARMING_LOUD" = "1" ]; then
+            echo "  !!! LIVE ARMING $LIVE_ARMING_REASON — rendering NO --live (fail-closed)"
+        else
+            echo "  live arming: $LIVE_ARMING_REASON — no --live"
+        fi
+    fi
+}
+
 # Render a unit template to stdout, substituting the install-time placeholders so the same
 # tracked file is correct on DEV (rodrigo) and PROD (console) without hardcoded paths.
+# When LIVE_FLAG is set (resolve_live_flag said ARMED), the ExecStart of a LIVE_UNITS unit gets ` --live` appended;
+# with LIVE_FLAG empty the sed call is exactly the pre-#468 one, so every unarmed box renders byte-identical units.
 render_unit() {
+    local -a live_args=()
+    local u
+    if [ -n "$LIVE_FLAG" ]; then
+        for u in "${LIVE_UNITS[@]}"; do
+            if [ "$(basename "$1")" = "$u" ]; then
+                live_args=(-e "s|^\(ExecStart=.*\)\$|\1${LIVE_FLAG}|")
+            fi
+        done
+    fi
     sed -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
         -e "s|__USER__|$(id -un)|g" \
         -e "s|__GROUP__|$(id -gn)|g" \
         -e "s|__ENV_NAME__|${ENV_NAME}|g" \
+        "${live_args[@]}" \
         "$1"
 }
 
@@ -134,6 +194,7 @@ UNITS_FAILED=""
 install_units() {
     UNITS_CHANGED=0
     UNITS_FAILED=""
+    resolve_live_flag
     if [ ! -d "$SYSTEMD_SRC" ]; then
         echo "  (no $SYSTEMD_SRC in this tree — nothing to install)"
         return 0
@@ -168,9 +229,36 @@ install_units() {
     fi
 }
 
+# T4 arming (#468): the INSTALLED L1 and L2 must both carry the --live decision this deploy made (both --live when
+# armed, neither when not). install_units records a failed install and carries on, so without this an armed deploy
+# whose L2 install failed would enable timers over an L1 with --live and an L2 without (live orders never
+# reconciled), and a disarming deploy could leave one unit still --live. Reads files only; on an unarmed box whose
+# installed units carry no --live (every box today) it always passes, so the deploy runs exactly as before.
+LIVE_UNITS_MISMATCH=""
+live_units_installed_as_decided() {
+    local u want have
+    LIVE_UNITS_MISMATCH=""
+    want=none; [ -n "$LIVE_FLAG" ] && want=live
+    for u in "${LIVE_UNITS[@]}"; do
+        have=none
+        grep -qE '^ExecStart=.* --live$' "$SYSTEMD_DST/$u" 2>/dev/null && have=live
+        [ "$have" = "$want" ] || LIVE_UNITS_MISMATCH="$LIVE_UNITS_MISMATCH $u(installed: $have, decided: $want)"
+    done
+    [ -z "$LIVE_UNITS_MISMATCH" ]
+}
+
 # Arm timers where this env trades; otherwise guarantee they are inert. NEVER starts the
 # oneshot .service units (that would run a full live cycle now).
 apply_timers() {
+    if [ "$(forward_enabled)" = "true" ] && ! live_units_installed_as_decided; then
+        # Refuse to enable ANY timer over units that disagree on --live: disable them all (a stopped-but-enabled timer
+        # would come back at reboot). STEP 8 then fails on the inactive timers and rolls back, whose own
+        # install_units + apply_timers re-decide and re-check.
+        echo "  !!! INSTALLED L1/L2 DISAGREE WITH THE ARMING DECISION:$LIVE_UNITS_MISMATCH"
+        echo "  !!! NOT enabling any timer (fail-closed); disabling them all."
+        sudo systemctl disable --now "${TIMERS[@]}" 2>/dev/null || true
+        return 0
+    fi
     if [ "$(forward_enabled)" = "true" ]; then
         echo "  FORWARD_ENABLED=true → enabling timers (this env trades)."
         # One timer per call (#456 review): `enable --now` of a list is all-or-nothing, so one missing unit file
@@ -383,5 +471,5 @@ fi
 
 echo ""
 echo "--- Deployment finished successfully! ---"
-echo "--- Commit: $CURR_COMMIT ($ENV_NAME, FORWARD_ENABLED=$(forward_enabled)) ---"
+echo "--- Commit: $CURR_COMMIT ($ENV_NAME, FORWARD_ENABLED=$(forward_enabled), --live $([ -n "$LIVE_FLAG" ] && echo 'RENDERED (ARMED)' || echo 'not rendered')) ---"
 echo "--- $(date) ---"
