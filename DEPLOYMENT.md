@@ -71,7 +71,7 @@ trade on the loop at all" switch.
 |---|---|---|---|
 | `PAPER` | `true` | **`false`** (verified read-only 2026-11-12) | the venue: `true` = paper endpoint and the paper key pair; `false` = the live pair |
 | `LIVE_TRADING_ENABLED` | `false` | `false` | half of the live gate |
-| `--live` (CLI) | not passed | not passed | the other half — `live_allowed` needs all three |
+| `--live` (CLI) | not passed | not passed | the third key — `live_allowed` needs all three. Rendered into the L1/L2 units **only** by the operator's marker (see "Arming PROD (T4)"), never from `.env` |
 | `FORWARD_ENABLED` | **`true`** | **`false`** | this env runs the scheduled loop |
 
 PROD is inert by several independent margins until T4. Its `.env` was verified read-only on 2026-11-12 (names
@@ -86,6 +86,75 @@ A real-money broker path does exist in code: `AlpacaLiveBroker` (PREREG_REAL_MON
 the triple gate. A PROD paper rehearsal therefore needs its `.env` edited to `PAPER=true` with a **separate**
 paper pair (operator word 2026-11-12; `records/2026-11-12_operator_decisions_roadmap.md`). DEV runs `DRY_RUN=false`
 (real two-sided paper submit) for an honest forward record toward T4.
+
+## Arming PROD (T4) — operator-only
+
+**Not authorized.** The operator's word of 2026-11-12 is "No live arming"; this section is the procedure for when
+arming is worded, after every row of the T4 go/no-go checklist passes (#468). Every step is the operator's, by hand,
+on the box. No CI job, deploy, script or Claude Code session performs any of them.
+
+**How the third key gets into the units (#468).** `config_loader.live_allowed` needs `PAPER=false` **and**
+`LIVE_TRADING_ENABLED=true` (both `.env`) **and** `--live` on the command line. The `.env` cannot supply `--live`:
+it comes from a **marker** the operator creates as root, outside the repo and outside `.env`:
+
+```
+/etc/dramatic-options/live-armed      one line: the env name the deploy runs as (PROD)
+```
+
+At every render (each deploy, and a rollback), `deploy.sh` (`resolve_live_flag`, via `scripts/live_arming.sh`)
+appends ` --live` to the `ExecStart` of **`dramatic-options-l1.service` and `dramatic-options-l2.service` only**
+(the two units that build a broker; the L2 needs it too, or it builds the paper broker, never reconciles a live
+order, and the KILL path holds a live order as `wrong_venue` instead of cancelling it). It does so only when
+**both** hold:
+- the marker is a regular file (not a symlink), owned by root, not group- or other-writable, readable, and its
+  content is exactly the deploy's `ENV_NAME`;
+- the `.env` already says armed: `PAPER=false`, `LIVE_TRADING_ENABLED=true`, `FORWARD_ENABLED=true`, none assigned
+  twice with different values.
+
+Anything else renders no `--live`. The deploy log says which, in one line; it prints `!!!` lines when armed and when
+the marker and the `.env` disagree (a marker on an unarmed env, armed flags with no marker, a malformed marker).
+With no marker the rendered units are byte-identical to the pre-#468 ones. On an armed env, `verify_deploy.sh`
+CHECK 5 requires the **live** pair (`ALPACA_LIVE_KEY_ID`/`ALPACA_LIVE_SECRET_KEY`) instead of the paper pair, and
+still refuses the legacy names; every other trading env keeps the paper-pair rule.
+
+**Procedure** (mirrors the checklist's §4; `records/2026-11-10_t4_go_no_go_checklist_DRAFT.md`):
+1. All checklist rows PASS, and the operator's dated word is recorded (STANDING_STATE and a records note).
+2. Fund about $10,000 as a disjoint slice of the shared account (`records/2026-10-03_shared_account_capital.md`).
+3. PROD's DB: the real book starts **empty**, so the journal equals the venue. Archive any rehearsal DB.
+4. PROD `.env` (operator edit): the live pair, no paper or legacy names; `PAPER=false`, `LIVE_TRADING_ENABLED=true`,
+   `FORWARD_ENABLED=true`, the notional ceiling (`LIVE_MAX_ORDER_NOTIONAL` or `safety.live_max_order_notional`),
+   and **`DRY_RUN=true`** for the first armed L1.
+5. The marker:
+   ```
+   sudo install -d -m 0755 /etc/dramatic-options
+   echo PROD | sudo tee /etc/dramatic-options/live-armed >/dev/null
+   sudo chmod 0644 /etc/dramatic-options/live-armed
+   ```
+6. Deploy (`production` push, or `cd ~/dramatic_options && ENV_NAME=PROD ./deploy.sh`). The log must show
+   `!!! LIVE ARMED on PROD`, `[verify] Alpaca: venue-named live pair present`, and the closing line
+   `--live RENDERED (ARMED)`. Confirm on the box:
+   `systemctl cat dramatic-options-l1.service dramatic-options-l2.service | grep ExecStart` (both end in `--live`).
+7. The first armed L1 runs with `DRY_RUN=true`: its log must show the banner `DRAMATIC OPTIONS — LIVE`, a `runs` row
+   with mode `LIVE`, and "DRY_RUN (not sent) … [LIVE — REAL MONEY]" on every intended order; nothing reaches the venue.
+8. Flip `DRY_RUN=false` on the operator's word, on the morning of an ordinary session (not an expiry Friday). `.env`
+   is read every run, so no deploy is needed.
+
+**First-week watch** (daily; CC reads, the operator decides): every submit's log line carries `[LIVE — REAL
+MONEY]`; every buy shows its ceiling, reserve and venue-quantity read; each fill is compared with its limit
+(slippage); pending orders reconcile at the next L2; the live account's positions are read by hand and compared
+with the journal (the loop never lists them, §3a.3); the kill-rule and drawdown state; the expected pages arrived.
+
+**Disarm:** `touch KILL` (checked every cycle; also cancels resting entries, #389), then set
+`LIVE_TRADING_ENABLED=false` (takes effect at the next run, no deploy needed). Then remove the marker
+(`sudo rm /etc/dramatic-options/live-armed`) so the next deploy renders the units without `--live`. A `--live` left
+in a unit with the `.env` disarmed is inert: `live_allowed` re-reads both flags every run and logs
+"--live requested but gates not satisfied — continuing in PAPER mode".
+
+**What the marker is, and is not.** It separates the third act from the `.env` edit and from anything a
+non-root process can do: the orchestrator, a review session or the deploy itself cannot create a root-owned file.
+It is not a privilege boundary against a user with broad sudo. PROD's deploy user has a wildcard
+`cp /tmp/* /etc/systemd/system/*` rule, which sudo's argument matching does not confine to that directory, and
+nothing in this repo uses it for the marker.
 
 ## Observability dashboard (read-only)
 
@@ -120,6 +189,7 @@ is tested against (`dashboard_web/api/test_snapshot_parity.py`) and can still be
 | `.github/workflows/deploy.yml` | CI/CD trigger: `main`→DEV, `production`→PROD (runs `./deploy.sh`) |
 | `deploy.sh` | lifecycle: verify-gated install + timer arming, with rollback that re-syncs units |
 | `scripts/verify_deploy.sh` | health gate (disk, imports, critical files, **live-checkout `.env`**) |
+| `scripts/live_arming.sh` | #468: the arming decision (the operator's marker AND the `.env` armed), sourced by `deploy.sh` and `verify_deploy.sh` |
 | `scripts/systemd/*.{service,timer}` | unit templates (L0, L1, L2, reach, post-l1, notify@, web) rendered at install |
 | `scripts/dashboard_web_run.sh` | web dashboard launch wrapper — binds 127.0.0.1:8602 (behind `tailscale serve`) |
 | `requirements-dashboard.txt` | dashboard-only deps (streamlit); installed by deploy STEP 3, not in CI's base job |
@@ -136,6 +206,7 @@ is tested against (`dashboard_web/api/test_snapshot_parity.py`) and can still be
    ```
    ALPACA_PAPER_KEY_ID= ALPACA_PAPER_SECRET_KEY=   (legacy ALPACA_API_KEY/ALPACA_SECRET_KEY/ALPACA_PAPER are REFUSED — issue #279. **PROD** (verified 2026-11-12): no legacy names; it carries only the live pair ALPACA_LIVE_KEY_ID/ALPACA_LIVE_SECRET_KEY, shared with the other projects, finance#947 §5)
    PAPER=true  LIVE_TRADING_ENABLED=false  DRY_RUN=false  FORWARD_ENABLED=true
+   (an ARMED env — see "Arming PROD (T4)" — needs the live pair ALPACA_LIVE_KEY_ID/ALPACA_LIVE_SECRET_KEY instead)
    GEMINI_API_KEY=  XAI_API_KEY=  ANTHROPIC_API_KEY=
    PUSHOVER_API_TOKEN=  PUSHOVER_USER_KEY=
    ```

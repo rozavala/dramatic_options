@@ -158,7 +158,13 @@ def _run_install_units(tmp_path, *, sudo_ok: bool, allow: str = "cp") -> tuple[s
     ok_tee = 'command tee "$2"' if sudo_ok and allow == "tee" else "return 1"
     fake_sudo = ('sudo() { [ "$1" = "-n" ] && shift; case "$1" in cp) ' + ok_cp + ";; tee) " + ok_tee +
                  ";; *) return 0;; esac; }\n")
-    script = (f'set -e\nSYSTEMD_SRC="{src}"\nSYSTEMD_DST="{dst}"\nREPO_ROOT=/r\nENV_NAME=DEV\n' + fake_sudo +
+    # #468: install_units first decides --live (resolve_live_flag, the arming lib); no marker here → none rendered.
+    arming = (REPO / "scripts" / "live_arming.sh").read_text().replace(
+        'LIVE_MARKER="/etc/dramatic-options/live-armed"', f'LIVE_MARKER="{tmp_path}/no-marker"')
+    live_units = re.search(r"^LIVE_UNITS=\(.*$", DEPLOY.read_text(), re.M).group(0) + "\n"
+    script = (f'set -e\nSYSTEMD_SRC="{src}"\nSYSTEMD_DST="{dst}"\nREPO_ROOT=/r\nENV_NAME=DEV\n'
+              f'ENV_FILE="{tmp_path}/.env"\nSERVICE_PREFIX=dramatic-options\n' + arming + live_units + fake_sudo +
+              _deploy_function("resolve_live_flag") +
               _deploy_function("render_unit") + _deploy_function("install_units") +
               'install_units\necho "FAILED=[$UNITS_FAILED] CHANGED=$UNITS_CHANGED"\n')
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30)

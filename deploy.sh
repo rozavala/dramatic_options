@@ -49,6 +49,15 @@ ENV_FILE="$REPO_ROOT/.env"                         # the file systemd Environmen
 HEALTH_URL="${HEALTH_URL:-}"                       # EMPTY: the trading loop has no HTTP endpoint. (The §5b
                                                    # dashboard IS an HTTP server on 8601, deliberately kept OUT
                                                    # of the verify gate — its failure is fail-soft.)
+# T4 arming (#468): the units that place or manage orders, and so get `--live` when this box is armed. Only L1 and
+# L2 build a broker (orchestrator.run_once, and the KILL cancel inside it); L0 (--discover) and post-l1 (--post-l1)
+# return before --live is read and build only a data client, so they never get it. The decision itself
+# (live_arming_check: the operator's root-owned marker AND the .env already armed) lives in scripts/live_arming.sh,
+# shared with verify_deploy.sh. Sourced here, before anything changes: a missing helper aborts the deploy (set -e).
+LIVE_UNITS=("${SERVICE_PREFIX}-l1.service" "${SERVICE_PREFIX}-l2.service")
+LIVE_FLAG=""                                       # " --live" only after resolve_live_flag says ARMED
+# shellcheck source=scripts/live_arming.sh
+. "$REPO_ROOT/scripts/live_arming.sh"
 
 # Prevent overlapping deploys
 DEPLOY_LOCK="/tmp/${SERVICE_PREFIX}-deploy.lock"
@@ -114,13 +123,48 @@ forward_enabled() {
     esac
 }
 
+# T4 arming (#468): decide, once per render pass, whether this box renders `--live` (LIVE_FLAG). Recomputed from the
+# marker and the .env on every install_units call, the rollback's included, so a rollback keeps an armed box armed
+# (an armed L2 without --live could not reconcile or close a live order) and never arms an unarmed one. Says so
+# LOUDLY in the deploy log when armed, and when the marker and the .env disagree (then it renders nothing).
+resolve_live_flag() {
+    live_arming_check "$ENV_FILE" "$ENV_NAME"
+    if [ "$LIVE_ARMED" = "1" ]; then
+        LIVE_FLAG=" --live"
+        echo "  !!! ================================================================== !!!"
+        echo "  !!! LIVE ARMED on $ENV_NAME: rendering --live into ${LIVE_UNITS[*]}"
+        echo "  !!! $LIVE_ARMING_REASON"
+        echo "  !!! DRY_RUN=$(_arming_env_value "$ENV_FILE" DRY_RUN) (true: the live path logs and transmits nothing)"
+        echo "  !!! ================================================================== !!!"
+    else
+        LIVE_FLAG=""
+        if [ "$LIVE_ARMING_LOUD" = "1" ]; then
+            echo "  !!! LIVE ARMING $LIVE_ARMING_REASON — rendering NO --live (fail-closed)"
+        else
+            echo "  live arming: $LIVE_ARMING_REASON — no --live"
+        fi
+    fi
+}
+
 # Render a unit template to stdout, substituting the install-time placeholders so the same
 # tracked file is correct on DEV (rodrigo) and PROD (console) without hardcoded paths.
+# When LIVE_FLAG is set (resolve_live_flag said ARMED), the ExecStart of a LIVE_UNITS unit gets ` --live` appended;
+# with LIVE_FLAG empty the sed call is exactly the pre-#468 one, so every unarmed box renders byte-identical units.
 render_unit() {
+    local -a live_args=()
+    local u
+    if [ -n "$LIVE_FLAG" ]; then
+        for u in "${LIVE_UNITS[@]}"; do
+            if [ "$(basename "$1")" = "$u" ]; then
+                live_args=(-e "s|^\(ExecStart=.*\)\$|\1${LIVE_FLAG}|")
+            fi
+        done
+    fi
     sed -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
         -e "s|__USER__|$(id -un)|g" \
         -e "s|__GROUP__|$(id -gn)|g" \
         -e "s|__ENV_NAME__|${ENV_NAME}|g" \
+        "${live_args[@]}" \
         "$1"
 }
 
@@ -134,6 +178,7 @@ UNITS_FAILED=""
 install_units() {
     UNITS_CHANGED=0
     UNITS_FAILED=""
+    resolve_live_flag
     if [ ! -d "$SYSTEMD_SRC" ]; then
         echo "  (no $SYSTEMD_SRC in this tree — nothing to install)"
         return 0
@@ -383,5 +428,5 @@ fi
 
 echo ""
 echo "--- Deployment finished successfully! ---"
-echo "--- Commit: $CURR_COMMIT ($ENV_NAME, FORWARD_ENABLED=$(forward_enabled)) ---"
+echo "--- Commit: $CURR_COMMIT ($ENV_NAME, FORWARD_ENABLED=$(forward_enabled), --live $([ -n "$LIVE_FLAG" ] && echo 'RENDERED (ARMED)' || echo 'not rendered')) ---"
 echo "--- $(date) ---"

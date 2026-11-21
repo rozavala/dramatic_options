@@ -6,7 +6,6 @@ The venue (the PAPER gate) picks the pair: ``ALPACA_PAPER_KEY_ID`` / ``ALPACA_PA
 """
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -97,15 +96,12 @@ def test_no_module_reads_the_alpaca_env_directly():
     ("ALPACA_PAPER_KEY_ID=your_key\nALPACA_PAPER_SECRET_KEY=your_secret\n", False, "no Alpaca paper key pair"),
 ])
 def test_verify_deploy_requires_the_paper_pair_and_no_legacy_name(tmp_path, env, ok, msg):
-    # Run only the Alpaca block of scripts/verify_deploy.sh against a temp .env.
-    src = (REPO / "scripts/verify_deploy.sh").read_text()
-    start = src.index("        _pk=$(_env_val ALPACA_PAPER_KEY_ID)")
-    end = src.index("        fi", start) + len("        fi")
-    envf = tmp_path / ".env"
-    envf.write_text(env)
-    script = (f'ENV_FILE="{envf}"; HEALTH_LOG="{tmp_path}/h.log"; FAILED=0; MISSING=0\n'
-              '_env_val() { grep -E "^[[:space:]]*$1[[:space:]]*=" "$ENV_FILE" 2>/dev/null | tail -1 | '
-              "cut -d= -f2- | tr -d \"\\\"' \\t\\r\"; }\n" + src[start:end] + '\necho "FAILED=$FAILED"\n')
-    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout
+    # The whole scripts/verify_deploy.sh in a temp repo, on a paper trading env (not armed: #468's live-pair rule is
+    # tested in tests/test_live_arming.py).
+    from tests.test_live_arming import run_verify
+
+    base = ("PAPER=true\nLIVE_TRADING_ENABLED=false\nDRY_RUN=false\nFORWARD_ENABLED=true\nGEMINI_API_KEY=k\n"
+            "XAI_API_KEY=k\nANTHROPIC_API_KEY=k\nPUSHOVER_API_TOKEN=k\nPUSHOVER_USER_KEY=k\n")
+    code, out, _ = run_verify(tmp_path, base + env)
     assert msg in out
-    assert ("FAILED=0" in out) is ok
+    assert (code == 0) is ok
