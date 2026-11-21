@@ -504,3 +504,142 @@ def test_the_guard_refuses_a_deploy_that_does_not_name_the_marker_env(tmp_path, 
 def test_the_guard_refuses_an_unreadable_marker(tmp_path):
     rc, reason = _guard(tmp_path, _write_marker(tmp_path / "live-armed", mode=0o000), "PROD")
     assert rc == 1 and "cannot be read" in reason
+
+
+# ── the whole deploy.sh in a sandbox (#541 review M2/M3/L4): stubbed sudo/systemctl/pkill/pip/git, a temp
+# SYSTEMD_DST, lock and marker. Nothing here reaches systemd, /etc or another process. ─────────────────────────────
+_STUBS = {
+    # sudo: drop -n, refuse the install of $FAIL_INSTALL (cp's / tee's last argument), run everything else
+    "sudo": '[ "$1" = -n ] && shift\ncase "$1" in cp|tee) t="${*: -1}"\n'
+            '  if [ -n "$FAIL_INSTALL" ] && [ "$(basename "$t")" = "$FAIL_INSTALL" ]; then exit 1; fi ;; esac\nexec "$@"\n',
+    # systemctl: log every call; keep the enabled set in $SANDBOX/enabled so STEP 8's is-active sees it
+    "systemctl": 'echo "$*" >> "$SANDBOX/calls"\nE="$SANDBOX/enabled"; touch "$E"\ncase "$1" in\n'
+                 '  is-active) u="${*: -1}"; grep -qxF "$u" "$E" && { echo active; exit 0; }; echo inactive; exit 3 ;;\n'
+                 '  show) echo ""; exit 0 ;;\n'
+                 '  enable) for a in "$@"; do case "$a" in enable|--now) ;; *) echo "$a" >> "$E" ;; esac; done ;;\n'
+                 '  disable) for a in "$@"; do case "$a" in disable|--now) ;; *) grep -vxF "$a" "$E" > "$E.t"; '
+                 'mv "$E.t" "$E" ;; esac; done ;;\nesac\nexit 0\n',
+    "pkill": 'echo "pkill $*" >> "$SANDBOX/calls"\nexit 0\n',
+    "pip": "exit 0\n",
+    "npm": "exit 0\n",
+    "git": 'case "$1" in rev-parse) echo 0123456789abcdef ;; esac\nexit 0\n',
+}
+_TIMERS = [f"dramatic-options-{t}.timer" for t in ("l0", "l1", "l2", "reach", "post-l1")]
+REHEARSAL_ENV = "PAPER=true\nLIVE_TRADING_ENABLED=false\nDRY_RUN=true\nFORWARD_ENABLED=true\n" + _PAPER_PAIR + _KEYS
+
+
+def run_deploy(tmp_path: Path, env: str, *, env_name: str | None, marker_content: str | None = None,
+               installed: dict[str, str] | None = None, fail_install: str | None = None):
+    """Run the real deploy.sh in a temp repo → (exit code, output, systemctl/pkill calls, enabled timers, installed)."""
+    sandbox = tmp_path / "sandbox"
+    repo, dst, bindir, etc = sandbox / "repo", sandbox / "dst", sandbox / "bin", sandbox / "etc-dir"
+    for d in (repo / "scripts", dst, bindir, repo / "venv" / "bin"):
+        d.mkdir(parents=True)
+    etc.mkdir(mode=0o755)
+    text = DEPLOY.read_text()
+    for old, new in (('SYSTEMD_DST="/etc/systemd/system"', f'SYSTEMD_DST="{dst}"'),
+                     ('DEPLOY_LOCK="/tmp/${SERVICE_PREFIX}-deploy.lock"', f'DEPLOY_LOCK="{sandbox}/deploy.lock"')):
+        assert text.count(old) == 1, old
+        text = text.replace(old, new)
+    (repo / "deploy.sh").write_text(text)
+    shutil.copytree(SYSTEMD, repo / "scripts" / "systemd")
+    shutil.copy(VERIFY, repo / "scripts" / "verify_deploy.sh")
+    marker = etc / "live-armed"
+    (repo / "scripts" / "live_arming.sh").write_text(_lib(marker, os.getuid()))
+    if marker_content is not None:
+        _write_marker(marker, marker_content)
+    (repo / "orchestrator.py").write_text("")
+    (repo / "venv" / "bin" / "activate").write_text("")
+    (repo / ".env").write_text(env)
+    for name, content in (installed or {}).items():
+        (dst / name).write_text(content)
+    for name, body in _STUBS.items():
+        (bindir / name).write_text("#!/bin/bash\n" + body)
+        (bindir / name).chmod(0o755)
+    run_env = {k: v for k, v in os.environ.items() if k not in ("ENV_NAME", "FAIL_INSTALL", "HEALTH_URL")}
+    run_env.update(PATH=f"{bindir}:{os.environ['PATH']}", SANDBOX=str(sandbox))
+    if env_name is not None:
+        run_env["ENV_NAME"] = env_name
+    if fail_install:
+        run_env["FAIL_INSTALL"] = fail_install
+    r = subprocess.run(["bash", "deploy.sh"], cwd=repo, capture_output=True, text=True, timeout=120, env=run_env)
+    calls = (sandbox / "calls").read_text().splitlines() if (sandbox / "calls").exists() else []
+    enabled = (sandbox / "enabled").read_text().split() if (sandbox / "enabled").exists() else []
+    inst = {p.name: p.read_text() for p in dst.iterdir()}
+    return r.returncode, r.stdout + r.stderr, calls, enabled, inst
+
+
+def _enabled_timers(enabled: list[str]) -> list[str]:
+    return sorted(t for t in enabled if t.endswith(".timer"))
+
+
+def test_sandbox_unarmed_dev_deploys_as_before(tmp_path):
+    code, out, calls, enabled, inst = run_deploy(tmp_path, DEV_ENV, env_name="DEV")
+    assert code == 0, out
+    assert _enabled_timers(enabled) == sorted(_TIMERS)
+    assert not any(" --live" in ln for ln in _execstart(inst[L1]) + _execstart(inst[L2]))
+    assert "live arming: not armed (no marker" in out and "--live not rendered" in out
+
+
+def test_sandbox_armed_prod_installs_live_l1_l2_and_enables_timers(tmp_path):
+    code, out, calls, enabled, inst = run_deploy(tmp_path, ARMED_ENV, env_name="PROD", marker_content="PROD\n")
+    assert code == 0, out
+    assert _execstart(inst[L1])[0].endswith("-m orchestrator --live")
+    assert _execstart(inst[L2])[0].endswith("-m orchestrator --monitor --live")
+    assert _enabled_timers(enabled) == sorted(_TIMERS)
+    assert "LIVE ARMED on PROD" in out and "venue-named live pair present" in out and "--live RENDERED (ARMED)" in out
+    assert SECRET not in out
+
+
+@pytest.mark.parametrize("env_name,why", [
+    (None, "ENV_NAME was not given (this deploy would default to DEV)"),
+    ("", "ENV_NAME was not given"),
+    ("DEV", "names 'PROD' but this deploy is ENV_NAME='DEV'"),
+])
+def test_sandbox_a_deploy_not_naming_the_marker_env_aborts_before_any_change(tmp_path, env_name, why):
+    before = {L1: "SENTINEL-L1\n", L2: "SENTINEL-L2\n"}
+    code, out, calls, enabled, inst = run_deploy(tmp_path, ARMED_ENV, env_name=env_name, marker_content="PROD\n",
+                                                 installed=before)
+    assert code != 0
+    assert "DEPLOY ABORTED BEFORE ANY CHANGE" in out and why in out
+    assert calls == [] and enabled == []           # no stop, no pkill, no enable/disable: systemd untouched
+    assert inst == before                           # no unit re-rendered
+    assert "--- 1. Stopping" not in out
+
+
+@pytest.mark.parametrize("failing", [L1, L2])
+def test_sandbox_an_armed_deploy_with_a_failed_live_unit_install_enables_no_timer(tmp_path, failing):
+    # the box before its arming deploy: unarmed units installed (no --live)
+    unarmed, _ = render_all(tmp_path, ARMED_ENV)
+    code, out, calls, enabled, inst = run_deploy(tmp_path, ARMED_ENV, env_name="PROD", marker_content="PROD\n",
+                                                 installed={L1: unarmed[L1], L2: unarmed[L2]}, fail_install=failing)
+    assert code != 0
+    assert _enabled_timers(enabled) == []
+    assert not any(c.startswith("enable") and ".timer" in c for c in calls), calls
+    assert any(c.startswith("disable --now") and "dramatic-options-l1.timer" in c for c in calls)
+    assert "DISAGREE WITH THE ARMING DECISION" in out and f"{failing}(installed: none, decided: live)" in out
+
+
+def test_sandbox_a_disarming_deploy_that_leaves_a_live_unit_enables_no_timer(tmp_path):
+    # armed units installed; the operator removed the marker and flipped the .env to the paper rehearsal; the L2
+    # install fails, so the installed L2 would keep --live
+    marker = _write_marker(tmp_path / "m", "PROD\n")
+    armed, _ = render_all(tmp_path, ARMED_ENV, marker=marker)
+    code, out, calls, enabled, inst = run_deploy(tmp_path, REHEARSAL_ENV, env_name="PROD",
+                                                 installed={L1: armed[L1], L2: armed[L2]}, fail_install=L2)
+    assert code != 0
+    assert _enabled_timers(enabled) == []
+    assert f"{L2}(installed: live, decided: none)" in out
+
+
+@pytest.mark.parametrize("dry,expect", [
+    ("true", "DRY_RUN=true: the live path logs every order and transmits nothing"),
+    ("false", "DRY_RUN=false: the live path is TRANSMITTING REAL-MONEY ORDERS"),
+    ("", "DRY_RUN is unset in .env"),
+])
+def test_the_armed_banner_states_the_real_dry_run(tmp_path, dry, expect):
+    env = ARMED_ENV.replace("DRY_RUN=true", f"DRY_RUN={dry}")
+    _, log = render_all(tmp_path, env, marker=_write_marker(tmp_path / "live-armed"))
+    assert expect in log
+    if dry != "true":
+        assert "transmits nothing" not in log

@@ -236,8 +236,10 @@ def test_apply_timers_arms_every_installable_timer_when_one_is_missing():
             'for u in "$@"; do [ "$u" = missing.timer ] && return 1; done; '
             'for u in "$@"; do echo "ARMED $u"; done; return 0; fi; return 0; }\n'
             'forward_enabled() { echo true; }\n')
-    script = ('set -e\nTIMERS=("a.timer" "missing.timer" "b.timer")\n' + fake + _deploy_function("apply_timers") +
-              "apply_timers\n")
+    # #468: apply_timers first checks the installed L1/L2 agree with the --live decision (unarmed, none installed: ok)
+    script = ('set -e\nTIMERS=("a.timer" "missing.timer" "b.timer")\nLIVE_UNITS=(l1.service l2.service)\n'
+              'LIVE_FLAG=""\nSYSTEMD_DST=/nonexistent\n' + fake + _deploy_function("live_units_installed_as_decided") +
+              _deploy_function("apply_timers") + "apply_timers\n")
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30)
     assert out.returncode == 0, out.stderr
     assert "ARMED a.timer" in out.stdout and "ARMED b.timer" in out.stdout, out.stdout
