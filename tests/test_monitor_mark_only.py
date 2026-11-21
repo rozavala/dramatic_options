@@ -71,15 +71,16 @@ def test_closed_tick_defers_a_profit_take_then_the_open_tick_sells_it(convexity_
 
 
 def test_closed_tick_defers_an_unsellable_time_stop_too(convexity_db):
-    # the bid-below-min_close_bid branch books in-DB at the mark on an open tick; on a closed tick it waits as well
+    # the bid-below-min_close_bid branch leaves the row open as orphaned on an open tick (§3c, #444); on a closed
+    # tick it is deferred before that branch is reached
     pid = _open(convexity_db, contract=TS_CONTRACT, entry_pc=500.0, expiry=TS_EXP)
     broker = _FakeBroker()
     res = _tick(convexity_db, CLOSED, _ts_qp(bid=0.0), broker)
     assert _row(convexity_db, pid, "status")["status"] == "open", "a closed-market unsellable exit was booked"
-    assert res.deferred == 1
-    _tick(convexity_db, OPEN, _ts_qp(bid=0.0), broker)
+    assert res.deferred == 1 and res.orphaned == 0
+    res = _tick(convexity_db, OPEN, _ts_qp(bid=0.0), broker)
     row = _row(convexity_db, pid, "status, exit_reason")
-    assert broker.sells == [] and row["status"] == "closed" and "unsellable" in row["exit_reason"]
+    assert broker.sells == [] and row["status"] == "open" and row["exit_reason"] is None and res.orphaned == 1
 
 
 def test_dry_run_still_books_the_exit_in_db_on_a_closed_tick(convexity_db):

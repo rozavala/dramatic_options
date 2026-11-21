@@ -514,19 +514,28 @@ def test_time_stop_sells_and_closes(env):
     assert env.venue.positions[OTM] == 0
 
 
-def test_unsellable_books_in_db_and_the_venue_still_holds_it_then_flatten(env, capsys):
+def test_unsellable_stays_open_as_orphaned_then_the_real_floor_sells_it(env, capsys):
+    # §3c (#444): the first tick leaves the row OPEN and tagged orphaned, nothing sent, venue = journal; the next tick
+    # runs at the real min_close_bid and sells it through the normal path. flatten has nothing to do in between.
     db = _open(env, "unsellable")
     n = len(env.venue.submitted)
     capsys.readouterr()
     assert env.run("--path", "unsellable", "--db", str(db), "--step", "tick", "--send") == 0
     row = _rows(db)[0]
-    assert row["status"] == "closed" and row["exit_reason"] == "time_stop_21dte_unsellable"
+    assert row["status"] == "open" and row["exit_reason"] is None
+    assert json.loads(row["rationale"])["orphaned"]["trigger"] == "time_stop_21dte"
     assert len(env.venue.submitted) == n                                   # nothing sent
-    assert env.venue.positions[OTM] == 1                                   # the venue still holds it (#444)
+    assert env.venue.positions[OTM] == 1                                   # the venue holds it, and so does the journal
     out = capsys.readouterr().out
-    assert "MISMATCH: venue 1 vs journal 0" in out and "#444" in out
-    assert env.run("--path", "unsellable", "--db", str(db), "--step", "flatten", "--send") == 0
-    assert env.venue.positions[OTM] == 0 and _rows(db)[0]["status"] == "closed"
+    assert "verdict: MATCH" in out and "CHECK FAIL" not in out and "orphaned=1" in out
+    assert env.run("--path", "unsellable", "--db", str(db), "--step", "flatten", "--send") == 2   # journal holds it
+    assert len(env.venue.submitted) == n
+    assert env.run("--path", "unsellable", "--db", str(db), "--step", "tick", "--send") == 0
+    row = _rows(db)[0]
+    assert row["status"] == "closed" and row["exit_reason"] == "time_stop_21dte"
+    assert env.venue.positions[OTM] == 0 and len(_sells(env)) == 1
+    out = capsys.readouterr().out
+    assert "real min_close_bid 0.05" in out and "verdict: MATCH" in out and "CHECK FAIL" not in out
 
 
 def test_flatten_refuses_a_row_a_real_sell_closed(env):
@@ -822,6 +831,9 @@ def test_flatten_refuses_with_the_market_closed(env):
     db = _open(env, "unsellable")
     assert env.run("--path", "unsellable", "--db", str(db), "--step", "tick", "--send") == 0
     assert env.venue.positions[OTM] == 1
+    # a pre-§3c unsellable in-DB close (#444): the journal says closed while the venue holds the contract
+    with sqlite3.connect(db) as c:
+        c.execute("UPDATE convexity_positions SET status='closed', exit_reason='time_stop_21dte_unsellable'")
     n = len(env.venue.submitted)
     _at(env, DAY2_PRE, False)
     assert env.run("--path", "unsellable", "--db", str(db), "--step", "flatten", "--send") == 2

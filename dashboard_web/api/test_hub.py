@@ -31,11 +31,12 @@ _STARTED = "2026-10-27T13:00:00+00:00"
 
 
 def _units(over: dict | None = None) -> dict:
-    """systemctl-shaped props for all four jobs: timers armed + scheduled, services idle after a success."""
+    """systemctl-shaped props for every job: timers armed + scheduled, services idle after a success."""
     out: dict[str, dict] = {}
     for name in hub.JOBS:
         out[f"{name}.timer"] = {"Id": f"{name}.timer", "ActiveState": "active",
-                                "NextElapseUSecRealtime": "Tue 2026-10-27 19:45:00 UTC"}
+                                "NextElapseUSecRealtime": "Tue 2026-10-27 19:45:00 UTC",
+                                "LastTriggerUSec": "Mon 2026-10-26 21:10:01 UTC"}
         out[f"{name}.service"] = {"Id": f"{name}.service", "ActiveState": "inactive", "Result": "success"}
     for unit, props in (over or {}).items():
         out[unit] = {**out[unit], **props}
@@ -108,7 +109,8 @@ def test_hub_contract_shape_small_and_no_positions(hub_db) -> None:
     assert _check(body, "Kill rule")["blocking"] is True and _check(body, "Cost cap")["blocking"] is False
     assert _check(body, "Cycle")["kind"] == "running" and _check(body, "Cycle")["ok"] is True
     assert [j["name"] for j in body["jobs"]] == [
-        "dramatic-options-l1", "dramatic-options-l2", "dramatic-options-l0", "dramatic-options-reach"]
+        "dramatic-options-l1", "dramatic-options-l2", "dramatic-options-l0", "dramatic-options-reach",
+        "dramatic-options-post-l1"]
     for j in body["jobs"]:
         assert set(j) == {"name", "last_ok", "last_status", "next_due", "enabled", "error"}
         assert j["next_due"] == "2026-10-27T19:45:00Z" and j["enabled"] is True
@@ -446,3 +448,38 @@ def test_the_1545_band_follows_et_across_the_dst_change(convexity_db):
     beats = hub._loop_beats(convexity_db, datetime(2026, 11, 2, 22, 0, tzinfo=UTC))
     assert beats["l1"]["at"].startswith("2026-11-02T20:45:02")
     assert beats["l2"]["at"].startswith("2026-11-02T19:45:02")
+
+
+# ── #514: the post-L1 unit (§10.12 probe + §10.13 held reads) is on the hub's job list ───────────────────────────────
+
+def test_post_l1_last_ok_is_its_timers_last_trigger(hub_db) -> None:
+    j = _job(_get().json(), "dramatic-options-post-l1")
+    assert j["last_ok"] == "2026-10-26T21:10:01Z" and j["last_status"] == "ran" and j["enabled"] is True
+
+
+def test_post_l1_failed_run_shows_failed(hub_db, monkeypatch) -> None:
+    monkeypatch.setattr(hub, "_read_units", lambda: _units({
+        "dramatic-options-post-l1.service": {"ActiveState": "failed", "Result": "exit-code"}}))
+    j = _job(_get().json(), "dramatic-options-post-l1")
+    assert j["last_status"] == "failed" and "exit-code" in j["error"]
+
+
+def test_post_l1_never_fired_is_idle_and_a_missed_day_is_missed(hub_db, monkeypatch) -> None:
+    monkeypatch.setattr(hub, "_read_units", lambda: _units({
+        "dramatic-options-post-l1.timer": {"LastTriggerUSec": "n/a"}}))
+    j = _job(_get().json(), "dramatic-options-post-l1")
+    assert j["last_ok"] is None and j["last_status"] == "idle"
+    server._hub_cache.clear()
+    monkeypatch.setattr(hub, "_read_units", lambda: _units())
+    seen = []
+    monkeypatch.setattr(dd, "council_session_stale", lambda ts, *, now=None: seen.append(now) or "STALE")
+    j = _job(_get().json(), "dramatic-options-post-l1")
+    assert j["last_status"] == "missed"
+    # judged 45 min behind the wall clock, so the 15:45 slot is not "missed" before the 16:10 ET fire
+    assert any(n is not None and (datetime.now(UTC) - n) >= timedelta(minutes=44) for n in seen)
+
+
+def test_post_l1_unknown_when_systemd_is_unreadable(hub_db, monkeypatch) -> None:
+    monkeypatch.setattr(hub, "_read_units", lambda: None)
+    j = _job(_get().json(), "dramatic-options-post-l1")
+    assert j["last_ok"] is None and j["last_status"] is None and j["error"] == "last run unreadable"
