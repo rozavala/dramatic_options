@@ -79,13 +79,14 @@ def _skew(rec: dict) -> tuple[float | None, float | None]:
     return c, p
 
 
-def night(records: dict[str, dict], sweep: dict[str, dict] | None = None) -> dict:
-    """One night's statistics over R. ``records``: {SYMBOL: that night's term record}; ``sweep``: {SYMBOL: the night's
-    last OPRA sweep row} for S3's put share and S5."""
+def night(records: dict[str, dict], sweep: dict[str, dict] | None = None, *, population=R) -> dict:
+    """One night's statistics over R (or over ``population``, the display-only live companion of §3 — the current
+    universe). ``records``: {SYMBOL: that night's term record}; ``sweep``: {SYMBOL: the night's last OPRA sweep row}
+    for S3's put share and S5."""
     s1, s2, s4, s4_63, sc, sp = [], [], [], [], [], []
     bracket = 0
     versions = set()
-    for sym in R:
+    for sym in population:
         rec = records.get(sym)
         if rec is None:
             continue
@@ -107,11 +108,11 @@ def night(records: dict[str, dict], sweep: dict[str, dict] | None = None) -> dic
         if p is not None:
             sp.append(p)
     sweep = sweep or {}
-    in_r = [sweep[s] for s in R if s in sweep]
+    in_r = [sweep[s] for s in population if s in sweep]
     sides = [str(r["wing"])[-9] for r in in_r if r.get("structured") and r.get("wing") and len(str(r["wing"])) >= 15]
     struct = [r for r in in_r if r.get("structured") and r.get("iv_rv") is not None]
     return {
-        "coverage": round(bracket / len(R), 4), "coverage_low": bracket / len(R) < COVERAGE_MIN,
+        "coverage": round(bracket / len(population), 4), "coverage_low": bracket / len(population) < COVERAGE_MIN,
         "term_version": max(versions) if versions else TERM_VERSION,
         "S1_cm270_iv_over_rv252": _q(s1), "S2_term_slope_vp": _q(s2),
         "S3_skew_calls_vp": {"p50": _q(sc)["p50"], "n": len(sc)}, "S3_skew_puts_vp": {"p50": _q(sp)["p50"], "n": len(sp)},
@@ -152,6 +153,9 @@ def series(terms: dict[str, dict[str, dict]], sweeps: dict[str, dict[str, dict]]
     return out
 
 
+NOTE = "measurement only; no colour scale, no 'cheap regime'; never a gate or quota input"
+
+
 def report(conn: sqlite3.Connection, cache, config: dict, *, as_of: date) -> dict:
     from cheap_repriced import load_terms, sweep_rows
 
@@ -159,7 +163,52 @@ def report(conn: sqlite3.Connection, cache, config: dict, *, as_of: date) -> dic
     rows = series(terms, sweep_rows(conn, upto=as_of),
                   rv_window_days=int((config.get("convexity_gate", {}) or {}).get("rv_window_days", 252)))
     return {"as_of": as_of.isoformat(), "R": len(R), "R_adopted": R_ADOPTED, "nights": len(rows), "rows": rows,
-            "note": "measurement only; no colour scale, no 'cheap regime'; never a gate or quota input"}
+            "note": NOTE}
+
+
+def panel(conn: sqlite3.Connection, cache, config: dict, *, as_of: date) -> dict:
+    """The dashboard card's data (#462 §8; READ-ONLY, no fetch): the latest night's S1 quartiles with n and its
+    percentile or ``accruing k of 120``, S1's median history for the sparkline, the S2–S4 medians, and S5 plus the live
+    companion (both display only). A coverage-low night keeps its numbers but carries ``coverage_low`` and no
+    percentile. No colour, no verdict: measurement only."""
+    from cheap_repriced import load_terms, sweep_rows
+    from gate_audit import universe_symbols
+
+    live = tuple(sorted(universe_symbols(config)))
+    terms = load_terms(cache, sorted(set(R) | set(live)), upto=as_of)
+    sweeps = sweep_rows(conn, upto=as_of)
+    rows = series({s: terms.get(s, {}) for s in R}, sweeps,
+                  rv_window_days=int((config.get("convexity_gate", {}) or {}).get("rv_window_days", 252)))
+    base = {"as_of": as_of.isoformat(), "R": len(R), "R_adopted": R_ADOPTED, "nights": len(rows),
+            "min_sessions": MIN_PCTILE_SESSIONS, "coverage_min": COVERAGE_MIN, "note": NOTE}
+    if not rows:
+        return {**base, "status": "no term records yet"}
+    last = rows[-1]
+    counted = [r for r in rows if r["segment"] == last["segment"] and not r["coverage_low"]
+               and r["S1_cm270_iv_over_rv252"]["p50"] is not None]
+    k = min(len(counted), HISTORY_MAX)
+    pct = last["percentile"]["S1"]
+    live_night = None
+    if live:
+        d = last["date"]
+        live_night = night({s: terms[s][d] for s in live if d in terms.get(s, {})}, sweeps.get(d), population=live)
+    return {
+        **base, "status": "ok", "date": last["date"], "segment": last["segment"],
+        "coverage": last["coverage"], "coverage_low": last["coverage_low"],
+        "S1": last["S1_cm270_iv_over_rv252"],
+        "S1_percentile": pct if isinstance(pct, float) else None,
+        "S1_accruing": {"k": k, "of": MIN_PCTILE_SESSIONS} if k < MIN_PCTILE_SESSIONS else None,
+        "spark": [{"d": r["date"], "v": r["S1_cm270_iv_over_rv252"]["p50"], "low": r["coverage_low"]}
+                  for r in rows if r["S1_cm270_iv_over_rv252"]["p50"] is not None][-HISTORY_MAX:],
+        "S2_term_slope_vp_p50": last["S2_term_slope_vp"]["p50"],
+        "S3_skew_calls_vp_p50": last["S3_skew_calls_vp"]["p50"], "S3_skew_puts_vp_p50": last["S3_skew_puts_vp"]["p50"],
+        "S3_put_side_share": last["S3_put_side_share"],
+        "S4_cm270_iv_p50": last["S4_cm270_iv"]["p50"], "S4_cm270_iv_over_rv63_p50": last["S4_cm270_iv_over_rv63"]["p50"],
+        "S5_display_only": last["S5_display_only"],
+        "live_companion_display_only": None if live_night is None else {
+            "names": len(live), "coverage": live_night["coverage"], "coverage_low": live_night["coverage_low"],
+            "S1": live_night["S1_cm270_iv_over_rv252"]},
+    }
 
 
 def render(rep: dict) -> str:

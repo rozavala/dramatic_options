@@ -115,7 +115,7 @@ export interface Snapshot {
   sentinels: { active: SentinelRow[]; active_n: number; dormant: number };
   market_ctx: {
     open_positions: { symbol: string; contract: string; dte: number | null; moneyness: number | null; mark_over_entry: number | null; marked_at: string | null }[];
-    universe_iv_rv: { n: number; p50?: number }; universe_otm_skew: { n: number; p50?: number };
+    pooled_eval_iv_rv: { n: number; p50?: number }; pooled_eval_otm_skew: { n: number; p50?: number }; // pooled convexity_eval rows (#529), not the universe
   };
   data_gathered: {
     chain_snapshots: { symbols: number; latest: string | null; names?: string[] }; bar_coverage_symbols: number;
@@ -147,6 +147,7 @@ export interface Snapshot {
   execution?: ExecutionPanel;       // D0 (2026-11-03): approvals followed to the broker
   slippage?: SlippagePanel;         // #467 step 3: each booked entry as filled and at a conservative fill (estimate)
   iv_history?: IvHistoryPanel;      // D4 (2026-11-03): own-history IV/RV + skew percentiles, term slope, dIV
+  regime_series?: RegimeSeriesPanel; // #462 §8: the market-wide convexity regime series — measurement only
   falsifiers?: FalsifierPanel;      // D3b (2026-11-03): the forward falsifier-accuracy ledger
   capex_cycle?: CapexCyclePanel;    // D5 step 1 (2026-11-03): per-cluster TTM capex YoY + acceleration
   attention?: AttentionPanel;       // D6 step 1 (2026-11-03): analyst-coverage history + ~90-day trend
@@ -455,7 +456,7 @@ export interface ViewModel {
     gate: { ivTotal: number; ivReal: number; ivFail: number; elig: number };
     legs: { n: number; structural: number; underNarrated: number; atInflection: number } | null; // the §10.7 tri-criteria
   };
-  universe: { ivrv: string; skew: string; n: number };
+  pooledEval: { ivrv: string; skew: string; n: number }; // pooled convexity_eval rows since June (#529) — not the universe
   positions: PositionVM[]; openCount: number; openPrem2: string;
   sentinels: SentinelVM[]; sentinelSub: string;
   data: { label: string; value: string }[];
@@ -514,6 +515,19 @@ export interface IvHistoryRow {
   term_sessions: number; term_slope: number | null; d_iv_call: number | null; d_iv_put: number | null;
 }
 export interface IvHistoryPanel { rows: IvHistoryRow[]; status: string; note: string; max_term_sessions: number }
+// regime_series_panel (#462, PREREG_CONVEXITY_REGIME_SERIES §8): the latest night's S1 over the frozen R, its percentile or
+// "accruing k of 120", the sparkline of S1's median, S2-S4 medians, and S5 + the live companion (display only).
+export interface RegimeQuartiles { p25: number | null; p50: number | null; p75: number | null; n: number }
+export interface RegimeSeriesPanel {
+  status: string; as_of: string; R: number; R_adopted: string; nights: number; min_sessions: number; coverage_min: number; note: string;
+  date?: string; segment?: string; coverage?: number; coverage_low?: boolean;
+  S1?: RegimeQuartiles; S1_percentile?: number | null; S1_accruing?: { k: number; of: number } | null;
+  spark?: { d: string; v: number; low: boolean }[];
+  S2_term_slope_vp_p50?: number | null; S3_skew_calls_vp_p50?: number | null; S3_skew_puts_vp_p50?: number | null;
+  S3_put_side_share?: number | null; S4_cm270_iv_p50?: number | null; S4_cm270_iv_over_rv63_p50?: number | null;
+  S5_display_only?: { share_cheap: number | null; median_iv_rv: number | null; n: number; frame_version: string[] | null };
+  live_companion_display_only?: { names: number; coverage: number; coverage_low: boolean; S1: RegimeQuartiles } | null;
+}
 export interface FalsifierRow { read_at: string; spec_id: string; symbol: string; value: string; threshold: string; fired: string }
 export interface FalsifierPanel {
   rows: FalsifierRow[]; waiting: { spec_id: string; symbol: string; threshold: number | null; first_filed_after: string | null }[];
@@ -546,6 +560,17 @@ export interface TelemetryVM {
     rows: { cluster: string; n: string; ttm: string; yoy: string; accel: string; phase: string }[] } | null;
   attention: { status: string; note: string;
     rows: { symbol: string; count: string; change: string; label: string; asOf: string }[] } | null;
+  regime: RegimeVM | null;
+}
+// #462 §8 view model: neutral text only. Pinned: no colour scale, no verdict wording; S5 and the live companion are display only.
+export interface RegimeVM {
+  status: string; ok: boolean; date: string; coverage: string; coverageLow: boolean; coverageNote: string;
+  s1: { p25: string; p50: string; p75: string; n: number };
+  percentile: string;                                    // "73% of its own history at or below" | "accruing 12 of 120" | "none: coverage low"
+  spark: { d: string; v: number; low: boolean }[];
+  s2: string; s3: { calls: string; puts: string; putShare: string }; s4: { iv: string; ivRv63: string };
+  s5: { passShare: string; medianIvRv: string; n: number; frame: string };
+  live: { names: number; coverage: string; s1: { p25: string; p50: string; p75: string; n: number } } | null;
 }
 
 // §10.13 §3 view model: neutral text only. Pinned: no trend, no "thesis broken" badge, no colour keyed to exit.

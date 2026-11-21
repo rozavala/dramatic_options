@@ -1388,8 +1388,10 @@ def cost_ledger(conn) -> dict:
 
 # ── D · market context (DB-only, NO-FETCH) ──────────────────────────────────────────────────────
 def market_context(conn) -> dict:
-    """Per-position option mark÷entry (the ROBUST live "is the thesis playing out" signal) + universe IV/RV-skew
-    regime (re-lens convexity_eval). Distance-to-strike from the cached snapshot is DEFERRED (caveated: a dormant
+    """Per-position option mark÷entry (the ROBUST live "is the thesis playing out" signal) + the IV/RV and OTM-skew
+    distributions POOLED over every ``convexity_eval`` row since June (#529). Those are the gate's own evaluations of
+    the names the book looked at — not the universe, and not one night (PREREG_CONVEXITY_REGIME_SERIES §2; the nightly
+    universe read is ``regime_series``). Distance-to-strike from the cached snapshot is DEFERRED (caveated: a dormant
     name's spot lags; needs cache parsing) — mark÷entry is the robust one."""
     positions = []
     for r in conn.execute(
@@ -1412,7 +1414,8 @@ def market_context(conn) -> dict:
         return {"n": len(xs), "p50": round(float(np.percentile(xs, 50)), 3),
                 "p90": round(float(np.percentile(xs, 90)), 3), "max": round(max(xs), 3)}
 
-    return {"open_positions": positions, "universe_iv_rv": _dist(iv), "universe_otm_skew": _dist(skew)}
+    return {"open_positions": positions, "pooled_eval_iv_rv": _dist(iv), "pooled_eval_otm_skew": _dist(skew),
+            "pooled_eval_basis": "every convexity_eval row since June (gate evaluations; not the universe, not one night)"}
 
 
 # ── scanning / sentinels / positions / council / curation / data ────────────────────────────────
@@ -2226,6 +2229,16 @@ def iv_history_panel(conn, cache_dir: str | Path) -> dict:
     from data.cache import PointInTimeCache
 
     return iv_history.panel(conn, PointInTimeCache(cache_dir, offline=True))
+
+
+def regime_series_panel(conn, cache_dir: str | Path, config: dict, *, as_of=None) -> dict:
+    """#462 §8: the market-wide convexity regime series card. Read-only, no fetch, derived at read time from the nightly
+    term records (no writer). Measurement only: nothing here is read by a gate, a size, an exit or a quota."""
+    import regime_series
+    from data.cache import PointInTimeCache
+
+    day = as_of or datetime.now(_ET).date()
+    return regime_series.panel(conn, PointInTimeCache(cache_dir, offline=True), config, as_of=day)
 
 
 def falsifier_panel(config: dict) -> dict:
