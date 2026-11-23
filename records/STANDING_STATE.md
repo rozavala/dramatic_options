@@ -1,6 +1,6 @@
 # STANDING STATE — the relay sync header
 
-**as_of: 2026-11-15T15:30Z · supersedes: 2026-11-08T15:30Z · **Sunday W46** (`records/2026-11-15_sunday_w46.md`): **the §10.11 floor-drought clock was 8 of 10 at 11-13 → the pinned operator look is owed after Tue 11-17 if Mon and Tue are 0 at the floor** · **TITN's lineage went dormant on TTL while TITN #7 is held** (the #464 gap; the slate will likely stop reading it) · L0 #2058 scanned 49, 6 re-surfaced (CDE/PAAS/STUB/FLY/KLAR bears, FRO bull), 0 new, 4 dormant (FCX/MOS/MRK/TITN); active 40 · RDW filled 11-13 as backfill #13 ($950) after a carry veto and a re-entry; first read include=false · expressible 35 of 49 on the Sunday probe; **the 11-23 cliff still costs 7 names (now BWXT/FLNC/FLY/KTOS/RDW/SMR/UEC → ~28)**; no Aug-2027 listing · miss sweep #9, the first like-for-like under the floor (universe 30/28, market 30/28) · no pin expired; EPA rule effective 11-16, no stay · **DEV + PROD both reboot-required since 11-13 (libc6)** · PROD `29a86e4`, 7 PRs behind. On top of the 11-12/11-14 rulings (kill rule, boundary B, the #456 probe Arm A).**
+**as_of: 2026-11-22T15:30Z · supersedes: 2026-11-15T15:30Z · **Sunday W47** (`records/2026-11-22_sunday_w47.md`): **SMCI #14 (backfill, 2× `SMCI270521C00027000`, $790) did not fill 11-20 and carries Mon 11-23, when its May-27 contract is 179 d, under the 180-day floor → the carry's re-gate re-selects (`paper_loop.select_structure`): a veto, or a DIFFERENT contract (Jun-27 C25 at 15.5% OTM on the Sunday quote) — whether a carry may switch contracts is the operator's question** · SMCI's and CEG's lineages went dormant today (with GEV/LHX/NOC/UEC/UUUU/VRT); L0 #2143 scanned 49, surfaced 5 bears (CC/NXE/MOS re-surfaced, **FCX and MRK new lineages**); active 37 · NVDA −23% this week (162.85 → 125.53; canary 1.2857 not cheap 11-20) · expressible 31 of 49 on the Sunday probe → **27 from 11-23 (the cliff now costs 4: FLY/KTOS/NXE/UEC; BWXT/FLNC/RDW/SMR already lost on the floor)** · miss sweep #10 universe 32/30, market 27/18 · no pin expired; the EPA pins lapse 11-23 · bench: TEM fits ($898; report only) · **DEV rebooted 11-18 16:04→16:54 UTC (libc6 cleared; the 16:30 L2 tick missed); PROD still reboot-required**, `d276bf1`, 12 PRs behind. On top of the 11-12 → 11-19 rulings (kill rule, boundary B, #456 Arm A, look A, #464 B, #444 off-cycle).**
 
 Maintained by CC; updated on every ruling, clock change, staged-PR change, or pending-act change.
 **Relay rule (both directions): a strategy question or advice arriving WITHOUT this header, or carrying an
@@ -336,6 +336,8 @@ The header's absence is itself a signal.
   (amended 11-09: majority of the next 3 reads) is read when the 5th real entry is decided.
 - **Sun 2026-11-08: DONE** (W45): the 09-27 five went dormant (none re-surfaced); KMT pin #19 lapsed, not re-pinned.
 - **Sun 2026-11-15: DONE** (W46): TITN's lineage dormant while held; FCX/MOS/MRK dormant; 6 re-surfaced, 0 new.
+- **Sun 2026-11-22: DONE** (W47): the 8 forecast dormancies happened (CEG/SMCI bull; GEV/LHX/NOC/UEC/UUUU/VRT bear); 5 surfaced
+  (CC/NXE/MOS re-surfaced, FCX and MRK bearish new); active 37. SMCI #14 carried into the cliff (below).
 - **By Wed 2026-11-25 (operator):** the rehearsal window and the other #540 §14 answers; for W48, the second paper
   account and its Pushover app token. **If W48:** the seed copy on Fri 11-27 after the 16:30 ET tick needs no
   `pending`/`carried`/`closing` row (SMCI #14 was `carried` on 11-21), and **this file must record PROD's armed timers
@@ -345,15 +347,22 @@ The header's absence is itself a signal.
 - **Before T4 (operator):** #542, which replaces PROD's sudoers wildcard (`cp /tmp/* /etc/systemd/system/*`) with
   exact per-unit rules.
 - **Owed (operator):** the thesis-as-direction class (W45: MOS, KKR; W46: + the RDW adversary 11-09, the MOS and UEC
-  strategists 11-11/11-12); TITN's slate presence while held (W46 §0; #464); whether the EPA pins lapse 11-23; the
-  libc6 reboots on DEV and PROD. ATKR's removal: **decided 2026-11-09** (`records/2026-11-09_atkr_removal.md`).
+  strategists 11-11/11-12); TITN's slate presence while held (W46 §0; #464); whether the EPA pins lapse 11-23 (they lapse by expiry
+  unless re-pinned); PROD's libc6 reboot (DEV rebooted 11-18); **whether a carry may switch contracts (W47 §0, SMCI #14)**;
+  TEM fits on the bench ($898, W47 §7; report only). The thesis-as-direction class stood at 15 candidates on 11-20. ATKR's removal: **decided 2026-11-09** (`records/2026-11-09_atkr_removal.md`).
 - **Tue 2026-11-17: the §10.11 floor-drought look** — the clock was 8 of 10 at #2055 (11-13); if the 11-16 and 11-17
   L1s are 0 at the floor, the pinned operator look is owed ("the wording may be too tight; nothing reverts
   automatically").
 - **~2026-11-19/20:** the backfill's weekly quota frees (RDW #9 entered 11-12).
 - **2026-11-16:** the EPA rule's effective date (no stay reported; D.C. Circuit petitions pending).
-- **Sun 2026-11-22:** the CEG and SMCI bullish lineages (rank slots) and the GEV/LHX/NOC/UEC/UUUU/VRT bearish ones go
-  dormant unless re-surfaced (last seen 10-11). **11-29:** NTSK and PWR (last seen 10-18).
+- **2026-11-29:** NTSK and PWR go dormant unless re-surfaced (last seen 10-18). **12-06:** BWXT/ETN/HBM/IRDM/KKR/LUNR/RKLB/SMR
+  (bearish, last seen 10-25).
+- **Mon 2026-11-23: SMCI #14's carry (15:00 → 20:30 UTC).** Its approved contract `SMCI270521C00027000` is 179 d, under
+  the floor. The carry re-runs the entry pipeline, which re-selects from the fresh chain (`paper_loop.py` select_structure):
+  a `carry_veto:veto-eligibility`, or a fill on another contract (Jun-27 C25, 15.5% OTM, on the W47 Sunday quote). It would be
+  the first carry to fill a contract the L1 did not approve; the 10-29 carry ruling covers price and date, not contract.
+  Operator's question (W47 §0). **Re-read W47 (Sunday quotes): the cliff costs 4 more (FLY/KTOS/NXE/UEC); BWXT/FLNC/RDW/SMR
+  had already lost structure on the 15% floor; expressible 31 → 27.**
 - **Mon 2026-11-23:** May-2027 drops under the gate's 180-day floor, on the first session after the November monthly
   expires (Fri 11-20). Re-read on W46 (11-15): no Aug-2027 quarterly listed; **BWXT/FLNC/FLY/KTOS/RDW/SMR/UEC have
   only Jan-2028 after May (KTOS Dec-2027)** → those 7 lose structure (KTOS to ~12-17) and **expressible falls ~35 →
@@ -370,10 +379,11 @@ The header's absence is itself a signal.
 - **January 2027 (first L1):** `council.monthly_spend_page_usd.anthropic` back to $10 (dated edit, §10.12).
 
 ## Board & book
-- Box: DEV = main `4fc9ab0` (#539, deployed 2026-11-20 ~02:05 UTC; before it `f36f9b5`, #520, 2026-11-18 03:35 UTC; **rebooted 2026-11-07 19:24 UTC** after the
-  operator's apt upgrade; **reboot-required since 2026-11-13 06:48 UTC, libc6**: hygiene only, no trading process is on
-  the old libc, so a reboot waits for a quiet weekend); **PROD = `d276bf1` (#521, promoted 2026-11-18 05:32 UTC = main
-  `f36f9b5`, #495–#520; reboot-required since 11-13 06:18 UTC, libc6), verified read-only 2026-11-18 ~05:35 UTC**
+- Box: DEV = main `4fc9ab0` (#539, deployed 2026-11-20 ~02:05 UTC; before it `f36f9b5`, #520, 2026-11-18 03:35 UTC; **rebooted 2026-11-18 (down 16:04 → up 16:54 UTC,
+  mid-session; the libc6 reboot-required flag cleared; the 16:30 L2 tick did not run; found on W47)**; live = origin/main
+  `aa13f95` (#543) at W47); **PROD = `d276bf1` (#521, promoted 2026-11-18 05:32 UTC = main
+  `f36f9b5`, #495–#520; reboot-required since 11-13 06:18 UTC, libc6, still at W47; 12 PRs / 47 commits behind main at
+  W47), verified read-only 2026-11-18 ~05:35 UTC and again 2026-11-22 (W47)**
   (ssh with the operator's go): HEAD `d276bf1`, clean tree, 0 `dramatic-options-*` timers loaded (l0/l1/l2/reach/post-l1
   all inactive), 0 failed units, units on `-m orchestrator` (post-l1 `--post-l1`), `trading-bot` active, `/api/version`
   env `prod` at `d276bf1`; inert: `LIVE_TRADING_ENABLED=false`, `DRY_RUN=true`,
@@ -387,14 +397,16 @@ The header's absence is itself a signal.
     cached read (verdict, heartbeats, KILL, drawdown vs halt, book, last council, T4 — under 5 KB, no positions).
 - Universe **49 names** from the first run after the 2026-11-09 removal (ATKR delisted 2026-10-19, Atkore taken
   private; `records/2026-11-09_atkr_removal.md`; it stays in the frozen `ai_capex_power` cluster for its open
-  null positions) · 16 clusters (book fills at most 5). Expressible 35 of 49 on the 11-15 Sunday probe (33 on #2055's `record_ok`; sweep #9
-  30; no structure AMSC/CC/ERO/FRO/HBM/IRDM/LHX/NNE/NOC/PL/STUB/TGB/UROY/UUUU — ERO/LHX/NOC on the 15% floor).
-  Active sentinel lineages 40 (11-15).
-- Book: real 4 open, $3,420 (marks at the 11-13 21:30 L2; unrealized ≈ −$396, realized $0; kill-rule drawdown ~4%):
-  PL ($690; 0.015), FLNC #6 10× `FLNC270521P00005000` @ 1.00 ($1,000, filled 11-04 via carry from #1918; 1.505), TITN #7
-  3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry; 2.1795; **lineage dormant 11-15**), RDW #13
+  null positions) · 16 clusters (book fills at most 5). Expressible 31 of 49 on the 11-22 Sunday probe → 27 from 11-23 (37 on #2140's `record_ok`;
+  sweep #10 32; no structure BWXT/CC/FLNC/FRO/HBM/IRDM/KLAR/LHX/LUNR/NNE/NOC/PL/RDW/SMR/STUB/TGB/UROY/UUUU; from 11-23 also
+  FLY/KTOS/NXE/UEC). Active sentinel lineages 37 (11-22).
+- Book: real 4 open, $3,420 (marks at the 11-20 21:30 L2; unrealized +$692.50, realized $0):
+  PL ($690; 0.035), FLNC #6 10× `FLNC270521P00005000` @ 1.00 ($1,000, filled 11-04 via carry from #1918; 2.18), TITN #7
+  3× `TITN270617C00030000` @ 2.60 ($780, backfill, filled 11-04 via carry; 1.43; **lineage dormant 11-15**), RDW #13
   10× `RDW270521P00006000` @ 0.95 ($950, backfill, filled 11-13 18:00 UTC after the #8 carry veto and the #9 re-entry;
-  0.85). space_smallcap $1,640 of $2,000 (RDW bear + PL bull). Null books accruing (shadow · 3A · 3B · shares; 3B booked
+  reopened 11-19 by #534 after the 11-18 phantom close; 1.50). **SMCI #14** 2× `SMCI270521C00027000` @ 3.95 ($790,
+  backfill, L1 #2140 11-20, include=false read) is **`carried`** to Mon 11-23 (re-gate re-selects; W47 §0); **its lineage
+  went dormant 11-22**. space_smallcap $1,640 of $2,000 (RDW bear + PL bull). Null books accruing (shadow · 3A · 3B · shares; 3B booked
   LMT 11-15). **Last above-floor conviction: run #1918, 2026-11-03 (FLNC MODERATE)**; before it #1867 (AG) and #1816
   (HL), both cancelled unfilled.
 - Open issues: as of 2026-11-12; no count kept (#446): `gh issue list` is the source. The parser reads only this
@@ -420,5 +432,5 @@ The header's absence is itself a signal.
   **Closed 11-12 to 11-14:** #473 (11-12) · #492 by #495 · #494 by #496 · #479 by #498 · #480 by #497.
   **Closed 11-10 to 11-12:** #421 by #426 (restate_v1, 11-12) · #437 by #441 · #440 by #442 · #445 by #447 ·
   #446 by #448 · #449 by #450 · #451 by #478 · #458 by #475.
-- NVDA opra canary at or above 1.0 for 23 prints (11-13 1.1915, the streak's high, 0.0085 under the 1.2 gate line)
-  after eight below (low 0.9818).
+- NVDA opra canary at or above 1.0 for 28 prints; above the 1.2 gate line (not cheap) on 11-16, 11-17 and 11-20
+  (1.2857, the high). NVDA spot fell 23% in W47 (162.85 → 125.53; −14% on 11-20); cause unverified.
