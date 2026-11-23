@@ -8,6 +8,11 @@ Maintained by CC; updated on every ruling, clock change, staged-PR change, or pe
 The header's absence is itself a signal.
 
 ## Rulings in force
+- **Operator word 2026-11-22 ("Sure", on /triage; #546): SMCI #14's carry runs as designed.** The backfill entry
+  `SMCI270521C00027000` (L1 #2140, 11-20) carries into Mon 11-23, when that contract is 179 d, under
+  `tenor_min_days` 180. The carry re-runs the full entry pipeline on the fresh chain, so it vetoes or buys an
+  in-window contract that passes every check a fresh entry passes. The standing rule (A, allow and record the switch;
+  or B, pin the L1's contract) is owed at boundary B or later; CC recommends A.
 - **Operator decisions on the roadmap drafts (2026-11-12; `records/2026-11-12_operator_decisions_roadmap.md`):**
   - **Kill rule made operational** (#465, #472; PREREG_THEMATIC_CONVEXITY §6 conformance notes and §5 reading note):
     - **Dry leg:** runs from the first real fill (2026-07-01) and resets on a real close with `realized_pnl > 0`. It
