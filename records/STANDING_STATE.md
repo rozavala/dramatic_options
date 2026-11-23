@@ -427,6 +427,7 @@ The header's absence is itself a signal.
   **Filed 2026-11-18:** #529 (dashboard `market_context` relabel; #462 decision 7).
   **Filed 2026-11-18/19:** #532 (#455 re-print label, before 2027-01-17) · #533 (mark bound; fixed #535) · #534 (the
   RDW #13 journal repair) · #537 (a junk quote below the bound; operator decision).
+  **Filed 2026-11-22:** #546 (a carry re-selects its contract; SMCI #14 ruled 'let it run', standing rule owed).
   **2026-11-20/21:** #529 and #532 closed by #539 (with #462's §8 regime card) · #464, #455 and #453 closed as
   shipped · #444 got Alpaca's expiry policy from its docs (auto-exercise at ≥ $0.01 ITM; a sell-out in the last hour
   without buying power or shares; DNE endpoint on expiration day) · **filed #542** (PROD sudoers wildcard, a T4 row) ·
