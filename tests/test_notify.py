@@ -122,3 +122,66 @@ def test_the_onfailure_cli_logs_the_sent_line_too():
     assert out.returncode == 0, out.stderr
     assert "INFO notify: notify: sent 'UNIT FAILED: x.service'" in out.stderr
     assert "tok-secret" not in out.stderr and "usr-secret" not in out.stderr
+
+
+def _capture_title(monkeypatch):
+    monkeypatch.setenv("PUSHOVER_API_TOKEN", "tok")
+    monkeypatch.setenv("PUSHOVER_USER_KEY", "usr")
+    captured = {}
+
+    class _Resp:
+        status_code = 200
+        text = "ok"
+
+    def _fake_post(url, data=None, timeout=None):
+        captured["data"] = data
+        return _Resp()
+
+    import requests
+
+    monkeypatch.setattr(requests, "post", _fake_post)
+    return captured
+
+
+@pytest.mark.parametrize(("env", "expected"), [
+    ("PROD", "Dramatic Options [PROD] — Kill rule"),
+    ("prod", "Dramatic Options [PROD] — Kill rule"),
+    (" dev ", "Dramatic Options [DEV] — Kill rule"),
+    ("", "Dramatic Options — Kill rule"),
+    (None, "Dramatic Options — Kill rule"),
+    ("staging", "Dramatic Options — Kill rule"),   # never invents an environment
+])
+def test_the_page_title_names_the_box_that_sent_it(monkeypatch, env, expected):
+    captured = _capture_title(monkeypatch)
+    if env is None:
+        monkeypatch.delenv("DRAMATIC_ENV", raising=False)
+    else:
+        monkeypatch.setenv("DRAMATIC_ENV", env)
+    assert notify.send("Kill rule", "halted") is True
+    assert captured["data"]["title"] == expected
+
+
+def test_every_unit_that_can_page_carries_the_env_name():
+    """Every unit that runs code which can page gets DRAMATIC_ENV from the deploy's ENV_NAME (#page-env-title)."""
+    import pathlib
+    units = pathlib.Path(__file__).resolve().parents[1] / "scripts" / "systemd"
+    paging = [p for p in sorted(units.glob("dramatic-options-*.service"))
+              if "ExecStart=__REPO_ROOT__/" in p.read_text()]
+    assert {p.name for p in paging} >= {f"dramatic-options-{n}.service"
+                                         for n in ("l0", "l1", "l2", "post-l1", "reach", "notify@", "web")}
+    for p in paging:   # a future unit that runs repo code is covered without editing this test
+        assert "Environment=DRAMATIC_ENV=__ENV_NAME__" in p.read_text(), p.name
+
+
+def test_a_rendered_unit_carries_the_deploys_env_name(tmp_path):
+    """Render through deploy.sh's own render_unit: the placeholder becomes ENV_NAME (#544 review)."""
+    import pathlib
+    import subprocess
+    root = pathlib.Path(__file__).resolve().parents[1]
+    fn = subprocess.run(["bash", "-c", f"sed -n '/^render_unit()/,/^}}/p' {root}/deploy.sh"],
+                        capture_output=True, text=True, check=True).stdout
+    assert fn.startswith("render_unit()")
+    out = subprocess.run(["bash", "-c", fn + "\nREPO_ROOT=/r USER_NAME=u GROUP_NAME=g ENV_NAME=PROD "
+                          f"render_unit {root}/scripts/systemd/dramatic-options-l2.service"],
+                         capture_output=True, text=True, check=True).stdout
+    assert "Environment=DRAMATIC_ENV=PROD" in out and "__ENV_NAME__" not in out

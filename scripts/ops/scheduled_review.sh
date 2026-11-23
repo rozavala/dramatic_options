@@ -30,9 +30,9 @@ mkdir -p "$STATE_DIR"
 ts() { date -u +%FT%TZ; }
 push() {  # title, message, priority — the live checkout's notify.py + .env (execution only; nothing written there)
   [ "$DRY" -eq 1 ] && { echo "[dry-run] push: $1 — $2"; return 0; }
-  ( cd "$LIVE" && venv/bin/python notify.py --priority "${3:-0}" "$1" "$2" ) >/dev/null 2>&1 || true
+  ( cd "$LIVE" && DRAMATIC_ENV=DEV venv/bin/python notify.py --priority "${3:-0}" "$1" "$2" ) >/dev/null 2>&1 || true
 }
-trap 'rc=$?; push "[DEV] Dramatic $JOB FAILED" "launcher error rc=$rc at line $LINENO — see $STATE_DIR/cron.log"; exit $rc' ERR
+trap 'rc=$?; push "$JOB FAILED" "launcher error rc=$rc at line $LINENO — see $STATE_DIR/cron.log"; exit $rc' ERR
 
 exec 9>"$LOCK"
 flock -n 9 || { echo "$(ts) $JOB already running — skip"; exit 0; }
@@ -61,7 +61,7 @@ else
   waited=0
   until ran_today; do
     if [ "$waited" -ge "$WAIT_MIN" ]; then
-      push "[DEV] Dramatic $JOB NOT RUN" "$UNIT has not exited today after ${WAIT_MIN}m of waiting — nothing reviewed" 0
+      push "$JOB NOT RUN" "$UNIT has not exited today after ${WAIT_MIN}m of waiting — nothing reviewed" 0
       echo "$(ts) $JOB: $UNIT not run today after ${WAIT_MIN}m — giving up"; exit 0
     fi
     [ "$waited" -eq 0 ] && echo "$(ts) $JOB: waiting for $UNIT to finish today's run"
@@ -133,5 +133,5 @@ RESUME="cd $RUNNER_DIR && claude --resume $SID"
 PRIO=-1; [ "$JOB" = sunday ] && PRIO=0
 echo "$RESULT" | grep -q -E "FINDINGS: (0|none)" || [ "$JOB" = sunday ] || PRIO=0
 [ "$RC" -eq 0 ] || { PRIO=0; RESULT="claude exited rc=$RC — $RESULT"; }
-push "[DEV] Dramatic $JOB $DATE" "$RESULT — resume: $RESUME" "$PRIO"
+push "$JOB $DATE" "$RESULT — resume: $RESUME" "$PRIO"
 echo "$(ts) done $JOB rc=$RC: $RESULT"

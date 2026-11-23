@@ -43,6 +43,17 @@ def _load_env() -> None:
         pass
 
 
+def _title_prefix() -> str:
+    """``Dramatic Options [PROD]`` / ``[DEV]`` when the unit says which box it runs on (``DRAMATIC_ENV``, rendered
+    from the deploy's ENV_NAME into every unit), else the bare prefix (cron, the CLI, tests).
+
+    DEV and PROD share one Pushover app, so without the tag a page cannot say which box sent it (the PROD paper
+    rehearsal, and T4 after it, run both boxes at once). Only DEV and PROD are named; any other value is ignored, so a
+    typo never invents an environment."""
+    env = os.getenv("DRAMATIC_ENV", "").strip().upper()
+    return f"{_TITLE_PREFIX} [{env}]" if env in ("DEV", "PROD") else _TITLE_PREFIX
+
+
 def send(title: str, message: str, *, priority: int = 0) -> bool:
     """Send a Pushover push. Returns True on a 2xx, False otherwise. NEVER raises.
 
@@ -56,7 +67,8 @@ def send(title: str, message: str, *, priority: int = 0) -> bool:
         log.debug("notify: PUSHOVER_* unset — skipping push (%s)", title)
         return False
 
-    full_title = f"{_TITLE_PREFIX} — {title}" if title else _TITLE_PREFIX
+    prefix = _title_prefix()
+    full_title = f"{prefix} — {title}" if title else prefix
     # Pushover caps the body at 1024 chars.
     body = (message or "")[:1024]
     try:

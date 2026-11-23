@@ -25,6 +25,7 @@ Group=__GROUP__
 WorkingDirectory=__REPO_ROOT__
 EnvironmentFile=__REPO_ROOT__/.env
 Environment=PYTHONUNBUFFERED=1
+Environment=DRAMATIC_ENV=__ENV_NAME__
 # Ceiling: a healthy digest run measures ~2-3 min (22 feeds + 46 X accounts + the orphan sweep)
 # and cards ~1-2 min incl. bounded Stage-B drafts; 900s clears both with margin while SIGTERMing
 # (→ page) a wedged provider rather than grinding (the L0 "fail loud" posture).

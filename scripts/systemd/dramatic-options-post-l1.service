@@ -25,6 +25,7 @@ Group=__GROUP__
 WorkingDirectory=__REPO_ROOT__
 EnvironmentFile=__REPO_ROOT__/.env
 Environment=PYTHONUNBUFFERED=1
+Environment=DRAMATIC_ENV=__ENV_NAME__
 # Hang ceiling: the repeat probe is ~50 strategist calls (~10 names x k=5; the L1's whole 3-role council for ~10
 # names measured 6m47s on 11-13), the held pass one full debate per held name; 3600s clears a slow night with retries
 # while SIGTERMing (→ page) a wedged provider. Each pass's own CostLedger caps its spend independently.

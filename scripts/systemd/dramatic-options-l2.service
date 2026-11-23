@@ -17,6 +17,7 @@ Group=__GROUP__
 WorkingDirectory=__REPO_ROOT__
 EnvironmentFile=__REPO_ROOT__/.env
 Environment=PYTHONUNBUFFERED=1
+Environment=DRAMATIC_ENV=__ENV_NAME__
 # Comfortable now; if Alpaca is slow against a full 15-position book it fails LOUD (SIGTERM →
 # OnFailure → page) rather than silently — the correct direction. Bump if it pages on slow days.
 TimeoutStartSec=180
