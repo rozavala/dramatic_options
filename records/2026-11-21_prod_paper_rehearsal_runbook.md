@@ -397,10 +397,22 @@ On PROD, in `~/dramatic_options`:
    python3 -c "import sqlite3, sys; c = sqlite3.connect(f'file:{sys.argv[1]}/dramatic_options.db?mode=ro', uri=True); \
    print(c.execute('PRAGMA integrity_check').fetchone()[0], c.execute('SELECT MAX(id) FROM runs').fetchone()[0])" "$d"
    ```
-   Leave `data/` without a DB. #541's arming precheck expects the real book to start empty. The pre-rehearsal DB
-   stays in `~/rehearsal/pre-rehearsal/`.
-5. Remove `KILL` if it was set. Confirm again that 0 timers are listed.
-6. CC updates STANDING_STATE (PROD inert, rehearsal done, the record's link) and writes the dated record.
+5. Put PROD's pre-rehearsal DB back, so PROD returns to exactly its pre-rehearsal state. Do not leave `data/` without
+   a DB: the web dashboard and any later inert deploy and migration expect one. Move the files archived in §7.2
+   back into `data/`, keeping their names, with the web dashboard stopped around the move:
+   ```bash
+   sudo systemctl stop dramatic-options-web.service
+   for f in dramatic_options.db dramatic_options.db-wal dramatic_options.db-shm; do
+     if [ -e ~/rehearsal/pre-rehearsal/$f ]; then mv ~/rehearsal/pre-rehearsal/$f data/; fi; done
+   sudo systemctl start dramatic-options-web.service
+   ls -la data/dramatic_options.db*      # the pre-rehearsal file(s), nothing from the rehearsal
+   python3 -c "import sqlite3; c = sqlite3.connect('file:data/dramatic_options.db?mode=ro', uri=True); \
+   print(c.execute('PRAGMA integrity_check').fetchone()[0], c.execute('SELECT COUNT(*) FROM runs').fetchone()[0])"
+   ```
+   The run count must be the pre-rehearsal one, which is expected to be 0. A later arming (#541) archives this DB in
+   its own step.
+6. Remove `KILL` if it was set. Confirm again that 0 timers are listed.
+7. CC updates STANDING_STATE (PROD inert, rehearsal done, the record's link) and writes the dated record.
 
 ## 14. The operator's answers (2026-11-24)
 
