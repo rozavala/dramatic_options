@@ -28,6 +28,10 @@ TERM_SOURCE = "iv_term_snapshot"
 MIN_PCTILE_SESSIONS = 120
 DIV_LAG_SESSIONS = 21
 TERM_MIN_DTE, TERM_MAX_DTE, CONST_DTE = 30, 550, 180
+# PREREG_CONVEXITY_REGIME_SERIES §5: a change to the term record's DEFINITION (the expiry window, the ATM / 25%-OTM
+# picks, the IV source) bumps this, and the #462 series segments on it. Records written before the stamp read as 1.
+# Adding the #455 fields (rv63/rv21, quotes) changes no existing field, so it does not bump it.
+TERM_VERSION = 1
 
 
 # ── the nightly term record (written by gate_dualread.sweep_universe) ───────────────────────────
@@ -40,8 +44,11 @@ def _iv_near(chain: list[Contract], *, kind: str, expiry: date, target: float, r
 
 
 def term_record(symbol: str, chain: list[Contract], *, spot: float | None, rv: float | None,
-                as_of_dt: datetime) -> dict:
-    """Per expiry in [30, 550] d: ATM call/put IV and 25%-OTM call/put IV (standard OCC class only)."""
+                as_of_dt: datetime, extras: dict | None = None) -> dict:
+    """Per expiry in [30, 550] d: ATM call/put IV and 25%-OTM call/put IV (standard OCC class only).
+
+    ``extras`` (PREREG_CHEAP_THEN_REPRICED §4.1, #455/#462): the optional ``rv63`` / ``rv21`` / ``quotes`` fields,
+    merged in only when present (a capture error leaves the record without them, never with a stand-in)."""
     as_of = as_of_dt.date()
     rows = []
     if spot and spot > 0:
@@ -57,7 +64,23 @@ def term_record(symbol: str, chain: list[Contract], *, spot: float | None, rv: f
                  "otm_p": _iv_near(chain, kind="P", expiry=exp, target=spot * 0.75, root=root)}
             if any(r[k] is not None for k in ("atm_c", "atm_p")):
                 rows.append(r)
-    return {"ts": as_of_dt.isoformat(), "symbol": symbol.upper(), "spot": spot, "rv": rv, "expiries": rows}
+    rec = {"ts": as_of_dt.isoformat(), "symbol": symbol.upper(), "spot": spot, "rv": rv, "expiries": rows,
+           "term_version": TERM_VERSION}
+    for k in ("rv63", "rv21", "quotes"):
+        if extras and extras.get(k) is not None:
+            rec[k] = extras[k]
+    return rec
+
+
+def tracked_quotes(chain: list[Contract], contracts) -> dict[str, list | None]:
+    """``{occ: [bid, ask, iv]}`` from tonight's chain for each tracked contract (§4.1). A contract the chain did not
+    return (delisted, expired, not listed) is stored as ``None``, never dropped. No fetch: reads the chain only."""
+    by = {c.symbol: c for c in chain}
+    out: dict[str, list | None] = {}
+    for occ in sorted({str(o) for o in contracts if o}):
+        c = by.get(occ)
+        out[occ] = None if c is None else [c.bid, c.ask, c.iv]
+    return out
 
 
 def persist_term_record(cache, record: dict, as_of_dt: datetime) -> None:

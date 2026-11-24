@@ -708,6 +708,20 @@ def test_open_positions_days_left_is_live_not_dte_at_entry(convexity_db):
     assert mc["dte"] == live                                           # same corrected field in the market panel
 
 
+def test_market_context_labels_the_pool_not_the_universe(convexity_db):
+    """#529: the IV/RV and skew distributions are POOLED convexity_eval rows (PREREG_CONVEXITY_REGIME_SERIES §2), not the
+    universe and not one night. The keys say so, the values are unchanged, and the old "universe_*" names are gone."""
+    _common = dict(run_id=None, as_of="2026-06-01T00:00:00+00:00", theme="ai_compute", direction="bullish",
+                   decision="veto-iv-gate")
+    state.record_convexity_eval(convexity_db, symbol="VRT", iv_rv=1.0, otm_skew=4.0, **_common)
+    state.record_convexity_eval(convexity_db, symbol="PWR", iv_rv=2.0, otm_skew=8.0, **_common)
+    mc = dd.market_context(convexity_db)
+    assert mc["pooled_eval_iv_rv"] == {"n": 2, "p50": 1.5, "p90": 1.9, "max": 2.0}
+    assert mc["pooled_eval_otm_skew"] == {"n": 2, "p50": 6.0, "p90": 7.6, "max": 8.0}
+    assert "convexity_eval" in mc["pooled_eval_basis"] and "not the universe" in mc["pooled_eval_basis"]
+    assert not any(k.startswith("universe") for k in mc)
+
+
 # ── upcoming actions (issue #306): next_at from the systemd timers ─────────────────────────────
 
 def _systemctl(stdout, returncode=0):

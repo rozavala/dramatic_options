@@ -1388,8 +1388,10 @@ def cost_ledger(conn) -> dict:
 
 # ── D · market context (DB-only, NO-FETCH) ──────────────────────────────────────────────────────
 def market_context(conn) -> dict:
-    """Per-position option mark÷entry (the ROBUST live "is the thesis playing out" signal) + universe IV/RV-skew
-    regime (re-lens convexity_eval). Distance-to-strike from the cached snapshot is DEFERRED (caveated: a dormant
+    """Per-position option mark÷entry (the ROBUST live "is the thesis playing out" signal) + the IV/RV and OTM-skew
+    distributions POOLED over every ``convexity_eval`` row since June (#529). Those are the gate's own evaluations of
+    the names the book looked at — not the universe, and not one night (PREREG_CONVEXITY_REGIME_SERIES §2; the nightly
+    universe read is ``regime_series``). Distance-to-strike from the cached snapshot is DEFERRED (caveated: a dormant
     name's spot lags; needs cache parsing) — mark÷entry is the robust one."""
     positions = []
     for r in conn.execute(
@@ -1412,7 +1414,8 @@ def market_context(conn) -> dict:
         return {"n": len(xs), "p50": round(float(np.percentile(xs, 50)), 3),
                 "p90": round(float(np.percentile(xs, 90)), 3), "max": round(max(xs), 3)}
 
-    return {"open_positions": positions, "universe_iv_rv": _dist(iv), "universe_otm_skew": _dist(skew)}
+    return {"open_positions": positions, "pooled_eval_iv_rv": _dist(iv), "pooled_eval_otm_skew": _dist(skew),
+            "pooled_eval_basis": "every convexity_eval row since June (gate evaluations; not the universe, not one night)"}
 
 
 # ── scanning / sentinels / positions / council / curation / data ────────────────────────────────
@@ -2228,6 +2231,16 @@ def iv_history_panel(conn, cache_dir: str | Path) -> dict:
     return iv_history.panel(conn, PointInTimeCache(cache_dir, offline=True))
 
 
+def regime_series_panel(conn, cache_dir: str | Path, config: dict, *, as_of=None) -> dict:
+    """#462 §8: the market-wide convexity regime series card. Read-only, no fetch, derived at read time from the nightly
+    term records (no writer). Measurement only: nothing here is read by a gate, a size, an exit or a quota."""
+    import regime_series
+    from data.cache import PointInTimeCache
+
+    day = as_of or datetime.now(_ET).date()
+    return regime_series.panel(conn, PointInTimeCache(cache_dir, offline=True), config, as_of=day)
+
+
 def falsifier_panel(config: dict) -> dict:
     """D3b: the forward falsifier-accuracy ledger (sealed reads + specs still waiting for their quarter)."""
     import falsifier_ledger
@@ -2249,3 +2262,116 @@ def attention_panel(cache_dir: str | Path) -> dict:
     from data.cache import PointInTimeCache
 
     return attention.panel(PointInTimeCache(cache_dir, offline=True))
+
+
+# ── §10.13 held-name reads: the per-position timeline (#508; PREREG §3) ────────────────────────────────────────────
+HELD_READS_NOTE = "measurement only — never acted on (§10.13)"
+# #511: held_reads rows written before the fix (the first post-L1 run, 2026-11-16, run #2073) stored mark_multiple
+# without the ×100 contract multiplier. The timeline shows them corrected (×100) and flags them.
+HELD_MARK_FIX_BEFORE = "2026-11-17"
+HELD_SEATINGS_SHOWN = 10   # the most recent N of-record seatings per position; the rest are counted ("+K earlier")
+
+
+def _tf(v) -> bool | None:
+    """A stored criterion as True / False / None (not asserted)."""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        return {"1": True, "0": False, "true": True, "false": False}.get(v.strip().lower())
+    return bool(v)
+
+
+def _structural(v) -> bool | None:
+    """structural_vs_fad as True ("structural") / False ("fad") / None (absent, "unclear" or anything else — not a
+    False: the council did not call it a fad)."""
+    s = str(v).strip().lower() if v is not None else ""
+    return True if s == "structural" else False if s == "fad" else None
+
+
+def _criteria(structural_vs_fad, under_narrated, at_inflection) -> dict:
+    return {"structural": _structural(structural_vs_fad),
+            "under_narrated": _tf(under_narrated), "at_inflection": _tf(at_inflection)}
+
+
+def _proposal_verdict(row: dict) -> dict:
+    """An of-record proposal as the timeline shows it (conviction, include, the three criteria)."""
+    try:
+        rat = json.loads(row.get("rationale") or "{}") or {}
+    except (TypeError, ValueError):
+        rat = {}
+    st = rat.get("strategist") or {}
+    d = _et_date(row.get("as_of"))
+    return {"proposal_id": row["id"], "run_id": row.get("run_id"), "day": d.isoformat() if d else None,
+            "conviction": row.get("conviction"), "include": None if "include" not in st else bool(st.get("include")),
+            **_criteria(row.get("structural_vs_fad"), st.get("under_narrated"), st.get("at_inflection")),
+            "status": row.get("status"),
+            "source": ("sentinel" if row.get("sentinel_id") is not None else "hand-seed")
+            + (f" · {rat['selection']}" if rat.get("selection") else "")}
+
+
+def held_reads_panel(conn, *, ledger_path=None) -> dict:
+    """§10.13 §3: per open/closing real position, the entry verdict (its of-record proposal), every held read, the
+    of-record seatings of the same (symbol, direction) after entry (labelled by source), the falsifier-ledger reads
+    for the symbol, and the current mark multiple. Read-only and display-only: **no trend, no "thesis broken" badge,
+    no colour keyed to exit** (pinned); nothing here (or anywhere) acts on a held read (§5)."""
+    import backfill as _backfill
+    import falsifier_ledger
+
+    has_table = _scalar(conn, "SELECT 1 FROM sqlite_master WHERE type='table' AND name='held_reads'") is not None
+    fals_status, fals_rows = "ok", []
+    try:
+        path = Path(ledger_path) if ledger_path is not None else falsifier_ledger.LEDGER_PATH
+        if not path.exists():
+            fals_status = "no ledger file"
+        else:
+            fals_rows = falsifier_ledger._read_ledger(path)
+    except Exception as e:  # noqa: BLE001 — the timeline degrades to "unreadable", never fails on the ledger
+        fals_status = f"unreadable: {type(e).__name__}"
+    positions = []
+    for p in _rows(conn, "SELECT * FROM convexity_positions WHERE status IN ('open', 'closing') ORDER BY id"):
+        entry_pc, mark = p.get("entry_premium_per_contract"), p.get("mark")
+        try:
+            mult = round(float(mark) * 100.0 / float(entry_pc), 4) if mark is not None and entry_pc else None
+        except (TypeError, ValueError):
+            mult = None
+        prop = None
+        if p.get("proposal_id") is not None:
+            r = _rows(conn, "SELECT * FROM council_proposals WHERE id = ?", (p["proposal_id"],))
+            prop = r[0] if r else None
+        reads = []
+        if has_table:
+            for h in _rows(conn, "SELECT * FROM held_reads WHERE position_id = ? ORDER BY run_id, id", (p["id"],)):
+                old = str(h.get("created_at") or "") < HELD_MARK_FIX_BEFORE
+                mm = h.get("mark_multiple")
+                d = _et_date(h.get("as_of"))
+                reads.append({"run_id": h.get("run_id"), "day": d.isoformat() if d else None,
+                              "conviction": h.get("conviction"), "include": _tf(h.get("include")),
+                              **_criteria(h.get("structural_vs_fad"), h.get("under_narrated"), h.get("at_inflection")),
+                              "dropped": h.get("dropped"), "lineage_status": h.get("lineage_status"),
+                              "mark_multiple": None if mm is None else round(float(mm) * (100.0 if old else 1.0), 4),
+                              "mark_corrected": bool(old and mm is not None)})
+        opened = _parse_dt(p.get("opened_at"))
+        seatings = []
+        for s in _rows(conn, "SELECT * FROM council_proposals WHERE symbol = ? AND direction = ? AND id != ? "
+                             "ORDER BY run_id, id", (p["symbol"], p["direction"], p.get("proposal_id") or -1)):
+            t = _parse_dt(s.get("as_of"))
+            if opened is not None and t is not None and t > opened:
+                seatings.append(_proposal_verdict(s))
+        earlier = max(len(seatings) - HELD_SEATINGS_SHOWN, 0)
+        seatings = seatings[earlier:]
+        sym = str(p["symbol"]).upper()
+        fals = [{"read_at": f.get("read_at"), "spec_id": f.get("spec_id"), "direction": f.get("direction") or None,
+                 "metric": f.get("metric"),
+                 "value": f.get("value"), "threshold": f.get("threshold"), "period_end": f.get("period_end"),
+                 "fired": _tf(f.get("fired"))}
+                for f in fals_rows if str(f.get("symbol", "")).upper() == sym]
+        positions.append({
+            "position_id": p["id"], "symbol": p["symbol"], "direction": p["direction"], "status": p["status"],
+            "opened_day": _et_date(p.get("opened_at")).isoformat() if _et_date(p.get("opened_at")) else None,
+            "origin": _backfill._origin(p.get("rationale")), "mark_multiple": mult,
+            "entry": _proposal_verdict(prop) if prop else None,
+            "reads": reads, "seatings": seatings, "seatings_earlier": earlier, "falsifiers": fals})
+    return {"note": HELD_READS_NOTE, "held_reads_table": has_table, "falsifier_status": fals_status,
+            "mark_fix_note": f"held reads written before {HELD_MARK_FIX_BEFORE} stored the mark multiple 100x too "
+                             "small (#511); shown corrected (x100) and flagged",
+            "positions": positions}

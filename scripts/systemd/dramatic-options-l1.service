@@ -22,6 +22,7 @@ Group=__GROUP__
 WorkingDirectory=__REPO_ROOT__
 EnvironmentFile=__REPO_ROOT__/.env
 Environment=PYTHONUNBUFFERED=1
+Environment=DRAMATIC_ENV=__ENV_NAME__
 # Hang ceiling (PR2 R2): TimeoutStartSec is the oneshot-correct knob (the unit is "activating"
 # for the whole of ExecStart). A stalled LLM/broker call is SIGTERM'd here → non-zero exit →
 # OnFailure → page. This bound is INDEPENDENT of the 16:00 ET close: the no-post-close-submit

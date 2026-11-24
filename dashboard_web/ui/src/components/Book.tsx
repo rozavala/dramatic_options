@@ -3,6 +3,7 @@ import { Fragment } from "react";
 import { directionLabel, markLevel } from "../data/status";
 import type { VerticalLegsVM, ViewModel } from "../data/types";
 import { signal } from "../theme/tokens";
+import { HeldReadsCard } from "./HeldReads";
 import { Card, Chip } from "./primitives";
 
 const GRID = ".9fr 1.4fr .8fr .7fr .9fr .9fr .8fr .9fr 1fr";
@@ -91,6 +92,8 @@ export function Book({ vm }: { vm: ViewModel }) {
           </div>
         )}
       </Card>
+
+      <HeldReadsCard vm={vm} />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] items-start" style={{ gap: 16 }}>
         <Card style={{ padding: "18px 20px" }}>

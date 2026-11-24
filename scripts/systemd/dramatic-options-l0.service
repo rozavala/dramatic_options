@@ -23,6 +23,7 @@ Group=__GROUP__
 WorkingDirectory=__REPO_ROOT__
 EnvironmentFile=__REPO_ROOT__/.env
 Environment=PYTHONUNBUFFERED=1
+Environment=DRAMATIC_ENV=__ENV_NAME__
 # Hang ceiling (PR3) — DERIVED from the §C cold-cache measurement (2026-06-02), not guessed:
 #   • a healthy cold scan measured ~11s wall-clock ($0.0019, 8 gemini-3.1-flash-lite framer calls);
 #   • the only unbounded cost is the <=scan_top_k (8) SEQUENTIAL framer calls, each bounded by the
