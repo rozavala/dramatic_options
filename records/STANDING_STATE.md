@@ -8,6 +8,11 @@ Maintained by CC; updated on every ruling, clock change, staged-PR change, or pe
 The header's absence is itself a signal.
 
 ## Rulings in force
+- **Operator word 2026-11-22 ("Sure", on /triage; #546): SMCI #14's carry runs as designed.** The backfill entry
+  `SMCI270521C00027000` (L1 #2140, 11-20) carries into Mon 11-23, when that contract is 179 d, under
+  `tenor_min_days` 180. The carry re-runs the full entry pipeline on the fresh chain, so it vetoes or buys an
+  in-window contract that passes every check a fresh entry passes. The standing rule (A, allow and record the switch;
+  or B, pin the L1's contract) is owed at boundary B or later; CC recommends A.
 - **Operator decisions on the roadmap drafts (2026-11-12; `records/2026-11-12_operator_decisions_roadmap.md`):**
   - **Kill rule made operational** (#465, #472; PREREG_THEMATIC_CONVEXITY §6 conformance notes and §5 reading note):
     - **Dry leg:** runs from the first real fill (2026-07-01) and resets on a real close with `realized_pnl > 0`. It
@@ -422,6 +427,7 @@ The header's absence is itself a signal.
   **Filed 2026-11-18:** #529 (dashboard `market_context` relabel; #462 decision 7).
   **Filed 2026-11-18/19:** #532 (#455 re-print label, before 2027-01-17) · #533 (mark bound; fixed #535) · #534 (the
   RDW #13 journal repair) · #537 (a junk quote below the bound; operator decision).
+  **Filed 2026-11-22:** #546 (a carry re-selects its contract; SMCI #14 ruled 'let it run', standing rule owed).
   **2026-11-20/21:** #529 and #532 closed by #539 (with #462's §8 regime card) · #464, #455 and #453 closed as
   shipped · #444 got Alpaca's expiry policy from its docs (auto-exercise at ≥ $0.01 ITM; a sell-out in the last hour
   without buying power or shares; DNE endpoint on expiration day) · **filed #542** (PROD sudoers wildcard, a T4 row) ·
