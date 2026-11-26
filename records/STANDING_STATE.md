@@ -8,6 +8,20 @@ Maintained by CC; updated on every ruling, clock change, staged-PR change, or pe
 The header's absence is itself a signal.
 
 ## Rulings in force
+- **PROD paper rehearsal ARMED 2026-11-26 ~15:00 UTC (operator's words 2026-11-24 and 2026-11-26; runbook #540).**
+  - **The box:** PROD `ab6d309` (#548). Its `.env` has `PAPER=true`, `FORWARD_ENABLED=true`, `DRY_RUN=true` and
+    `LIVE_TRADING_ENABLED=false`, the live pair commented out, and **DEV's paper account (…8X2M), shared**. No
+    `--live` in any unit. Five timers armed (l0, l1, l2, post-l1, reach); pages are tagged `[PROD]`.
+  - **The seed:** DEV's DB at run #2194 (2026-11-25 21:30 UTC), sha256 `48e282cd…`, with the same 5 open
+    positions. PROD's pre-rehearsal DB and `.env` are kept in `~console/rehearsal/`.
+  - **Preflight passed:** the verify gate, the account check, and the OPRA probe (15/16 on both feeds, 0 flips).
+  - **Window:** through Fri 12-04 16:35 ET; the first council session is Mon 11-30. CC compares DEV with PROD
+    nightly, with one read-only ssh go for the week. **Abort on any Alpaca 429 or rate-limit line on either box.**
+  - **Merge hold:** no trading-path merges to main until Fri 12-04 16:35 ET.
+  - **Known differences, not failures:** council verdicts (LLM output); a same-day DEV fill can make PROD veto that
+    name as foreign quantity; PROD's cold cache on its first L1; the OPRA coverage-feasibility page (expected).
+  - **The Sunday review:** PROD's armed timers are intentional this week. #466 and #463 are deferred to a separate
+    account before T4.
 - **Operator word 2026-11-22 ("Sure", on /triage; #546): SMCI #14's carry runs as designed.** The backfill entry
   `SMCI270521C00027000` (L1 #2140, 11-20) carries into Mon 11-23, when that contract is 179 d, under
   `tenor_min_days` 180. The carry re-runs the full entry pipeline on the fresh chain, so it vetoes or buys an
