@@ -1,7 +1,7 @@
 # 2026-11-21 — The PROD paper rehearsal: runbook (#468)
 
 **Status: a runbook, operator-run. Amended 2026-11-24 to a SHARED-ACCOUNT rehearsal on the operator's answers of
-that day (§14). Nothing here arms live trading. The triple gate stays shut throughout: `PAPER=true`,
+that day (§14), and re-dated 2026-11-26: the operator moved the start to the Thanksgiving holiday. Nothing here arms live trading. The triple gate stays shut throughout: `PAPER=true`,
 `LIVE_TRADING_ENABLED=false`, no `--live` in any unit (`config_loader.py:180-194`). `DRY_RUN=true` stays on for the
 whole window.**
 
@@ -21,10 +21,15 @@ without ssh to PROD.
 
 ## 0. Decisions, and why
 
-1. **Window: Tue 11-24 → Tue 12-01.** That is 5 sessions: Tue 11-24, Wed 11-25, the Fri 11-27 half day (Thu is
-   closed), Mon 11-30 and Tue 12-01. The run includes Sun 11-29's L0 and reach. The seed was taken Mon 11-23 after the 16:30 ET tick. PROD is
-   rebooted (libc6), promoted (#548) and armed before Tue 11-24 09:00 ET. It returns to inert Tue 12-01 after
-   16:35 ET. All of this is before boundary B (12-05/06) and the 12-07 → 12-18 stamp freeze.
+1. **Window: armed Thu 11-26 (the holiday) → Fri 12-04.**
+   - The seed was taken Wed 11-25 after the 16:30 ET tick.
+   - PROD was promoted to `ab6d309` (#548) and verified inert on 11-24.
+   - On Thu 11-26 the operator reboots PROD (libc6) and arms it.
+   - The Fri 11-27 half day's L1 fires after the 13:00 close and short-circuits: no entries, no council.
+   - Sun 11-29's L0 and reach are included.
+   - The council sessions are Mon 11-30 to Fri 12-04 (5).
+   - PROD returns to inert Fri 12-04 after 16:35 ET, before the boundary-B merges of 12-05/06 and the 12-07 → 12-18
+     stamp freeze.
 2. **Shared paper account.** It is safe because PROD transmits nothing and can cancel only rows in its own DB (§1).
    Two shared-account divergences are accepted and logged: a foreign-quantity veto after a same-day DEV fill, and the
    shared Alpaca rate limit. A rate-limit hit is an abort (§11).
@@ -58,7 +63,10 @@ paper endpoint (`broker.py:153`, `:353`).
 | 11 | **Spend tripwire** | MTD is summed from the box's own DB (`orchestrator.py:304-317`, `state.py:1140`). | Neither box sees the combined spend (§12). |
 | 12 | **Pages** | With #544 (on main), titles carry `Dramatic Options [PROD]` or `[DEV]`, from `DRAMATIC_ENV`, which the deploy renders into every unit (`notify.py` on main). | DEV's app and user key are shared. The tag tells the boxes apart. PROD gets #544 with the #548 promotion. |
 
-**Expected PROD pages:** none in normal operation, except a foreign-quantity page after a same-day DEV fill (row 4).
+**Expected PROD pages:** none in normal operation, except these two, neither of which is an abort:
+- a foreign-quantity page after a same-day DEV fill (row 4);
+- the OPRA dual-read "coverage-feasibility" page. It is a structural tripwire, fires on the rising edge per name and
+  triggers no revert. It first fired on 11-24 for UUUU, around the tenor cliff and the Jul-27 listing.
 
 ## 2. Preconditions
 
@@ -67,30 +75,35 @@ paper endpoint (`broker.py:153`, `:353`).
 2. One go for CC to ssh to PROD read-only each evening of the window. Answered: given.
 
 **CC:**
-1. The seed. **Done 2026-11-23** (§5).
-2. Promotion #548 (`production ← main`) at the commit DEV runs. PROD was at `d276bf1`, which lacks #527, #533/#535,
+1. The seed. **Done 2026-11-25** (§5).
+2. Promotion #548 (`production ← main`) at the commit DEV runs. **Done:** PROD is at `ab6d309`, verified inert 11-24. Before it, PROD was at `d276bf1`, which lacks #527, #533/#535,
    the 0024 repair, #531 and #544.
-3. STANDING_STATE says PROD is armed until 12-01 before the Sun 11-29 Sunday review, which checks PROD's units.
+3. STANDING_STATE says PROD is armed until 12-04 before the Sun 11-29 Sunday review, which checks PROD's units.
 4. A merge hold on trading-path changes to main (§3).
 
 ## 3. Timeline
 
 | When (ET) | Who | What |
 |---|---|---|
-| Mon 11-23, after 16:35 | CC, on DEV | The seed. **Done:** `SEED OK` (§5). |
-| Mon 11-23 night → Tue 11-24 before 09:00 | operator | Reboot PROD; merge #548 (the CI deploy lands inert); move the seed; back up and edit `.env`; preflight; arm (§5-§7). |
-| Tue 11-24 → Tue 12-01 | timers; CC each evening | L2 ticks, the 15:45 L1, the 16:10 post-L1. On Sun 11-29, L0 and reach. Nightly comparison after 16:45 (§8). |
-| Fri 11-27 | — | A half day (13:00 close). The 15:45 L1 finds the market closed: no entries and no council spend. |
-| Tue 12-01, after 16:35 | operator | Return to inert (§13). CC writes the dated record. |
+| Tue 11-24 | CC, operator | #548 merged; PROD at `ab6d309`, verified inert. |
+| Wed 11-25, after 16:35 | CC, on DEV | The seed. **Done:** `SEED OK` (§5). |
+| Thu 11-26 (market closed) | operator | Reboot PROD; move the seed; back up and edit `.env`; preflight; arm (§5-§7). |
+| Fri 11-27 | timers | A half day (13:00 close). The 15:45 L1 finds the market closed and short-circuits: no entries, no council. L2 ticks mark. |
+| Sun 11-29 08:00 / 09:40 | timers | L0 and reach on both boxes. |
+| Mon 11-30 → Fri 12-04 | timers; CC each evening | L2 ticks, the 15:45 L1 (5 council sessions), the 16:10 post-L1. Nightly comparison after 16:45 (§8). |
+| Fri 12-04, after 16:35 | operator | Return to inert (§13). CC writes the dated record. |
+
+**Fallback if arming slips past Thu 11-26:** re-seed on Fri 11-27 after the half-day close, with the §5 script.
+Any carry has been worked off by then. Arm Fri evening or Sat, and use the new seed's sha256 in §5.
 | Sat 12-05 / Sun 12-06 | — | Boundary B merges on main for DEV, as planned. PROD stays inert. |
 
-**Merge hold (answered: yes), Tue 11-24 → Tue 12-01 16:35 ET.**
+**Merge hold (answered: yes), Thu 11-26 → Fri 12-04 16:35 ET.**
 - No trading-path merge to main: `orchestrator.py`, `paper_loop.py`, `monitor.py`, `broker.py`, `carry.py`,
   `council/`, `convexity_*`, `config.json`.
 - Records, dashboard and test-only merges may land.
 - An off-cycle fix (money-safety, fail-closed outage) is promoted to PROD before the next L1 and noted in the record.
 
-**The stamp freeze is not touched.** The window ends before 12-07. PROD's runs stamp only PROD's DB. The nightly
+**The stamp freeze is not touched.** The window ends Fri 12-04, before the 12-05/06 boundary merges and 12-07. PROD's runs stamp only PROD's DB. The nightly
 grade reads DEV's DB only (`scripts/ops/prompts/nightly_grade.md:7`), and so does the segment register
 (`records/segment_register.md:15-16`).
 
@@ -106,12 +119,12 @@ Afterwards, PROD's `/api/version` must show the same commit as DEV's.
 
 ## 5. The seed (DEV, done) and its transport
 
-**Done by CC on Mon 11-23 after the 16:30 ET tick.** CC used the script below: SQLite's backup API from a
+**Done by CC on Wed 11-25 after the 16:30 ET tick.** This seed supersedes the 11-23 one. CC used the script below: SQLite's backup API from a
 `?mode=ro` connection, never `cp` of a live WAL DB.
-- File: `~/rehearsal/seed_2026-11-23.db` on DEV.
-- Result: `SEED OK`. Last run `#2160`, `2026-11-23 21:30` UTC.
+- File: `~/rehearsal/seed_2026-11-25.db` on DEV.
+- Result: `SEED OK`. Last run `#2194`, `2026-11-25 21:30:02` UTC.
 - Open rows: 1 PL, 6 FLNC, 7 TITN, 13 RDW, 16 SMCI.
-- sha256: `d72700e70b65150453c1dfa366465267303ff01070b8f5932d5caec6ec9d9f10`.
+- sha256: `48e282cda45e3b3431d257f7af68c33876ec04216eb327fc4ec005849b82251a`.
 - DEV had no `data/drawdown_warn_state.json`, so none goes with it.
 
 The script, for the record and for any re-take:
@@ -151,9 +164,9 @@ sys.exit(1 if fails else 0)
 Transport (operator; PROD user `console`):
 ```bash
 ssh console@all-options-prod 'mkdir -p ~/rehearsal && chmod 700 ~/rehearsal'
-scp ~/rehearsal/seed_2026-11-23.db console@all-options-prod:~/rehearsal/
-ssh console@all-options-prod 'sha256sum ~/rehearsal/seed_2026-11-23.db'
-# must print d72700e70b65150453c1dfa366465267303ff01070b8f5932d5caec6ec9d9f10
+scp ~/rehearsal/seed_2026-11-25.db console@all-options-prod:~/rehearsal/
+ssh console@all-options-prod 'sha256sum ~/rehearsal/seed_2026-11-25.db'
+# must print 48e282cda45e3b3431d257f7af68c33876ec04216eb327fc4ec005849b82251a
 ```
 
 `data/cache/` (471 MB) is not copied. It is a point-in-time read-through cache, and its history-bearing parts are
@@ -202,7 +215,7 @@ grep -E '^(PAPER|LIVE_TRADING_ENABLED|DRY_RUN|FORWARD_ENABLED)=' .env
    ```bash
    mkdir -p ~/rehearsal/pre-rehearsal
    mv data/dramatic_options.db* ~/rehearsal/pre-rehearsal/
-   cp ~/rehearsal/seed_2026-11-23.db data/dramatic_options.db
+   cp ~/rehearsal/seed_2026-11-25.db data/dramatic_options.db
    ```
    The web dashboard may hold the old file open until the arming deploy restarts it (`deploy.sh:225-226`, `:353`).
 3. Preflight, read-only:
@@ -220,7 +233,7 @@ grep -E '^(PAPER|LIVE_TRADING_ENABLED|DRY_RUN|FORWARD_ENABLED)=' .env
      ```
    - **Old timer stamps:** `ls /var/lib/systemd/timers/ 2>/dev/null | grep dramatic`. If any exist, a `Persistent=true`
      unit may fire once at arming. That is harmless (the market is closed), but note it in the record. **UNVERIFIED.**
-4. Arm before Tue 11-24 09:00 ET:
+4. Arm on Thu 11-26 (the market is closed):
    ```bash
    ENV_NAME=PROD ./deploy.sh
    systemctl list-timers 'dramatic-options-*' --no-legend      # expect 5: l0, l1, l2, reach, post-l1
@@ -234,7 +247,7 @@ grep -E '^(PAPER|LIVE_TRADING_ENABLED|DRY_RUN|FORWARD_ENABLED)=' .env
 ## 8. Each evening: the DEV vs PROD comparison
 
 **Who reads:** CC, in one session each weekday evening after 16:45 ET, with the operator's ssh go for the window (given).
-The DEV nightly grade is unchanged. CC writes `records/2026-12-01_prod_rehearsal_record.md` at the end, with one section per
+The DEV nightly grade is unchanged. CC writes `records/2026-12-04_prod_rehearsal_record.md` at the end, with one section per
 day.
 
 **The read:** the same script on both DBs, `?mode=ro`, for the day's UTC date (L1 = 20:45 UTC, L0 = 13:00 UTC).
@@ -271,7 +284,7 @@ show("null books closed", "SELECT 'shadow', contract_symbol, exit_reason FROM sh
 show("held reads", "SELECT symbol, conviction, include, dropped FROM held_reads WHERE date(created_at)=?")
 ```
 ```bash
-D=2026-11-24
+D=2026-11-30
 python3 ~/rehearsal/cmp.py /home/rozavala/dramatic_options/data/dramatic_options.db $D > ~/rehearsal/dev_$D.txt
 ssh console@all-options-prod "python3 - /home/console/dramatic_options/data/dramatic_options.db $D" \
     < ~/rehearsal/cmp.py > ~/rehearsal/prod_$D.txt
@@ -347,7 +360,7 @@ A PROD unit failure (`OnFailure` page, tagged `[PROD]`) is investigated first. I
 - **The shared Alpaca rate limit.** See §1, row 10. Contained by the nightly grep and abort 1.
 - **LLM spend on shared keys** (measured on DEV, W42-W46):
   - council about $1.3 a week; held reads about $0.20 a day;
-  - realistic extra for the window: about $2.5-3. The Fri 11-27 L1 has no council;
+  - realistic extra for the window: about $2.5-3 (5 council sessions; the Fri 11-27 L1 has no council);
   - ceiling from the caps: about $30;
   - neither box's tripwire sees the combined spend. **UNVERIFIED:** the provider console limits.
 - **X API:** the shared token doubles the x_lists reads. **UNVERIFIED:** its quota. A failure there fails closed and
@@ -366,7 +379,7 @@ A PROD unit failure (`OnFailure` page, tagged `[PROD]`) is investigated first. I
 - **Reach writes untracked `records/digests/` and `records/cards/` files on PROD.** Harmless; they are never
   committed from PROD.
 
-## 13. Return to inert (Tue 12-01 after 16:35 ET, or at once on an abort)
+## 13. Return to inert (Fri 12-04 after 16:35 ET, or at once on an abort)
 
 On PROD, in `~/dramatic_options`:
 1. On an abort only: `touch KILL`. Every unit halts at its next start. With no `pending` row, the KILL cancel has
@@ -416,11 +429,11 @@ On PROD, in `~/dramatic_options`:
 
 ## 14. The operator's answers (2026-11-24)
 
-1. **Window:** start Tue 11-24. The run is 11-24 → 12-01 on a seed taken 11-23.
+1. **Window:** start Tue 11-24 (re-dated 11-26 by the operator). Armed Thu 11-26, it runs to Fri 12-04 on the 11-25 seed.
 2. **Account:** DEV's paper account, shared. No second account.
 3. **The live pair:** commented out of PROD's `.env` for the window.
 4. **DRY_RUN=false window:** none.
-5. **Merge hold:** yes, on trading-path merges, 11-24 → 12-01.
+5. **Merge hold:** yes, on trading-path merges, Thu 11-26 → Fri 12-04 16:35 ET.
 6. **`X_BEARER_TOKEN`:** shared.
 7. **The nightly read:** CC, with one ssh go for the window. Given.
 8. **#466, #463 and the expiring spread:** deferred to a separate account before T4.
